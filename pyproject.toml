@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "omni-py"
+version = "0.1.0"
+description = ""
+authors = ["almutlue <almut.lue@gmail.com>"]
+readme = "README.md"
+packages = [{include = "omni-py"}]
+homepage = "https://github.com/almutlue/omni-py"
+repository = "https://github.com/almutlue/omni-py"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Development Status :: 3 - Alpha",
+]
+
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
