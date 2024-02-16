@@ -1,0 +1,68 @@
+---
+name: implicit
+description: simple benchmark, implicit, no params
+platform: https://gitlab.renkulab.io/
+orchestrator:
+  name: orchestrator
+  url: https://gitlab.renkulab.io/omnibenchmark/test/orchestrator
+steps:
+  data:
+    initial: true
+    members:
+      - name: D1
+        repo: omnibenchmark/test/D1
+      - name: D2
+        repo: omnibenchmark/test/D2
+    outputs:
+      - counts: output/{stage}/{module}/{name}.txt.gz
+      - meta: output/{stage}/{module}/{name}.meta.json
+      - data_specific_params: output/{stage}/{module}/{name}_params.txt
+  process:
+    after:
+      - data
+    members:
+      - name: P1
+        repo: omnibenchmark/test/P1
+      - name: P2
+        repo: omnibenchmark/test/P2
+    inputs:
+      - counts: data
+        meta: data
+    outputs:
+      - filtered: "{input_dirname}/{stage}/{module}/{name}.txt.gz"
+  methods:
+    after:
+      - process
+    members:
+      - name: M1
+        repo: benchmark/test/M1
+        exclude: D2
+      - name: M2
+        repo: omnibenchmark/test/M2
+        exclude:
+          - D1
+          - D2
+    inputs:
+      - counts: data
+        meta: data
+        data_specific_params: data
+      - filtered: process
+        meta: data
+        data_specific_params: data
+    outputs:
+      - mapping: "{input_dirname}/{stage}/{module}/{name}.model.out.gz"
+  metrics:
+    after:
+      - methods
+    terminal: true
+    members:
+      - name: m1
+        repo: omnibenchmark/test/m1
+      - name: m2
+        repo: omnibenchmark/test/m2
+      - name: m3
+        repo: omnibenchmark/test/m3
+    inputs:
+      - mapping: method
+        meta: data
+        data_specific_params: data
