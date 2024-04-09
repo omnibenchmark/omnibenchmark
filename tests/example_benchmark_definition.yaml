@@ -1,68 +1,118 @@
 ---
-name: implicit
-description: simple benchmark, implicit, no params
-platform: https://gitlab.renkulab.io/
+id: Benchmark_001
+name: starts_to_be_explicit
+description: simple benchmark, somewhat explicit, simple params
+version: 1.0
+platform: https://github.com/
+storage: https://storage.github.com/
 orchestrator:
   name: orchestrator
-  url: https://gitlab.renkulab.io/omnibenchmark/test/orchestrator
+  url: https://github.com/omnibenchmark/test/orchestrator
+validator:
+  name: validator
+  url: https://github.com/omnibenchmark/test/validator
+  schema_url: https://github.com/omnibenchmark/omni_essentials
 steps:
-  data:
+  - id: Step1
+    name: data
     initial: true
     members:
-      - name: D1
+      - id: D1
+        name: D1
         repo: omnibenchmark/test/D1
-      - name: D2
+      - id: D2
+        name: D2
         repo: omnibenchmark/test/D2
     outputs:
-      - counts: output/{stage}/{module}/{name}.txt.gz
-      - meta: output/{stage}/{module}/{name}.meta.json
-      - data_specific_params: output/{stage}/{module}/{name}_params.txt
-  process:
+      - id: Step1.counts
+        name: counts
+        path: "{stage}/{module}/{params}/{name}.txt.gz"
+      - id: Step1.meta
+        name: meta
+        path: "{stage}/{module}/{params}/{name}.meta.json"
+      - id: Step1.data_specific_params
+        name: data_specific_params
+        path: "{stage}/{module}/{params}/{name}_params.txt"
+
+  - id: Step2
+    name: process
     after:
       - data
     members:
-      - name: P1
+      - id: P1
+        name: P1
         repo: omnibenchmark/test/P1
-      - name: P2
+        parameters:
+          - values: ["-a 0", "-b 0.1"]
+          - values: ["-a 1", "-b 0.1"]
+      - id: P2
+        name: P2
         repo: omnibenchmark/test/P2
+        parameters:
+          - values: ["-a 0", "-c 0"]
+          - values: ["-a 1", "-c 0.1"]
     inputs:
-      - counts: data
-        meta: data
+      - entries: [
+          Step1.counts,
+          Step1.meta
+        ]
     outputs:
-      - filtered: "{input_dirname}/{stage}/{module}/{name}.txt.gz"
-  methods:
+      - id: Step2.filtered
+        name: filtered
+        path: "{input_dirname}/{stage}/{module}/{params}/{name}.txt.gz"
+
+  - id: Step3
+    name: methods
     after:
       - process
     members:
-      - name: M1
+      - id: M1
+        name: M1
         repo: benchmark/test/M1
-        exclude: D2
-      - name: M2
+        exclude: [ D2 ]
+      - id: M2
+        name: M2
         repo: omnibenchmark/test/M2
+        parameters:
+          - values: ["-d1", "-e 1"]
+          - values: ["-d1", "-e 2"]
         exclude:
           - D1
           - D2
     inputs:
-      - counts: data
-        meta: data
-        data_specific_params: data
-      - filtered: process
-        meta: data
-        data_specific_params: data
+      - entries: [
+          Step1.counts,
+          Step1.meta,
+          Step1.data_specific_params
+        ]
+      - entries: [
+          Step2.filtered,
+          Step1.meta,
+          Step1.data_specific_params
+        ]
     outputs:
-      - mapping: "{input_dirname}/{stage}/{module}/{name}.model.out.gz"
-  metrics:
+      - id: Step3.mapping
+        name: mapping
+        path: "{input_dirname}/{stage}/{module}/{params}/{name}.model.out.gz"
+
+  - id: Step4
+    name: metrics
     after:
       - methods
     terminal: true
     members:
-      - name: m1
+      - id: m1
+        name: m1
         repo: omnibenchmark/test/m1
-      - name: m2
+      - id: m2
+        name: m2
         repo: omnibenchmark/test/m2
-      - name: m3
+      - id: m3
+        name: m3
         repo: omnibenchmark/test/m3
     inputs:
-      - mapping: method
-        meta: data
-        data_specific_params: data
+      - entries: [
+          Step3.mapping,
+          Step1.meta,
+          Step1.data_specific_params
+        ]

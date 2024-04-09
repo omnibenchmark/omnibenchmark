@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "omni-py"
+name = "omni"
 version = "0.1.0"
 description = ""
 authors = ["almutlue <almut.lue@gmail.com>"]
 readme = "README.md"
-packages = [{include = "omni-py"}]
+packages = [{include = "omni"}]
 homepage = "https://github.com/almutlue/omni-py"
 repository = "https://github.com/almutlue/omni-py"
 classifiers = [
@@ -17,6 +17,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "fix/unambigous_builds"}
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
