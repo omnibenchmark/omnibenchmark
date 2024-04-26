@@ -9,12 +9,12 @@ def list_datasets(bench_name: str, version: str, stage: str):
     bench_yaml = get_bench_definition(bench_name, version, stage)
 
 
-def mount_dataset(url: str):
-    """Mount a specific dataset based on its url"""
+def get_dataset(url: str):
+    """Download a specific dataset based on its url"""
     # Do we download/store/cache locally here?
     pass
 
 
 def get_test_dataset(bench_name: str, version: str, stage: str):
-    """Mount a test dataset for a certain benchmark version and stage"""
+    """Download a test dataset for a certain benchmark version and stage"""
     pass

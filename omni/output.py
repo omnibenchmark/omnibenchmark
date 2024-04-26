@@ -59,12 +59,13 @@ class ExplicitIO:
     def __init__(
         self,
         explicit_path: str,
-        lineage: List[str],
-        module: model.Module,
+        lineage: Optional[Mapping] = None
     ):
         self.explicit_path = explicit_path
-        # Fix adjust to module name + params + all inputs? (do we need a group/hierarchy concept, e.g. module, group)
-        self.lineage = lineage.append(module.id)
+        self.lineage = lineage
+
+    def update_lineage(self, explicit_inputs:Mapping):
+        self.lineage = get_deepest_lineage(explicit_inputs)    
 
 
 def get_explicit_inputs(
@@ -95,6 +96,9 @@ def get_explicit_inputs(
 def match_IO_groups(
     ref: ExplicitIO, rel: Mapping[str : List[ExplicitIO]]
 ) -> Mapping[str, ExplicitIO]:
+    pass
+
+def get_deepest_lineage(explcit_inputs: Mapping[str, ExplicitIO]) -> Mapping:
     pass
 
 
