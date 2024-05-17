@@ -6,7 +6,7 @@ from typing import Mapping, List
 import omni_schema.datamodel.omni_schema as model
 import yaml
 
-from .io import parse_instance
+from ..utils import parse_instance
 
 
 def _dict_from_yaml(bench_yaml: Path) -> Mapping:

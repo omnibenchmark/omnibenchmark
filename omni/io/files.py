@@ -1,7 +1,7 @@
-"""Functions to manage dataset handling"""
+"""Functions to manage file handling"""
 
 
-from .sync import get_bench_definition
+from ..sync import get_bench_definition
 
 
 def list_output_files(bench_name: str, version: str, stage: str):
