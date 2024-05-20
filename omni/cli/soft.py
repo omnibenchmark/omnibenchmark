@@ -59,18 +59,3 @@ def install_software(
 ):
     """Install software and provide an environment with all executables."""
     typer.echo(f"Install software for {benchmark}, {stage}.")
-
-
-@cli.command("download")
-def download_docker(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-):
-    """Download a Docker image that fullfills the benchmarks software specifications.."""
-    typer.echo(f"Download docker image for benchmark {benchmark}.")
