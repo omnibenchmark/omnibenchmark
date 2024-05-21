@@ -84,8 +84,7 @@ jobs:
       #----------------------------------------------
       - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10' &&  matrix.poetry-version == '1.8.0' }}
         name: Comment coverage result
-        uses: 5monkeys/cobertura-action@master
+        uses: MishaKav/pytest-coverage-comment@main
         with:
-          path: ./reports/coverage.xml
-          minimum_coverage: 0
+          pytest-xml-coverage-path: ./reports/coverage.xml
 
