@@ -17,6 +17,7 @@ on:
 
 jobs:
   run-tests:
+    permissions: write-all
     strategy:
       fail-fast: false
       matrix:
