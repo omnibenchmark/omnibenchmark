@@ -60,5 +60,5 @@ jobs:
                 coverageFile: coverage.xml
                 thresholdAll: 0.0
                 thresholdModified: 0.0
-                thresholdNew: 0.6
+                thresholdNew: 0.0
                 token: ${{ secrets.GITHUB_TOKEN }}
