@@ -86,6 +86,6 @@ jobs:
         name: Comment coverage result
         uses: 5monkeys/cobertura-action@master
         with:
-          path: ./report/coverage.xml
+          path: ./reports/coverage.xml
           minimum_coverage: 0
 
