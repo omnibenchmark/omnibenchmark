@@ -8,6 +8,7 @@ import typer
 
 cli = typer.Typer(add_completion=False)
 
+
 @cli.command()
 def fetch(
     module_url: Annotated[str, typer.Argument(...)],
@@ -20,13 +21,14 @@ def fetch(
         ),
     ] = "latest",
 ):
-    """Fetch a specific version of a benchmark module
-    """
+    """Fetch a specific version of a benchmark module"""
     typer.echo(f"Fetch module with url {module_url}", err=True)
     typer.echo(f"Using commit: {commit}", err=True)
 
+
 @cli.command()
-def list_inputs(stage_id: Annotated[str, typer.Argument(...)],
+def list_inputs(
+    stage_id: Annotated[str, typer.Argument(...)],
     benchmark: Annotated[
         str,
         typer.Argument(
@@ -60,13 +62,15 @@ def list_inputs(stage_id: Annotated[str, typer.Argument(...)],
         ),
     ] = False,
 ):
-    """List and/or download (test) input files for a specific stage and benchmark 
-    """
-    typer.echo(f"Get inputs for stage {stage_id} in benchmark {benchmark} {version}", err=True)
+    """List and/or download (test) input files for a specific stage and benchmark"""
+    typer.echo(
+        f"Get inputs for stage {stage_id} in benchmark {benchmark} {version}", err=True
+    )
 
 
 @cli.command()
-def list_outputs(module_id: Annotated[str, typer.Argument(...)],
+def list_outputs(
+    module_id: Annotated[str, typer.Argument(...)],
     benchmark: Annotated[
         str,
         typer.Argument(
@@ -92,16 +96,18 @@ def list_outputs(module_id: Annotated[str, typer.Argument(...)],
         ),
     ] = False,
 ):
-    """List or download (test) input files for a specific stage and benchmark 
-    """
-    typer.echo(f"Get outputs for module {module_id} in benchmark {benchmark} {version}", err=True)
+    """List or download (test) input files for a specific stage and benchmark"""
+    typer.echo(
+        f"Get outputs for module {module_id} in benchmark {benchmark} {version}",
+        err=True,
+    )
 
 
 @cli.command()
-def get(remote_paths: Annotated[List[Path], typer.Argument(...)],
+def get(
+    remote_paths: Annotated[List[Path], typer.Argument(...)],
 ):
-    """Download explicit files from remote. 
-    """
+    """Download explicit files from remote."""
     typer.echo(f"Get files {[fi for fi in remote_paths]}", err=True)
 
 
@@ -134,8 +140,7 @@ def run(
         ),
     ] = None,
 ):
-    """Execute a modules code with explicit inputs, outputs and parameter
-    """
+    """Execute a modules code with explicit inputs, outputs and parameter"""
     # TODO: Include the environment here?
     typer.echo(f"Run module {module_path}.", err=True)
     typer.echo(f"Outputs: {[out for out in outputs]}.", err=True)
@@ -157,6 +162,5 @@ def upload(
         ),
     ] = None,
 ):
-    """Upload one or more files to a S3 bucket.
-    """
+    """Upload one or more files to a S3 bucket."""
     typer.echo(f"Upload {[fi for fi in files]} to {s3_endpoint}", err=True)
