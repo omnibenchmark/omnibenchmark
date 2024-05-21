@@ -71,17 +71,21 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          poetry run pytest --cov=omni --cov-report=xml
+          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+      #----------------------------------------------
+      # Generate badges
+      #----------------------------------------------
+      - name: Generate tests & coverage badges
+        run: |
+          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
+          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
       #----------------------------------------------
       # Report coverage
       #----------------------------------------------
-      - if: ${{ matrix.python-version == '3.10' && matrix.os == 'ubuntu-latest' }}
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10' &&  matrix.poetry-version == '1.8.0' }}
         name: Comment coverage result
-        uses: orgoro/coverage@v3.1
+        uses: 5monkeys/cobertura-action@master
         with:
-            coverageFile: coverage.xml
-            thresholdAll: 0.0
-            thresholdModified: 0.0
-            thresholdNew: 0.0
-            token: ${{ secrets.GITHUB_TOKEN }}
+          path: ./report/coverage.xml
+          minimum_coverage: 0
 
