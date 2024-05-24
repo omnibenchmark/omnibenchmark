@@ -74,6 +74,14 @@ def run_module(
             help="Repository url of the module to run",
         ),
     ],
+    stage: Annotated[
+        str,
+        typer.Option(
+            "--stage",
+            "-s",
+            help="Stage to install software for.",
+        ),
+    ] = None,
     update: Annotated[
         bool,
         typer.Option(
@@ -112,4 +120,4 @@ def run_module(
         f"Run {repo} as part of {benchmark} on example {example} inputs.", err=True
     )
     # NOTE: Do we also need a stage argument?
-    # --all and --example are mutually exclusive. We use one flag only and run the other on default?
+    # --all and --example are mutually exclusive. Can we use one flag only and run the other on default?
