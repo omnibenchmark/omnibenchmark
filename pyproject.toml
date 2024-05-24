@@ -17,7 +17,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "fix/unambigous_builds"}
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "e3daebe9f75a6225adb674da5efaa477981baa1e"}
 typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 
