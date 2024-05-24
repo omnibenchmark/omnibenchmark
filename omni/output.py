@@ -56,16 +56,12 @@ class IOMapping:
 class ExplicitIO:
     """Explicit IO paths and their lineages"""
 
-    def __init__(
-        self,
-        explicit_path: str,
-        lineage: Optional[Mapping] = None
-    ):
+    def __init__(self, explicit_path: str, lineage: Optional[Mapping] = None):
         self.explicit_path = explicit_path
         self.lineage = lineage
 
-    def update_lineage(self, explicit_inputs:Mapping):
-        self.lineage = get_deepest_lineage(explicit_inputs)    
+    def update_lineage(self, explicit_inputs: Mapping):
+        self.lineage = get_deepest_lineage(explicit_inputs)
 
 
 def get_explicit_inputs(
@@ -97,6 +93,7 @@ def match_IO_groups(
     ref: ExplicitIO, rel: Mapping[str : List[ExplicitIO]]
 ) -> Mapping[str, ExplicitIO]:
     pass
+
 
 def get_deepest_lineage(explcit_inputs: Mapping[str, ExplicitIO]) -> Mapping:
     pass
