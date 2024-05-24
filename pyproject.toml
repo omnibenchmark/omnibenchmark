@@ -17,7 +17,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "fix/unambigous_builds"}
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "e3daebe9f75a6225adb674da5efaa477981baa1e"}
 typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 
@@ -31,7 +31,7 @@ pytest-cov = "^4.1.0"
 genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
 
 [tool.poetry.scripts]
-omni = 'omni.cli:cli'
+ob = 'omni.cli.main:cli'
 
 [build-system]
 requires = ["poetry-core"]
