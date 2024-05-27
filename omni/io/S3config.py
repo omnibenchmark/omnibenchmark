@@ -1,4 +1,3 @@
-
 def tests_bucket_policy():
     return {
         "Version": "2012-10-17",
@@ -7,43 +6,41 @@ def tests_bucket_policy():
                 "Effect": "Allow",
                 "Action": "s3:*",
                 "Resource": [
-                "arn:aws:s3:::test?.*",
-                "arn:aws:s3:::test.*",
-                ]
+                    "arn:aws:s3:::test?.*",
+                    "arn:aws:s3:::test.*",
+                ],
             },
         ],
     }
 
+
 def benchmarker_access_token_policy(benchmark):
     """S3 policy for access token for specific benchmark, allows archiving (Governance Retention)"""
     return {
-     "Version": "2012-10-17",
-     "Statement": [
-      {
-       "Effect": "Allow",
-       "Action": [
-        "s3:*"
-       ],
-       "Resource": [
-        f"arn:aws:s3:::{benchmark}.*.*",
-        f"arn:aws:s3:::{benchmark}.*.*/*",
-        f"arn:aws:s3:::{benchmark}.overview/*",
-        f"arn:aws:s3:::{benchmark}.test.?/*",
-       ]
-      },
-      {
-       "Effect": "Deny",
-       "Action": [
-        "s3:BypassGovernanceRetention"
-       ],
-       "Resource": [
-        f"arn:aws:s3:::{benchmark}.*.*/*",
-        f"arn:aws:s3:::{benchmark}.overview/*",
-        f"arn:aws:s3:::{benchmark}.test.?/*",
-       ]
-      }
-     ]
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": ["s3:*"],
+                "Resource": [
+                    f"arn:aws:s3:::{benchmark}.*.*",
+                    f"arn:aws:s3:::{benchmark}.*.*/*",
+                    f"arn:aws:s3:::{benchmark}.overview/*",
+                    f"arn:aws:s3:::{benchmark}.test.?/*",
+                ],
+            },
+            {
+                "Effect": "Deny",
+                "Action": ["s3:BypassGovernanceRetention"],
+                "Resource": [
+                    f"arn:aws:s3:::{benchmark}.*.*/*",
+                    f"arn:aws:s3:::{benchmark}.overview/*",
+                    f"arn:aws:s3:::{benchmark}.test.?/*",
+                ],
+            },
+        ],
     }
+
 
 def bucket_readonly_policy(bucket_name):
     return {

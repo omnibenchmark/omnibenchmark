@@ -27,6 +27,7 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str):
     else:
         raise ValueError("Invalid storage type")
 
+
 # https://stackoverflow.com/a/3431838
 def md5(fname: str):
     hash_md5 = hashlib.md5()
@@ -35,6 +36,7 @@ def md5(fname: str):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
+
 # from: https://stackoverflow.com/a/1094933
 def sizeof_fmt(num: int, suffix: str = "B"):
     for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
@@ -42,5 +44,3 @@ def sizeof_fmt(num: int, suffix: str = "B"):
             return f"{num:3.1f}{unit}{suffix}"
         num /= 1024.0
     return f"{num:.1f}Yi{suffix}"
-
-
