@@ -4,11 +4,13 @@ def tests_bucket_policy():
         "Statement": [
             {
                 "Effect": "Allow",
-                "Action": "s3:*",
-                "Resource": [
-                    "arn:aws:s3:::test?.*",
-                    "arn:aws:s3:::test.*",
-                ],
+                "Action": ["s3:*"],
+                "Resource": ["arn:aws:s3:::test.*", "arn:aws:s3:::test?.*"],
+            },
+            {
+                "Effect": "Allow",
+                "Action": ["s3:ListAllMyBuckets"],
+                "Resource": ["arn:aws:s3:::*"],
             },
         ],
     }
@@ -28,6 +30,11 @@ def benchmarker_access_token_policy(benchmark):
                     f"arn:aws:s3:::{benchmark}.overview/*",
                     f"arn:aws:s3:::{benchmark}.test.?/*",
                 ],
+            },
+            {
+                "Effect": "Allow",
+                "Action": ["s3:ListAllMyBuckets"],
+                "Resource": ["arn:aws:s3:::*"],
             },
             {
                 "Effect": "Deny",
@@ -60,3 +67,7 @@ def bucket_readonly_policy(bucket_name):
             },
         ],
     }
+
+
+# access key: ekjt8qvAmOeTLRsWcqVL
+# secrete key: H0nxqGPB58ZikZuNTpGZPQ9YOtOhofZkvJ0WgDRl
