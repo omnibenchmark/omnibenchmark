@@ -1,0 +1,151 @@
+#!/usr/bin/env snakemake -s
+##
+## Handles (installs) the software stack to run a benchmark, including modules/easybuild themselves
+##
+## Izaskun Mallona 27 May 2024
+
+# re: environments
+# https://stackoverflow.com/questions/44316075/using-pyenv-in-a-snakemake-rule
+
+from os import makedirs
+import os.path as op
+from shutil import which
+
+WD = op.join('soft')
+MODULEPATH="$HOME/.local/easybuild/modules/all/"
+
+if not op.exists(WD):
+    makedirs(WD)
+
+rule all:
+    input:
+        op.join(WD, 'with_envmodules.txt'),
+        op.join(WD, 'without_envmodules.txt'),
+        op.join(WD, 'test_singularity.txt')
+        
+rule install_lmod:
+    output:
+        op.join(WD, 'lmod_install_timestamp.txt')
+    log:
+        op.join(WD, 'lmod.log')
+    params:
+        path = WD
+    run:
+        if which('lmod') is None:
+            shell("""
+        # mkdir -p {params.path}
+        bash modules.sh &> {log}
+        # export PATH=$HOME/soft/lmod/"$LMOD_VERS"/libexec:$PATH
+        # source $HOME/soft/lmod/"$LMOD_VERS"/init/bash
+        # export LMOD_CMD=$HOME/soft/lmod/"$LMOD_VERS"/libexec/lmod
+        date > {output}
+        lmod --version > {output}
+            """)
+        else:
+            shell("""
+        echo 'already installed' > {output}
+        lmod --version > {output}
+            """)
+        
+
+# rule install_easybuild:
+#     output:
+#         os.path.join(WD, 'easybuild_install_timestamp.txt')
+#     log:
+#         os.path.join(WD, 'easybuild.log')
+#     run:
+#         if which('eb') is None:
+#             shell("""
+#         bash easybuild.sh &> {log}
+#         eb --version &>> {log}
+#         echo $MODULEPATH &>> {log}   
+#         date > {output}
+#             """)
+    
+
+rule check_easybuild:
+    input:
+         op.join(WD, 'lmod_install_timestamp.txt')
+    output:
+        op.join(WD, 'easybuild_version.txt')
+    params:
+        path = WD,
+        modulepath = MODULEPATH
+    shell:
+        """
+        # mkdir -p {params.path}
+        eb --version >> {output}
+        export MODULEPATH={params.modulepath}
+        echo $MODULEPATH >> {output} 
+        """
+
+
+rule install_bcftools_and_others:
+    input:
+        op.join(WD, 'easybuild_version.txt')
+    output:
+        op.join(WD, 'bcftools_install.txt')
+    params:
+        modulepath = MODULEPATH
+    shell:
+        """
+        export MODULEPATH={params.modulepath}
+        eb --robot BCFtools-1.18-GCC-12.3.0.eb &> {output}
+        eb --robot BEDTools-2.31.0-GCC-12.3.0.eb &>> output
+        """
+
+rule check_bcftools_module:
+    input:
+        op.join(WD, 'bcftools_install.txt')
+    output:
+        op.join(WD, 'bcftools_status.txt')
+    params:
+        modulepath = MODULEPATH
+    shell:
+        """
+        export MODULEPATH={params.modulepath}
+        module load BEDTools/2.31.0-GCC-12.3.0 > {output}
+        which bedtools >> {output}
+        module unload bedtools >> {output}
+        which bedtools >> {output}
+        """        
+
+## snakemake --use-envmodules --cores 1 -p
+rule use_module:
+    envmodules:
+        "BEDTools/2.31.0-GCC-12.3.0"
+    input:
+        op.join(WD, 'bcftools_status.txt')
+    output:
+        op.join(WD, 'with_envmodules.txt')
+    shell:
+        """
+        echo $MODULEPATH > {output}
+        bedtools --version >> {output}
+        """
+
+## note $MODULEPATH is empty here
+rule do_not_use_module:
+    input:
+        op.join(WD, 'bcftools_status.txt')
+    output:
+        op.join(WD, 'without_envmodules.txt')
+    shell:
+        """
+        echo $MODULEPATH > {output}
+        bedtools --version || true >> {output}
+        """
+        
+rule containerize:
+    input:
+        op.join(WD, 'bcftools_status.txt')
+    output:
+        op.join(WD, 'test_singularity.txt')
+    shell:
+        """
+        eb GCC-6.4.0-2.28.eb \
+             --force \
+             --containerize --container-config bootstrap=localimage,from=example.sif \
+             --experimental > {output} ## \
+             ## --container-build-image > {output}
+        """

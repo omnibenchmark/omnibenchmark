@@ -15,11 +15,23 @@ The entrypoint to omnibenchmark. It contains a cli and multiple utility function
 
 ## Installing poetry too
 
-Create a virtualenv and install poetry
+Create a virtualenv and install poetry, with a compilled python3.11
+
+```
+mkdir -p ~/python
+cd $_
+wget https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tgz
+tar xzvf Python-3.12.3.tgz
+cd Python-3.12.3
+./configure --enable-optimizations
+make -j 8
+sudo make altinstall # to /usr/local/bin/python3.12
+
+```
 
 ```
 mkdir -p ~/virtenvs
-python3 -m venv ~/virtenvs/poetry
+/usr/local/bin/python3.12 -m venv ~/virtenvs/poetry
 source ~/virtenvs/poetry/bin/activate
 curl -sSL https://install.python-poetry.org | python3 -
 poetry --version
