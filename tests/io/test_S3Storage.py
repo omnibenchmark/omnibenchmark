@@ -50,6 +50,10 @@ def cleanup(request):
     request.addfinalizer(cleanup_buckets)
 
 
+# remove all test buckets
+cleanup_buckets()
+
+
 def test_init():
     ss = S3Storage(auth_options=auth_options, benchmark="test")
 
