@@ -1,4 +1,18 @@
 
+def tests_bucket_policy():
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "s3:*",
+                "Resource": [
+                "arn:aws:s3:::test?.*",
+                "arn:aws:s3:::test.*",
+                ]
+            },
+        ],
+    }
 
 def benchmarker_access_token_policy(benchmark):
     """S3 policy for access token for specific benchmark, allows archiving (Governance Retention)"""

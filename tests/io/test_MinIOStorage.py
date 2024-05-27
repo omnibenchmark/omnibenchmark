@@ -4,13 +4,20 @@ from omni.io.MinIOStorage import MinIOStorage
 import json
 import minio
 import io
+import os
+from pathlib import Path
 
-def read_minio_test_config():
+if Path('tests/.minio_test_config.json').exists():
     with open('tests/.minio_test_config.json', 'r') as file:
-        config = json.load(file)
-    return config
+        auth_options = json.load(file)
+elif 'S3_ENDPOINT_URL' in os.environ and 'S3_ACCESS_KEY' in os.environ and 'S3_SECRET_KEY' in os.environ:
+    auth_options = {}
+    auth_options['endpoint'] = os.environ['S3_ENDPOINT_URL']
+    auth_options['access_key'] = os.environ['S3_ACCESS_KEY']
+    auth_options['secret_key'] = os.environ['S3_SECRET_KEY']
+else:
+    raise ValueError("No S3 credentials found")
 
-auth_options = read_minio_test_config()
 auth_options_readonly = auth_options.copy()
 del auth_options_readonly['access_key']
 del auth_options_readonly['secret_key']
