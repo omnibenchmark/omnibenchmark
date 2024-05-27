@@ -15,7 +15,7 @@ The entrypoint to omnibenchmark. It contains a cli and multiple utility function
 
 ## Installing poetry too
 
-Create a virtualenv and install poetry, with a compilled python3.11
+Create a virtualenv and install poetry, with a compilled (altinstall) python3.12
 
 ```
 mkdir -p ~/python
@@ -76,6 +76,13 @@ pip install poetry
 poetry shell
 ob --help
 ob fetch --help
+```
+
+# Once installed
+
+```
+source ~/virtenvs/poetry/bin/activate 
+poetry shell
 ```
 
 # How tu contribute
