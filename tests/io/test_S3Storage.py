@@ -18,6 +18,7 @@ elif (
     auth_options["endpoint"] = os.environ["S3_ENDPOINT_URL"]
     auth_options["access_key"] = os.environ["S3_ACCESS_KEY"]
     auth_options["secret_key"] = os.environ["S3_SECRET_KEY"]
+    auth_options["secure"] = False
 else:
     raise ValueError("No S3 credentials found")
 
