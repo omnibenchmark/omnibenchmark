@@ -5,7 +5,11 @@ def tests_bucket_policy():
             {
                 "Effect": "Allow",
                 "Action": ["s3:*"],
-                "Resource": ["arn:aws:s3:::test.*", "arn:aws:s3:::test?.*"],
+                "Resource": [
+                    "arn:aws:s3:::test.*",
+                    "arn:aws:s3:::test?.*",
+                    "arn:aws:s3:::test??.*",
+                ],
             },
             {
                 "Effect": "Allow",

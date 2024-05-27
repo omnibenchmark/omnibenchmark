@@ -15,9 +15,9 @@ elif (
     and "S3_SECRET_KEY" in os.environ
 ):
     auth_options = {}
-    auth_options["endpoint"] = os.environ["S3_ENDPOINT_URL"]
-    auth_options["access_key"] = os.environ["S3_ACCESS_KEY"]
-    auth_options["secret_key"] = os.environ["S3_SECRET_KEY"]
+    auth_options["endpoint"] = os.environ.get("S3_ENDPOINT_URL")
+    auth_options["access_key"] = os.environ.get("S3_ACCESS_KEY")
+    auth_options["secret_key"] = os.environ.get("S3_SECRET_KEY")
     auth_options["secure"] = False
 else:
     raise ValueError("No S3 credentials found")
@@ -25,6 +25,14 @@ else:
 auth_options_readonly = auth_options.copy()
 del auth_options_readonly["access_key"]
 del auth_options_readonly["secret_key"]
+
+os_suffix = os.environ.get("RUNNER_OS")
+if os_suffix == "Linux" or os_suffix is None:
+    bucket_base = "test1"
+elif os_suffix == "Windows":
+    bucket_base = "test2"
+else:
+    bucket_base = "test3"
 
 
 def cleanup_buckets():
@@ -39,7 +47,9 @@ def cleanup_buckets():
     )
     buckets = [i.name for i in cleanupss.buckets.all()]
     for bucket in buckets:
-        if re.search(r"^test\.", bucket) or re.search(r"^test\d\.", bucket):
+        if re.search(rf"^{bucket_base}\.", bucket) or re.search(
+            rf"^{bucket_base}\d\.", bucket
+        ):
             cleanupss.Bucket(bucket).objects.all().delete()
             cleanupss.Bucket(bucket).delete()
 
@@ -55,48 +65,46 @@ cleanup_buckets()
 
 
 def test_init():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
 
 
 def test__test_connect():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
-    assert ss.benchmark == "test"
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
+    assert ss.benchmark == bucket_base
     ss._test_connect()
 
 
 def test_init_public():
-    ss = S3Storage(auth_options=auth_options_readonly, benchmark="test")
+    ss = S3Storage(auth_options=auth_options_readonly, benchmark=bucket_base)
 
 
 def test__get_containers():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss._get_containers()
-    assert [ct in ss.containers for ct in ["test.0.1"]] == [True]
-    # assert ss.containers == ['test.0.1', 'test.0.2', 'test.1.0', 'test2.0.1']
+    assert [ct in ss.containers for ct in [f"{bucket_base}.0.1"]] == [True]
 
 
 def test__get_benchmarks():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss._get_benchmarks()
-    assert "test" in ss.benchmarks
+    assert bucket_base in ss.benchmarks
 
     ss._get_benchmarks(update=False)
-    assert "test" in ss.benchmarks
+    assert bucket_base in ss.benchmarks
 
 
 def test__create_benchmark():
     cleanup_buckets()
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
-    ss._create_benchmark("test2")
-    # assert ss.benchmarks == ['test', 'test2','test3']
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
+    ss._create_benchmark(f"{bucket_base}2")
 
     cleanup_buckets()
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
-    ss._create_benchmark("test3", update=False)
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
+    ss._create_benchmark(f"{bucket_base}3", update=False)
 
 
 def test__get_versions():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss._get_versions()
     assert ss.versions == ["0.1"]
 
@@ -105,7 +113,7 @@ def test__get_versions():
 
 
 def test__get_versions_public():
-    ss = S3Storage(auth_options=auth_options_readonly, benchmark="test")
+    ss = S3Storage(auth_options=auth_options_readonly, benchmark=bucket_base)
     ss._get_versions()
     assert ss.versions == ["0.1"]
 
@@ -114,7 +122,7 @@ def test__get_versions_public():
 
 
 def test__create_new_version():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss.set_new_version()
     assert ss.major_version == 0
     assert ss.minor_version == 1
@@ -124,28 +132,28 @@ def test__create_new_version():
 
 
 def test__set_current_version():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss.set_current_version()
     assert ss.major_version == 0
     assert ss.minor_version == 1
 
 
 def test__set_current_version_public():
-    ss = S3Storage(auth_options=auth_options_readonly, benchmark="test")
+    ss = S3Storage(auth_options=auth_options_readonly, benchmark=bucket_base)
     ss.set_current_version()
     assert ss.major_version == 0
     assert ss.minor_version == 1
 
 
 def test__set_new_version():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss.set_new_version()
     assert ss.major_version_new == 0
     assert ss.minor_version_new == 2
 
 
 def test__get_objects():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     result = ss.client.Bucket(f"{ss.benchmark}.0.1").put_object(
         Key="file1.txt", Body=b""
     )
@@ -177,7 +185,7 @@ def test__get_objects():
 
 
 def test__get_objects_public():
-    ss = S3Storage(auth_options=auth_options_readonly, benchmark="test")
+    ss = S3Storage(auth_options=auth_options_readonly, benchmark=bucket_base)
     # with pytest.raises(ValueError):
     #     ss._get_objects()
 
@@ -196,7 +204,7 @@ def test__get_objects_public():
 
 
 def test_find_objects_to_copy():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss.set_current_version()
     ss.find_objects_to_copy(tagging_type="all")
     assert ss.files.keys() == {"file1.txt", "file2.txt"}
@@ -246,7 +254,7 @@ def test_find_objects_to_copy():
 
 
 def test_copy_objects():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
     ss.set_new_version()
     ss.find_objects_to_copy()
     ss._create_new_version()
@@ -278,7 +286,7 @@ def test_copy_objects():
 
 
 def test_create_new_version():
-    ss = S3Storage(auth_options=auth_options, benchmark="test")
+    ss = S3Storage(auth_options=auth_options, benchmark=bucket_base)
 
     ss.create_new_version()
     assert ss.files.keys() == {"file1.txt", "file2.txt"}
