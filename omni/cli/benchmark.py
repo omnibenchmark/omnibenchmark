@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import requests
 import re
+from packaging.version import Version
+import omni.io.files
 
 cli = typer.Typer(add_completion=False)
 
@@ -85,36 +87,18 @@ def list_benchmarks(
 ):
     """List all available benchmarks and versions at a specific endpoint"""
     typer.echo(f"Available benchmarks at {endpoint}:")
-    url = urlparse(f"{endpoint}/benchmarks")
-    response = requests.get(url.geturl(), params={"format": "xml"})
-    if response.ok:
-        response_text = response.text
-    else:
-        response.raise_for_status()
-    soup = BeautifulSoup(response_text, "xml")
-    benchmark_names = [obj.find("Key").text for obj in soup.find_all("Contents")]
+    benchmark_names = omni.io.files.get_benchmarks_public(endpoint)
     benchmarks = {}
     for benchmark in benchmark_names:
-        url = urlparse(f"{endpoint}/{benchmark}.overview")
-        response = requests.get(url.geturl(), params={"format": "xml"})
-        if response.ok:
-            soup = BeautifulSoup(response.text, "xml")
-            buckets = [obj.find("Key").text for obj in soup.find_all("Contents")]
-            versions = []
-            for bucket in buckets:
-                if re.search(r"(\d+\.\d+)", bucket):
-                    versions.append(bucket)
-            from packaging.version import Version
-
-            versions.sort(key=Version)
-            if isinstance(versions, list) and len(versions) > 0:
-                benchmarks[benchmark] = versions
-            elif isinstance(versions, str) and len(versions) > 0:
-                benchmarks[benchmark] = [versions]
-            else:
-                benchmarks[benchmark] = [""]
+        benchmarks[benchmark] = omni.io.files.get_benchmark_versions_public(
+            benchmark, endpoint
+        )
     for key, value in sorted(benchmarks.items()):
-        typer.echo(f"{key:>20} {value[-1]:>8}")
+        if len(value) > 0:
+            value = value[-1]
+        if value is None or len(value) == 0:
+            value = ""
+        typer.echo(f"{key:>20}     latest: {value:>5}")
 
 
 @cli.command("list versions")
@@ -138,3 +122,8 @@ def list_versions(
 ):
     """List all available benchmarks versions at a specific endpoint."""
     typer.echo(f"Available versions of {benchmark} at {endpoint}:")
+    versions = omni.io.files.get_benchmark_versions_public(benchmark, endpoint)
+    if len(versions) > 0:
+        versions.sort(key=Version)
+        for version in versions:
+            typer.echo(f"{version:>8}")

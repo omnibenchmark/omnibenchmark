@@ -10,6 +10,9 @@ from omni.sync import get_bench_definition
 from typing import Union, List
 import tqdm
 import warnings
+from bs4 import BeautifulSoup
+import requests
+from packaging.version import Version
 
 
 def list_files(
@@ -175,3 +178,39 @@ def checksum_files(
             if verbose:
                 print(f"MD5 checksum failed for {i}")
     return failed_checksums
+
+
+def get_benchmarks_public(endpoint):
+    """List all available benchmarks"""
+    url = urlparse(f"{endpoint}/benchmarks")
+    response = requests.get(url.geturl(), params={"format": "xml"})
+    if response.ok:
+        response_text = response.text
+    else:
+        response.raise_for_status()
+    soup = BeautifulSoup(response_text, "xml")
+    benchmark_names = [obj.find("Key").text for obj in soup.find_all("Contents")]
+    benchmarks = []
+    for benchmark in benchmark_names:
+        url = urlparse(f"{endpoint}/{benchmark}.overview")
+        response = requests.get(url.geturl(), params={"format": "xml"})
+        if response.ok:
+            benchmarks.append(benchmark)
+    return benchmarks
+
+
+def get_benchmark_versions_public(benchmark, endpoint):
+    url = urlparse(f"{endpoint}/{benchmark}.overview")
+    response = requests.get(url.geturl(), params={"format": "xml"})
+    if response.ok:
+        soup = BeautifulSoup(response.text, "xml")
+        buckets = [obj.find("Key").text for obj in soup.find_all("Contents")]
+        versions = []
+        for bucket in buckets:
+            if re.search(r"(\d+\.\d+)", bucket):
+                versions.append(bucket)
+
+        versions.sort(key=Version)
+        return versions
+    else:
+        response.raise_for_status()
