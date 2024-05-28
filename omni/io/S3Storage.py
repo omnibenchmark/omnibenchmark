@@ -141,8 +141,9 @@ class S3Storage(RemoteStorage):
         if self.client.Bucket(f"{benchmark}.0.1").creation_date is None:
             raise Exception(f"Benchmark creation of {benchmark}.0.1 failed")
         self._update_overview(cleanup=True)
-        # except SwiftError as e:
-        #     logger.error(e.value)
+
+        # add benchmark to overview
+        _ = self.client.Bucket("benchmarks").put_object(Key=self.benchmark, Body=b"")
 
     def _get_versions(self, update=True, readonly=False):
         if not "secret_key" in self.auth_options.keys() or readonly:

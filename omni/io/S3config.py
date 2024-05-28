@@ -29,10 +29,20 @@ def benchmarker_access_token_policy(benchmark):
                 "Effect": "Allow",
                 "Action": ["s3:*"],
                 "Resource": [
-                    f"arn:aws:s3:::{benchmark}.*.*",
-                    f"arn:aws:s3:::{benchmark}.*.*/*",
+                    f"arn:aws:s3:::{benchmark}.?.?",
+                    f"arn:aws:s3:::{benchmark}.?.?/*",
+                    f"arn:aws:s3:::{benchmark}.?.??",
+                    f"arn:aws:s3:::{benchmark}.?.??/*",
+                    f"arn:aws:s3:::{benchmark}.??.?/*",
+                    f"arn:aws:s3:::{benchmark}.??.?",
+                    f"arn:aws:s3:::{benchmark}.??.??/*",
+                    f"arn:aws:s3:::{benchmark}.??.??",
                     f"arn:aws:s3:::{benchmark}.overview/*",
+                    f"arn:aws:s3:::{benchmark}.overview",
                     f"arn:aws:s3:::{benchmark}.test.?/*",
+                    f"arn:aws:s3:::{benchmark}.test.?",
+                    f"arn:aws:s3:::{benchmark}.test.??/*",
+                    f"arn:aws:s3:::{benchmark}.test.??",
                 ],
             },
             {
@@ -41,12 +51,15 @@ def benchmarker_access_token_policy(benchmark):
                 "Resource": ["arn:aws:s3:::*"],
             },
             {
+                "Effect": "Allow",
+                "Action": ["s3:GetBucketLocation", "s3:PutObject", "s3:PutObjectTagging", "s3:GetObject"],
+                "Resource": [f"arn:aws:s3:::benchmarks",f"arn:aws:s3:::benchmarks/{benchmark}"],
+            },
+            {
                 "Effect": "Deny",
                 "Action": ["s3:BypassGovernanceRetention"],
                 "Resource": [
-                    f"arn:aws:s3:::{benchmark}.*.*/*",
-                    f"arn:aws:s3:::{benchmark}.overview/*",
-                    f"arn:aws:s3:::{benchmark}.test.?/*",
+                    f"arn:aws:s3:::*",
                 ],
             },
         ],
@@ -73,5 +86,8 @@ def bucket_readonly_policy(bucket_name):
     }
 
 
-# access key: ekjt8qvAmOeTLRsWcqVL
-# secrete key: H0nxqGPB58ZikZuNTpGZPQ9YOtOhofZkvJ0WgDRl
+if __name__ == "__main__":
+    import json
+
+    print(json.dumps(tests_bucket_policy(), indent=2))
+    print(json.dumps(benchmarker_access_token_policy("bm"), indent=2))

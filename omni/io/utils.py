@@ -1,8 +1,8 @@
 """Utility functions to manage dataset handling"""
 
-from io.S3Storage import S3Storage
-from io.MinIOStorage import MinIOStorage
-from io.SwiftStorage import SwiftStorage
+from omni.io.S3Storage import S3Storage
+from omni.io.MinIOStorage import MinIOStorage
+from omni.io.SwiftStorage import SwiftStorage
 import hashlib
 
 
@@ -39,6 +39,8 @@ def md5(fname: str):
 
 # from: https://stackoverflow.com/a/1094933
 def sizeof_fmt(num: int, suffix: str = "B"):
+    if abs(num) < 1024.0:
+        return f"{num: 5d}{suffix}"
     for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}{suffix}"

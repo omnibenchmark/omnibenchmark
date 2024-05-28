@@ -159,6 +159,9 @@ class MinIOStorage(RemoteStorage):
             raise Exception(f"Benchmark creation of {benchmark}.0.1 failed")
         self._update_overview(cleanup=True)
 
+        # add benchmark to overview
+        self.client.put_object("benchmarks", benchmark, io.BytesIO(b""), 0)
+
     def _get_versions(self, update=True, readonly=False):
         if not "secret_key" in self.auth_options.keys() or readonly:
             url = urlparse(f"{self.auth_options['endpoint']}/{self.benchmark}.overview")
