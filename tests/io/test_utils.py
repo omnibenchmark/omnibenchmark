@@ -46,9 +46,11 @@ def test_get_storage():
             benchmark="not_existing_benchmark",
         )
 
+
 def cleanup_md5():
     if os.path.exists("tests/io/md5sum_example.txt"):
         os.remove("tests/io/md5sum_example.txt")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):

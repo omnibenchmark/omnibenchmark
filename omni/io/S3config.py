@@ -52,8 +52,16 @@ def benchmarker_access_token_policy(benchmark):
             },
             {
                 "Effect": "Allow",
-                "Action": ["s3:GetBucketLocation", "s3:PutObject", "s3:PutObjectTagging", "s3:GetObject"],
-                "Resource": [f"arn:aws:s3:::benchmarks",f"arn:aws:s3:::benchmarks/{benchmark}"],
+                "Action": [
+                    "s3:GetBucketLocation",
+                    "s3:PutObject",
+                    "s3:PutObjectTagging",
+                    "s3:GetObject",
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::benchmarks",
+                    f"arn:aws:s3:::benchmarks/{benchmark}",
+                ],
             },
             {
                 "Effect": "Deny",
