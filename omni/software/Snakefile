@@ -7,25 +7,46 @@
 # re: environments
 # https://stackoverflow.com/questions/44316075/using-pyenv-in-a-snakemake-rule
 
-from os import makedirs
+import os
 import os.path as op
 from shutil import which
 
 WD = op.join('soft')
-MODULEPATH="$HOME/.local/easybuild/modules/all/"
+#MODULEPATH="$HOME/.local/easybuild/modules/all/"
+HOME=op.expanduser("~")
+LMOD_VERS="8.7"
 
-if not op.exists(WD):
-    makedirs(WD)
+## use half of the available cores
+NTHREADS = int(len(os.sched_getaffinity(0)))/2
+
+## easybuild config start
+
+modulepath = op.join(WD, 'easybuild', 'modules', 'all')
+buildpath = op.join(WD, 'easybuild', 'build')
+containerpath = op.join(WD, 'easybuild', 'containers')
+installpath = op.join(WD, 'easybuild')
+repositorypath = op.join(WD, 'easybuild', 'ebfiles_repo')
+robotpath = ':'.join([op.join(HOME, 'virtenvs', 'poetry', 'easybuild', 'easyconfigs'),
+                      op.join(WD, 'easybuild', 'easyconfigs')])
+sourcepath = op.join(WD, 'easybuild', 'sources')
+
+## easybuild config end
+
+for p in [WD, modulepath, buildpath, containerpath, installpath, repositorypath, sourcepath]:
+    if not op.exists(p):
+        os.makedirs(p)
 
 rule all:
     input:
-        op.join(WD, 'with_envmodules.txt'),
-        op.join(WD, 'without_envmodules.txt'),
-        op.join(WD, 'test_singularity.txt')
+        # op.join(WD, 'with_envmodules.txt'),
+        # op.join(WD, 'without_envmodules.txt'),
+        # op.join(WD, 'test_singularity.txt'),
+        # op.join(WD, 'SAMtools-1.3.1-intel-2016b-HTSlib-1.3.2.eb.done')
+        op.join(WD, 'Perl-5.36.0-GCCcore-12.1.0.eb.done')
         
 rule install_lmod:
     output:
-        op.join(WD, 'lmod_install_timestamp.txt')
+        lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
     log:
         op.join(WD, 'lmod.log')
     params:
@@ -46,7 +67,6 @@ rule install_lmod:
         echo 'already installed' > {output}
         lmod --version > {output}
             """)
-        
 
 # rule install_easybuild:
 #     output:
@@ -65,87 +85,135 @@ rule install_lmod:
 
 rule check_easybuild:
     input:
-         op.join(WD, 'lmod_install_timestamp.txt')
+        lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
     output:
         op.join(WD, 'easybuild_version.txt')
     params:
         path = WD,
-        modulepath = MODULEPATH
+        modulepath = modulepath
     shell:
         """
         # mkdir -p {params.path}
-        eb --version >> {output}
+        eb --version --modules-tool={input.lmod} >> {output}
         export MODULEPATH={params.modulepath}
         echo $MODULEPATH >> {output} 
         """
 
+## glob-glob this
+easyconfigs=['Perl-5.36.0-GCCcore-12.1.0.eb',
+             'R-4.2.2-foss-2022b.eb']
 
-rule install_bcftools_and_others:
-    input:
-        op.join(WD, 'easybuild_version.txt')
-    output:
-        op.join(WD, 'bcftools_install.txt')
-    params:
-        modulepath = MODULEPATH
-    shell:
-        """
-        export MODULEPATH={params.modulepath}
-        eb --robot BCFtools-1.18-GCC-12.3.0.eb &> {output}
-        eb --robot BEDTools-2.31.0-GCC-12.3.0.eb &>> output
-        """
+for eb in easyconfigs:
+    rule:
+        name: f"{{easyconfig}}_config".format(easyconfig=eb)
+        wildcard_constraints:
+            easyconfig=eb
+        input:
+            lmod = op.join(HOME, 'soft', 'lmod', 'lmod'),
+            vers = op.join(WD, 'easybuild_version.txt'),
+            # easyconfig = op.join(WD, 'eb', easyconfig)            
+        output:
+            flag = op.join(WD, '{easyconfig}.done')
+        params:
+            easyconfig = eb,
+            modulepath = modulepath,
+            buildpath = buildpath,
+            containerpath = containerpath,
+            installpath = installpath,
+            repositorypath = repositorypath,
+            robotpath = robotpath,
+            sourcepath = sourcepath,
+            lmodpath=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec'),
+            lmodinit=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'init', 'bash'),
+            lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
+        threads:
+            NTHREADS
+        shell:
+            """  
+            export PATH={params.lmodpath}:$PATH
+            source {params.lmodinit}
+            export LMOD_CMD={params.lmodcmd}
+          
+            eb --robot {params.easyconfig} \
+              --installpath-modules {params.modulepath} \
+              --containerpath {params.containerpath} \
+              --installpath {params.installpath} \
+              --repositorypath {params.repositorypath} \
+              --robot-paths {params.robotpath} \
+              --sourcepath {params.sourcepath} \
+              --job-cores={threads} \
+              --parallel={threads}
 
-rule check_bcftools_module:
-    input:
-        op.join(WD, 'bcftools_install.txt')
-    output:
-        op.join(WD, 'bcftools_status.txt')
-    params:
-        modulepath = MODULEPATH
-    shell:
-        """
-        export MODULEPATH={params.modulepath}
-        module load BEDTools/2.31.0-GCC-12.3.0 > {output}
-        which bedtools >> {output}
-        module unload bedtools >> {output}
-        which bedtools >> {output}
-        """        
+            date > {output.flag}
+            """
+    
+# rule install_bcftools_and_others:
+#     input:
+#         op.join(WD, 'easybuild_version.txt'),
+#         lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
+#     output:
+#         op.join(WD, 'bcftools_install.txt')
+#     params:
+#         modulepath = modulepath
+#     shell:
+#         """
+#         export MODULEPATH={params.modulepath}
+#         eb --robot BCFtools-1.18-GCC-12.3.0.eb  > {output}
+#         eb --robot BEDTools-2.31.0-GCC-12.3.0.eb >> {output}
+#         """
 
-## snakemake --use-envmodules --cores 1 -p
-rule use_module:
-    envmodules:
-        "BEDTools/2.31.0-GCC-12.3.0"
-    input:
-        op.join(WD, 'bcftools_status.txt')
-    output:
-        op.join(WD, 'with_envmodules.txt')
-    shell:
-        """
-        echo $MODULEPATH > {output}
-        bedtools --version >> {output}
-        """
+# rule check_bcftools_module:
+#     input:
+#         op.join(WD, 'bcftools_install.txt')
+#     output:
+#         op.join(WD, 'bcftools_status.txt')
+#     params:
+#         modulepath = modulepath
+#     shell:
+#         """
+#         export MODULEPATH={params.modulepath}
+#         module load BEDTools/2.31.0-GCC-12.3.0 > {output}
+#         which bedtools >> {output}
+#         module unload bedtools >> {output}
+#         which bedtools >> {output}
+#         """        
 
-## note $MODULEPATH is empty here
-rule do_not_use_module:
-    input:
-        op.join(WD, 'bcftools_status.txt')
-    output:
-        op.join(WD, 'without_envmodules.txt')
-    shell:
-        """
-        echo $MODULEPATH > {output}
-        bedtools --version || true >> {output}
-        """
+# ## snakemake --use-envmodules --cores 1 -p
+# rule use_module:
+#     envmodules:
+#         "BEDTools/2.31.0-GCC-12.3.0"
+#     input:
+#         op.join(WD, 'bcftools_status.txt')
+#     output:
+#         op.join(WD, 'with_envmodules.txt')
+#     shell:
+#         """
+#         echo $MODULEPATH > {output}
+#         bedtools --version >> {output}
+#         """
+
+# ## note $MODULEPATH is empty here
+# rule do_not_use_module:
+#     input:
+#         op.join(WD, 'bcftools_status.txt')
+#     output:
+#         op.join(WD, 'without_envmodules.txt')
+#     shell:
+#         """
+#         echo $MODULEPATH > {output}
+#         bedtools --version || true >> {output}
+#         """
         
-rule containerize:
-    input:
-        op.join(WD, 'bcftools_status.txt')
-    output:
-        op.join(WD, 'test_singularity.txt')
-    shell:
-        """
-        eb GCC-6.4.0-2.28.eb \
-             --force \
-             --containerize --container-config bootstrap=localimage,from=example.sif \
-             --experimental > {output} ## \
-             ## --container-build-image > {output}
-        """
+# rule containerize:
+#     input:
+#         op.join(WD, 'bcftools_status.txt')
+#     output:
+#         op.join(WD, 'test_singularity.txt')
+#     shell:
+#         """
+#         eb GCC-6.4.0-2.28.eb \
+#              --force \
+#              --containerize --container-config bootstrap=localimage,from=example.sif \
+#              --experimental > {output} ## \
+#              ## --container-build-image > {output}
+#         """

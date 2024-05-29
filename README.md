@@ -18,7 +18,7 @@ The entrypoint to omnibenchmark. It contains a cli and multiple utility function
 Create a virtualenv and install poetry, with a compilled (altinstall) python3.12
 
 ```
-mkdir -p ~/python
+mkdir -p ~/soft/python
 cd $_
 wget https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tgz
 tar xzvf Python-3.12.3.tgz

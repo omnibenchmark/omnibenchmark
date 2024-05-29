@@ -35,9 +35,9 @@ tar xfvj download && cd Lmod-"$LMOD_VERS"
 ./configure --prefix=$HOME/soft && make install
 
 ## also to .bashrc these three
-# export PATH=$HOME/soft/lmod/"$LMOD_VERS"/libexec:$PATH
-# source $HOME/soft/lmod/"$LMOD_VERS"/init/bash
-# export LMOD_CMD=$HOME/soft/lmod/"$LMOD_VERS"/libexec/lmod
+export PATH=$HOME/soft/lmod/"$LMOD_VERS"/libexec:$PATH
+source $HOME/soft/lmod/"$LMOD_VERS"/init/bash
+export LMOD_CMD=$HOME/soft/lmod/"$LMOD_VERS"/libexec/lmod
 
 
 lmod --version
