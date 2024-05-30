@@ -7,9 +7,16 @@
 # re: environments
 # https://stackoverflow.com/questions/44316075/using-pyenv-in-a-snakemake-rule
 
+import glob
+import re
 import os
 import os.path as op
 from shutil import which
+# from easybuild.tools.module_naming_scheme.utilities import *
+from easybuild.framework.easyconfig.parser import EasyConfigParser
+# from easybuild.tools.build_log import EasyBuildError
+from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
+# from easybuild.tools.options import set_up_configuration
 
 WD = op.join('soft')
 #MODULEPATH="$HOME/.local/easybuild/modules/all/"
@@ -36,13 +43,17 @@ for p in [WD, modulepath, buildpath, containerpath, installpath, repositorypath,
     if not op.exists(p):
         os.makedirs(p)
 
+## glob-glob this
+easyconfigs=['R-4.2.2-foss-2022b.eb']
+
+
 rule all:
     input:
         # op.join(WD, 'with_envmodules.txt'),
         # op.join(WD, 'without_envmodules.txt'),
         # op.join(WD, 'test_singularity.txt'),
         # op.join(WD, 'SAMtools-1.3.1-intel-2016b-HTSlib-1.3.2.eb.done')
-        op.join(WD, 'Perl-5.36.0-GCCcore-12.1.0.eb.done')
+        expand(op.join(WD, '{eb}.done'), eb = easyconfigs)
         
 rule install_lmod:
     output:
@@ -99,11 +110,16 @@ rule check_easybuild:
         echo $MODULEPATH >> {output} 
         """
 
-## glob-glob this
-easyconfigs=['Perl-5.36.0-GCCcore-12.1.0.eb',
-             'R-4.2.2-foss-2022b.eb']
-
 for eb in easyconfigs:
+    full_eb = sum([glob.glob(op.join(x, '**', eb), recursive = True) for x in re.split(':', robotpath)], [])[0]
+    ec_dict = EasyConfigParser(full_eb).get_config_dict()
+    toolchain = ec_dict.get('toolchain', {})
+    name = ec_dict.get('name', "")
+    version = ec_dict.get('version', "")
+    versionsuffix = ec_dict.get('versionsuffix', "")
+    # softwarename/softwareversion-toolchainname-toolchainversion-suffix
+    # modulename=op.join(name, '-'.join([version, toolchain['name'], toolchain['version'], versionsuffix]))
+    modulename = op.join(name, eb.replace('.eb', '').replace(name + '-', ''))
     rule:
         name: f"{{easyconfig}}_config".format(easyconfig=eb)
         wildcard_constraints:
@@ -125,7 +141,8 @@ for eb in easyconfigs:
             sourcepath = sourcepath,
             lmodpath=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec'),
             lmodinit=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'init', 'bash'),
-            lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
+            lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod'),
+            modulename = modulename
         threads:
             NTHREADS
         shell:
@@ -134,16 +151,21 @@ for eb in easyconfigs:
             source {params.lmodinit}
             export LMOD_CMD={params.lmodcmd}
           
-            eb --robot {params.easyconfig} \
+            module purge
+            
+            eb {params.easyconfig} \
+              --buildpath={params.buildpath} \
               --installpath-modules {params.modulepath} \
               --containerpath {params.containerpath} \
               --installpath {params.installpath} \
               --repositorypath {params.repositorypath} \
               --robot-paths {params.robotpath} \
               --sourcepath {params.sourcepath} \
-              --job-cores={threads} \
-              --parallel={threads}
+              --parallel={threads} \
+              --detect-loaded-modules=unload \
+              --robot
 
+            # module load {params.modulename}
             date > {output.flag}
             """
     
