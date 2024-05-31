@@ -22,6 +22,7 @@ typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 easybuild="^4.9.1"
 snakemake="^8.11.6"
+setuptools="^70.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"

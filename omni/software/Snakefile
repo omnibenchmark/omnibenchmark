@@ -33,8 +33,7 @@ buildpath = op.join(WD, 'easybuild', 'build')
 containerpath = op.join(WD, 'easybuild', 'containers')
 installpath = op.join(WD, 'easybuild')
 repositorypath = op.join(WD, 'easybuild', 'ebfiles_repo')
-robotpath = ':'.join([op.join(HOME, 'virtenvs', 'poetry', 'easybuild', 'easyconfigs'),
-                      op.join(WD, 'easybuild', 'easyconfigs')])
+# robotpath = op.join(WD, 'easybuild', 'easyconfigs') ## let's use default's
 sourcepath = op.join(WD, 'easybuild', 'sources')
 
 ## easybuild config end
@@ -43,9 +42,17 @@ for p in [WD, modulepath, buildpath, containerpath, installpath, repositorypath,
     if not op.exists(p):
         os.makedirs(p)
 
+# robotpath = ':'.join([op.join(HOME, 'virtenvs', 'omni', 'easybuild', 'easyconfigs'),
+                    # op.join(WD, 'easybuild', 'easyconfigs')])
+        
 ## glob-glob this
-easyconfigs=['R-4.2.2-foss-2022b.eb']
+# easyconfigs=['R-4.2.2poetry-foss-2022b.eb']
+# easyconfigs=['R-4.2.2-foss-2022b.eb']
+easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.5.1-GCC-12.3.0.eb']
 
+
+# mind the shell prefix
+# shell.prefix("set -o pipefail; ")
 
 rule all:
     input:
@@ -107,19 +114,18 @@ rule check_easybuild:
         # mkdir -p {params.path}
         eb --version --modules-tool={input.lmod} >> {output}
         export MODULEPATH={params.modulepath}
-        echo $MODULEPATH >> {output} 
+        echo $MODULEPATH >> {output}         
         """
 
 for eb in easyconfigs:
-    full_eb = sum([glob.glob(op.join(x, '**', eb), recursive = True) for x in re.split(':', robotpath)], [])[0]
-    ec_dict = EasyConfigParser(full_eb).get_config_dict()
-    toolchain = ec_dict.get('toolchain', {})
-    name = ec_dict.get('name', "")
-    version = ec_dict.get('version', "")
-    versionsuffix = ec_dict.get('versionsuffix', "")
-    # softwarename/softwareversion-toolchainname-toolchainversion-suffix
-    # modulename=op.join(name, '-'.join([version, toolchain['name'], toolchain['version'], versionsuffix]))
-    modulename = op.join(name, eb.replace('.eb', '').replace(name + '-', ''))
+    # full_eb = sum([glob.glob(op.join(x, '**', eb), recursive = True) for x in re.split(':', robotpath)], [])[0]
+    # ec_dict = EasyConfigParser(full_eb).get_config_dict()
+    # toolchain = ec_dict.get('toolchain', {})
+    # name = ec_dict.get('name', "")
+    # version = ec_dict.get('version', "")
+    # versionsuffix = ec_dict.get('versionsuffix', "")
+    # # softwarename/softwareversion-toolchainname-toolchainversion-suffix
+    # modulename = op.join(name, eb.replace('.eb', '').replace(name + '-', ''))
     rule:
         name: f"{{easyconfig}}_config".format(easyconfig=eb)
         wildcard_constraints:
@@ -137,35 +143,52 @@ for eb in easyconfigs:
             containerpath = containerpath,
             installpath = installpath,
             repositorypath = repositorypath,
-            robotpath = robotpath,
+            # robotpath = robotpath,
             sourcepath = sourcepath,
             lmodpath=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec'),
             lmodinit=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'init', 'bash'),
-            lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod'),
-            modulename = modulename
+            lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')#,
+            # modulename = modulename
         threads:
             NTHREADS
         shell:
             """  
+            # export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
             export PATH={params.lmodpath}:$PATH
             source {params.lmodinit}
             export LMOD_CMD={params.lmodcmd}
           
             module purge
             
+            # ## test here
+            # eb poetry-1.5.1-GCCcore-12.3.0.eb --try-toolchain-version=12.2.0 \
+            #   --buildpath={params.buildpath} \
+            #   --installpath-modules {params.modulepath} \
+            #   --containerpath {params.containerpath} \
+            #   --installpath {params.installpath} \
+            #   --repositorypath {params.repositorypath} \
+            #   --robot-paths params.robotpath \
+            #   --sourcepath {params.sourcepath} \
+            #   --parallel={threads} \
+            #   --detect-loaded-modules=unload \
+            #   --check-ebroot-env-vars=unset \
+            #   --robot
+            # ## test end
+
             eb {params.easyconfig} \
+              --robot \
               --buildpath={params.buildpath} \
               --installpath-modules {params.modulepath} \
               --containerpath {params.containerpath} \
               --installpath {params.installpath} \
               --repositorypath {params.repositorypath} \
-              --robot-paths {params.robotpath} \
+              # --robot-paths params.robotpath \
               --sourcepath {params.sourcepath} \
               --parallel={threads} \
               --detect-loaded-modules=unload \
-              --robot
+              --check-ebroot-env-vars=unset
 
-            # module load {params.modulename}
+            # module load params.modulename
             date > {output.flag}
             """
     

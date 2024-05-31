@@ -13,9 +13,7 @@ The entrypoint to omnibenchmark. It contains a cli and multiple utility function
 
 # How to run
 
-## Installing poetry too
-
-Create a virtualenv and install poetry, with a compilled (altinstall) python3.12
+## install python
 
 ```
 mkdir -p ~/soft/python
@@ -28,6 +26,22 @@ make -j 8
 sudo make altinstall # to /usr/local/bin/python3.12
 
 ```
+
+## pip
+
+```
+mkdir -p ~/virtenvs
+/usr/local/bin/python3.12 -m venv ~/virtenvs/omni
+
+source ~/virtenvs/omni/bin/activate
+#pip install https://github.com/omnibenchmark/omni-py/archive/sw_imallona.zip
+pip install https://github.com/omnibenchmark/omni-py/archive/main.zip
+```
+
+## Installing poetry too
+
+Create a virtualenv and install poetry, with a compilled (altinstall) python3.12
+
 
 ```
 mkdir -p ~/virtenvs
@@ -78,12 +92,43 @@ ob --help
 ob fetch --help
 ```
 
-# Once installed
+## Once installed
 
 ```
 source ~/virtenvs/poetry/bin/activate 
 poetry shell
 ```
+
+<!-- ## No-poetry, no-environ -->
+
+<!-- Largely as in https://stackoverflow.com/questions/71769359/how-to-use-python-poetry-to-install-package-to-a-virtualenv-in-a-standalone-fash -->
+
+<!-- ``` -->
+<!-- su - $(whoami) # start clean -->
+<!-- echo $PATH -->
+
+<!-- cd ~/src/omni-py -->
+
+<!-- ## export to a requirements.txt; assume `poetry` is available from somewhere -->
+<!-- poetry export --without-hashes -f requirements.txt -o /tmp/requirements.txt -->
+
+<!-- # create a new venv -->
+<!-- mkdir -p ~/virtenvs && cd ~/virtenvs -->
+<!-- /usr/local/bin/python3.12 -m venv omni && . omni/bin/activate -->
+
+<!-- # then install the dependencies -->
+<!-- pip install --no-cache-dir --no-deps -r /tmp/requirements.txt -->
+<!-- pip install setuptools # https://stackoverflow.com/a/76691103 -->
+<!-- pip install poetry     # so poetry is installed in an env NOT handled by poetry -->
+
+<!-- # install cli -->
+<!-- cd ~/src/omni-py -->
+<!-- pip install . -->
+
+<!-- eb --help -->
+<!-- snakemake --version -->
+<!-- poetry --version -->
+<!-- ``` -->
 
 # How tu contribute
 
