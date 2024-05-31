@@ -199,6 +199,7 @@ class SwiftStorage(RemoteStorage):
                 raise SwiftError(
                     f"Benchmark creation of {benchmark}.0.1 failed: {post['error']}"
                 )
+            # TODO: add object to global overview
 
         self._update_overview(cleanup=True)
         # except SwiftError as e:
