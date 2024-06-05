@@ -1,4 +1,7 @@
-# Logics
+# Design
+
+
+# Use cases
 
 - Omniblock = omnibenchmark module
 - Module = lmod software module, as configured by easybuild
@@ -50,10 +53,10 @@ else:
 ```
 if lmod not installed
     install lmod
-else
-    for each omniblock:
-        easybuild the easyconfig, build the singularity image
-        push image to the registry
+
+for each omniblock:
+    easybuild the easyconfig, build the singularity image
+    push image to the registry
 ```
 
 6. Running a benchmark
@@ -79,3 +82,5 @@ else if using apptainer:
         pull the matching apptainer image(s)
         run with --use-singularity
 ```
+
+
