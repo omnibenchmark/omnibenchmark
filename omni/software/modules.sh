@@ -39,5 +39,4 @@ export PATH=$HOME/soft/lmod/"$LMOD_VERS"/libexec:$PATH
 source $HOME/soft/lmod/"$LMOD_VERS"/init/bash
 export LMOD_CMD=$HOME/soft/lmod/"$LMOD_VERS"/libexec/lmod
 
-
 lmod --version
