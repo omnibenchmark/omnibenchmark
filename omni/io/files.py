@@ -180,7 +180,7 @@ def checksum_files(
     return failed_checksums
 
 
-def get_benchmarks_public(endpoint):
+def get_benchmarks_public(endpoint: str) -> List[str]:
     """List all available benchmarks"""
     url = urlparse(f"{endpoint}/benchmarks")
     response = requests.get(url.geturl(), params={"format": "xml"})
@@ -199,7 +199,7 @@ def get_benchmarks_public(endpoint):
     return benchmarks
 
 
-def get_benchmark_versions_public(benchmark, endpoint):
+def get_benchmark_versions_public(benchmark: str, endpoint: str) -> List[str]:
     url = urlparse(f"{endpoint}/{benchmark}.overview")
     response = requests.get(url.geturl(), params={"format": "xml"})
     if response.ok:

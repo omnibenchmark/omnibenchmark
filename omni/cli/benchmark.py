@@ -3,10 +3,6 @@
 from typing_extensions import Annotated
 
 import typer
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-import requests
-import re
 from packaging.version import Version
 import omni.io.files
 
@@ -94,10 +90,7 @@ def list_benchmarks(
             benchmark, endpoint
         )
     for key, value in sorted(benchmarks.items()):
-        if len(value) > 0:
-            value = value[-1]
-        if value is None or len(value) == 0:
-            value = ""
+        value = (value or [None])[-1]
         typer.echo(f"{key:>20}     latest: {value:>5}")
 
 
