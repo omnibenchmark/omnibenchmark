@@ -1,14 +1,20 @@
 """MinIO class for remote storage."""
-import minio
-import io
+
 import datetime
+import io
 import json
+import logging
+import re
+from typing import Union
+from urllib.parse import urlparse
+
 import dateutil.parser
+import minio
+import minio.deleteobjects
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-import re
-import logging
+from packaging.version import Version
+
 from omni.io.RemoteStorage import RemoteStorage
 from omni.io.S3config import bucket_readonly_policy
 
@@ -103,13 +109,13 @@ class MinIOStorage(RemoteStorage):
         else:
             raise ValueError("Invalid auth options")
 
-    def _test_connect(self):
+    def _test_connect(self) -> None:
         try:
             _ = self.client.list_buckets()
         except Exception as e:
             raise e
 
-    def _get_containers(self):
+    def _get_containers(self) -> None:
         """
         Retrieves the list of containers.
 
@@ -121,12 +127,11 @@ class MinIOStorage(RemoteStorage):
             for bucket in self.client.list_buckets():
                 containers.append(bucket.name)
             self.containers = containers
-            return self.containers
 
         except Exception as e:
             logger.error(e.value)
 
-    def _get_benchmarks(self, update=True):
+    def _get_benchmarks(self, update: bool = True) -> None:
         if len(self.containers) == 0 or update:
             self._get_containers()
         benchmarks = list()
@@ -136,7 +141,6 @@ class MinIOStorage(RemoteStorage):
             if bm not in benchmarks and bm != "":
                 benchmarks.append(bm)
         self.benchmarks = benchmarks
-        return self.benchmarks
 
     def _create_benchmark(self, benchmark, update=True):
         if len(self.benchmarks) == 0 or update:
@@ -181,12 +185,11 @@ class MinIOStorage(RemoteStorage):
             other_versions = list()
             for version in allversions:
                 if re.match(f"(\\d+).(\\d+)", version):
-                    versions.append(version)
+                    versions.append(Version(version))
                 elif re.match(f"test.(\\d+)", version):
                     other_versions.append(version)
             self.versions = versions
             self.other_versions = other_versions
-            return self.versions, self.other_versions
 
         else:
             if update:
@@ -195,85 +198,125 @@ class MinIOStorage(RemoteStorage):
             other_versions = list()
             for con in self.containers:
                 if re.match(f"{self.benchmark}.(\\d+).(\\d+)", con):
-                    versions.append(".".join(con.split(".")[-2:]))
+                    versions.append(Version(".".join(con.split(".")[-2:])))
                 elif re.match(f"{self.benchmark}.test.(\\d+)", con):
                     other_versions.append(".".join(con.split(".")[-2:]))
             self.versions = versions
             self.other_versions = other_versions
-            return self.versions, self.other_versions
 
     def _update_overview(self, cleanup=True):
         # check versions in overview
-        versions_in_overview = []
+        all_versions_in_overview = []
         for element in self.client.list_objects(f"{self.benchmark}.overview"):
-            versions_in_overview.append(element.object_name)
+            all_versions_in_overview.append(element.object_name)
+
+        versions_in_overview = []
+        other_versions_in_overview = []
+        for v in all_versions_in_overview:
+            try:
+                versions_in_overview.append(Version(v))
+            except:
+                other_versions_in_overview.append(v)
+
         # available benchmark versions
         self._get_versions()
+
         # missing versions
         versions_not_in_overview = [
-            v
-            for v in self.versions + self.other_versions
-            if v not in versions_in_overview
+            v for v in self.versions if v not in versions_in_overview
         ]
+        other_versions_not_in_overview = [
+            v for v in self.other_versions if v not in other_versions_in_overview
+        ]
+
         # create missing versions
         for v in versions_not_in_overview:
+            result = self.client.put_object(
+                f"{self.benchmark}.overview", f"{v.major}.{v.minor}", io.BytesIO(b""), 0
+            )
+        for v in other_versions_not_in_overview:
             result = self.client.put_object(
                 f"{self.benchmark}.overview", v, io.BytesIO(b""), 0
             )
 
         # remove unavailable versions
         if cleanup:
-            versions_in_overview = []
+            all_versions_in_overview = []
             for element in self.client.list_objects(f"{self.benchmark}.overview"):
-                versions_in_overview.append(element.object_name)
+                all_versions_in_overview.append(element.object_name)
+            versions_in_overview = []
+            other_versions_in_overview = []
+            for v in all_versions_in_overview:
+                try:
+                    versions_in_overview.append(Version(v))
+                except:
+                    other_versions_in_overview.append(v)
 
-            versions_in_overview_but_unavailable = [
-                v
-                for v in versions_in_overview
-                if v not in self.versions + self.other_versions
-            ]
+            versions_in_overview_but_unavailable = []
+            for v in versions_in_overview:
+                if v not in self.versions:
+                    versions_in_overview_but_unavailable.append(f"{v.major}.{v.minor}")
+            other_versions_in_overview_but_unavailable = []
+            for v in other_versions_in_overview:
+                if v not in self.other_versions:
+                    other_versions_in_overview_but_unavailable.append(v)
+
             deletes = self.client.remove_objects(
-                f"{self.benchmark}.overview", versions_in_overview_but_unavailable
+                f"{self.benchmark}.overview",
+                [
+                    minio.deleteobjects.DeleteObject(v)
+                    for v in versions_in_overview_but_unavailable
+                ],
+            )
+            for obj in deletes:
+                raise Exception(f"Deletion failed: {obj}")
+
+            deletes = self.client.remove_objects(
+                f"{self.benchmark}.overview",
+                [
+                    minio.deleteobjects.DeleteObject(v)
+                    for v in other_versions_in_overview_but_unavailable
+                ],
             )
             for delete in deletes:
                 raise Exception(f"Deletion failed: {delete}")
 
     def _create_new_version(self):
-        if self.major_version_new is None or self.minor_version_new is None:
+        if self.version_new is None:
             raise ValueError("No version provided")
 
         # update
         self._get_versions()
         # check if version exists
-        if not f"{self.major_version_new}.{self.minor_version_new}" in self.versions:
+        if not self.version_new in self.versions:
             # create new version
             self.client.make_bucket(
-                bucket_name=f"{self.benchmark}.{self.major_version_new}.{self.minor_version_new}"
+                bucket_name=f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}"
             )
             set_bucket_public_readonly(
                 self.client,
-                f"{self.benchmark}.{self.major_version_new}.{self.minor_version_new}",
+                f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}",
             )
             if not self.client.bucket_exists(
-                f"{self.benchmark}.{self.major_version_new}.{self.minor_version_new}"
+                f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}"
             ):
                 raise Exception(
-                    f"Benchmark creation of {self.benchmark}.{self.major_version_new}.{self.minor_version_new} failed"
+                    f"Benchmark creation of {self.benchmark}.{self.version_new.major}.{self.version_new.minor} failed"
                 )
             # update
             self._update_overview()
         else:
             raise ValueError("Version already exists")
 
-        if not f"{self.major_version_new}.{self.minor_version_new}" in self.versions:
+        if not self.version_new in self.versions:
             raise ValueError("Version creation failed")
 
     def _get_objects(self, readonly=False):
-        if self.major_version is None or self.minor_version is None:
+        if self.version is None:
             raise ValueError("No version provided")
         if not "secret_key" in self.auth_options.keys() or readonly:
             containername = (
-                f"{self.benchmark}.{self.major_version}.{self.minor_version}"
+                f"{self.benchmark}.{self.version.major}.{self.version.minor}"
             )
             url = urlparse(f"{self.auth_options['endpoint']}/{containername}")
             if self.auth_options["secure"]:
@@ -302,11 +345,13 @@ class MinIOStorage(RemoteStorage):
                 )
                 files[obj.find("Key").text] = {
                     "hash": obj.find("ETag").text.replace('"', ""),
-                    "size": obj.find("Size").text,
+                    "size": int(obj.find("Size").text),
                     "last_modified": obj.find("LastModified").text,
-                    "symlink_path": obj.find("symlink_path").text
-                    if obj.find("symlink_path") is not None
-                    else "",
+                    "symlink_path": (
+                        obj.find("symlink_path").text
+                        if obj.find("symlink_path") is not None
+                        else ""
+                    ),
                     "x-object-meta-mtime": mtime,
                     "accesstime": accesstime,
                 }
@@ -317,10 +362,9 @@ class MinIOStorage(RemoteStorage):
             # get all objects
 
             for element in self.client.list_objects(
-                f"{self.benchmark}.{self.major_version}.{self.minor_version}",
+                f"{self.benchmark}.{self.version.major}.{self.version.minor}",
                 recursive=True,
             ):
-                print(element)
                 if type(element.last_modified) is str:
                     files[element.object_name] = {
                         "size": element.size,
@@ -370,7 +414,6 @@ class MinIOStorage(RemoteStorage):
                 return
             else:
                 for filename in self.files.keys():
-                    print(filename)
                     if "x-object-meta-mtime" in self.files[filename].keys():
                         file_time = datetime.datetime.fromtimestamp(
                             float(self.files[filename]["x-object-meta-mtime"])
@@ -397,12 +440,7 @@ class MinIOStorage(RemoteStorage):
         """
         if type not in ["copy", "symlink"]:
             raise ValueError("Invalid type")
-        if (
-            self.major_version is None
-            or self.minor_version is None
-            or self.major_version_new is None
-            or self.minor_version_new is None
-        ):
+        if self.version is None or self.version_new is None:
             raise ValueError("No version provided")
 
         if type == "copy":
@@ -413,10 +451,10 @@ class MinIOStorage(RemoteStorage):
             ]
             for filename in filenames:
                 out = self.client.copy_object(
-                    f"{self.benchmark}.{self.major_version_new}.{self.minor_version_new}",
+                    f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}",
                     filename,
                     minio.commonconfig.CopySource(
-                        bucket_name=f"{self.benchmark}.{self.major_version}.{self.minor_version}",
+                        bucket_name=f"{self.benchmark}.{self.version.major}.{self.version.minor}",
                         object_name=filename,
                     ),
                 )
@@ -425,7 +463,10 @@ class MinIOStorage(RemoteStorage):
             raise NotImplementedError("Symlink copying not implemented")
 
     def create_new_version(
-        self, version_type="minor", tagging_type="all", copy_type="copy"
+        self,
+        version_new: Union[None, str] = None,
+        tagging_type: str = "all",
+        copy_type: str = "copy",
     ):
         """
         Wrapper to create new version and copy objects.
@@ -435,13 +476,8 @@ class MinIOStorage(RemoteStorage):
             tagging_type (str, optional): The type of tagging to apply. Defaults to "all".
             copy_type (str, optional): The type of copying to perform. Defaults to "copy".
         """
-        if version_type not in ["minor", "major"]:
-            raise ValueError("Invalid version type: 'minor' or 'major'")
         self.set_current_version()
-        if version_type == "minor":
-            self.set_new_version(None, True)
-        elif version_type == "major":
-            self.set_new_version(True, None)
+        self.set_new_version(version_new)
 
         self._create_new_version()
         self._get_objects()

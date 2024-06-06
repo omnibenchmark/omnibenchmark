@@ -1,5 +1,8 @@
 """Base class for remote storage."""
-from typing import Union, List, Dict
+
+from typing import Dict, Union
+
+from packaging.version import Version
 
 
 class RemoteStorage:
@@ -38,10 +41,12 @@ class RemoteStorage:
     """
 
     def __init__(self, auth_options: Dict, benchmark: str):
-        self.major_version = None
-        self.major_version_new = None
-        self.minor_version = None
-        self.minor_version_new = None
+        self.version = None
+        self.version_new = None
+        # self.major_version = None
+        # self.major_version_new = None
+        # self.minor_version = None
+        # self.minor_version_new = None
         self.benchmarks = list()
         self.versions = list()
         self.other_versions = list()
@@ -49,14 +54,14 @@ class RemoteStorage:
         self._parse_benchmark(benchmark)
         self._parse_auth_options(auth_options)
 
-    def _parse_benchmark(self, benchmark: str):
+    def _parse_benchmark(self, benchmark: str) -> None:
         if not type(benchmark) is str:
             raise ValueError("benchmark must be a string")
         if not benchmark.isidentifier():
             raise ValueError("benchmark must be a valid identifier")
         self.benchmark = benchmark
 
-    def _parse_auth_options(self, auth_options: Dict):
+    def _parse_auth_options(self, auth_options: Dict) -> None:
         if not type(auth_options) is dict:
             raise ValueError("auth_options must be a dictionary")
         self.auth_options = auth_options
@@ -70,14 +75,14 @@ class RemoteStorage:
         """
         NotImplementedError
 
-    def _test_connect(self):
+    def _test_connect(self) -> None:
         """
         This method is used to test the connection to the remote storage.
         It does not perform any actual operations, but checks if the connection is successful.
         """
         NotImplementedError
 
-    def _get_container(self):
+    def _get_container(self) -> None:
         """
         Retrieves the list of containers from the remote storage.
 
@@ -86,7 +91,7 @@ class RemoteStorage:
         """
         NotImplementedError
 
-    def _get_benchmarks(self):
+    def _get_benchmarks(self) -> None:
         """
         Retrieves the benchmarks from the remote storage.
 
@@ -95,7 +100,7 @@ class RemoteStorage:
         """
         NotImplementedError
 
-    def create_benchmark(self, benchmark: str):
+    def create_benchmark(self, benchmark: str) -> None:
         """
         Creates a new benchmark in the remote storage.
 
@@ -107,7 +112,7 @@ class RemoteStorage:
         """
         NotImplementedError
 
-    def _get_versions(self, update: bool = True, readonly: bool = False):
+    def _get_versions(self, update: bool = True, readonly: bool = False) -> None:
         """
         Retrieves the benchmark versions in the remote storage.
 
@@ -117,158 +122,81 @@ class RemoteStorage:
         """
         self.versions = []
 
-    def set_current_version(
-        self,
-        major_version: Union[None, int] = None,
-        minor_version: Union[None, int] = None,
-    ):
+    def _parse_current_version(self, version: Union[None, str] = None) -> Version:
+        """
+        Parses the current version based on the provided major and minor versions.
+
+        Args:
+            version (None or str, optional]): The version number. Defaults to None.
+
+        Returns:
+            Version: The parsed version.
+
+        Raises:
+            ValueError: If an invalid version is provided.
+        """
+        if self.versions == []:
+            self._get_versions()
+        if version is None:
+            version_out = max(self.versions)
+        else:
+            version_out = Version(version)
+            if version_out not in self.versions:
+                raise ValueError(f"Version {version_out} not found in {self.benchmark}")
+        return version_out
+
+    def set_current_version(self, version: Union[None, str] = None) -> None:
         """
         Sets the current version of the remote storage.
 
         Args:
-            major_version (None or int, optional): The major version number. Defaults to None.
-            minor_version (None or int, optional): The minor version number. Defaults to None.
+            version (None or str, optional): The version number as a string. Defaults to None.
 
         Raises:
-            ValueError: If major_version is not an integer or None.
-            ValueError: If minor_version is not an integer or None.
-            ValueError: If major_version does not exist in the available versions.
-            ValueError: If minor_version does not exist in the available versions for the specified major version.
+            ValueError: If version does not exist in the available versions.
         """
+        self.version = self._parse_current_version(version)
 
-        if not type(major_version) is int and not major_version is None:
-            raise ValueError("major_version must be an integer")
-        if not type(minor_version) is int and not minor_version is None:
-            raise ValueError("minor_version must be an integer")
-
-        if major_version is None or minor_version is None:
-            if self.versions is None:
-                self._get_versions()
-        if major_version is None:
-            self.major_version = int(
-                sorted(self.versions, key=lambda x: float(x), reverse=True)[0].split(
-                    "."
-                )[0]
-            )
-        else:
-            if not major_version in [int(v.split(".")[0]) for v in self.versions]:
-                raise ValueError("Major version does not exist")
-            else:
-                self.major_version = major_version
-
-        valid_minor_versions = [
-            int(v.split(".")[1])
-            for v in self.versions
-            if int(v.split(".")[0]) == int(self.major_version)
-        ]
-        if minor_version is None:
-            self.minor_version = sorted(valid_minor_versions, reverse=True)[0]
-        else:
-            if not minor_version in valid_minor_versions:
-                raise ValueError("Minor version does not exist")
-            else:
-                self.minor_version = minor_version
-
-    def _parse_new_version(
-        self,
-        major_version: Union[None, int] = None,
-        minor_version: Union[None, int] = None,
-    ):
+    def _parse_new_version(self, version: Union[None, str] = None) -> Version:
         """
         Parses the new version based on the provided major and minor versions.
 
         Args:
-            major_version (None or int, optional]): The major version number. Defaults to None.
-            minor_version (None or int, optional): The minor version number. Defaults to None.
+            version (None or str, optional]): The version number. Defaults to None.
 
         Returns:
-            Tuple[int, int]: A tuple containing the parsed major and minor versions.
+            Version: The parsed version.
 
         Raises:
-            ValueError: If the major_version or minor_version is not of the expected type.
             ValueError: If an invalid version is provided.
         """
-
-        if not (
-            type(major_version) is int
-            or type(major_version) is bool
-            or major_version is None
-        ):
-            raise ValueError("major_version must be an integer")
-        if not (
-            type(minor_version) is int
-            or type(minor_version) is bool
-            or minor_version is None
-        ):
-            raise ValueError("minor_version must be an integer")
-
-        if (
-            major_version is None
-            or minor_version is None
-            or self.major_version is None
-            or self.minor_version is None
-        ):
-            if self.versions is None:
-                self._get_versions()
-            if self.major_version is None or self.minor_version is None:
-                self.set_current_version()
-
-        if major_version is None and minor_version is None:
-            major_version_p = int(self.major_version)
-            minor_version_p = int(self.minor_version) + 1
-        # increment major version
-        elif (type(major_version) is bool and major_version) and (
-            minor_version is None or (type(minor_version) is bool and minor_version)
-        ):
-            major_version_p = int(self.major_version) + 1
-            minor_version_p = 0
-        # increment minor version
-        elif type(minor_version) is bool and minor_version and major_version is None:
-            major_version_p = int(self.major_version)
-            minor_version_p = int(self.minor_version) + 1
-        # set version
-        elif type(major_version) is int and type(minor_version) is int:
-            major_version_p = major_version
-            minor_version_p = minor_version
-        elif (
-            type(major_version) is str
-            or type(minor_version) is str
-            or type(major_version) is float
-            or type(minor_version) is float
-        ):
-            if int(major_version) == major_version:
-                major_version_p = int(major_version)
-            if int(minor_version) == minor_version:
-                minor_version_p = int(minor_version)
+        if self.versions == []:
+            self._get_versions()
+        if version is None:
+            version_current = max(self.versions)
+            version_out = Version(
+                f"{version_current.major}.{version_current.minor + 1}"
+            )
         else:
-            raise ValueError("Invalid version")
-        return major_version_p, minor_version_p
+            version_out = Version(version)
+            if version_out <= max(self.versions):
+                raise ValueError(f"Version {version} not newest version")
+        return version_out
 
     def set_new_version(
         self,
-        major_version_new: Union[None, int] = None,
-        minor_version_new: Union[None, int] = None,
-    ):
+        version_new: Union[None, str] = None,
+    ) -> None:
         """
         Sets a new version for the remote storage.
 
         Args:
-            major_version_new (None or int, optional): The major version number of the new version. Defaults to None.
-            minor_version_new (None or int, optional): The minor version number of the new version. Defaults to None.
+            version_new (None or str, optional): The version number of the new version. Defaults to None.
 
         Raises:
             ValueError: If no version is provided or if the version already exists.
         """
-        major_version_new, minor_version_new = self._parse_new_version(
-            major_version_new, minor_version_new
-        )
-        if major_version_new is None or minor_version_new is None:
-            raise ValueError("No version provided")
-        if f"{major_version_new}.{minor_version_new}" in self.versions:
-            raise ValueError("Version already exists")
-
-        self.major_version_new = major_version_new
-        self.minor_version_new = minor_version_new
+        self.version_new = self._parse_new_version(version_new)
 
     def create_new_version(self):
         NotImplementedError
@@ -282,8 +210,8 @@ class RemoteStorage:
     def copy_objects(self):
         NotImplementedError
 
-    def archive_version(self, major_version, minor_version):
+    def archive_version(self, version):
         NotImplementedError
 
-    def delete_version(self, major_version, minor_version):
+    def delete_version(self, version):
         NotImplementedError
