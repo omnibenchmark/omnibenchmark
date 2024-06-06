@@ -2,11 +2,22 @@
 
 """
 Easybuild-powered software management, mostly by omniblock. Also includes singularity image generation.
+
+Izaskun Mallona
+Started 5th June 2024
 """
 
 import subprocess
 import os.path as op
-# from easybuild.tools.module_naming_scheme.categorized_mns import det_full_module_name
+import sys
+from easybuild.tools.module_naming_scheme.mns import ModuleNamingScheme
+from easybuild.tools.module_naming_scheme.utilities import det_full_ec_version, is_valid_module_name
+from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
+from easybuild.tools.options import set_up_configuration
+from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
+# from warnings import deprecated
+
+## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
 
 def install_lmod():
     try:
@@ -27,13 +38,19 @@ def install_lmod():
     else:
         return("LOG lmod install output: \n{}\n".format(output))
 
+def export_lmod_env_vars(LMOD_VERS="8.7"):
+    os.environ['PATH']= ':'.join([op.join(op.expanduser("~"), 'soft', 'lmod', LMOD_VERS, 'libexec'),
+                                  os.environ['PATH']])
+    os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
+    os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
+    
 def check_easybuild_status():
     try:
         subprocess.call(["eb", "--help"])
     except FileNotFoundError:
         return("ERROR easybuild not found")
 
-def generate_default_easybuild_config_arguments(workdir, LMOD_VERS = "8.7"):
+def generate_default_easybuild_config_arguments(workdir):
     HOME = op.expanduser("~")
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
     buildpath = op.join(workdir, 'easybuild', 'build')
@@ -42,19 +59,16 @@ def generate_default_easybuild_config_arguments(workdir, LMOD_VERS = "8.7"):
     repositorypath = op.join(workdir, 'easybuild', 'ebfiles_repo')
     # robotpath = op.join(workdir, 'easybuild', 'easyconfigs') ## let's use default's
     sourcepath = op.join(workdir, 'easybuild', 'sources')
-    lmodpath=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec'),
-    lmodinit=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'init', 'bash'),
-    lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
-
-    args = """--buildpath=%(buildpath)s  --installpath-modules %(modulepath)s \
-              --containerpath %(containerpath)s --installpath %(installpath)s \
-              --repositorypath %(repositorypath)s --sourcepath %(sourcepath)s""" %{
-                  buildpath : buildpath,
-                  modulepath : modulepath,
-                  containerpath : containerpath,
-                  installpath : installpath,
-                  repositorypath : repositorypath,
-                  sourcepath : sourcepath}
+    
+    args = """--buildpath=%(buildpath)s  --installpath-modules=%(modulepath)s \
+              --containerpath=%(containerpath)s --installpath=%(installpath)s \
+              --repositorypath=%(repositorypath)s --sourcepath=%(sourcepath)s""" %{
+                  'buildpath' : buildpath,
+                  'modulepath' : modulepath,
+                  'containerpath' : containerpath,
+                  'installpath' : installpath,
+                  'repositorypath' : repositorypath,
+                  'sourcepath' : sourcepath}
     return(args)
         
 def easybuild_easyconfig(easyconfig,
@@ -87,8 +101,10 @@ def easybuild_easyconfig(easyconfig,
     else:
         return("LOG easybuild: \n{}\n".format(output))
 
+## shell stuff end ------------------------------------------------------------------------------------
+
 def list_all_easyconfigs(benchmark_yaml):
-    return('not_implemented')
+    return('not_implemented, perhaps import from workflow/schema?')
 
 def easybuild_all_easyconfigs(benchmark_yaml, workdir, threads, containerize = False,
                               container_build_image = False):
@@ -104,11 +120,41 @@ def easybuild_all_easyconfigs(benchmark_yaml, workdir, threads, containerize = F
 def get_easyconfig_from_envmodule_name(envmodule):
     return('not implemented')
 
-def get_envmodule_name_from_easyconfig(easyconfig):
-    return('not implemented')
+def parse_easyconfig(ec_fn, workdir):
+    """
+    Find and parse an easyconfig with specified filename,
+    and return parsed easyconfig file (an EasyConfig instance).
+    """
+    opts, _ = set_up_configuration(args = generate_default_easybuild_config_arguments(workdir).split(),
+                                   silent = True)    
+    
+    ec_path = det_easyconfig_paths([ec_fn])[0]
+    
+    # parse easyconfig file;
+    # the 'parse_easyconfigs' function expects a list of tuples,
+    # where the second item indicates whether or not the easyconfig file was automatically generated or not
+    ec_dicts, _ = parse_easyconfigs([(ec_path, False)])
+    
+    # only retain first parsed easyconfig
+    return ec_path, ec_dicts[0]['ec']
 
-def check_envmodule_status(benchmark_yaml, stage_id, module_id):
-    """
-    Checks whether the envmodule is present for a given benchmarking node
-    """
-    return('not implemented')
+def get_easyconfig_full_path(easyconfig, workdir):
+    ec_path, ec = parse_easyconfig(easyconfig, workdir)
+    return(ec_path)
+
+def get_envmodule_name_from_easyconfig(easyconfig, workdir):
+    ec_path, ec = parse_easyconfig(easyconfig, workdir)
+    return(os.path.join(ec['name'], det_full_ec_version(ec)))
+
+def check_modules_tool():
+    mod_tool = modules_tool()
+    return("Modules tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
+
+def check_available_modules():
+    return(modules_tool().available())
+
+def check_envmodule_status(envmodule):
+    mod_tool = modules_tool()    
+    return(mod_tool.available(envmodule))
+
+
