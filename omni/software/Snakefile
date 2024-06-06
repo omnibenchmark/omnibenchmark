@@ -12,54 +12,31 @@ import re
 import os
 import os.path as op
 from shutil import which
-# from easybuild.tools.module_naming_scheme.utilities import *
-from easybuild.framework.easyconfig.parser import EasyConfigParser
-# from easybuild.tools.build_log import EasyBuildError
-from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
-# from easybuild.tools.options import set_up_configuration
+from easybuild_backend import *
+from conda_backend import *
 
 WD = op.join('soft')
 #MODULEPATH="$HOME/.local/easybuild/modules/all/"
 HOME=op.expanduser("~")
 LMOD_VERS="8.7"
-
 ## use half of the available cores
 NTHREADS = int(len(os.sched_getaffinity(0)))/2
 
-## easybuild config start
 
-modulepath = op.join(WD, 'easybuild', 'modules', 'all')
-buildpath = op.join(WD, 'easybuild', 'build')
-containerpath = op.join(WD, 'easybuild', 'containers')
-installpath = op.join(WD, 'easybuild')
-repositorypath = op.join(WD, 'easybuild', 'ebfiles_repo')
-# robotpath = op.join(WD, 'easybuild', 'easyconfigs') ## let's use default's
-sourcepath = op.join(WD, 'easybuild', 'sources')
+export_lmod_env_vars()
 
-## easybuild config end
-
-for p in [WD, modulepath, buildpath, containerpath, installpath, repositorypath, sourcepath]:
-    if not op.exists(p):
-        os.makedirs(p)
-
-# robotpath = ':'.join([op.join(HOME, 'virtenvs', 'omni', 'easybuild', 'easyconfigs'),
-                    # op.join(WD, 'easybuild', 'easyconfigs')])
-        
-## glob-glob this
-# easyconfigs=['R-4.2.2poetry-foss-2022b.eb']
-# easyconfigs=['R-4.2.2-foss-2022b.eb']
-easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.5.1-GCC-12.3.0.eb']
-
+## caution now these are sort of hardcoded and not created by easybuild_backend
+# for p in [WD, modulepath, buildpath, containerpath, installpath, repositorypath, sourcepath]:
+#     if not op.exists(p):
+#         os.makedirs(p)
 
 # mind the shell prefix
 # shell.prefix("set -o pipefail; ")
 
+easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.5.1-GCC-12.3.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
+
 rule all:
     input:
-        # op.join(WD, 'with_envmodules.txt'),
-        # op.join(WD, 'without_envmodules.txt'),
-        # op.join(WD, 'test_singularity.txt'),
-        # op.join(WD, 'SAMtools-1.3.1-intel-2016b-HTSlib-1.3.2.eb.done')
         expand(op.join(WD, '{eb}.done'), eb = easyconfigs)
         
 rule install_lmod:
@@ -70,195 +47,36 @@ rule install_lmod:
     params:
         path = WD
     run:
-        if which('lmod') is None:
-            shell("""
-        # mkdir -p {params.path}
-        bash modules.sh &> {log}
-        # export PATH=$HOME/soft/lmod/"$LMOD_VERS"/libexec:$PATH
-        # source $HOME/soft/lmod/"$LMOD_VERS"/init/bash
-        # export LMOD_CMD=$HOME/soft/lmod/"$LMOD_VERS"/libexec/lmod
-        date > {output}
-        lmod --version > {output}
-            """)
-        else:
-            shell("""
-        echo 'already installed' > {output}
-        lmod --version > {output}
-            """)
-
-# rule install_easybuild:
-#     output:
-#         os.path.join(WD, 'easybuild_install_timestamp.txt')
-#     log:
-#         os.path.join(WD, 'easybuild.log')
-#     run:
-#         if which('eb') is None:
-#             shell("""
-#         bash easybuild.sh &> {log}
-#         eb --version &>> {log}
-#         echo $MODULEPATH &>> {log}   
-#         date > {output}
-#             """)
-    
-
-rule check_easybuild:
-    input:
-        lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
-    output:
-        op.join(WD, 'easybuild_version.txt')
-    params:
-        path = WD,
-        modulepath = modulepath
-    shell:
-        """
-        # mkdir -p {params.path}
-        eb --version --modules-tool={input.lmod} >> {output}
-        export MODULEPATH={params.modulepath}
-        echo $MODULEPATH >> {output}         
-        """
+        if check_module_tool() == 'Module tool: not installed':
+            install_lmod()
 
 for eb in easyconfigs:
-    # full_eb = sum([glob.glob(op.join(x, '**', eb), recursive = True) for x in re.split(':', robotpath)], [])[0]
-    # ec_dict = EasyConfigParser(full_eb).get_config_dict()
-    # toolchain = ec_dict.get('toolchain', {})
-    # name = ec_dict.get('name', "")
-    # version = ec_dict.get('version', "")
-    # versionsuffix = ec_dict.get('versionsuffix', "")
-    # # softwarename/softwareversion-toolchainname-toolchainversion-suffix
-    # modulename = op.join(name, eb.replace('.eb', '').replace(name + '-', ''))
+    envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
     rule:
         name: f"{{easyconfig}}_config".format(easyconfig=eb)
         wildcard_constraints:
             easyconfig=eb
         input:
-            lmod = op.join(HOME, 'soft', 'lmod', 'lmod'),
-            vers = op.join(WD, 'easybuild_version.txt'),
+            lmod = op.join(HOME, 'soft', 'lmod', 'lmod')
             # easyconfig = op.join(WD, 'eb', easyconfig)            
         output:
             flag = op.join(WD, '{easyconfig}.done')
         params:
-            easyconfig = eb,
-            modulepath = modulepath,
-            buildpath = buildpath,
-            containerpath = containerpath,
-            installpath = installpath,
-            repositorypath = repositorypath,
-            # robotpath = robotpath,
-            sourcepath = sourcepath,
-            lmodpath=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec'),
-            lmodinit=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'init', 'bash'),
-            lmodcmd=op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')#,
-            # modulename = modulename
+            workdir = WD,
+            LMOD_VERS = LMOD_VERS,
+            cmd = build_easybuild_easyconfig_command(easyconfig = eb,
+                                                     workdir = WD,
+                                                     threads = int(NTHREADS))            
         threads:
             NTHREADS
-        shell:
-            """  
-            # export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
-            export PATH={params.lmodpath}:$PATH
-            source {params.lmodinit}
-            export LMOD_CMD={params.lmodcmd}
-          
-            module purge
-            
-            # ## test here
-            # eb poetry-1.5.1-GCCcore-12.3.0.eb --try-toolchain-version=12.2.0 \
-            #   --buildpath={params.buildpath} \
-            #   --installpath-modules {params.modulepath} \
-            #   --containerpath {params.containerpath} \
-            #   --installpath {params.installpath} \
-            #   --repositorypath {params.repositorypath} \
-            #   --robot-paths params.robotpath \
-            #   --sourcepath {params.sourcepath} \
-            #   --parallel={threads} \
-            #   --detect-loaded-modules=unload \
-            #   --check-ebroot-env-vars=unset \
-            #   --robot
-            # ## test end
-
-            eb {params.easyconfig} \
-              --robot \
-              --buildpath={params.buildpath} \
-              --installpath-modules {params.modulepath} \
-              --containerpath {params.containerpath} \
-              --installpath {params.installpath} \
-              --repositorypath {params.repositorypath} \
-              # --robot-paths params.robotpath \
-              --sourcepath {params.sourcepath} \
-              --parallel={threads} \
-              --detect-loaded-modules=unload \
-              --check-ebroot-env-vars=unset
-
-            # module load params.modulename
-            date > {output.flag}
-            """
-    
-# rule install_bcftools_and_others:
-#     input:
-#         op.join(WD, 'easybuild_version.txt'),
-#         lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
-#     output:
-#         op.join(WD, 'bcftools_install.txt')
-#     params:
-#         modulepath = modulepath
-#     shell:
-#         """
-#         export MODULEPATH={params.modulepath}
-#         eb --robot BCFtools-1.18-GCC-12.3.0.eb  > {output}
-#         eb --robot BEDTools-2.31.0-GCC-12.3.0.eb >> {output}
-#         """
-
-# rule check_bcftools_module:
-#     input:
-#         op.join(WD, 'bcftools_install.txt')
-#     output:
-#         op.join(WD, 'bcftools_status.txt')
-#     params:
-#         modulepath = modulepath
-#     shell:
-#         """
-#         export MODULEPATH={params.modulepath}
-#         module load BEDTools/2.31.0-GCC-12.3.0 > {output}
-#         which bedtools >> {output}
-#         module unload bedtools >> {output}
-#         which bedtools >> {output}
-#         """        
-
-# ## snakemake --use-envmodules --cores 1 -p
-# rule use_module:
-#     envmodules:
-#         "BEDTools/2.31.0-GCC-12.3.0"
-#     input:
-#         op.join(WD, 'bcftools_status.txt')
-#     output:
-#         op.join(WD, 'with_envmodules.txt')
-#     shell:
-#         """
-#         echo $MODULEPATH > {output}
-#         bedtools --version >> {output}
-#         """
-
-# ## note $MODULEPATH is empty here
-# rule do_not_use_module:
-#     input:
-#         op.join(WD, 'bcftools_status.txt')
-#     output:
-#         op.join(WD, 'without_envmodules.txt')
-#     shell:
-#         """
-#         echo $MODULEPATH > {output}
-#         bedtools --version || true >> {output}
-#         """
-        
-# rule containerize:
-#     input:
-#         op.join(WD, 'bcftools_status.txt')
-#     output:
-#         op.join(WD, 'test_singularity.txt')
-#     shell:
-#         """
-#         eb GCC-6.4.0-2.28.eb \
-#              --force \
-#              --containerize --container-config bootstrap=localimage,from=example.sif \
-#              --experimental > {output} ## \
-#              ## --container-build-image > {output}
-#         """
+        run:
+            check_easybuild_status()
+            shell("""
+            export PATH=$HOME/soft/lmod/"{params.LMOD_VERS}"/libexec:$PATH
+            source $HOME/soft/lmod/"{params.LMOD_VERS}"/init/bash
+            export LMOD_CMD=$HOME/soft/lmod/"{params.LMOD_VERS}"/libexec/lmod
+            bash -c "{params.cmd}"
+            """)
+                                             
+            with open(output.flag, 'w') as out:
+                out.write(params.cmd)

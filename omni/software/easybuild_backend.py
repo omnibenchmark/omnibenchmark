@@ -7,9 +7,8 @@ Izaskun Mallona
 Started 5th June 2024
 """
 
-import subprocess
+import subprocess, os, sys
 import os.path as op
-import sys
 from easybuild.tools.module_naming_scheme.mns import ModuleNamingScheme
 from easybuild.tools.module_naming_scheme.utilities import det_full_ec_version, is_valid_module_name
 from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
@@ -70,7 +69,28 @@ def generate_default_easybuild_config_arguments(workdir):
                   'repositorypath' : repositorypath,
                   'sourcepath' : sourcepath}
     return(args)
-        
+
+def build_easybuild_easyconfig_command(easyconfig,
+                                       workdir,
+                                       threads,
+                                       containerize = False,
+                                       container_build_image = False):
+    
+    args = generate_default_easybuild_config_arguments(workdir = workdir)
+    
+    cmd = """eb %(easyconfig)s --robot %(args)s  --parallel=%(threads)s \
+              --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" %{
+                  'easyconfig' : easyconfig,
+                  'args' : args,
+                  'threads' : threads}
+    
+    if containerize or container_build_image:
+        cmd += " --container-config bootstrap=localimage,from=example.sif --experimental"
+        if container_build_image:
+            cmd += " --container-build-image"
+    return(cmd)
+
+## do not use without handling the lmod / module envs explicitly
 def easybuild_easyconfig(easyconfig,
                          workdir,
                          threads,
@@ -79,22 +99,15 @@ def easybuild_easyconfig(easyconfig,
     """
     easybuilds an easyconfig, potentially generating a (built) container image too
     """
-
-    args = generate_default_easybuild_config_arguments(workdir = workdir)
+    cmd = build_easybuild_easyconfig_command(easyconfig = easyconfing,
+                                             workdir = workdir,
+                                             threads = threads,
+                                             containerize = containerize,
+                                             container_build_image = container_build_image)
     
-    cmd = """eb %(easyconfig)s --robot %(args)s  --parallel= %(threads)s \
-              --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" %{
-                  easyconfig : easyconfig,
-                  args : args,
-                  threads : threads}
-
-    if containerize or container_build_image:
-        cmd += " --container-config bootstrap=localimage,from=example.sif --experimental"
-        if container_build_image:
-            cmd += " --container-build-image"
     try:
         output = subprocess.check_output(
-            cmd, stderr = subprocess.STDOUT, shell = True, timeout = 3,
+            cmd, stderr = subprocess.STDOUT, shell = True,
             universal_newlines = True)
     except subprocess.CalledProcessError as exc:
         return("ERROR easybuild failed:", exc.returncode, exc.output)
@@ -146,15 +159,21 @@ def get_envmodule_name_from_easyconfig(easyconfig, workdir):
     ec_path, ec = parse_easyconfig(easyconfig, workdir)
     return(os.path.join(ec['name'], det_full_ec_version(ec)))
 
-def check_modules_tool():
+def check_module_tool():
     mod_tool = modules_tool()
-    return("Modules tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
+    if mod_tool.NAME is None:
+        return('Module tool: not installed')
+    else:
+        return("Module tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
 
 def check_available_modules():
     return(modules_tool().available())
 
 def check_envmodule_status(envmodule):
-    mod_tool = modules_tool()    
-    return(mod_tool.available(envmodule))
+    mod_tool = modules_tool()
+    if len(mod_tool.available(envmodule)) == 0:
+        return('not installed')
+    else:
+        return('installed')
 
 
