@@ -7,7 +7,6 @@ from omni.io.RemoteStorage import RemoteStorage
 
 
 class TestRemoteStorage:
-
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test_init_fails_with_invalid_arg_auth_options(self):
         for ao in [1, 1.0, "1", [1], (1,), None]:

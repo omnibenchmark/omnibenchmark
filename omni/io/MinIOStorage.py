@@ -443,7 +443,6 @@ class MinIOStorage(RemoteStorage):
         tagging_type: str = "all",
         copy_type: str = "copy",
     ):
-
         self.set_current_version()
         self.set_new_version(version_new)
 
