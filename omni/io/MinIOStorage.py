@@ -116,12 +116,6 @@ class MinIOStorage(RemoteStorage):
             raise e
 
     def _get_containers(self) -> None:
-        """
-        Retrieves the list of containers.
-
-        Returns:
-        - A list of container names.
-        """
         try:
             containers = list()
             for bucket in self.client.list_buckets():
@@ -387,19 +381,6 @@ class MinIOStorage(RemoteStorage):
             self.files = files
 
     def find_objects_to_copy(self, reference_time=None, tagging_type="all"):
-        """
-        Finds objects to copy based on the reference time and tagging type.
-
-        Args:
-            reference_time (datetime.datetime, optional): The reference time to compare with the object's time. Defaults to None.
-            tagging_type (str, optional): The tagging type to consider. Defaults to "all".
-
-        Raises:
-            ValueError: If the tagging type is invalid or the reference time is not a datetime object.
-
-        Returns:
-            None
-        """
         if tagging_type not in ["all"]:
             raise ValueError("Invalid tagging type")
         if tagging_type == "all":
@@ -432,12 +413,6 @@ class MinIOStorage(RemoteStorage):
                         self.files[filename]["copy"] = False
 
     def copy_objects(self, type="copy"):
-        """
-        Copy objects from the current version to the new version.
-
-        Args:
-            type (str): The type of copying to perform. Valid values are "copy" and "symlink".
-        """
         if type not in ["copy", "symlink"]:
             raise ValueError("Invalid type")
         if self.version is None or self.version_new is None:
@@ -468,14 +443,7 @@ class MinIOStorage(RemoteStorage):
         tagging_type: str = "all",
         copy_type: str = "copy",
     ):
-        """
-        Wrapper to create new version and copy objects.
 
-        Args:
-            version_type (str, optional): The type of version to create. Can be "minor" or "major". Defaults to "minor".
-            tagging_type (str, optional): The type of tagging to apply. Defaults to "all".
-            copy_type (str, optional): The type of copying to perform. Defaults to "copy".
-        """
         self.set_current_version()
         self.set_new_version(version_new)
 
@@ -484,10 +452,13 @@ class MinIOStorage(RemoteStorage):
         self.find_objects_to_copy(tagging_type=tagging_type)
         self.copy_objects(copy_type)
 
-    def archive_version(self, major_version, minor_version):
+    def archive_version(self, version):
         NotImplementedError
         # self._update_overview(cleanup=True)
 
-    def delete_version(self, major_version, minor_version):
+    def delete_version(self, version):
         NotImplementedError
         # self._update_overview(cleanup=True)
+
+
+RemoteStorage.register(MinIOStorage)
