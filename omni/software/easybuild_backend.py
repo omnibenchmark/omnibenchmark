@@ -16,6 +16,8 @@ from easybuild.tools.options import set_up_configuration
 from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
 # from warnings import deprecated
 
+HOME=op.expanduser("~")
+
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
 
 def install_lmod():
@@ -30,7 +32,7 @@ def install_lmod():
     try:
         cmd = 'bash ./modules.sh'
         output = subprocess.check_output(
-            cmd, stderr = subprocess.STDOUT, shell = True, timeout = 3,
+            cmd, stderr = subprocess.STDOUT, shell = True,
             universal_newlines = True)
     except subprocess.CalledProcessError as exc:
         return("ERROR lmod install failed:", exc.returncode, exc.output)
@@ -49,14 +51,34 @@ def check_easybuild_status():
     except FileNotFoundError:
         return("ERROR easybuild not found")
 
+# def generate_default_easybuild_config_arguments(workdir):
+#     HOME = op.expanduser("~")
+#     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
+#     buildpath = op.join(workdir, 'easybuild', 'build')
+#     containerpath = op.join(workdir, 'easybuild', 'containers')
+#     installpath = op.join(workdir, 'easybuild')
+#     repositorypath = op.join(workdir, 'easybuild', 'ebfiles_repo')
+#     # robotpath = op.join(workdir, 'easybuild', 'easyconfigs') ## let's use default's
+#     sourcepath = op.join(workdir, 'easybuild', 'sources')
+    
+#     args = """--buildpath=%(buildpath)s  --installpath-modules=%(modulepath)s \
+#               --containerpath=%(containerpath)s --installpath=%(installpath)s \
+#               --repositorypath=%(repositorypath)s --sourcepath=%(sourcepath)s""" %{
+#                   'buildpath' : buildpath,
+#                   'modulepath' : modulepath,
+#                   'containerpath' : containerpath,
+#                   'installpath' : installpath,
+#                   'repositorypath' : repositorypath,
+#                   'sourcepath' : sourcepath}
+#     return(args)
+
 def generate_default_easybuild_config_arguments(workdir):
-    HOME = op.expanduser("~")
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
     buildpath = op.join(workdir, 'easybuild', 'build')
     containerpath = op.join(workdir, 'easybuild', 'containers')
     installpath = op.join(workdir, 'easybuild')
     repositorypath = op.join(workdir, 'easybuild', 'ebfiles_repo')
-    # robotpath = op.join(workdir, 'easybuild', 'easyconfigs') ## let's use default's
+    robotpath = op.join(workdir, 'easybuild', 'easyconfigs') ## let's use default's
     sourcepath = op.join(workdir, 'easybuild', 'sources')
     
     args = """--buildpath=%(buildpath)s  --installpath-modules=%(modulepath)s \
@@ -70,49 +92,29 @@ def generate_default_easybuild_config_arguments(workdir):
                   'sourcepath' : sourcepath}
     return(args)
 
-def build_easybuild_easyconfig_command(easyconfig,
-                                       workdir,
-                                       threads,
-                                       containerize = False,
-                                       container_build_image = False):
+# ## do not use without handling the lmod / module envs explicitly
+# def easybuild_easyconfig(easyconfig,
+#                          workdir,
+#                          threads,
+#                          containerize = False,
+#                          container_build_image = False):
+#     """
+#     easybuilds an easyconfig, potentially generating a (built) container image too
+#     """
+#     cmd = build_easybuild_easyconfig_command(easyconfig = easyconfing,
+#                                              workdir = workdir,
+#                                              threads = threads,
+#                                              containerize = containerize,
+#                                              container_build_image = container_build_image)
     
-    args = generate_default_easybuild_config_arguments(workdir = workdir)
-    
-    cmd = """eb %(easyconfig)s --robot %(args)s  --parallel=%(threads)s \
-              --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" %{
-                  'easyconfig' : easyconfig,
-                  'args' : args,
-                  'threads' : threads}
-    
-    if containerize or container_build_image:
-        cmd += " --container-config bootstrap=localimage,from=example.sif --experimental"
-        if container_build_image:
-            cmd += " --container-build-image"
-    return(cmd)
-
-## do not use without handling the lmod / module envs explicitly
-def easybuild_easyconfig(easyconfig,
-                         workdir,
-                         threads,
-                         containerize = False,
-                         container_build_image = False):
-    """
-    easybuilds an easyconfig, potentially generating a (built) container image too
-    """
-    cmd = build_easybuild_easyconfig_command(easyconfig = easyconfing,
-                                             workdir = workdir,
-                                             threads = threads,
-                                             containerize = containerize,
-                                             container_build_image = container_build_image)
-    
-    try:
-        output = subprocess.check_output(
-            cmd, stderr = subprocess.STDOUT, shell = True,
-            universal_newlines = True)
-    except subprocess.CalledProcessError as exc:
-        return("ERROR easybuild failed:", exc.returncode, exc.output)
-    else:
-        return("LOG easybuild: \n{}\n".format(output))
+#     try:
+#         output = subprocess.check_output(
+#             cmd, stderr = subprocess.STDOUT, shell = True,
+#             universal_newlines = True)
+#     except subprocess.CalledProcessError as exc:
+#         return("ERROR easybuild failed:", exc.returncode, exc.output)
+#     else:
+#         return("LOG easybuild: \n{}\n".format(output))
 
 ## shell stuff end ------------------------------------------------------------------------------------
 
@@ -130,8 +132,9 @@ def easybuild_all_easyconfigs(benchmark_yaml, workdir, threads, containerize = F
         easybuild_easyconfig(easyconfig = eb, workdir = workdir, threads = threads,
                              containerize = containerize, container_build_image = container_build_image)
 
-def get_easyconfig_from_envmodule_name(envmodule):
-    return('not implemented')
+# not needed, the yaml will have both
+# def get_easyconfig_from_envmodule_name(envmodule):
+#     return('not implemented')
 
 def parse_easyconfig(ec_fn, workdir):
     """
@@ -159,12 +162,14 @@ def get_envmodule_name_from_easyconfig(easyconfig, workdir):
     ec_path, ec = parse_easyconfig(easyconfig, workdir)
     return(os.path.join(ec['name'], det_full_ec_version(ec)))
 
+# 0 success, there is a module tool
+# 1 error, there is none
 def check_module_tool():
     mod_tool = modules_tool()
     if mod_tool.NAME is None:
-        return('Module tool: not installed')
+        return(1) #'Module tool: not installed')
     else:
-        return("Module tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
+        return(0) # "Module tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
 
 def check_available_modules():
     return(modules_tool().available())
@@ -176,4 +181,80 @@ def check_envmodule_status(envmodule):
     else:
         return('installed')
 
+# beware containerpath hardcoded to default
+def get_toolchain_container_path(toochain,
+                                 containerpath = op.join(HOME, '.local', 'easybuild', 'containers')):
+    return(op.join(containerpath, toolchain + '.sif'))
+                                      
+    
+def easybuild_toolchain_bootstrap_container(toolchain, threads):
+    """
+    Seeds a base CentOS container, with a basic toolchain, to build other
+      images using this as local image
+    e.g. for `foss-2019a.eb` toolchain:
+    `eb -C --container-config bootstrap=yum,osversion=7 foss-2019a.eb --container-build-image`
+    """
 
+    cmd = """
+    eb -C --container-config bootstrap=yum,osversion=7 %(toolchain) \
+                 --container-build-image --parallel=%(threads)s --experimental
+    """ %{'toolchain' : toolchain,
+          'threads': threads}
+
+    try:
+        output = subprocess.check_output(
+            cmd, stderr = subprocess.STDOUT, shell = True,
+            universal_newlines = True)
+    except subprocess.CalledProcessError as exc:
+        return("ERROR Bootstrap singularity build failed:", exc.returncode, exc.output)
+    else:
+        return("LOG Bootstrap singularity build: \n{}\n".format(output))
+    
+
+    return(cmd)
+
+
+def easybuild_container_based_on_local_boostrap(containerpath, toolchain, easyconfig, threads):
+    """
+    Builds a container using a base image, e.g.
+    eb -C --container-config bootstrap=localimage,from=/path/to/containers/foss-2019a.sif \
+         %(easyconfig) --container-build-image
+    """
+    cmd = """eb -C --container-config bootstrap=localimage,from=%(containerpath)s%(pathsep)s%(toolchain).sif \
+       %(easyconfig)s --container-build-image --experimental --parallel=%(threads)s
+    """ %{'containerpath' : containerpath,
+          'toolchain' : toolchain,
+          'easyconfig' : easyconfig,
+          'threads' : threads,
+          'pathsep' : os.pathsep
+    }
+
+    
+    try:
+        output = subprocess.check_output(
+            cmd, stderr = subprocess.STDOUT, shell = True,
+            universal_newlines = True)
+    except subprocess.CalledProcessError as exc:
+        return("ERROR Singularity build failed:", exc.returncode, exc.output)
+    else:
+        return("LOG Singularity build: \n{}\n".format(output))
+
+def build_easybuild_easyconfig_command(easyconfig,
+                                       workdir,
+                                       threads,
+                                       containerize = False,
+                                       container_build_image = False):
+    
+    args = generate_default_easybuild_config_arguments(workdir = workdir)
+    
+    cmd = """eb %(easyconfig)s --robot --parallel=%(threads)s \
+              --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" %{
+                  'easyconfig' : easyconfig,
+                  # 'args' : args,
+                  'threads' : threads}
+    
+    if containerize:
+        cmd += " --container-config bootstrap=localimage,from=example.sif --experimental"
+        if container_build_image:
+            cmd += " --container-build-image"        
+    return(cmd)

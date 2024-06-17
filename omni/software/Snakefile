@@ -47,8 +47,13 @@ rule install_lmod:
     params:
         path = WD
     run:
-        if check_module_tool() == 'Module tool: not installed':
+        if check_module_tool() == 1:
             install_lmod()
+
+
+# rule build_singularity_boostrap:
+#     output:
+        
 
 for eb in easyconfigs:
     envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
@@ -64,9 +69,15 @@ for eb in easyconfigs:
         params:
             workdir = WD,
             LMOD_VERS = LMOD_VERS,
-            cmd = build_easybuild_easyconfig_command(easyconfig = eb,
-                                                     workdir = WD,
-                                                     threads = int(NTHREADS))            
+            # cmd = build_easybuild_easyconfig_command(easyconfig = eb,
+            #                                          workdir = WD,
+            #                                          threads = int(NTHREADS))
+            cmd = easybuild_container_based_on_local_boostrap(
+                containerpath = '/home/imallona/.local/easybuild/containers',
+                toolchain = 'gfbf-2023b',
+                easyconfig = eb,
+                threads = int(NTHREADS))
+            
         threads:
             NTHREADS
         run:
@@ -77,6 +88,6 @@ for eb in easyconfigs:
             export LMOD_CMD=$HOME/soft/lmod/"{params.LMOD_VERS}"/libexec/lmod
             bash -c "{params.cmd}"
             """)
-                                             
+
             with open(output.flag, 'w') as out:
                 out.write(params.cmd)
