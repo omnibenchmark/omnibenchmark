@@ -1,29 +1,22 @@
-import omni.cli.benchmark as ocb
-import json
-import requests
-import os
-from pathlib import Path
 import pytest
+import requests
 
-if Path("tests/.minio_test_config.json").exists():
-    with open("tests/.minio_test_config.json", "r") as file:
-        auth_options = json.load(file)
-elif "S3_ENDPOINT_URL" in os.environ:
-    auth_options = {}
-    auth_options["endpoint"] = os.environ.get("S3_ENDPOINT_URL")
-    auth_options["secure"] = False
-else:
-    raise ValueError("No S3 credentials found")
+import omni.cli.benchmark as ocb
+from omni.io.MinIOStorage import MinIOStorage
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
-endpoint = (
-    f"http://{auth_options['endpoint'].replace('http://', '').replace('https://', '')}"
-)
+# setup and start minio container
+minio_testcontainer = MinIOSetup()
 
 
 def test_list_benchmark(capfd):
-    ocb.list_versions("bm", endpoint)
-    out, err = capfd.readouterr()
-    assert len(out) > 0
+    with TmpMinIOStorage(minio_testcontainer) as tmp:
+        _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="bm")
+        ocb.list_versions("bm", tmp.auth_options_readonly["endpoint"])
+        out, err = capfd.readouterr()
+        assert len(out) > 0
 
-    with pytest.raises(requests.exceptions.HTTPError):
-        ocb.list_versions("not_existing_benchmark", endpoint)
+        with pytest.raises(requests.exceptions.HTTPError):
+            ocb.list_versions(
+                "not_existing_benchmark", tmp.auth_options_readonly["endpoint"]
+            )

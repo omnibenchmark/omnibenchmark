@@ -1,50 +1,33 @@
+import os
+
 import pytest
 import requests
-import os
+
 import omni.io
 import omni.io.utils as oiu
+from omni.io.MinIOStorage import MinIOStorage
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+
+# setup and start minio container
+minio_testcontainer = MinIOSetup()
 
 
 def test_get_storage():
-    ss = oiu.get_storage(
-        storage_type="s3",
-        auth_options={
-            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
-            "secure": False,
-        },
-        benchmark="bm",
-    )
-    assert isinstance(ss, omni.io.S3Storage.S3Storage)
-
-    with pytest.raises(requests.exceptions.HTTPError):
-        ss = oiu.get_storage(
-            storage_type="s3",
-            auth_options={
-                "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
-                "secure": False,
-            },
-            benchmark="not_existing_benchmark",
-        )
-
-    ss = oiu.get_storage(
-        storage_type="minio",
-        auth_options={
-            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
-            "secure": False,
-        },
-        benchmark="bm",
-    )
-    assert isinstance(ss, omni.io.MinIOStorage.MinIOStorage)
-
-    with pytest.raises(requests.exceptions.HTTPError):
+    with TmpMinIOStorage(minio_testcontainer) as tmp:
+        _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="bm")
         ss = oiu.get_storage(
             storage_type="minio",
-            auth_options={
-                "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
-                "secure": False,
-            },
-            benchmark="not_existing_benchmark",
+            auth_options=tmp.auth_options_readonly,
+            benchmark="bm",
         )
+        assert isinstance(ss, omni.io.MinIOStorage.MinIOStorage)
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            ss = oiu.get_storage(
+                storage_type="minio",
+                auth_options=tmp.auth_options_readonly,
+                benchmark="not_existing_benchmark",
+            )
 
 
 def cleanup_md5():
