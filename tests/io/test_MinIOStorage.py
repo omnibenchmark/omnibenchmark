@@ -14,7 +14,7 @@ if not sys.platform == "linux":
     )
 
 # setup and start minio container
-minio_testcontainer = MinIOSetup()
+minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
 
 class TestMinIOStorage:

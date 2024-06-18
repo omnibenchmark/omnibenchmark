@@ -6,17 +6,22 @@ from omni.io.MinIOStorage import set_bucket_public_readonly
 
 
 class MinIOSetup:
-    def __init__(self) -> None:
-        self.minio = MinioContainer(image="minio/minio:RELEASE.2024-06-13T22-53-53Z")
-        self.minio.start()
-        self.minio.get_client().make_bucket("benchmarks")
-        set_bucket_public_readonly(self.minio.get_client(), "benchmarks")
+    def __init__(self, init: bool = True) -> None:
+        self.do_init = init
+        if self.do_init:
+            self.minio = MinioContainer(
+                image="minio/minio:RELEASE.2024-06-13T22-53-53Z"
+            )
+            self.minio.start()
+            self.minio.get_client().make_bucket("benchmarks")
+            set_bucket_public_readonly(self.minio.get_client(), "benchmarks")
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.minio.stop()
+        if self.do_init:
+            self.minio.stop()
 
 
 class TmpMinIOStorage:
