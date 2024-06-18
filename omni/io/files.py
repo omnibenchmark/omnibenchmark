@@ -1,18 +1,20 @@
 """Functions to manage files"""
 
 import asyncio
-import aiohttp
-from urllib.parse import urlparse
 import re
+import warnings
 from pathlib import Path
+from typing import List, Union
+from urllib.parse import urlparse
+
+import aiohttp
+import requests
+import tqdm
+from bs4 import BeautifulSoup
+from packaging.version import Version
+
 from omni.io.utils import get_storage, md5
 from omni.sync import get_bench_definition
-from typing import Union, List
-import tqdm
-import warnings
-from bs4 import BeautifulSoup
-import requests
-from packaging.version import Version
 
 
 def list_files(
@@ -21,11 +23,10 @@ def list_files(
     stage: str = None,
     module: str = None,
     file_id: str = None,
-    version: str = None,
+    version: Union[None, str] = None,
     verbose: bool = False,
 ):
     """List all available files for a certain benchmark, version and stage"""
-    # bench_yaml = get_bench_definition(bench_name, version, stage)
 
     # TODO: for testing until get_bench_definition is implemented
     if __name__ == "__main__":
@@ -39,20 +40,8 @@ def list_files(
         }
 
     ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
-    if version is None:
-        ss.set_current_version()
-    else:
-        if not version in ss.versions:
-            raise ValueError(f"Version {version} not found in {ss.benchmark}")
-
-        # set version
-        ss.set_current_version(
-            major_version=int(version.split(".")[0]),
-            minor_version=int(version.split(".")[1]),
-        )
-        if not f"{ss.major_version}.{ss.minor_version}" == version:
-            raise ValueError("Version specification failed!")
-
+    # set version
+    ss.set_current_version(version)
     # list objects of version
     ss._get_objects()
 

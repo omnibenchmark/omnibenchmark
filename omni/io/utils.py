@@ -1,9 +1,8 @@
 """Utility functions to manage dataset handling"""
 
-from omni.io.S3Storage import S3Storage
-from omni.io.MinIOStorage import MinIOStorage
-from omni.io.SwiftStorage import SwiftStorage
 import hashlib
+
+from omni.io.MinIOStorage import MinIOStorage
 
 
 def get_storage(storage_type: str, auth_options: dict, benchmark: str):
@@ -18,12 +17,8 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str):
     Returns:
     - RemoteStorage: The remote storage object.
     """
-    if storage_type == "s3":
-        return S3Storage(auth_options, benchmark)
     if storage_type == "minio":
         return MinIOStorage(auth_options, benchmark)
-    elif storage_type == "swift":
-        return SwiftStorage(auth_options, benchmark)
     else:
         raise ValueError("Invalid storage type")
 
