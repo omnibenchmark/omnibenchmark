@@ -73,11 +73,6 @@ jobs:
       - name: Run tests
         run: |
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
-        env: 
-          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
-          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
-          RUNNER_OS: ${{ runner.os }}
       #----------------------------------------------
       # Generate badges
       #----------------------------------------------
@@ -93,4 +88,3 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@main
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
-
