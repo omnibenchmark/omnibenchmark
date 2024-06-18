@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 import requests
 
@@ -9,6 +11,9 @@ from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 minio_testcontainer = MinIOSetup()
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="for GHA, skip tests on non Linux platforms"
+)
 def test_get_benchmarks_public():
     with TmpMinIOStorage(minio_testcontainer) as tmp:
         _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="bm")
@@ -22,6 +27,9 @@ def test_get_benchmarks_public():
             benchmarks = oif.get_benchmarks_public("http://non_existing_endpoint")
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="for GHA, skip tests on non Linux platforms"
+)
 def test_get_benchmark_versions_public():
     with TmpMinIOStorage(minio_testcontainer) as tmp:
         _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="bm")

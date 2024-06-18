@@ -1,10 +1,17 @@
 import io
+import sys
 
 import pytest
 from packaging.version import Version
 
 from omni.io.MinIOStorage import MinIOStorage
 from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+
+if not sys.platform == "linux":
+    pytest.skip(
+        "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+        allow_module_level=True,
+    )
 
 # setup and start minio container
 minio_testcontainer = MinIOSetup()

@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 import requests
 
@@ -9,6 +11,9 @@ from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 minio_testcontainer = MinIOSetup()
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="for GHA, skip tests on non Linux platforms"
+)
 def test_list_benchmark(capfd):
     with TmpMinIOStorage(minio_testcontainer) as tmp:
         _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="bm")
