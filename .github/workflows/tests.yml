@@ -61,12 +61,12 @@ jobs:
       #----------------------------------------------
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+        run: poetry install --all-extras --no-interaction --no-root
       #----------------------------------------------
       # install your root project, if required
       #----------------------------------------------
       - name: Install library
-        run: poetry install --no-interaction
+        run: poetry install --all-extras --no-interaction
       #----------------------------------------------
       # run test suite and output coverage file
       #----------------------------------------------
@@ -88,4 +88,3 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@main
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
-

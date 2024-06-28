@@ -3,6 +3,8 @@
 from typing_extensions import Annotated
 
 import typer
+from packaging.version import Version
+import omni.io.files
 
 cli = typer.Typer(add_completion=False)
 
@@ -81,6 +83,15 @@ def list_benchmarks(
 ):
     """List all available benchmarks and versions at a specific endpoint"""
     typer.echo(f"Available benchmarks at {endpoint}:")
+    benchmark_names = omni.io.files.get_benchmarks_public(endpoint)
+    benchmarks = {}
+    for benchmark in benchmark_names:
+        benchmarks[benchmark] = omni.io.files.get_benchmark_versions_public(
+            benchmark, endpoint
+        )
+    for key, value in sorted(benchmarks.items()):
+        value = (value or [None])[-1]
+        typer.echo(f"{key:>20}     latest: {value:>5}")
 
 
 @cli.command("list versions")
@@ -104,3 +115,8 @@ def list_versions(
 ):
     """List all available benchmarks versions at a specific endpoint."""
     typer.echo(f"Available versions of {benchmark} at {endpoint}:")
+    versions = omni.io.files.get_benchmark_versions_public(benchmark, endpoint)
+    if len(versions) > 0:
+        versions.sort(key=Version)
+        for version in versions:
+            typer.echo(f"{version:>8}")
