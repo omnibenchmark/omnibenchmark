@@ -26,18 +26,19 @@ NTHREADS = int(len(os.sched_getaffinity(0)))/2
 export_lmod_env_vars()
 
 ## caution now these are sort of hardcoded and not created by easybuild_backend
-# for p in [WD, modulepath, buildpath, containerpath, installpath, repositorypath, sourcepath]:
-#     if not op.exists(p):
-#         os.makedirs(p)
+for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
+    if not op.exists(p):
+        os.makedirs(p)
 
 # mind the shell prefix
 # shell.prefix("set -o pipefail; ")
 
 easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.5.1-GCC-12.3.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
+# easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb']
 
 rule all:
     input:
-        expand(op.join(WD, '{eb}.done'), eb = easyconfigs)
+        expand(op.join(WD, 'recipes', 'Singularity_{eb}.txt'), eb = easyconfigs)
         
 rule install_lmod:
     output:
@@ -50,44 +51,34 @@ rule install_lmod:
         if check_module_tool() == 1:
             install_lmod()
 
-
-# rule build_singularity_boostrap:
-#     output:
-        
+# toolchain = 'GCCcore-10.2.0'
 
 for eb in easyconfigs:
-    envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
+    # envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
     rule:
         name: f"{{easyconfig}}_config".format(easyconfig=eb)
         wildcard_constraints:
             easyconfig=eb
         input:
             lmod = op.join(HOME, 'soft', 'lmod', 'lmod')
-            # easyconfig = op.join(WD, 'eb', easyconfig)            
         output:
-            flag = op.join(WD, '{easyconfig}.done')
+            singularity_recipe = op.join(WD, 'recipes', 'Singularity_{easyconfig}.txt'),
+            container = op.join(WD, 'images', '{easyconfig}' + '.sif')
+        log:
+            op.join(WD, 'Singularity_{easyconfig}.log')
         params:
             workdir = WD,
-            LMOD_VERS = LMOD_VERS,
-            # cmd = build_easybuild_easyconfig_command(easyconfig = eb,
-            #                                          workdir = WD,
-            #                                          threads = int(NTHREADS))
-            cmd = easybuild_container_based_on_local_boostrap(
-                containerpath = '/home/imallona/.local/easybuild/containers',
-                toolchain = 'gfbf-2023b',
-                easyconfig = eb,
-                threads = int(NTHREADS))
-            
+            LMOD_VERS = LMOD_VERS
         threads:
             NTHREADS
         run:
-            check_easybuild_status()
+            # largely from https://github.com/sassy-crick/Singularity-Easybuild        
+            # print(read_ubuntu_template(eb))            
+            create_definition_file(easyconfig = eb, singularity_recipe = output.singularity_recipe)
+            ## fakeroot, no sandbox
             shell("""
-            export PATH=$HOME/soft/lmod/"{params.LMOD_VERS}"/libexec:$PATH
-            source $HOME/soft/lmod/"{params.LMOD_VERS}"/init/bash
-            export LMOD_CMD=$HOME/soft/lmod/"{params.LMOD_VERS}"/libexec/lmod
-            bash -c "{params.cmd}"
-            """)
-
-            with open(output.flag, 'w') as out:
-                out.write(params.cmd)
+            export PATH=/usr/sbin:$PATH
+            singularity build \
+               --fakeroot \
+               {output.container} \
+               {output.singularity_recipe} &> {log}""")
