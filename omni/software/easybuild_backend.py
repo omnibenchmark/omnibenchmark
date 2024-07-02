@@ -309,9 +309,13 @@ def build_easybuild_easyconfig_command(easyconfig,
 #     # return(recipe)
 # # see the ubuntu_template.txt
 
-def create_definition_file(easyconfig, singularity_recipe):
+def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads):
     with open(op.join('templates', 'ubuntu_jammy.txt'), 'r') as ubuntu, open(singularity_recipe, 'w') as sing:
         for line in ubuntu.read().split('\n'):
             if 'EASYCONFIG' in line:
                 line = line.replace('EASYCONFIG', easyconfig)
+            if 'ENVMODULENAME' in line:
+                line = line.replace('ENVMODULENAME', envmodule)
+            if 'EASYBUILDNTHREADSINT' in line:
+                line = line.replace('EASYBUILDNTHREADSINT', nthreads)
             sing.write(line + '\n')

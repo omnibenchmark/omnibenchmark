@@ -22,10 +22,8 @@ LMOD_VERS="8.7"
 ## use half of the available cores
 NTHREADS = int(len(os.sched_getaffinity(0)))/2
 
-
 export_lmod_env_vars()
 
-## caution now these are sort of hardcoded and not created by easybuild_backend
 for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
     if not op.exists(p):
         os.makedirs(p)
@@ -33,13 +31,15 @@ for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
 # mind the shell prefix
 # shell.prefix("set -o pipefail; ")
 
-easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.5.1-GCC-12.3.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
+easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.4.4-GCC-11.2.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
 # easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb']
+# easyconfigs = ['binutils-2.35.eb']
 
 rule all:
     input:
         expand(op.join(WD, 'recipes', 'Singularity_{eb}.txt'), eb = easyconfigs)
-        
+
+# not needed, sing-only now
 rule install_lmod:
     output:
         lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
@@ -54,7 +54,7 @@ rule install_lmod:
 # toolchain = 'GCCcore-10.2.0'
 
 for eb in easyconfigs:
-    # envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
+    envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
     rule:
         name: f"{{easyconfig}}_config".format(easyconfig=eb)
         wildcard_constraints:
@@ -73,8 +73,8 @@ for eb in easyconfigs:
             NTHREADS
         run:
             # largely from https://github.com/sassy-crick/Singularity-Easybuild        
-            # print(read_ubuntu_template(eb))            
-            create_definition_file(easyconfig = eb, singularity_recipe = output.singularity_recipe)
+            create_definition_file(easyconfig = eb, singularity_recipe = output.singularity_recipe,
+                                   envmodule = envmodule_name, nthreads = str(int(NTHREADS)))
             ## fakeroot, no sandbox
             shell("""
             export PATH=/usr/sbin:$PATH

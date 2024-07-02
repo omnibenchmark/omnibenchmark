@@ -7,9 +7,9 @@ MirrorURL: http://archive.ubuntu.com/ubuntu/
 sed -i 's/main/main universe/' /etc/apt/sources.list
 apt update 
 apt dist-upgrade -y 
-apt install -y python3 python3-setuptools lmod 
+apt install -y python3 python3-setuptools # lmod
 apt install -y python3-pip
-apt install -y bzip2 gzip tar zip unzip xz-utils 
+apt install -y bzip2 gzip tar zip unzip xz-utils tcl-dev
 apt install -y curl wget rsync cpio locales
 apt install -y patch make
 apt install -y file git debianutils
@@ -21,11 +21,38 @@ apt install -y procps
 apt install -y man libdb-dev
 apt clean
 
+# install lmod start
+LUA_VERS=5.1.4.8
+mkdir -p /opt/apps/lua && cd /opt/apps/lua
+wget https://sourceforge.net/projects/lmod/files/lua-"$LUA_VERS".tar.gz/download
+tar xzvf download
+cd lua*8
+./configure --prefix=/opt/apps/lua/"$LUA_VERS"
+make; make install
+cd /opt/apps/lua; ln -s "$LUA_VERS" lua
+mkdir -p /usr/local/bin; ln -s /opt/apps/lua/lua/bin/lua /usr/local/bin
+ln -s /opt/apps/lua/lua/bin/luac /usr/local/bin
+
+LMOD_VERS=8.7
+mkdir -p /usr/share/lmod/ && cd /usr/share/lmod
+wget https://sourceforge.net/projects/lmod/files/Lmod-"$LMOD_VERS".tar.bz2/download
+tar xfvj download && cd Lmod-"$LMOD_VERS"
+./configure --prefix=/usr/share/ && make install
+export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
+. /usr/share/lmod/lmod/init/bash
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
+ln -s /usr/share/lmod/lmod/libexec/lmod /usr/local/bin
+ln -s /usr/share/lmod/lmod/init/profile        /etc/profile.d/z00_lmod.sh
+ln -s /usr/share/lmod/lmod/init/cshrc          /etc/profile.d/z00_lmod.csh
+
+# # install lmod end
+
+
 # install EasyBuild using pip3 this time
 python3 -m pip install -U pip
 python3 -m pip install wheel
-python3 -m pip install -U setuptools==58.5.3
-python3 -m pip install easybuild==4.5.3
+python3 -m pip install -U setuptools==70.1.1
+python3 -m pip install easybuild==4.9.2
 python3 -m pip install rich
 
 # create easybuild user
@@ -65,11 +92,14 @@ export EASYBUILD_PREFIX=/scratch
 export EASYBUILD_TMPDIR=/scratch/tmp
 export EASYBUILD_SOURCEPATH=/scratch/sources:/tmp/easybuild/sources
 export EASYBUILD_INSTALLPATH=/app
-export EASYBUILD_PARALLEL=4
+export EASYBUILD_PARALLEL=EASYBUILDNTHREADSINT
 export EB_PYTHON=python3
 export MODULEPATH=/app/modules/all
 alias eb="eb --robot --download-timeout=1000"
 export PYTHONIOENCODING="utf-8"
+export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
+. /usr/share/lmod/lmod/init/bash
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
 EOG
 
 # configure EasyBuild
@@ -80,14 +110,17 @@ export EASYBUILD_PREFIX=/scratch
 export EASYBUILD_TMPDIR=/scratch/tmp 
 export EASYBUILD_SOURCEPATH=/scratch/sources:/tmp/easybuild/sources 
 export EASYBUILD_INSTALLPATH=/app 
-export EASYBUILD_PARALLEL=4
+export EASYBUILD_PARALLEL=EASYBUILDNTHREADSINT
 export EB_PYTHON=python3
 alias eb="eb --robot --download-timeout=1000"
 export PYTHONIOENCODING="utf-8"
+export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
+. /usr/share/lmod/lmod/init/bash
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
 EOD
 
 echo "eb --fetch EASYCONFIG" >>  /home/easybuild/eb-install.sh 
-echo "eb EASYCONFING" >>  /home/easybuild/eb-install.sh 
+echo "eb EASYCONFIG" >>  /home/easybuild/eb-install.sh 
 cat >> /home/easybuild/eb-install.sh << 'EOD'
 mkdir -p /app/lmodcache 
 $LMOD_DIR/update_lmod_system_cache_files -d /app/lmodcache -t /app/lmodcache/timestamp /app/modules/all  
@@ -105,7 +138,9 @@ eval "$@"
 
 %environment
 # make sure that 'module' and 'ml' commands are defined
-. /etc/profile 
+. /etc/profile # (original)
+# . /etc/profile.d/z00_lmod.sh # rather (2nd July 2024, Izaskun)
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod  # rather (2nd July 2024, Izaskun)
 # increase threshold time for Lmod to write cache in $HOME (which we don't want to do)
 export LMOD_SHORT_TIME=86400
 # purge any modules that may be loaded outside container
@@ -117,7 +152,6 @@ module unuse $MODULEPATH
 export MODULEPATH="/app/modules/all"
 # setting up the installation environment:
 USER=$(whoami)
-
 # this seems to be needed to make sure the terminal is working:
 export TERM=xterm-256color
 # load module(s) corresponding to installed software
