@@ -33,13 +33,15 @@ for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
 # shell.prefix("set -o pipefail; ")
 
 # easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.4.4-GCC-11.2.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
-easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb', 'binutils-2.35.eb']
-# easyconfigs = ['binutils-2.35.eb']
+# easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb', 'binutils-2.35.eb']
+easyconfigs = ['binutils-2.35.eb']
 # easyconfigs=['R-4.3.3-gfbf-2023b.eb']
 
 rule all:
     input:
-        expand(op.join(WD, 'recipes', 'Singularity_{eb}.txt'), eb = easyconfigs)
+        expand(op.join(WD, 'recipes', 'Singularity_{eb}.txt'), eb = easyconfigs),
+        'envs/cellcharter.yaml_hello.txt',
+        'binutils-2.35.eb_hello.txt'
 
 # # not needed, sing-only now
 # rule install_lmod:
@@ -54,10 +56,9 @@ rule all:
 #             install_lmod()
 
 
-for i in range(len(easyconfigs)):
-    eb = easyconfigs[i]
+for eb in easyconfigs:
     rule:
-        name: f"{{easyconfig}}_config".format(easyconfig=eb)
+        name: f"{{easyconfig}}_easybuild_singularity".format(easyconfig=eb)
         wildcard_constraints:
             easyconfig=eb
         input:
@@ -86,3 +87,54 @@ for i in range(len(easyconfigs)):
                --fakeroot \
                {output.container} \
                {output.singularity_recipe} &> {log}""")
+
+    rule:
+        name: f"{{easyconfig}}_test".format(easyconfig=eb)
+        wildcard_constraints:
+            easyconfig=eb
+        input:
+            container = op.join(WD, 'images', '{easyconfig}' + '.sif')
+        singularity:
+            op.join(WD, 'images', eb + '.sif')
+        output:
+            '{easyconfig}_hello.txt'
+        threads:
+            NTHREADS
+        shell:
+            """
+            echo $PATH > {output}
+            """
+        
+condas = ['envs/cellcharter.yaml']
+
+# def unyaml(wildcards):
+#     return({'conda': op.basename(op.splitext('{wildcards.conda}')[0])})
+
+for ce in condas:
+    rule:
+        name: f"{{conda}}_pin".format(conda=ce)
+        wildcard_constraints:
+            conda = ce
+        input:
+            conda_yaml = ce
+        output:
+            touch(op.splitext('{conda}')[0] + '.linux-64.pin.txt')
+        threads:
+            NTHREADS
+        shell:
+            """
+            snakedeploy pin-conda-envs {wildcards.conda}
+            """
+    rule:
+        name: f"{{conda}}_test".format(conda=ce)
+        input:
+            pin = op.splitext('{conda}')[0] + '.linux-64.pin.txt'
+        output:
+            '{conda}_hello.txt'
+        conda:
+            ce
+        shell:
+            """
+            echo $PATH > {output}
+            """
+    

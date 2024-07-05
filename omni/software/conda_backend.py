@@ -20,3 +20,25 @@ def check_node_conda(benchmark_yaml, stage_id, module_id):
        - env.yaml present but pin.txt not present: error
     """
     return('not implemented')
+
+# we assume conda exists
+# def install_miniconda():
+
+def install_mamba():
+    try:
+        subprocess.call(["mamba", "--help"])
+    except FileNotFoundError:
+        print("ERROR mamba not found; please install it system-wise")
+    try:
+        subprocess.call(["conda", "--help"])
+    except FileNotFoundError:
+        print("ERROR conda not found, please install it")
+    try:
+        cmd = 'conda install conda-forge::mamba'
+        output = subprocess.check_output(
+            cmd, stderr = subprocess.STDOUT, shell = True,
+            universal_newlines = True)
+    except subprocess.CalledProcessError as exc:
+        return("ERROR mamba install failed:", exc.returncode, exc.output)
+    else:
+        return("LOG mamba install output: \n{}\n".format(output))
