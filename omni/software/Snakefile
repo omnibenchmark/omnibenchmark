@@ -21,8 +21,9 @@ HOME=op.expanduser("~")
 LMOD_VERS="8.7"
 ## use half of the available cores
 NTHREADS = int(len(os.sched_getaffinity(0)))/2
+# NTHREADS=len(os.sched_getaffinity(0))
 
-export_lmod_env_vars()
+# export_lmod_env_vars()
 
 for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
     if not op.exists(p):
@@ -31,30 +32,30 @@ for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
 # mind the shell prefix
 # shell.prefix("set -o pipefail; ")
 
-easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.4.4-GCC-11.2.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
-# easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb']
+# easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.4.4-GCC-11.2.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
+easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb', 'binutils-2.35.eb']
 # easyconfigs = ['binutils-2.35.eb']
+# easyconfigs=['R-4.3.3-gfbf-2023b.eb']
 
 rule all:
     input:
         expand(op.join(WD, 'recipes', 'Singularity_{eb}.txt'), eb = easyconfigs)
 
-# not needed, sing-only now
-rule install_lmod:
-    output:
-        lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
-    log:
-        op.join(WD, 'lmod.log')
-    params:
-        path = WD
-    run:
-        if check_module_tool() == 1:
-            install_lmod()
+# # not needed, sing-only now
+# rule install_lmod:
+#     output:
+#         lmod = op.join(HOME, 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
+#     log:
+#         op.join(WD, 'lmod.log')
+#     params:
+#         path = WD
+#     run:
+#         if check_module_tool() == 1:
+#             install_lmod()
 
-# toolchain = 'GCCcore-10.2.0'
 
-for eb in easyconfigs:
-    envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
+for i in range(len(easyconfigs)):
+    eb = easyconfigs[i]
     rule:
         name: f"{{easyconfig}}_config".format(easyconfig=eb)
         wildcard_constraints:
@@ -72,10 +73,13 @@ for eb in easyconfigs:
         threads:
             NTHREADS
         run:
+            envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
+            print('--', eb, envmodule_name, '----------------')
             # largely from https://github.com/sassy-crick/Singularity-Easybuild        
-            create_definition_file(easyconfig = eb, singularity_recipe = output.singularity_recipe,
+            create_definition_file(easyconfig = wildcards.easyconfig,
+                                   singularity_recipe = output.singularity_recipe,
                                    envmodule = envmodule_name, nthreads = str(int(NTHREADS)))
-            ## fakeroot, no sandbox
+            # fakeroot, no sandbox
             shell("""
             export PATH=/usr/sbin:$PATH
             singularity build \

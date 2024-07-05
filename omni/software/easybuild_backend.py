@@ -51,27 +51,6 @@ def check_easybuild_status():
     except FileNotFoundError:
         return("ERROR easybuild not found")
 
-# def generate_default_easybuild_config_arguments(workdir):
-#     HOME = op.expanduser("~")
-#     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
-#     buildpath = op.join(workdir, 'easybuild', 'build')
-#     containerpath = op.join(workdir, 'easybuild', 'containers')
-#     installpath = op.join(workdir, 'easybuild')
-#     repositorypath = op.join(workdir, 'easybuild', 'ebfiles_repo')
-#     # robotpath = op.join(workdir, 'easybuild', 'easyconfigs') ## let's use default's
-#     sourcepath = op.join(workdir, 'easybuild', 'sources')
-    
-#     args = """--buildpath=%(buildpath)s  --installpath-modules=%(modulepath)s \
-#               --containerpath=%(containerpath)s --installpath=%(installpath)s \
-#               --repositorypath=%(repositorypath)s --sourcepath=%(sourcepath)s""" %{
-#                   'buildpath' : buildpath,
-#                   'modulepath' : modulepath,
-#                   'containerpath' : containerpath,
-#                   'installpath' : installpath,
-#                   'repositorypath' : repositorypath,
-#                   'sourcepath' : sourcepath}
-#     return(args)
-
 def generate_default_easybuild_config_arguments(workdir):
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
     buildpath = op.join(workdir, 'easybuild', 'build')
@@ -199,88 +178,6 @@ def pull_base_container():
     else:
         return("LOG pulling: \n{}\n".format(output))
     
-    
-# def easybuild_toolchain_bootstrap_container(toolchain, threads, execute = False,
-#                                             force = True):
-#     """
-#     Seeds a base centos-powered container, with a basic toolchain, to build other
-#       images using this as local image
-#     e.g. for `foss-2019a.eb` toolchain:
-#     `eb -C --container-config bootstrap=deboostrap,osversion=xenial foss-2019a.eb --container-build-image`
-#     """
-
-#     # cmd = """eb -C --container-config bootstrap=yum,osversion=7 %(toolchain)s.eb \
-#     #              --container-build-image --parallel=%(threads)s --experimental""" %{
-#     #                  'toolchain' : toolchain,
-#     #                  'threads': threads}
-
-#     ## needs `deboostrap` as sysdep, but will complain because needs yum (?)
-#     # cmd = """eb -C --container-config bootstrap=debootstrap,osversion=xenial %(toolchain)s.eb \
-#     #              --container-build-image --parallel=%(threads)s --experimental""" %{
-#     #                  'toolchain' : toolchain,
-#     #                  'threads': threads}
-
-#     pull_base_container()
-
-#     cmd =  """eb -C --container-config bootstrap=localimage,from:debian_trixie_slim.sif %(toolchain)s.eb \
-#                  --container-build-image --parallel=%(threads)s --experimental""" %{
-#                      'toolchain' : toolchain,
-#                      'threads': threads}
-
-#     if force:
-#         cmd = cmd + ' --force'
-    
-#     if execute:
-#         try:
-#             output = subprocess.check_output(
-#                 cmd, stderr = subprocess.STDOUT, shell = True,
-#                 universal_newlines = True)
-#         except subprocess.CalledProcessError as exc:
-#             return("ERROR Bootstrap singularity build failed %s %s:" %(exc.returncode, exc.output))
-#         else:
-#             return("LOG Bootstrap singularity build: \n{}\n".format(output))
-#     else:
-#         return(cmd)
-
-
-# def easybuild_container_based_on_local_boostrap(containerpath, toolchain, easyconfig,
-#                                                 threads, execute = False,
-#                                                 force = True):
-#     """
-#     Builds a container using a base image, e.g.
-#     eb -C --container-config bootstrap=localimage,from=/path/to/containers/foss-2019a.sif \
-#          %(easyconfig) --container-build-image
-#     """
-
-#     # easybuild_toolchain_bootstrap_container(toolchain = toolchain,
-#     #                                         threads = threads,
-#     #                                         execute = True)
-    
-#     cmd = """eb -C --container-config bootstrap=localimage,from=%(containerpath)s%(pathsep)s%(toolchain)s.sif \
-#     %(easyconfig)s --container-build-image --experimental --parallel=%(threads)s
-#     """ %{'containerpath' : containerpath,
-#           'toolchain' : toolchain,
-#           'easyconfig' : easyconfig,
-#           'threads' : threads,
-#           'pathsep' : os.pathsep
-#     }
-
-#     if force:
-#         cmd = cmd + ' --force'
-    
-#     if execute:
-#         try:
-            
-#             output = subprocess.check_output(
-#                 cmd, stderr = subprocess.STDOUT, shell = True,
-#                 universal_newlines = True)
-#         except subprocess.CalledProcessError as exc:
-#             return("ERROR Singularity build failed: %s %s" %(exc.returncode, exc.output))
-#         else:
-#             return("LOG Singularity build: \n{}\n".format(output))
-#     else:
-#         return(cmd)
-
 
 def build_easybuild_easyconfig_command(easyconfig,
                                        workdir,
@@ -301,13 +198,6 @@ def build_easybuild_easyconfig_command(easyconfig,
         if container_build_image:
             cmd += " --container-build-image"        
     return(cmd)
-
-# def read_ubuntu_template(easyconfig):
-#     with open('ubuntu_template.txt', 'r') as fh:
-#         for line in fh.read().split('\n'):
-#             print(line)
-#     # return(recipe)
-# # see the ubuntu_template.txt
 
 def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads):
     with open(op.join('templates', 'ubuntu_jammy.txt'), 'r') as ubuntu, open(singularity_recipe, 'w') as sing:
