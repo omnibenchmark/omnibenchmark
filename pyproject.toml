@@ -2,11 +2,11 @@
 name = "omni"
 version = "0.1.0"
 description = ""
-authors = ["almutlue <almut.lue@gmail.com>"]
+authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>"]
 readme = "README.md"
 packages = [{include = "omni"}]
-homepage = "https://github.com/almutlue/omni-py"
-repository = "https://github.com/almutlue/omni-py"
+homepage = "https://github.com/omnibenchmark/omni-py"
+repository = "https://github.com/omnibenchmark/omni-py"
 classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
@@ -17,11 +17,12 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.12" # so snmk >8 is installable
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "e3daebe9f75a6225adb674da5efaa477981baa1e"}
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
 typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 easybuild="^4.9.1"
 snakemake="^8.11.6"
+snakedeploy="^0.10.0"
 setuptools="^70.0.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -39,3 +40,8 @@ ob = 'omni.cli.main:cli'
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+# dynamic = ["dependencies"]
+
+# [tool.setuptools.dynamic]
+# dependencies = { file = ["requirements.txt"] }

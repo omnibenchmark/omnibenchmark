@@ -24,8 +24,8 @@ apt clean
 # install lmod start
 LUA_VERS=5.1.4.8
 mkdir -p /opt/apps/lua && cd /opt/apps/lua
-wget https://sourceforge.net/projects/lmod/files/lua-"$LUA_VERS".tar.gz/download
-tar xzvf download
+wget --quiet https://sourceforge.net/projects/lmod/files/lua-"$LUA_VERS".tar.gz/download
+tar xzf download
 cd lua*8
 ./configure --prefix=/opt/apps/lua/"$LUA_VERS"
 make; make install
@@ -35,8 +35,8 @@ ln -s /opt/apps/lua/lua/bin/luac /usr/local/bin
 
 LMOD_VERS=8.7
 mkdir -p /usr/share/lmod/ && cd /usr/share/lmod
-wget https://sourceforge.net/projects/lmod/files/Lmod-"$LMOD_VERS".tar.bz2/download
-tar xfvj download && cd Lmod-"$LMOD_VERS"
+wget --quiet https://sourceforge.net/projects/lmod/files/Lmod-"$LMOD_VERS".tar.bz2/download
+tar xfj download && cd Lmod-"$LMOD_VERS"
 ./configure --prefix=/usr/share/ && make install
 export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
 . /usr/share/lmod/lmod/init/bash
@@ -137,6 +137,8 @@ rm -rf /scratch/*
 eval "$@"
 
 %environment
+export LC_ALL=C
+    
 # make sure that 'module' and 'ml' commands are defined
 . /etc/profile # (original)
 # . /etc/profile.d/z00_lmod.sh # rather (2nd July 2024, Izaskun)
@@ -159,3 +161,11 @@ module load ENVMODULENAME
  
 %labels
 EasyConfig-file $(easyconfig)
+
+# %test
+# . /etc/profile 
+# if ! command -v module &> /dev/null
+# then
+#     echo "module command could not be found"
+#     exit 1
+# fi

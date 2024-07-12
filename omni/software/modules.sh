@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Installs a module manager if there isn't any
+# Installs lua plus lmod (as module manager)
 #
 # Izaskun Mallona
 # 27 May 2024

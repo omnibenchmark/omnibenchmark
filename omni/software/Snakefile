@@ -19,8 +19,8 @@ WD = op.join('soft')
 #MODULEPATH="$HOME/.local/easybuild/modules/all/"
 HOME=op.expanduser("~")
 LMOD_VERS="8.7"
-## use half of the available cores
-NTHREADS = int(len(os.sched_getaffinity(0)))/2
+## do not use all cores
+NTHREADS = int(len(os.sched_getaffinity(0)))*2/3
 # NTHREADS=len(os.sched_getaffinity(0))
 
 # export_lmod_env_vars()
@@ -34,8 +34,10 @@ for p in [op.join(WD, 'recipes'), op.join(WD, 'images')]:
 
 # easyconfigs=['R-4.3.3-gfbf-2023b.eb', 'Bowtie2-2.4.4-GCC-11.2.0.eb', 'PyInstaller-6.3.0-GCCcore-12.3.0.eb']
 # easyconfigs= ['zfp-0.5.5-GCCcore-10.2.0.eb', 'binutils-2.35.eb']
-easyconfigs = ['binutils-2.35.eb']
+# easyconfigs = ['binutils-2.35.eb']
 # easyconfigs=['R-4.3.3-gfbf-2023b.eb']
+# easyconfigs=['zfp-0.5.5-GCCcore-10.2.0.eb']
+easyconfigs = ['R-bundle-Bioconductor-3.18-foss-2023a-R-4.3.2.eb']
 
 rule all:
     input:

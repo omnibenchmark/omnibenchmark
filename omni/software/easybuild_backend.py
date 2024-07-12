@@ -141,14 +141,14 @@ def get_envmodule_name_from_easyconfig(easyconfig, workdir):
     ec_path, ec = parse_easyconfig(easyconfig, workdir)
     return(os.path.join(ec['name'], det_full_ec_version(ec)))
 
-# 0 success, there is a module tool
-# 1 error, there is none
-def check_module_tool():
-    mod_tool = modules_tool()
-    if mod_tool.NAME is None:
-        return(1) #'Module tool: not installed')
-    else:
-        return(0) # "Module tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
+# # 0 success, there is a module tool
+# # 1 error, there is none
+# def check_module_tool():
+#     mod_tool = modules_tool()
+#     if mod_tool.NAME is None:
+#         return(1) #'Module tool: not installed')
+#     else:
+#         return(0) # "Module tool: %s version %s" % (mod_tool.NAME, mod_tool.version))
 
 def check_available_modules():
     return(modules_tool().available())
@@ -199,8 +199,8 @@ def build_easybuild_easyconfig_command(easyconfig,
             cmd += " --container-build-image"        
     return(cmd)
 
-def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads):
-    with open(op.join('templates', 'ubuntu_jammy.txt'), 'r') as ubuntu, open(singularity_recipe, 'w') as sing:
+def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads, templates_path = '.'):
+    with open(op.join(templates_path, 'templates', 'ubuntu_jammy.txt'), 'r') as ubuntu, open(singularity_recipe, 'w') as sing:
         for line in ubuntu.read().split('\n'):
             if 'EASYCONFIG' in line:
                 line = line.replace('EASYCONFIG', easyconfig)
