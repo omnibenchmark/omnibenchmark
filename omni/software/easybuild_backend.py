@@ -14,11 +14,31 @@ from easybuild.tools.module_naming_scheme.utilities import det_full_ec_version, 
 from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
 from easybuild.tools.options import set_up_configuration
 from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
-# from warnings import deprecated
 
 HOME=op.expanduser("~")
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
+
+def check_lmod_status():
+    try:
+        ret = subprocess.check_call(["module", "--version"])
+    except FileNotFoundError:
+        return("ERROR module not found")
+    return(ret)
+
+def check_singularity_status():
+    try:
+        ret =subprocess.check_call(["singularity", "--version"])
+    except FileNotFoundError:
+        return("ERROR singularity not found")
+    return(ret)
+
+def check_easybuild_status():
+    try:
+        ret = subprocess.check_call(["eb", "--version"])
+    except FileNotFoundError:
+        return("ERROR easybuild not found")
+    return(ret)
 
 def install_lmod():
     try:
@@ -44,12 +64,6 @@ def export_lmod_env_vars(LMOD_VERS="8.7"):
                                   os.environ['PATH']])
     os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
-    
-def check_easybuild_status():
-    try:
-        subprocess.call(["eb", "--help"])
-    except FileNotFoundError:
-        return("ERROR easybuild not found")
 
 def generate_default_easybuild_config_arguments(workdir):
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
@@ -100,16 +114,16 @@ def generate_default_easybuild_config_arguments(workdir):
 def list_all_easyconfigs(benchmark_yaml):
     return('not_implemented, perhaps import from workflow/schema?')
 
-def easybuild_all_easyconfigs(benchmark_yaml, workdir, threads, containerize = False,
-                              container_build_image = False):
-    """
-    Iterates over all easyconfigs from a benchmark yaml and easybuilds them all
-    """
+# def easybuild_all_easyconfigs(benchmark_yaml, workdir, threads, containerize = False,
+#                               container_build_image = False):
+#     """
+#     Iterates over all easyconfigs from a benchmark yaml and easybuilds them all
+#     """
 
-    easyconfigs = list_all_easyconfigs()
-    for eb in easyconfigs:
-        easybuild_easyconfig(easyconfig = eb, workdir = workdir, threads = threads,
-                             containerize = containerize, container_build_image = container_build_image)
+#     easyconfigs = list_all_easyconfigs()
+#     for eb in easyconfigs:
+#         easybuild_easyconfig(easyconfig = eb, workdir = workdir, threads = threads,
+#                              containerize = containerize, container_build_image = container_build_image)
 
 # not needed, the yaml will have both
 # def get_easyconfig_from_envmodule_name(envmodule):
@@ -160,44 +174,44 @@ def check_envmodule_status(envmodule):
     else:
         return('installed')
 
-# beware containerpath hardcoded to default
-def get_toolchain_container_path(toochain,
-                                 containerpath = op.join(HOME, '.local', 'easybuild', 'containers')):
-    return(op.join(containerpath, toolchain + '.sif'))
+# # beware containerpath hardcoded to default
+# def get_toolchain_container_path(toochain,
+#                                  containerpath = op.join(HOME, '.local', 'easybuild', 'containers')):
+#     return(op.join(containerpath, toolchain + '.sif'))
                                       
 
-def pull_base_container():
-    cmd = "singularity build --sandbox debian_trixie_slim.sif docker://debian:trixie-slim"
+# def pull_base_container():
+#     cmd = "singularity build --sandbox debian_trixie_slim.sif docker://debian:trixie-slim"
 
-    try:
-        output = subprocess.check_output(
-            cmd, stderr = subprocess.STDOUT, shell = True,
-            universal_newlines = True)
-    except subprocess.CalledProcessError as exc:
-        return("ERROR pulling failed %s %s:" %(exc.returncode, exc.output))
-    else:
-        return("LOG pulling: \n{}\n".format(output))
+#     try:
+#         output = subprocess.check_output(
+#             cmd, stderr = subprocess.STDOUT, shell = True,
+#             universal_newlines = True)
+#     except subprocess.CalledProcessError as exc:
+#         return("ERROR pulling failed %s %s:" %(exc.returncode, exc.output))
+#     else:
+#         return("LOG pulling: \n{}\n".format(output))
     
 
-def build_easybuild_easyconfig_command(easyconfig,
-                                       workdir,
-                                       threads,
-                                       containerize = False,
-                                       container_build_image = False):
+# def build_easybuild_easyconfig_command(easyconfig,
+#                                        workdir,
+#                                        threads,
+#                                        containerize = False,
+#                                        container_build_image = False):
 
     
-    args = generate_default_easybuild_config_arguments(workdir = workdir)
+#     args = generate_default_easybuild_config_arguments(workdir = workdir)
     
-    cmd = """eb %(easyconfig)s --robot --parallel=%(threads)s \
-              --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" %{
-                  'easyconfig' : easyconfig,
-                  # 'args' : args,
-                  'threads' : threads}
-    if containerize:
-        cmd += " --container-config bootstrap=localimage,from=example.sif --experimental"
-        if container_build_image:
-            cmd += " --container-build-image"        
-    return(cmd)
+#     cmd = """eb %(easyconfig)s --robot --parallel=%(threads)s \
+#               --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" %{
+#                   'easyconfig' : easyconfig,
+#                   # 'args' : args,
+#                   'threads' : threads}
+#     if containerize:
+#         cmd += " --container-config bootstrap=localimage,from=example.sif --experimental"
+#         if container_build_image:
+#             cmd += " --container-build-image"        
+#     return(cmd)
 
 def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads, templates_path = '.'):
     with open(op.join(templates_path, 'templates', 'ubuntu_jammy.txt'), 'r') as ubuntu, open(singularity_recipe, 'w') as sing:
@@ -209,3 +223,16 @@ def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads, 
             if 'EASYBUILDNTHREADSINT' in line:
                 line = line.replace('EASYBUILDNTHREADSINT', nthreads)
             sing.write(line + '\n')
+
+def singularity_build(easyconfig, singularity_recipe):
+    image_name = op.basename(easyconfig) + '.sif'
+    try:
+        cmd = """ export PATH=/usr/sbin:$PATH; 
+        singularity build --fakeroot """ + image_name + ' ' + singularity_recipe
+        output = subprocess.check_output(
+            cmd, stderr = subprocess.STDOUT, shell = True,
+            universal_newlines = True)
+    except subprocess.CalledProcessError as exc:
+        return("ERROR singularity build failed:", exc.returncode, exc.output)
+    else:
+        return("LOG singularity build output: \n{}\n".format(output))

@@ -14,18 +14,6 @@ import os
 
 cli = typer.Typer(add_completion = True,  no_args_is_help = True, pretty_exceptions_short = True)
 
-# @cli.callback()
-# def main(verbose: bool = typer.Option(False, "--verbose", "-v")):
-#     app = typer.Typer(pretty_exceptions_short = True)
-#     if verbose:
-#         app = typer.Typer(pretty_exceptions_short = False)
-
-# @cli.callback()
-# def main(pretty: bool = typer.Option(False, "--pretty", "-p")):
-#     app = typer.Typer(pretty_exceptions_short = False)
-#     if pretty:
-#         app = typer.Typer(pretty_exceptions_enable = True)
-
 @cli.command("build")
 def singularity_build(
     easyconfig: Annotated[
@@ -38,7 +26,7 @@ def singularity_build(
     ],
 ):
     """Build a singularity (fakeroot) image for a given easyconfig."""
-    typer.echo(f"Install software for {easyconfig} within a Singularity container.")
+    typer.echo(f"Installing software for {easyconfig} within a Singularity container.")
     
     ## check lmod
     easybuild_backend.export_lmod_env_vars()
@@ -48,13 +36,15 @@ def singularity_build(
     easybuild_backend.check_easybuild_status()
     
     ## do
+    singularity_recipe = 'Singularity_' + easyconfig + '.txt'
     envmodule_name = easybuild_backend.get_envmodule_name_from_easyconfig(easyconfig, workdir = os.getcwd())    
     easybuild_backend.create_definition_file(
         easyconfig = easyconfig,
-        singularity_recipe = 'Singularity_' + easyconfig + '.txt',
+        singularity_recipe = singularity_recipe,
         envmodule = envmodule_name, nthreads = str(len(os.sched_getaffinity(0))),
         templates_path = os.path.dirname(easybuild_backend.__file__))
-    print('skipping the shell part now')
+
+    easybuild_backend.singularity_build(easyconfig = easyconfig, singularity_recipe = singularity_recipe)
     
 
 @cli.command("pin")
@@ -73,24 +63,31 @@ def pin_conda_env(
     conda_backend.pin_conda_envs(conda_env)
 
 
+## these belong to the validator, not here
+
 @cli.command("check")
-def check_singularity(
-    singularity: Annotated[
+def check(
+    what: Annotated[
         str,
         typer.Option(
-            "--sif",
-            "-s",
-            help="Path to the singularity SIF.",
+            "--what",
+            "-w",
+            help="""Binary/functionality to check: 
+               --what singularity : singularity binary 
+               --what lmod        : module tool 
+               --what easybuild   : easybuild binary""",
         ),
-    ],
-    envmodule_name: Annotated[
-        str,
-        typer.Option(
-            "--envmodulename",
-            "-e",
-            help="Envmodule name.",
-        ),
-    ],
+    ],        
 ):
-    """Check whether the envmodule {envmodule} is loadable (installed) in a given singularity sif {sif}."""
-    typer.echo(f"Checks whether the envmodule {envmodule} is loadable and installed in a given singularity sif {sif}.")
+    """Check whether the component {what} is available."""
+    typer.echo(f"Checking whether the component {what} is available.")
+
+    if what == 'easybuild':
+        easybuild_backend.check_easybuild_status()
+    elif what == 'lmod':
+        easybuild_backend.export_lmod_env_vars()
+        easybuild_backend.check_lmod_status()
+    elif what == 'singularity':
+        easybuild_backend.check_singularity_status()
+    else:
+        return('not implemented')
