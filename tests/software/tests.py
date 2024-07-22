@@ -17,6 +17,7 @@ import os.path as op
 # import subprocess as sp
 # from pathlib import Path
 from utils.run import run
+import pytest
 
 # from utils.resources import DefaultResources, GroupResources
 # from utils.enums import RerunTrigger
@@ -37,4 +38,11 @@ def test_singularity():
     run(Snakefile = op.join("01_singularity", "Snakefile"),
         produced = op.join('test0.out'),
         expected = op.join('01_singularity', 'expected_results', 'test0.out'),
+        method= 'apptainer')
+
+def test_singularity_nonexistent():
+    with pytest.raises(Exception):
+        run(Snakefile = op.join("02_singularity_nonexistent", "Snakefile"),
+        produced = op.join('test0.out'),
+        expected = op.join('02_singularity_nonexistent', 'expected_results', 'test0.out'),
         method= 'apptainer')
