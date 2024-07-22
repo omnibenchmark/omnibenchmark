@@ -76,10 +76,9 @@ jobs:
           # ZENODO_SANDBOX_PAT: "${{ secrets.ZENODO_SANDBOX_PAT }}"
         shell: bash -el {0}
         run: |
-          cd tests/software
           pytest -v -x --show-capture=stderr \
             --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-            tests.py
+            tests/software/tests.py
             
       ## - name: Run tests/test_report/Snakefile to generate report
       ##   shell: bash -el {0}
