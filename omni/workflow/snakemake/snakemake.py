@@ -175,7 +175,9 @@ class SnakemakeEngine(WorkflowEngine):
         return snakefile_path
 
     @staticmethod
-    def _write_snakefile_header(f: TextIO, benchmark_name: str, benchmark_version: str, benchmark_author: str):
+    def _write_snakefile_header(
+        f: TextIO, benchmark_name: str, benchmark_version: str, benchmark_author: str
+    ):
         """Write header for the generated Snakefile"""
 
         f.write("#!/usr/bin/env snakemake -s\n")
@@ -183,7 +185,9 @@ class SnakemakeEngine(WorkflowEngine):
         f.write("# Snakefile for Orchestrating YAML-defined OmniBenchmarks\n")
         f.write("#############################################\n")
         f.write("# \n")
-        f.write(f"# This Snakefile has been automatically generated on {datetime.now()}\n")
+        f.write(
+            f"# This Snakefile has been automatically generated on {datetime.now()}\n"
+        )
         f.write("# \n")
         f.write("# Benchmark Details:\n")
         f.write(f"# - Name: {benchmark_name}\n")

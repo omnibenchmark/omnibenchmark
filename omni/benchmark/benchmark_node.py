@@ -13,7 +13,6 @@ class BenchmarkNode:
         param_id,
         after=None,
     ):
-
         self.converter = converter
         self.stage = stage
         self.module = module

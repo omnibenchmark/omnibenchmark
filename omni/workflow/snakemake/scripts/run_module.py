@@ -28,7 +28,6 @@ def execution(
     inputs_map: dict[str, str],
     parameters: List[str],
 ):
-
     run_sh = os.path.join(module_dir, "run.sh")
     if not os.path.exists(run_sh):
         logging.error(f"ERROR: {module_name} run.sh script does not exist.")

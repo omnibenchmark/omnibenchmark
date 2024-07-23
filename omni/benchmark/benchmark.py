@@ -59,9 +59,7 @@ class Benchmark:
         output_paths = [
             format_name(output, self.out_dir)
             for path in execution_paths
-            for output in self._construct_output_paths(
-                prefix=self.out_dir, nodes=path
-            )
+            for output in self._construct_output_paths(prefix=self.out_dir, nodes=path)
         ]
 
         return set(output_paths)

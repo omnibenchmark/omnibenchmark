@@ -9,7 +9,12 @@ from omni.benchmark.benchmark_node import BenchmarkNode
 from omni.benchmark.validation import ValidationError
 
 
-def expend_stage_nodes(converter: LinkMLConverter, stage: omni_schema.datamodel.omni_schema.Stage, out_dir: str, stage_ordering: List[str]) -> List[BenchmarkNode]:
+def expend_stage_nodes(
+    converter: LinkMLConverter,
+    stage: omni_schema.datamodel.omni_schema.Stage,
+    out_dir: str,
+    stage_ordering: List[str],
+) -> List[BenchmarkNode]:
     nodes = []
 
     input_dirname = out_dir if converter.is_initial(stage) else "{pre}"
@@ -31,10 +36,22 @@ def expend_stage_nodes(converter: LinkMLConverter, stage: omni_schema.datamodel.
             for inputs in inputs_for_stage:
                 latest_stage = None
                 if inputs:
-                    stages_by_output = list(set([converter.get_stage_by_output(input_id).id for input_id in inputs]))
-                    latest_stage = sorted(stages_by_output, key=stage_ordering.index)[-1]
+                    stages_by_output = list(
+                        set(
+                            [
+                                converter.get_stage_by_output(input_id).id
+                                for input_id in inputs
+                            ]
+                        )
+                    )
+                    latest_stage = sorted(stages_by_output, key=stage_ordering.index)[
+                        -1
+                    ]
                     explicit_inputs = converter.get_explicit_inputs(inputs)
-                    inputs = {k: v.replace("{input}", "{pre}") for k, v in explicit_inputs.items()}
+                    inputs = {
+                        k: v.replace("{input}", "{pre}")
+                        for k, v in explicit_inputs.items()
+                    }
 
                 node = BenchmarkNode(
                     converter,
@@ -86,7 +103,9 @@ def build_stage_dag(converter: LinkMLConverter) -> nx.DiGraph:
     return g
 
 
-def find_initial_and_terminal_nodes(graph: nx.DiGraph) -> Tuple[List[BenchmarkNode], List[BenchmarkNode]]:
+def find_initial_and_terminal_nodes(
+    graph: nx.DiGraph,
+) -> Tuple[List[BenchmarkNode], List[BenchmarkNode]]:
     initial_nodes = [node for node, in_degree in graph.in_degree() if in_degree == 0]
     terminal_nodes = [
         node for node, out_degree in graph.out_degree() if out_degree == 0
@@ -124,7 +143,9 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
         topological_order = list(nx.topological_sort(stage_dag))
 
     except nx.NetworkXUnfeasible:
-        raise ValidationError("The stage graph has a cyclic dependencies. This benchmark can not be resolved")
+        raise ValidationError(
+            "The stage graph has a cyclic dependencies. This benchmark can not be resolved"
+        )
 
     return topological_order
 

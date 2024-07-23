@@ -8,7 +8,6 @@ from omni.utils import merge_dict_list, parse_instance
 
 
 class LinkMLConverter:
-
     def __init__(self, benchmark_file: Path):
         self.benchmark_file = os.path.abspath(benchmark_file)
         self.model = parse_instance(benchmark_file, omni_schema.Benchmark)
@@ -52,7 +51,9 @@ class LinkMLConverter:
 
         return stage_by_output.get(output_id)
 
-    def get_modules_by_stage(self, stage: Union[str, omni_schema.Stage]) -> Dict[str, omni_schema.Module]:
+    def get_modules_by_stage(
+        self, stage: Union[str, omni_schema.Stage]
+    ) -> Dict[str, omni_schema.Module]:
         """Get modules by stage/stage_id"""
 
         if isinstance(stage, str):
@@ -60,7 +61,9 @@ class LinkMLConverter:
 
         return dict([(x.id, x) for x in stage.modules])
 
-    def get_stage_implicit_inputs(self, stage: Union[str, omni_schema.Stage]) -> List[str]:
+    def get_stage_implicit_inputs(
+        self, stage: Union[str, omni_schema.Stage]
+    ) -> List[str]:
         """Get implicit inputs of a stage by stage/stage_id"""
 
         if isinstance(stage, str):
@@ -75,15 +78,15 @@ class LinkMLConverter:
         for stage_id in self.get_stages():
             outputs = self.get_stage_outputs(stage=stage_id)
             outputs = {
-                    key: value.format(
-                        input="{input}",
-                        stage=stage_id,
-                        module="{module}",
-                        params="{params}",
-                        dataset="{dataset}",
-                    )
-                    for key, value in outputs.items()
-                }
+                key: value.format(
+                    input="{input}",
+                    stage=stage_id,
+                    module="{module}",
+                    params="{params}",
+                    dataset="{dataset}",
+                )
+                for key, value in outputs.items()
+            }
             all_stages_outputs.append(outputs)
 
         all_stages_outputs = merge_dict_list(all_stages_outputs)
@@ -122,7 +125,9 @@ class LinkMLConverter:
 
         return module.exclude
 
-    def get_module_parameters(self, module: Union[str, omni_schema.Module]) -> List[str]:
+    def get_module_parameters(
+        self, module: Union[str, omni_schema.Module]
+    ) -> List[str]:
         """Get module parameters by module/module_id"""
 
         if isinstance(module, str):
@@ -134,7 +139,9 @@ class LinkMLConverter:
 
         return params
 
-    def get_module_repository(self, module: Union[str, omni_schema.Module]) -> omni_schema.Repository:
+    def get_module_repository(
+        self, module: Union[str, omni_schema.Module]
+    ) -> omni_schema.Repository:
         """Get module repository by module/module_id"""
 
         if isinstance(module, str):

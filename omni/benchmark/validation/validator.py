@@ -11,8 +11,9 @@ class Validator:
     def __init__(self):
         self.errors = []
 
-    def validate(self, converter: LinkMLConverter) -> Union[ValidationError, LinkMLConverter]:
-
+    def validate(
+        self, converter: LinkMLConverter
+    ) -> Union[ValidationError, LinkMLConverter]:
         # Validate ids are unique
         stage_ids = converter.get_stages().keys()
         duplicate_stage_ids = Validator.find_duplicate(stage_ids)
