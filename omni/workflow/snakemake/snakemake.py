@@ -211,7 +211,7 @@ class SnakemakeEngine(WorkflowEngine):
         includes_path = Path(rules.__file__).resolve().parent
         for include in includes:
             include_path = includes_path / include
-            f.write(f'include: "{include_path}"\n')
+            f.write(f'include: "{include_path.as_posix()}"\n')
 
         f.write("\n")
 
