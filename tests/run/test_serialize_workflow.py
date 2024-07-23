@@ -1,11 +1,10 @@
+import os.path
 from pathlib import Path
-
-import pytest
 
 from tests.run.Snakemake_setup import SnakemakeSetup
 
 
-def test_run_workflow_001():
+def test_serialize_workflow_001():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
@@ -13,12 +12,11 @@ def test_run_workflow_001():
         benchmark = setup.benchmark
         assert benchmark.get_benchmark_name() == 'Benchmark_001'
 
-        success = setup.workflow.run_workflow(benchmark)
-        assert success
+        path = setup.workflow.serialize_workflow(benchmark)
+        assert os.path.exists(path)
 
 
-@pytest.mark.skip(reason="Benchmark_002 is not working properly yet")
-def test_run_workflow_002():
+def test_serialize_workflow_002():
     benchmark_file = "../data/Benchmark_002.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
@@ -26,5 +24,5 @@ def test_run_workflow_002():
         benchmark = setup.benchmark
         assert benchmark.get_benchmark_name() == 'peiying_with_easyconfigs'
 
-        success = setup.workflow.run_workflow(benchmark)
-        assert success
+        path = setup.workflow.serialize_workflow(benchmark)
+        assert os.path.exists(path)

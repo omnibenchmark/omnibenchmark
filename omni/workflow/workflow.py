@@ -1,4 +1,5 @@
 import os.path
+from pathlib import Path
 
 from omni.benchmark import Benchmark, BenchmarkNode
 
@@ -13,7 +14,7 @@ class WorkflowEngine:
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **kwargs
-    ):
+    ) -> bool:
         """
         Serializes & runs benchmark workflow.
 
@@ -25,11 +26,11 @@ class WorkflowEngine:
             **kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
-        - Status code of the workflow run.
+        - Status code (bool) of the workflow run.
         """
         raise NotImplementedError("Method not implemented yet")
 
-    def serialize_workflow(self, benchmark: Benchmark, output_dir: str = os.getcwd()):
+    def serialize_workflow(self, benchmark: Benchmark, output_dir: str = os.getcwd()) -> Path:
         """
         Serializes a workflow file for the benchmark.
 
@@ -51,7 +52,7 @@ class WorkflowEngine:
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **kwargs
-    ):
+    ) -> bool:
         """
         Serializes & runs benchmark node workflow.
 
@@ -65,13 +66,13 @@ class WorkflowEngine:
             **kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
-        - Status code of the workflow run.
+        - Status code (bool) of the workflow run.
         """
         raise NotImplementedError("Method not implemented yet")
 
     def serialize_node_workflow(
         self, node: BenchmarkNode, output_dir: str = os.getcwd()
-    ):
+    ) -> Path:
         """
         Serializes a workflow file for a benchmark node.
 

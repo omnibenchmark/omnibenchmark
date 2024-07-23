@@ -1,10 +1,11 @@
 import os
+from pathlib import Path
 from typing import TextIO, List, Optional
 
 from omni.benchmark import Benchmark, BenchmarkNode
 from omni.workflow.workflow import WorkflowEngine
 from omni.workflow.snakemake import rules
-from snakemake.cli import main as snakemake_cli
+from snakemake.cli import args_to_api as snakemake_cli, parse_args
 
 from datetime import datetime
 
@@ -27,7 +28,7 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **snakemake_kwargs,
-    ):
+    ) -> bool:
         """
         Serializes & runs benchmark workflow using snakemake.
 
@@ -39,7 +40,7 @@ class SnakemakeEngine(WorkflowEngine):
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
-        - Status code of the workflow run.
+        - Status code (bool) of the workflow run.
         """
 
         # Serialize Snakefile for workflow
@@ -51,11 +52,12 @@ class SnakemakeEngine(WorkflowEngine):
         )
 
         # Execute snakemake script
-        success = snakemake_cli(argv)
+        parser, args = parse_args(argv)
+        success = snakemake_cli(args, parser)
 
         return success
 
-    def serialize_workflow(self, benchmark: Benchmark, output_dir: str = os.getcwd()):
+    def serialize_workflow(self, benchmark: Benchmark, output_dir: str = os.getcwd()) -> Path:
         """
         Serializes a Snakefile for the benchmark.
 
@@ -102,7 +104,7 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **snakemake_kwargs,
-    ):
+    ) -> bool:
         """
         Serializes & runs benchmark node workflow using snakemake.
 
@@ -130,13 +132,14 @@ class SnakemakeEngine(WorkflowEngine):
         )
 
         # Execute snakemake script
-        success = snakemake_cli(argv)
+        parser, args = parse_args(argv)
+        success = snakemake_cli(args, parser)
 
         return success
 
     def serialize_node_workflow(
         self, node: BenchmarkNode, output_dir: str = os.getcwd()
-    ):
+    ) -> Path:
         """
         Serializes a Snakefile for a benchmark node.
 
@@ -211,7 +214,7 @@ class SnakemakeEngine(WorkflowEngine):
 
     @staticmethod
     def _prepare_argv(
-        snakefile: str,
+        snakefile: Path,
         cores: int,
         dryrun: bool,
         work_dir: str,

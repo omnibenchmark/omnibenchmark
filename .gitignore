@@ -160,8 +160,8 @@ cython_debug/
 #.idea/
 
 # Custom omni-benchmark specific folders
-.out/
-.log/
-
+out/
+log/
+.snakemake/
 output_dag.png
 Snakefile
