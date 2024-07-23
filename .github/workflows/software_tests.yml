@@ -72,6 +72,6 @@ jobs:
           ## pytest -v -x --show-capture=stderr \
           ##   --splits 5 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
           ##   tests.py
-          poetry run pytest -v -x --show-capture=stderr \
+          pytest -v -x --show-capture=stderr \
               --splits 5 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               tests/software/tests.py
