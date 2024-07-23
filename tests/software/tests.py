@@ -16,7 +16,7 @@ import os
 import os.path as op
 import pytest
 
-from utils.run import *
+from tests.software.utils.run import *
 
 sys.path.insert(0, op.dirname(__file__))
 WD = op.dirname(__file__)
