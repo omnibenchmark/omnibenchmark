@@ -7,6 +7,10 @@ import pytest
 import subprocess
 import os
 
+def run_subprocess(cmd_string, expected):
+    completed_process = subprocess.run(cmd_string.split(' '))
+    assert completed_process.returncode == 0
+    
 def run_snmk_conda(Snakefile, produced, expected):
     completed_process = subprocess.run(['snakemake', '-s', Snakefile, '--use-conda', '--cores', '1'])
     assert completed_process.returncode == 0
