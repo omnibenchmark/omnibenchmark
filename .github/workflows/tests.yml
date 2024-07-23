@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10"]
+        python-version: ["3.11"]
         poetry-version: ["1.8.0"]
     defaults:
       run:
@@ -83,7 +83,7 @@ jobs:
       #----------------------------------------------
       # Report coverage
       #----------------------------------------------
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10' &&  matrix.poetry-version == '1.8.0' }}
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11' &&  matrix.poetry-version == '1.8.0' }}
         name: Comment coverage result
         uses: MishaKav/pytest-coverage-comment@main
         with:
