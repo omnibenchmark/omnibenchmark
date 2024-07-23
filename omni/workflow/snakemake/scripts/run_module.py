@@ -52,10 +52,10 @@ def execution(
 
     except subprocess.CalledProcessError as e:
         logging.error(
-            f"ERROR: Executing {run_sh} failed with exit code {e.returncode}."
+            f"ERROR: Executing {run_sh} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
         )
         raise RuntimeError(
-            f"ERROR: Executing {run_sh} failed with exit code {e.returncode}."
+            f"ERROR: Executing {run_sh} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
         ) from e
 
 

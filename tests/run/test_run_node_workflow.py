@@ -23,7 +23,7 @@ def test_run_node_workflow_001():
 
         # Delete output of process P1 directory
         process_P1_output = (
-            Path(__file__).parent
+            Path(os.getcwd())
             / "out"
             / "data"
             / "D1"
@@ -37,7 +37,7 @@ def test_run_node_workflow_001():
 
         # Then run the workflow for the missing computational node
         benchmark_node_3 = benchmark_nodes[3]
-        input_dir = Path(__file__).parent / "out" / "data" / "D1" / "default"
+        input_dir = Path(os.getcwd()) / "out" / "data" / "D1" / "default"
         assert setup.workflow.run_node_workflow(
             benchmark_node_3, input_dir=input_dir, dataset="D1"
         )

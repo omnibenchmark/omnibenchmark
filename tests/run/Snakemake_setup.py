@@ -26,7 +26,7 @@ class SnakemakeSetup:
         self._cleanup_snakemake()
 
     def _cleanup_snakemake(self):
-        current_dir = Path(__file__).parent.absolute()
+        current_dir = os.getcwd()
         for file in TO_CLEANUP:
             file_path = os.path.join(current_dir, file)
             if os.path.exists(file_path):

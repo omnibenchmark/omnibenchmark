@@ -189,6 +189,17 @@ dev = ["cogapp", "pre-commit", "pytest", "wheel"]
 tests = ["pytest"]
 
 [[package]]
+name = "argparse"
+version = "1.4.0"
+description = "Python command-line parsing library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "argparse-1.4.0-py2.py3-none-any.whl", hash = "sha256:c31647edb69fd3d465a847ea3157d37bed1f95f19760b11a47aa91c04b666314"},
+    {file = "argparse-1.4.0.tar.gz", hash = "sha256:62b089a55be1d8949cd2bc7e0df0bddb9e028faefc8c32038cc84862aefdd6e4"},
+]
+
+[[package]]
 name = "argparse-dataclass"
 version = "2.0.0"
 description = "Declarative CLIs with argparse and dataclasses"
@@ -3539,4 +3550,4 @@ swift = ["python-swiftclient"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "7c4572e8d1100faf61fc85b40b34448dea2229eedef1989b8b783c627466fbb3"
+content-hash = "b9d89177b88a99ccfa00dddc985eca71e863bac2aaa22c101ace50db8e777143"

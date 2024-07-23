@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,9 @@ def test_run_workflow_001():
         benchmark = setup.benchmark
         assert benchmark.get_benchmark_name() == "Benchmark_001"
 
+        # First run the whole workflow
         success = setup.workflow.run_workflow(benchmark)
+
         assert success
 
 

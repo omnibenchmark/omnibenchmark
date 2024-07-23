@@ -208,9 +208,10 @@ class SnakemakeEngine(WorkflowEngine):
     def _write_includes(f: TextIO, includes: List[str]):
         """Write includes directive for the generated Snakefile"""
 
-        includes_path = os.path.dirname(os.path.realpath(rules.__file__))
+        includes_path = Path(rules.__file__).resolve().parent
         for include in includes:
-            f.write(f'include: "{os.path.join(includes_path, include)}"\n')
+            include_path = includes_path / include
+            f.write(f'include: "{include_path}"\n')
 
         f.write("\n")
 

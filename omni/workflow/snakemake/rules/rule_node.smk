@@ -3,8 +3,6 @@ import os
 from omni.workflow.snakemake import scripts
 from omni.workflow.snakemake.format import formatter
 
-print(os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py'))
-
 def create_node_rule(node, benchmark):
     if node.is_initial():
         return _create_initial_node(node)

@@ -48,6 +48,7 @@ pytest-cov = "^4.1.0"
 
 [tool.poetry.group.test.dependencies]
 genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
+argparse = "^1.4.0"
 
 [tool.poetry.scripts]
 ob = 'omni.cli.main:cli'
