@@ -7,7 +7,7 @@ import pytest
 import subprocess
 import os
 
-def run_subprocess(cmd_string, expected):
+def check_cmd_zero_exit(cmd_string):
     completed_process = subprocess.run(cmd_string.split(' '))
     assert completed_process.returncode == 0
     

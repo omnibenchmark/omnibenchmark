@@ -5,9 +5,10 @@
 import os
 import os.path as op
 # from shutil import which
-from omni.software.easybuild_backend import *
-from omni.software.conda_backend import *
-
+# from omni.software.easybuild_backend import *
+# from omni.software.conda_backend import *
+from omni.software import easybuild_backend as easy
+# from omni.software import common
 
 LMOD_VERS="8.7"
 
@@ -38,13 +39,13 @@ for eb in easyconfigs:
         threads:
             NTHREADS
         run:
-            envmodule_name = get_envmodule_name_from_easyconfig(eb, workdir = WD)
+            envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
             print('--', eb, envmodule_name, '----------------')
             # largely from https://github.com/sassy-crick/Singularity-Easybuild        
-            create_definition_file(easyconfig = wildcards.easyconfig,
-                                   singularity_recipe = output.singularity_recipe,
-                                   envmodule = envmodule_name, nthreads = str(int(NTHREADS)))
-            # easybuild_backend.singularity_build(easyconfig = wildcards.easyconfig,
+            easy.create_definition_file(easyconfig = wildcards.easyconfig,
+                                        singularity_recipe = output.singularity_recipe,
+                                        envmodule = envmodule_name, nthreads = str(int(NTHREADS)))
+            # easy.singularity_build(easyconfig = wildcards.easyconfig,
             #                                     singularity_recipe = output.singularity_recipe)
             shell("""
             export PATH=/usr/sbin:$PATH
@@ -55,7 +56,7 @@ for eb in easyconfigs:
     rule:
         name: f"{{easyconfig}}_test".format(easyconfig=eb)
         wildcard_constraints:
-            easyconfig=eb
+            easyconfig = eb
         input:
             container = op.join(WD, '{easyconfig}' + '.sif')
         singularity:

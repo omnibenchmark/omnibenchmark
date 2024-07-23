@@ -47,3 +47,8 @@ build-backend = "poetry.core.masonry.api"
 
 # [tool.setuptools.dynamic]
 # dependencies = { file = ["requirements.txt"] }
+
+# [tool.pytest.ini_options]
+# testpaths = [
+#     "tests/software",
+# ]

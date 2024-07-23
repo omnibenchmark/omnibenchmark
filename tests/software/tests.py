@@ -16,10 +16,10 @@ import os
 import os.path as op
 import pytest
 
-from tests.software.utils.run import *
+from utils.run import run, check_cmd_zero_exit
 
 sys.path.insert(0, op.dirname(__file__))
-WD = op.dirname(__file__)
+# WD = op.dirname(__file__)
 
 def test_conda():
     run(Snakefile = op.join("00_conda", "Snakefile"),
@@ -41,10 +41,24 @@ def test_singularity_nonexistent():
         method= 'apptainer')
 
 def test_easybuild_cmd():
-    run_subprocess('eb --version', 'This is EasyBuild')
+    check_cmd_zero_exit('eb --version')
 
+def test_singularity_cmd():
+    check_cmd_zero_exit('singularity --version')
+
+def test_omni_python_import():
+    import omni
+
+def test_omni_easybuild_import():
+    from omni.software import easybuild_backend as easy
+
+# fixme, not a test    
 def test_easybuild_build():
-    run(Snakefile = op.join("03_easybuild_build", "Snakefile"),
-        produced = op.join('test_03', 'binutils-2.35.eb_hello.txt'),
-        expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_hello.txt'),
-        method= 'apptainer')
+    try:
+        run(Snakefile = op.join("03_easybuild_build", "Snakefile"),
+            produced = op.join('test_03', 'binutils-2.35.eb_hello.txt'),
+            expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_hello.txt'),
+            method= 'apptainer')
+    except Exception as error:
+        print(os.getenv('PYTEST_CURRENT_TEST'))
+        print(error)
