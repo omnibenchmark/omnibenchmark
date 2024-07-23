@@ -30,7 +30,9 @@ class WorkflowEngine:
         """
         raise NotImplementedError("Method not implemented yet")
 
-    def serialize_workflow(self, benchmark: Benchmark, output_dir: str = os.getcwd()) -> Path:
+    def serialize_workflow(
+        self, benchmark: Benchmark, output_dir: str = os.getcwd()
+    ) -> Path:
         """
         Serializes a workflow file for the benchmark.
 

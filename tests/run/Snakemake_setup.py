@@ -5,7 +5,7 @@ from pathlib import Path
 from omni.benchmark import Benchmark
 from omni.workflow.snakemake import SnakemakeEngine
 
-TO_CLEANUP = ['.snakemake', 'out', 'Snakefile', 'snakemake.log']
+TO_CLEANUP = [".snakemake", "out", "Snakefile", "snakemake.log"]
 
 
 class SnakemakeSetup:

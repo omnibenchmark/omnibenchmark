@@ -10,7 +10,7 @@ def test_serialize_node_workflow_001():
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == 'Benchmark_001'
+        assert benchmark.get_benchmark_name() == "Benchmark_001"
 
         benchmark_nodes = benchmark.get_nodes()
         assert len(benchmark_nodes) == 15
@@ -26,7 +26,7 @@ def test_serialize_node_workflow_002():
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == 'peiying_with_easyconfigs'
+        assert benchmark.get_benchmark_name() == "peiying_with_easyconfigs"
 
         benchmark_nodes = benchmark.get_nodes()
         assert len(benchmark_nodes) == 8

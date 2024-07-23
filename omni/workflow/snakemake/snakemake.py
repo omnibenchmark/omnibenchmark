@@ -57,7 +57,9 @@ class SnakemakeEngine(WorkflowEngine):
 
         return success
 
-    def serialize_workflow(self, benchmark: Benchmark, output_dir: str = os.getcwd()) -> Path:
+    def serialize_workflow(
+        self, benchmark: Benchmark, output_dir: str = os.getcwd()
+    ) -> Path:
         """
         Serializes a Snakefile for the benchmark.
 

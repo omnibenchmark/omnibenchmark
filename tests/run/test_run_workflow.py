@@ -11,7 +11,7 @@ def test_run_workflow_001():
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == 'Benchmark_001'
+        assert benchmark.get_benchmark_name() == "Benchmark_001"
 
         success = setup.workflow.run_workflow(benchmark)
         assert success
@@ -24,7 +24,7 @@ def test_run_workflow_002():
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == 'peiying_with_easyconfigs'
+        assert benchmark.get_benchmark_name() == "peiying_with_easyconfigs"
 
         success = setup.workflow.run_workflow(benchmark)
         assert success

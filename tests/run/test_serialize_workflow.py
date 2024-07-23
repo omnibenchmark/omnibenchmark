@@ -10,7 +10,7 @@ def test_serialize_workflow_001():
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == 'Benchmark_001'
+        assert benchmark.get_benchmark_name() == "Benchmark_001"
 
         path = setup.workflow.serialize_workflow(benchmark)
         assert os.path.exists(path)
@@ -22,7 +22,7 @@ def test_serialize_workflow_002():
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == 'peiying_with_easyconfigs'
+        assert benchmark.get_benchmark_name() == "peiying_with_easyconfigs"
 
         path = setup.workflow.serialize_workflow(benchmark)
         assert os.path.exists(path)
