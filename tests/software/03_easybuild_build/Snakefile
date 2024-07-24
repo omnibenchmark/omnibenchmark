@@ -20,8 +20,9 @@ rule all:
     input:
         op.join(WD, 'binutils-2.35.eb_hello.txt')
 
+os.makedirs(WD, exist_ok = True)
 
-export_lmod_env_vars()
+easy.export_lmod_env_vars()
 
 for eb in easyconfigs:
     rule:
@@ -36,8 +37,6 @@ for eb in easyconfigs:
         params:
             workdir = WD,
             LMOD_VERS = LMOD_VERS
-        threads:
-            NTHREADS
         run:
             envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
             print('--', eb, envmodule_name, '----------------')
@@ -62,9 +61,9 @@ for eb in easyconfigs:
         singularity:
             op.join(WD, eb + '.sif')
         output:
-            '{easyconfig}_hello.txt'
-        threads:
-            NTHREADS
+            op.join(WD, '{easyconfig}_hello.txt')
+        # threads:
+        #     NTHREADS
         shell:
             """
             ld --version > {output}

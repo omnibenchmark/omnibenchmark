@@ -1,7 +1,7 @@
 channels:
   - conda-forge
   - bioconda
-  - nodefaults
+#  - nodefaults
 dependencies:
   - python >=3.12
   - pytest
@@ -11,13 +11,13 @@ dependencies:
   - pytest-xdist
   - mamba
   - pip
-  - nodejs # for cwltool
+#  - nodejs # for cwltool
   - pip:
-      - cwltool
-      - cwl-utils
-      - snakemake-interface-executor-plugins >=9.1.0
-      - snakemake-executor-plugin-cluster-generic >=1.0.9
-      - snakemake-storage-plugin-http
+#      - cwltool
+#      - cwl-utils
+#      - snakemake-interface-executor-plugins >=9.1.0
+#      - snakemake-executor-plugin-cluster-generic >=1.0.9
+#      - snakemake-storage-plugin-http
       - snakemake-storage-plugin-s3
-      - snakemake-storage-plugin-fs >=1.0.3
+#      - snakemake-storage-plugin-fs >=1.0.3
       - snakemake >=8.0.0 

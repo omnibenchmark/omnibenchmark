@@ -17,10 +17,10 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.12" # so snmk >8 is installable
+easybuild="^4.9.1"
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
 typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
-easybuild="^4.9.1"
 snakemake="^8.11.6"
 snakedeploy="^0.10.0"
 #snakemake-interface-common="^1.17.2"

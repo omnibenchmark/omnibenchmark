@@ -130,6 +130,16 @@ poetry shell
 <!-- poetry --version -->
 <!-- ``` -->
 
+# How to get the conda and mamba dependencies (particularly for testing)
+
+```
+## assuming the repo is at ~/src/omni-py
+mamba env create -n "test" -f ~/src/omni-py/test-environment.yml
+conda activate test
+cd ~/src/omni-py
+pip install .
+```
+
 # How tu contribute
 
 Lorem ipsum
