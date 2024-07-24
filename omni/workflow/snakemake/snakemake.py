@@ -79,7 +79,7 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Serialize Snakemake file
         snakefile_path = os.path.join(output_dir, "Snakefile")
-        with open(snakefile_path, "w", encoding='utf-8') as f:
+        with open(snakefile_path, "w", encoding="utf-8") as f:
             self._write_snakefile_header(f, name, version, author)
             self._write_includes(f, INCLUDES)
 
