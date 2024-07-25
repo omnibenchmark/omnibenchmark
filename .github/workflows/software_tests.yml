@@ -28,7 +28,8 @@ jobs:
   testing:
     strategy:
       matrix:
-        test_group: [1, 2, 3, 4, 5]
+        test_group: [1, 2]      
+        # test_group: [1, 2, 3, 4, 5]
         py_ver: ["3.12"]
     runs-on: ubuntu-latest
     steps:
@@ -73,5 +74,5 @@ jobs:
           ##   --splits 5 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
           ##   tests.py
           pytest -v -x --show-capture=stderr \
-              --splits 5 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               tests.py
