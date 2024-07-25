@@ -59,12 +59,16 @@ def install_lmod():
     else:
         return("LOG lmod install output: \n{}\n".format(output))
 
-def export_lmod_env_vars(LMOD_VERS="8.7"):
-    os.environ['PATH']= ':'.join([op.join(op.expanduser("~"), 'soft', 'lmod', LMOD_VERS, 'libexec'),
-                                  os.environ['PATH']])
-    os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
-    os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
+# def export_lmod_env_vars(LMOD_VERS="8.7"):
+#     os.environ['PATH']= ':'.join([op.join(op.expanduser("~"), 'soft', 'lmod', LMOD_VERS, 'libexec'),
+#                                   os.environ['PATH']])
+#     os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
+#     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
 
+def export_lmod_env_vars(LMOD_VERS="8.7"):
+    print('do nothing')
+
+    
 def generate_default_easybuild_config_arguments(workdir):
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
     buildpath = op.join(workdir, 'easybuild', 'build')

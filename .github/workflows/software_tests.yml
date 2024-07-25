@@ -37,6 +37,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install modules tool (lmod, a la easybuild)
+        run: |
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl-dev
+          # use script provided by easybuild-framework to install recent Lmod
+          wget https://raw.githubusercontent.com/easybuilders/easybuild-framework/114862506cc904903c368eb224fa6766c80bfca8/easybuild/scripts/install_eb_dep.sh
+          chmod +x install_eb_dep.sh
+          source install_eb_dep.sh Lmod-8.3.8 $HOME
+          echo $MOD_INIT > $HOME/mod_init
+          echo $PATH > $HOME/path
+        
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
