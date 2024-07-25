@@ -1,12 +1,17 @@
 """cli commands related to benchmark/module execution and start"""
 
-from pathlib import Path
-from typing import List, Optional
+from typing import Optional
+
+import yaml
 from typing_extensions import Annotated
 
 import typer
 
+from omni.benchmark import Benchmark
+from omni.workflow.snakemake import SnakemakeEngine
+
 cli = typer.Typer(add_completion=False)
+workflow = SnakemakeEngine()
 
 
 @cli.command("benchmark")
@@ -53,7 +58,48 @@ def run_benchmark(
     ] = None,
 ):
     """Run a benchmark as specified in the yaml."""
-    typer.echo(f"Run {benchmark} in local {local}.", err=True)
+    if benchmark.endswith('.yaml') or benchmark.endswith('.yml'):
+        try:
+            with open(benchmark, 'r') as file:
+                yaml.safe_load(file)
+                benchmark = Benchmark(benchmark)
+                typer.echo("Benchmark YAML file integrity check passed.")
+                typer.echo("Running benchmark...")
+
+                # TODO Include `local` and `remote` execution options once storage is integrated
+                success = workflow.run_workflow(
+                    benchmark,
+                    cores=1, # TODO How should we configure this from the CLI? Should we leave the default to 1 core? What about other resources like memory?
+                    update=update,
+                    dry=dry
+                )
+
+                if success:
+                    typer.echo("Benchmark run has finished successfully.", color=typer.colors.GREEN)
+                else:
+                    typer.echo("Benchmark run has failed.", err=True, color=typer.colors.RED)
+
+                raise typer.Exit(code=success)
+
+        except ValueError as e:
+            typer.echo(f"Failed to parse YAML as a valid OmniBenchmark: {e}", err=True, color=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+        except yaml.YAMLError as e:
+            typer.echo(f"Error in YAML file: {e}.", err=True, color=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+        except FileNotFoundError:
+            typer.echo("Benchmark YAML file not found.", err=True, color=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+        except Exception as e:
+            typer.echo(f"An unexpected error occurred: {e}", err=True, color=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+    else:
+        typer.echo("Invalid benchmark input. Please provide a valid YAML file path.", err=True, color=typer.colors.RED)
+        raise typer.Exit(code=1)
 
 
 @cli.command("module")

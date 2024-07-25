@@ -25,6 +25,7 @@ class SnakemakeEngine(WorkflowEngine):
         self,
         benchmark: Benchmark,
         cores: int = 1,
+        update: int = True,
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **snakemake_kwargs,
@@ -34,9 +35,10 @@ class SnakemakeEngine(WorkflowEngine):
 
         Args:
             benchmark (Benchmark): benchmark to run
-            cores (int): number of cores to run
-            dryrun (bool): validate the snakemake workflow with the benchmark without actual execution
-            work_dir (str): working directory
+            cores (int): number of cores to run. Defaults to 1 core.
+            update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
+            dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
@@ -48,7 +50,7 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile, cores, dryrun, work_dir, **snakemake_kwargs
+            snakefile, cores, update, dryrun, work_dir, **snakemake_kwargs
         )
 
         # Execute snakemake script
@@ -103,6 +105,7 @@ class SnakemakeEngine(WorkflowEngine):
         input_dir: str,
         dataset: str,
         cores: int = 1,
+        update: int = True,
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **snakemake_kwargs,
@@ -114,9 +117,10 @@ class SnakemakeEngine(WorkflowEngine):
             node (Benchmark): benchmark node to run
             input_dir (str): directory containing the inputs for the benchmark node
             dataset (str): file names corresponding to the dataset
-            cores (int): number of cores to run
-            dryrun (bool): validate the snakemake workflow with the benchmark without actual execution
-            work_dir (str): working directory
+            cores (int): number of cores to run. Defaults to 1 core.
+            update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
+            dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
@@ -130,7 +134,7 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile, cores, dryrun, work_dir, input_dir, dataset, **snakemake_kwargs
+            snakefile, cores, update, dryrun, work_dir, input_dir, dataset, **snakemake_kwargs
         )
 
         # Execute snakemake script
@@ -219,6 +223,7 @@ class SnakemakeEngine(WorkflowEngine):
     def _prepare_argv(
         snakefile: Path,
         cores: int,
+        update: bool,
         dryrun: bool,
         work_dir: str,
         input_dir: Optional[str] = None,
@@ -238,6 +243,9 @@ class SnakemakeEngine(WorkflowEngine):
             f"input={input_dir}",
             f"dataset={dataset}",
         ]
+
+        if not update:
+            argv.append("-F")
 
         if dryrun:
             argv.append("--dryrun")
