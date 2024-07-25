@@ -101,7 +101,7 @@ jobs:
           cd easybuild-easyblocks; git log -n 1; cd -
           pip install $PWD/easybuild-easyblocks
 
-      - name: install modules tool
+      - name: Install modules tool (lmod/TCL; from easybuild-framework)
         run: |
           cd $HOME
           # use install_eb_dep.sh script provided with easybuild-framework
@@ -117,6 +117,22 @@ jobs:
           echo $PATH > path
           if [ ! -z $MODULESHOME ]; then echo $MODULESHOME > moduleshome; fi
 
+      - name: Initialize / source module tool env vars (from easybuild-framework)
+        run: |
+          if [ -f $HOME/moduleshome ]; then export MODULESHOME=$(cat $HOME/moduleshome); fi
+          source $(cat $HOME/mod_init); type module
+
+          # tell EasyBuild which modules tool is available
+          if [[ ${{matrix.modules_tool}} =~ ^modules-tcl- ]]; then
+            export EASYBUILD_MODULES_TOOL=EnvironmentModulesTcl
+          elif [[ ${{matrix.modules_tool}} =~ ^modules-3 ]]; then
+            export EASYBUILD_MODULES_TOOL=EnvironmentModulesC
+          elif [[ ${{matrix.modules_tool}} =~ ^modules-4 ]]; then
+            export EASYBUILD_MODULES_TOOL=EnvironmentModules
+          else
+            export EASYBUILD_MODULES_TOOL=Lmod
+          fi
+          
       - name: Install omnibenchmark from source
         shell: bash -el {0}
         run: |
@@ -134,6 +150,10 @@ jobs:
           # ZENODO_SANDBOX_PAT: "${{ secrets.ZENODO_SANDBOX_PAT }}"
         shell: bash -el {0}
         run: |
+          # initialize environment for modules tool
+          if [ -f $HOME/moduleshome ]; then export MODULESHOME=$(cat $HOME/moduleshome); fi
+          source $(cat $HOME/mod_init); type module
+          
           cd tests/software
           pytest -v -x --show-capture=stderr \
               --splits 10 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
