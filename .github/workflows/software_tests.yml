@@ -5,11 +5,18 @@
 ## From Koester's license above:
 ##
 ## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
-# FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
+## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+## PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+## FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+## OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+## DEALINGS IN THE SOFTWARE.
+##
+## and from easybuilders/easybuild-easyconfigs test suite
+##
+## Derivative work from Kenneth Hoste and colleagues
+## https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/.github/workflows/unit_tests.yml
+## GPLv2
+## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
 
 name: software
 
@@ -28,37 +35,87 @@ jobs:
   testing:
     strategy:
       matrix:
-        test_group: [1, 2]      
-        # test_group: [1, 2, 3, 4, 5]
+        # test_group: [1, 2]      
+        test_group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         py_ver: ["3.12"]
+        modules_tool: [Lmod-7.8.22, Lmod-8.6.8]
+        module_syntax: [Lua, Tcl]
+        # exclude some configurations: only test Tcl module syntax with Lmod 8.x and Python 3.6
+        exclude:
+          - modules_tool: Lmod-7.8.22
+            module_syntax: Tcl
+      fail-fast: false
+      
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install modules tool (lmod, a la easybuild)
-        run: |
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl-dev
-          # use script provided by easybuild-framework to install recent Lmod
-          wget https://raw.githubusercontent.com/easybuilders/easybuild-framework/114862506cc904903c368eb224fa6766c80bfca8/easybuild/scripts/install_eb_dep.sh
-          chmod +x install_eb_dep.sh
-          source install_eb_dep.sh Lmod-8.3.8 $HOME
-          echo $MOD_INIT > $HOME/mod_init
-          echo $PATH > $HOME/path
-        
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
           cp test-environment.yml test-environment-${{ matrix.py_ver }}.yml
           sed -E -i 's/- python.+/- python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
-
+          
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: test-environment-${{ matrix.py_ver }}.yml
           environment-name: omb
           cache-environment: true
+
+      - name: install OS & Python packages
+        run: |
+          # disable apt-get update, we don't really need it,
+          # and it does more harm than good (it's fairly expensive, and it results in flaky test runs)
+          ## # sudo apt-get update
+          sudo add-apt-repository -y ppa:apptainer/ppa
+          sudo apt-get update # so updating - for singularity
+          # for modules tool
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev
+          # fix for lua-posix packaging issue,
+          #   see https://bugs.launchpad.net/ubuntu/+source/lua-posix/+bug/1752082
+          # needed for Ubuntu 18.04, but not for Ubuntu 20.04, so skipping symlinking if posix.so already exists
+          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
+            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
+          fi
+          # for testing OpenMPI-system*eb we need to have Open MPI installed
+          sudo apt-get install libopenmpi-dev openmpi-bin
+          ## required for test_dep_graph
+          pip install pep8 python-graph-core python-graph-dot
+      
+      - name: install EasyBuild framework
+        run: |
+          cd $HOME
+          # first determine which branch of easybuild-framework repo to install
+          ## BRANCH=develop
+          ## if [ "x$GITHUB_BASE_REF" = 'xmain' ]; then BRANCH=main; fi
+          ## if [ "x$GITHUB_BASE_REF" = 'x4.x' ]; then BRANCH=4.x; fi
+          ## echo "Using easybuild-framework branch $BRANCH (\$GITHUB_BASE_REF $GITHUB_BASE_REF)"
+          BRANCH=main
+          git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-framework.git
+          cd easybuild-framework; git log -n 1; cd -
+          pip install $PWD/easybuild-framework
+          git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-easyblocks.git
+          cd easybuild-easyblocks; git log -n 1; cd -
+          pip install $PWD/easybuild-easyblocks
+
+      - name: install modules tool
+        run: |
+          cd $HOME
+          # use install_eb_dep.sh script provided with easybuild-framework
+          wget https://raw.githubusercontent.com/easybuilders/easybuild-framework/114862506cc904903c368eb224fa6766c80bfca8/easybuild/scripts/install_eb_dep.sh
+          chmod +x install_eb_dep.sh
+          
+          export INSTALL_DEP=./install_eb_dep.sh
+          echo "Found install_eb_dep.sh script: $INSTALL_DEP"
+          # install modules tool
+          source $INSTALL_DEP ${{matrix.modules_tool}} $HOME
+          # changes in environment are not passed to other steps, so need to create files...
+          echo $MOD_INIT > mod_init
+          echo $PATH > path
+          if [ ! -z $MODULESHOME ]; then echo $MODULESHOME > moduleshome; fi
 
       - name: Install omnibenchmark from source
         shell: bash -el {0}
@@ -67,10 +124,8 @@ jobs:
 
           pip install -e .
 
-      - name: Setup apt dependencies
+      - name: Setup extra apt installs
         run: |
-          sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt-get update
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer
 
       - name: Test local
@@ -80,9 +135,6 @@ jobs:
         shell: bash -el {0}
         run: |
           cd tests/software
-          ## pytest -v -x --show-capture=stderr \
-          ##   --splits 5 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-          ##   tests.py
           pytest -v -x --show-capture=stderr \
-              --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              --splits 10 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               tests.py
