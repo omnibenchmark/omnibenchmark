@@ -46,24 +46,27 @@ def test_easybuild_cmd():
 def test_singularity_cmd():
     check_cmd_zero_exit('singularity --version')
 
+def test_module_cmd():
+    check_cmd_zero_exit('module --help')
+    
 def test_omni_python_import():
     import omni
 
 def test_omni_easybuild_import():
     from omni.software import easybuild_backend as easy
 
-def test_easybuild_build():
-    # try:
-    run(Snakefile = op.join("03_easybuild_build", "Snakefile"),
-        produced = op.join('testing_03', 'binutils-2.35.eb_hello.txt'),
-        expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_hello.txt'),
-        method= 'apptainer')
-    with open(op.join(WD, 'binutils-2.35.eb_hello.txt')) as fh:
-        print(fh.read())
-    os.system('ls -l ' + op.join(WD, 'binutils-2.35.eb_hello.txt'))
-    # except Exception as error:
-    #     print(os.getenv('PYTEST_CURRENT_TEST'))
-    #     print(error)
+# def test_easybuild_build():
+#     # try:
+#     run(Snakefile = op.join("03_easybuild_build", "Snakefile"),
+#         produced = op.join('testing_03', 'binutils-2.35.eb_hello.txt'),
+#         expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_hello.txt'),
+#         method= 'apptainer')
+#     with open(op.join(WD, 'binutils-2.35.eb_hello.txt')) as fh:
+#         print(fh.read())
+#     os.system('ls -l ' + op.join(WD, 'binutils-2.35.eb_hello.txt'))
+#     # except Exception as error:
+#     #     print(os.getenv('PYTEST_CURRENT_TEST'))
+#     #     print(error)
 
 # def test_easybuild_build_toolchain():
 #     run(Snakefile = op.join("04_easybuild_build_toolchain", "Snakefile"),

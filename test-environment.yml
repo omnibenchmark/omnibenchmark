@@ -1,23 +1,12 @@
 channels:
   - conda-forge
   - bioconda
-#  - nodefaults
 dependencies:
-  - python >=3.12
-  - pytest
-  - pytest-mock
-  - pytest-cov
-  - pytest-split
-  - pytest-xdist
-  - mamba
+  - python == 3.12
+  - conda-forge::python >=3.12
+  - conda-forge::mamba >=1.5.8
   - pip
-#  - nodejs # for cwltool
   - pip:
-#      - cwltool
-#      - cwl-utils
-#      - snakemake-interface-executor-plugins >=9.1.0
-#      - snakemake-executor-plugin-cluster-generic >=1.0.9
-#      - snakemake-storage-plugin-http
-      - snakemake-storage-plugin-s3
-#      - snakemake-storage-plugin-fs >=1.0.3
-      - snakemake >=8.0.0 
+    - https://github.com/omnibenchmark/omni-py/archive/sw_imallona.zip
+
+    
