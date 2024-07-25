@@ -41,23 +41,24 @@ def check_easybuild_status():
     return(ret)
 
 def install_lmod():
-    try:
-        subprocess.call(["wget", "--help"])
-    except FileNotFoundError:
-        print("ERROR wget not found; please install it system-wise")
-    try:
-        subprocess.call(["make", "--help"])
-    except FileNotFoundError:
-        print("ERROR make (build tools) not found; please install them system-wise")    
-    try:
-        cmd = 'bash ./modules.sh'
-        output = subprocess.check_output(
-            cmd, stderr = subprocess.STDOUT, shell = True,
-            universal_newlines = True)
-    except subprocess.CalledProcessError as exc:
-        return("ERROR lmod install failed:", exc.returncode, exc.output)
-    else:
-        return("LOG lmod install output: \n{}\n".format(output))
+    print('not implemented')
+#     try:
+#         subprocess.call(["wget", "--help"])
+#     except FileNotFoundError:
+#         print("ERROR wget not found; please install it system-wise")
+#     try:
+#         subprocess.call(["make", "--help"])
+#     except FileNotFoundError:
+#         print("ERROR make (build tools) not found; please install them system-wise")    
+#     try:
+#         cmd = 'bash ./modules.sh'
+#         output = subprocess.check_output(
+#             cmd, stderr = subprocess.STDOUT, shell = True,
+#             universal_newlines = True)
+#     except subprocess.CalledProcessError as exc:
+#         return("ERROR lmod install failed:", exc.returncode, exc.output)
+#     else:
+#         return("LOG lmod install output: \n{}\n".format(output))
 
 # def export_lmod_env_vars(LMOD_VERS="8.7"):
 #     os.environ['PATH']= ':'.join([op.join(op.expanduser("~"), 'soft', 'lmod', LMOD_VERS, 'libexec'),
@@ -66,7 +67,11 @@ def install_lmod():
 #     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
 
 def export_lmod_env_vars(LMOD_VERS="8.7"):
-    print('do nothing')
+        cmd = 'bash ./utils/export_module_envvars.sh'
+        output = subprocess.check_output(
+            cmd, stderr = subprocess.STDOUT, shell = True,
+            universal_newlines = True)
+        return(output)
 
     
 def generate_default_easybuild_config_arguments(workdir):
