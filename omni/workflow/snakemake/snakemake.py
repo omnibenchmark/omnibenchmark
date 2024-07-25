@@ -134,7 +134,14 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile, cores, update, dryrun, work_dir, input_dir, dataset, **snakemake_kwargs
+            snakefile,
+            cores,
+            update,
+            dryrun,
+            work_dir,
+            input_dir,
+            dataset,
+            **snakemake_kwargs,
         )
 
         # Execute snakemake script

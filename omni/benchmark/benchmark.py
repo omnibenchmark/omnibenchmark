@@ -1,4 +1,4 @@
-from omni.benchmark import dag
+from omni.benchmark import dag, BenchmarkNode
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation import Validator
 from omni.utils import *
@@ -46,6 +46,26 @@ class Benchmark:
                 return node
 
         return None
+
+    def get_nodes_by_module_id(self, module_id: str) -> List[BenchmarkNode]:
+        nodes = []
+        for node in self.G.nodes:
+            if node.module_id == module_id:
+                nodes.append(node)
+
+        return nodes
+
+    def get_benchmark_datasets(self) -> List[str]:
+        datasets = []
+        for _, stage in self.converter.get_stages().items():
+            # There should be only one initial stage
+            if self.converter.is_initial(stage):
+                for module in stage.modules:
+                    datasets.append(module.id)
+
+                break
+
+        return datasets
 
     def get_execution_paths(self):
         if self.execution_paths is None:
