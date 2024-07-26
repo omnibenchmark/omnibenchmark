@@ -36,10 +36,10 @@ jobs:
     strategy:
       matrix:
         # test_group: [1, 2]      
-        test_group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        test_group: [1, 2, 3]
         py_ver: ["3.12"]
-        modules_tool: [Lmod-8.6.8]
-        module_syntax: [Lua, Tcl]
+        modules_tool: [Lmod-8.6.8]  # only Lmod
+        module_syntax: [Lua]
         exclude:
           - modules_tool: Lmod-7.8.22
             module_syntax: Tcl
@@ -64,6 +64,12 @@ jobs:
           environment-name: omb
           cache-environment: true
 
+      - name: Get mambaish path
+        shell: bash -el {0}
+        run: |
+          echo $PATH > path_with_mamba
+          export > $HOME/mamba.env
+
       - name: install OS & Python packages
         run: |
           # disable apt-get update, we don't really need it,
@@ -83,6 +89,17 @@ jobs:
           sudo apt-get install libopenmpi-dev openmpi-bin
           ## required for test_dep_graph
           pip install pep8 python-graph-core python-graph-dot
+
+      - name: Extra OS / apt (apptainer)
+        run: |
+          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer
+
+      - name: Install omnibenchmark from source
+        shell: bash -el {0}
+        run: |
+          conda config --set channel_priority strict
+
+          pip install -e .
       
       - name: install EasyBuild framework
         run: |
@@ -109,27 +126,56 @@ jobs:
           
           # changes in environment are not passed to other steps, so need to create files...
           echo $MOD_INIT > mod_init
-          echo $PATH > path
+          echo $PATH > path_with_module
           if [ ! -z $MODULESHOME ]; then echo $MODULESHOME > moduleshome; fi
 
-      - name: Install omnibenchmark from source
-        shell: bash -el {0}
+          ## bash tests/software/utils/export_module_envars.sh
+          ## echo $PATH
+          ## export PATH=$(cat $HOME/path_with_module)
+          ## echo $PATH
+
+          # make sure 'eb' is available via $PATH, and that $PYTHONPATH is set (some tests expect that);
+          # also pick up changes to $PATH set by sourcing $MOD_INIT
+          source $(cat $HOME/mod_init)
+          WORKDIR=$GITHUB_WORKSPACE/easybuild-easyconfigs
+          export PATH=$(cat $HOME/path_with_module)
+          export PYTHONPATH=$WORKDIR
+          export EASYBUILD_MODULES_TOOL=Lmod
+
+          LMOD_VERS=$(echo ${{matrix.modules_tool}} | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+$')
+          ## echo $LMOD_VERS
+          source /home/runner/lmod/"$LMOD_VERS"/init/bash
+          export LMOD_CMD=$HOME/lmod/"$LMOD_VERS"/libexec/lmod
+          
+          export > $HOME/${{matrix.modules_tool}}.env
+
+      - name: Test with conda
+        ## env:
+        ##   CI: true
+        shell: bash {0}
         run: |
-          conda config --set channel_priority strict
-
-          pip install -e .
-
-      - name: Setup extra apt installs
-        run: |
-          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer
-
-      - name: Test
-        env:
-          CI: true
-          # ZENODO_SANDBOX_PAT: "${{ secrets.ZENODO_SANDBOX_PAT }}"
-        shell: bash -el {0}
-        run: |        
           cd tests/software
+
+          echo $PATH
+          . $HOME/mamba.env
+          echo $PATH
+          
           pytest -v -x --show-capture=stderr \
-              --splits 10 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              tests.py
+              --splits 8 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              conda_tests.py --envfile $HOME/mamba.env
+              
+      - name: Test with singularity or modules
+        shell: bash -el {0}
+        run: |
+          cd tests/software
+
+          echo $PATH
+          . $HOME/mamba.env
+          echo $PATH
+
+          head ${{matrix.modules_tool}}.env
+
+          pytest -v -x --show-capture=stderr \
+              --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              singularity_tests.py --envfile $HOME/${{matrix.modules_tool}}.env
+              

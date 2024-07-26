@@ -27,10 +27,12 @@ snakedeploy="^0.10.0"
 #snakemake-interface-executor-plugins="^9.2.0"
 setuptools="^70.0.0"
 
-## these are not poetry dependencies, todo fixme
+## these are not poetry dependencies, todo move somewhere (tbd, depending on whether
+##  using poetry or something else)
 pytest-cov = "^4.1.0"
 pytest-split = "^0.9.0"
 pytest-xdist = "^3.6.1"
+pytest-dotenv = "^0.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
