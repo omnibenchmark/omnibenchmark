@@ -70,6 +70,8 @@ def run_benchmark(
         )
         raise typer.Exit(code=1)
 
+    # Check how snakemake storage decorators work, do we have caching locally or just remote?
+    # Only allow local override, and by default work with remote
     if remote is not None:
         typer.echo(
             f"`remote` argument is not supported yet. Workflows can only be run in local mode.",
@@ -80,6 +82,10 @@ def run_benchmark(
     benchmark = validate_benchmark(benchmark)
 
     # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
+    # Controlling resource allocation with Snakemake is tricky
+    # -c only controls the number of parallel executed rules
+    # bioinfo methods are not designed with limited resources in mind (most)
+    # module yaml for communicating resources for individual methods
     typer.echo("Running benchmark...")
     success = workflow.run_workflow(benchmark, cores=1, update=update, dry=dry)
 
@@ -152,6 +158,12 @@ def run_module(
 ):
     """Run a specific module on all or example inputs locally."""
 
+    # No default, just description about the use cases.
+    # Use cases:
+    # 1. custom input_dir
+    # 2. downloaded example files
+    # 3. downloaded all available inputs
+
     # TODO Do we also need a stage argument?
     # TODO --all and --example are mutually exclusive. Can we use one flag only and run the other on default?
     if not example:
@@ -186,6 +198,7 @@ def run_module(
         if dataset is not None:
             for benchmark_node in benchmark_nodes:
                 # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
+                # Download: allow configuring output_directory, and by default should be cwd
                 success = workflow.run_node_workflow(
                     node=benchmark_node,
                     input_dir=input_dir,

@@ -1,4 +1,4 @@
-from omni.benchmark import dag, BenchmarkNode
+from omni.benchmark import dag
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation import Validator
 from omni.utils import *
@@ -47,7 +47,7 @@ class Benchmark:
 
         return None
 
-    def get_nodes_by_module_id(self, module_id: str) -> List[BenchmarkNode]:
+    def get_nodes_by_module_id(self, module_id: str) -> List:
         nodes = []
         for node in self.G.nodes:
             if node.module_id == module_id:
