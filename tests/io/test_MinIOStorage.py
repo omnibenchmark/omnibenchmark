@@ -1,3 +1,4 @@
+import datetime
 import io
 import sys
 
@@ -15,7 +16,6 @@ if not sys.platform == "linux":
 
 # setup and start minio container
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
-tmp = TmpMinIOStorage(minio_testcontainer)
 
 
 class TestMinIOStorage:
@@ -93,76 +93,112 @@ class TestMinIOStorage:
     def test__get_objects(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_base)
-            result = ss.client.put_object(ss.benchmark, "file1.txt", io.BytesIO(b""), 0)
-            result = ss.client.put_object(ss.benchmark, "file2.txt", io.BytesIO(b""), 0)
+            result = ss.client.put_object(
+                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            )
+            result = ss.client.put_object(
+                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            )
             ss.set_version()
             ss._get_objects()
-            assert all([f in ss.files.keys() for f in ["file1.txt", "file2.txt"]])
-            assert ss.files["file1.txt"].keys() == {
-                "hash",
+            assert all(
+                [f in ss.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
+            )
+            assert ss.files["out/file1.txt"].keys() == {
+                "version_id",
+                "etag",
                 "last_modified",
                 "size",
             }
-            assert ss.files["file2.txt"].keys() == {
-                "hash",
+            assert ss.files["out/file2.txt"].keys() == {
+                "version_id",
+                "etag",
                 "last_modified",
                 "size",
             }
-            assert ss.files["file1.txt"]["size"] == 0
-            assert ss.files["file2.txt"]["size"] == 0
-            assert ss.files["file1.txt"]["hash"] == "d41d8cd98f00b204e9800998ecf8427e"
-            assert ss.files["file2.txt"]["hash"] == "d41d8cd98f00b204e9800998ecf8427e"
-            assert len(ss.files["file1.txt"]["last_modified"]) > 0
-            assert len(ss.files["file2.txt"]["last_modified"]) > 0
+            assert ss.files["out/file1.txt"]["size"] == 0
+            assert ss.files["out/file2.txt"]["size"] == 0
+            assert (
+                ss.files["out/file1.txt"]["etag"] == "d41d8cd98f00b204e9800998ecf8427e"
+            )
+            assert (
+                ss.files["out/file2.txt"]["etag"] == "d41d8cd98f00b204e9800998ecf8427e"
+            )
+            assert isinstance(
+                ss.files["out/file1.txt"]["last_modified"], datetime.datetime
+            )
+            assert isinstance(
+                ss.files["out/file2.txt"]["last_modified"], datetime.datetime
+            )
 
     def test__get_objects_public(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_base)
-            result = ss.client.put_object(ss.benchmark, "file1.txt", io.BytesIO(b""), 0)
-            result = ss.client.put_object(ss.benchmark, "file2.txt", io.BytesIO(b""), 0)
+            result = ss.client.put_object(
+                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            )
+            result = ss.client.put_object(
+                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            )
             ss = MinIOStorage(
                 auth_options=tmp.auth_options_readonly, benchmark=tmp.bucket_base
             )
             ss.set_version()
             ss._get_objects()
-            assert all([f in ss.files.keys() for f in ["file1.txt", "file2.txt"]])
-            assert ss.files["file1.txt"].keys() == {
-                "hash",
+            assert all(
+                [f in ss.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
+            )
+            assert ss.files["out/file1.txt"].keys() == {
+                "version_id",
+                "etag",
                 "last_modified",
                 "size",
-                "x-object-meta-mtime",
-                "accesstime",
             }
-            assert ss.files["file2.txt"].keys() == {
-                "hash",
+            assert ss.files["out/file2.txt"].keys() == {
+                "version_id",
+                "etag",
                 "last_modified",
                 "size",
-                "x-object-meta-mtime",
-                "accesstime",
             }
-            assert ss.files["file1.txt"]["size"] == 0
-            assert ss.files["file2.txt"]["size"] == 0
-            assert ss.files["file1.txt"]["hash"] == "d41d8cd98f00b204e9800998ecf8427e"
-            assert ss.files["file2.txt"]["hash"] == "d41d8cd98f00b204e9800998ecf8427e"
-            assert len(ss.files["file1.txt"]["last_modified"]) > 0
-            assert len(ss.files["file2.txt"]["last_modified"]) > 0
+            assert ss.files["out/file1.txt"]["size"] == 0
+            assert ss.files["out/file2.txt"]["size"] == 0
+            assert (
+                ss.files["out/file1.txt"]["etag"] == "d41d8cd98f00b204e9800998ecf8427e"
+            )
+            assert (
+                ss.files["out/file2.txt"]["etag"] == "d41d8cd98f00b204e9800998ecf8427e"
+            )
+            assert isinstance(
+                ss.files["out/file1.txt"]["last_modified"], datetime.datetime
+            )
+            assert isinstance(
+                ss.files["out/file2.txt"]["last_modified"], datetime.datetime
+            )
 
     def test_create_new_version(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_base)
-            result = ss.client.put_object(ss.benchmark, "file1.txt", io.BytesIO(b""), 0)
-            result = ss.client.put_object(ss.benchmark, "file2.txt", io.BytesIO(b""), 0)
+            result = ss.client.put_object(
+                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            )
+            result = ss.client.put_object(
+                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            )
             ss.set_version("0.2")
             ss.create_new_version()
             ss._get_objects()
-            assert all([f in ss.files.keys() for f in ["file1.txt", "file2.txt"]])
-            assert ss.files["file1.txt"].keys() == {
-                "hash",
+            assert all(
+                [f in ss.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
+            )
+            assert ss.files["out/file1.txt"].keys() == {
+                "version_id",
+                "etag",
                 "last_modified",
                 "size",
             }
-            assert ss.files["file2.txt"].keys() == {
-                "hash",
+            assert ss.files["out/file2.txt"].keys() == {
+                "version_id",
+                "etag",
                 "last_modified",
                 "size",
             }

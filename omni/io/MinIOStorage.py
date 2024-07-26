@@ -36,7 +36,7 @@ def valid_version(version: str):
         return False
 
 
-def get_s3_object_versions_and_tags(client, benchmark):
+def get_s3_object_versions_and_tags(client, benchmark, readonly=False):
     if not client.bucket_exists(benchmark):
         raise ValueError(f"Benchmark {benchmark} does not exist.")
 
@@ -60,20 +60,23 @@ def get_s3_object_versions_and_tags(client, benchmark):
         ts = [sizes[i] for i in tmpinds]
         tlm = [last_modified[i] for i in tmpinds]
         tdl = [object_ls[i].is_delete_marker for i in tmpinds]
+        etl = [object_ls[i].etag for i in tmpinds]
         for j, v in enumerate(tv):
             tags_filt = {}
-            if not tdl[j]:
-                tags = client.get_object_tags(benchmark, uq, version_id=v)
-                if not tags is None:
-                    for k, w in tags.items():
-                        if valid_version(k):
-                            tags_filt[k] = w
+            if not readonly:
+                if not tdl[j]:
+                    tags = client.get_object_tags(benchmark, uq, version_id=v)
+                    if not tags is None:
+                        for k, w in tags.items():
+                            if valid_version(k):
+                                tags_filt[k] = w
             di[uq][v] = {}
             di[uq][v]["tags"] = tags_filt
             tmpinds2 = [i for i, tvers in enumerate(tv) if tvers == v]
             di[uq][v]["size"] = ts[tmpinds2[0]]
             di[uq][v]["last_modified"] = tlm[tmpinds2[0]]
             di[uq][v]["is_delete_marker"] = tdl[tmpinds2[0]]
+            di[uq][v]["etag"] = etl[tmpinds2[0]]
     return di
 
 
@@ -134,15 +137,21 @@ def get_s3version_from_bmversion(di, query_version):
             raise ValueError("Multiple versions found")
         else:
             vv_ls.append(
-                [uq, tmpv[0], di[uq][tmpv[0]]["last_modified"], di[uq][tmpv[0]]["size"]]
+                [
+                    uq,
+                    tmpv[0],
+                    di[uq][tmpv[0]]["last_modified"],
+                    di[uq][tmpv[0]]["size"],
+                    di[uq][tmpv[0]]["etag"],
+                ]
             )
     return vv_ls
 
 
 def prepare_csv_s3version_from_bmversion(vv_ls):
-    outstr = "name,version_id,last_modified,size\n"
+    outstr = "name,version_id,last_modified,size,etag\n"
     for vv in vv_ls:
-        outstr += f"{vv[0]},{vv[1]},{vv[2]},{vv[3]}\n"
+        outstr += f"{vv[0]},{vv[1]},{vv[2]},{vv[3]},{vv[4]}\n"
     return outstr
 
 
@@ -205,8 +214,10 @@ def set_bucket_lifecycle_config(client, bucket_name, noncurrent_days=1):
 class MinIOStorage(RemoteStorage):
     def __init__(self, auth_options, benchmark):
         super().__init__(auth_options, benchmark)
+        assert "endpoint" in self.auth_options.keys()
         if "access_key" in self.auth_options.keys():
             self.client = self.connect()
+            self.roclient = self.connect(readonly=True)
             self._test_connect()
 
             if not self.client.bucket_exists(benchmark):
@@ -217,31 +228,38 @@ class MinIOStorage(RemoteStorage):
 
             self._get_versions()
         else:
+            self.roclient = self.connect(readonly=True)
             self._get_versions()
             # read-only mode
             pass
 
-    def connect(self):
+    def connect(self, readonly=False):
         """
         Connects to the MinIO storage.
 
         Returns:
         - A MinIO client object.
         """
-        if (
-            "endpoint" in self.auth_options.keys()
-            and "access_key" in self.auth_options.keys()
-            and "secret_key" in self.auth_options.keys()
-        ):
-            try:
-                return minio.Minio(**self.auth_options)
-            except Exception as e:
-                tmp_auth_options = self.auth_options.copy()
-                url = urlparse(tmp_auth_options["endpoint"])
-                tmp_auth_options["endpoint"] = url.netloc
-                return minio.Minio(**tmp_auth_options)
+        if readonly:
+            assert "endpoint" in self.auth_options.keys()
+            tmp_auth_options = self.auth_options.copy()
+            if "access_key" in tmp_auth_options.keys():
+                del tmp_auth_options["access_key"]
+            if "secret_key" in tmp_auth_options.keys():
+                del tmp_auth_options["secret_key"]
         else:
-            raise ValueError("Invalid auth options")
+            assert (
+                "endpoint" in self.auth_options.keys()
+                and "access_key" in self.auth_options.keys()
+                and "secret_key" in self.auth_options.keys()
+            )
+            tmp_auth_options = self.auth_options.copy()
+        try:
+            return minio.Minio(**tmp_auth_options)
+        except Exception as e:
+            url = urlparse(tmp_auth_options["endpoint"])
+            tmp_auth_options["endpoint"] = url.netloc
+            return minio.Minio(**tmp_auth_options)
 
     def _test_connect(self) -> None:
         try:
@@ -263,22 +281,13 @@ class MinIOStorage(RemoteStorage):
             raise Exception(f"Bucket creation for benchmark {benchmark} failed")
 
     def _get_versions(self):
-        url = urlparse(f"{self.auth_options['endpoint']}/{self.benchmark}")
-        if self.auth_options["secure"]:
-            url = url._replace(scheme="https")
-        else:
-            url = url._replace(scheme="http")
-        params = {"format": "xml"}
-        response = requests.get(url.geturl(), params=params)
-        if response.ok:
-            response_text = response.text
-        else:
-            response.raise_for_status()
-        soup = BeautifulSoup(response_text, "xml")
+        versionobjects = list(
+            self.roclient.list_objects(
+                self.benchmark, prefix="versions", recursive=True
+            )
+        )
         allversions = [
-            obj.find("Key").text.split("/")[1].replace(".csv", "")
-            for obj in soup.find_all("Contents")
-            if obj.find("Key").text.split("/")[0] == "versions"
+            os.path.basename(v.object_name).replace(".csv", "") for v in versionobjects
         ]
         versions = list()
         for version in allversions:
@@ -322,8 +331,8 @@ class MinIOStorage(RemoteStorage):
                 self.benchmark, n, config=retention_config, version_id=v
             )
 
-        # result = client.put_object(benchmark, "out/test.txt", io.BytesIO(b"asdf"), 4)
-        # client.remove_object(benchmark, "out/test.txt")
+        # refresh object list
+        objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
 
         # write versions/{{version}}.csv
         vv_ls = get_s3version_from_bmversion(objdic, str(self.version))
@@ -347,67 +356,42 @@ class MinIOStorage(RemoteStorage):
     def _get_objects(self, readonly=False):
         if self.version is None:
             raise ValueError("No version provided")
-        if not "secret_key" in self.auth_options.keys() or readonly:
-            url = urlparse(f"{self.auth_options['endpoint']}/{self.benchmark}")
-            if self.auth_options["secure"]:
-                url = url._replace(scheme="https")
-            else:
-                url = url._replace(scheme="http")
-            params = {"format": "xml"}
-            response = requests.get(url.geturl(), params=params)
-            if response.ok:
-                response_text = response.text
-            else:
-                response.raise_for_status()
-            soup = BeautifulSoup(response_text, "xml")
-            # names = [obj.find('Key').text for obj in soup.find_all('Contents')]
-            names = soup.find_all("Contents")
 
-            files = dict()
-            for obj in names:
-                url = urlparse(f"{self.auth_options['endpoint']}")
-                if self.auth_options["secure"]:
-                    url = url._replace(scheme="https")
-                else:
-                    url = url._replace(scheme="http")
-                mtime, accesstime = get_meta_mtime(
-                    url.geturl(), self.benchmark, obj.find("Key").text
-                )
-                files[obj.find("Key").text] = {
-                    "hash": obj.find("ETag").text.replace('"', ""),
-                    "size": int(obj.find("Size").text),
-                    "last_modified": obj.find("LastModified").text,
-                    "x-object-meta-mtime": mtime,
-                    "accesstime": accesstime,
-                }
-            self.files = files
-
+        if self.version in self.versions:
+            # read overview file
+            response = self.roclient.get_object(
+                self.benchmark, f"versions/{self.version}.csv"
+            )
+            objls = response.data.decode("utf-8")
+            objls = objls.split("\n")
+            objls = [obj for obj in objls if obj]
+            objdict = {}
+            header = objls[0].split(",")
+            assert header[0] == "name"
+            for obj in objls[1:]:
+                tmpsplit = obj.split(",")
+                objdict[tmpsplit[0]] = {}
+                for i, head in enumerate(header[1:]):
+                    objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
         else:
-            files = dict()
             # get all objects
+            objdic = get_s3_object_versions_and_tags(
+                self.roclient, self.benchmark, readonly=True
+            )
 
-            for element in self.client.list_objects(
-                self.benchmark,
-                recursive=True,
-            ):
-                if type(element.last_modified) is str:
-                    files[element.object_name] = {
-                        "size": element.size,
-                        "last_modified": element.last_modified,
-                        "hash": element.etag.replace('"', ""),
-                    }
-                elif type(element.last_modified) is datetime.datetime:
-                    files[element.object_name] = {
-                        "size": element.size,
-                        "last_modified": element.last_modified.strftime(
-                            "%Y-%m-%dT%H:%M:%S.%f"
-                        ),
-                        "hash": element.etag.replace('"', ""),
-                    }
-                else:
-                    ValueError("Invalid last_modified")
+            # get objects to tag
+            object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(
+                objdic
+            )
+            objdict = {}
+            for obj, vt in zip(object_names_to_tag, versionid_of_objects_to_tag):
+                objdict[obj] = {}
+                objdict[obj]["version_id"] = vt
+                objdict[obj]["etag"] = objdic[obj][vt]["etag"]
+                objdict[obj]["size"] = objdic[obj][vt]["size"]
+                objdict[obj]["last_modified"] = objdic[obj][vt]["last_modified"]
 
-            self.files = files
+        self.files = objdict
 
     def archive_version(self, version):
         NotImplementedError
