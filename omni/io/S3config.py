@@ -7,45 +7,23 @@ def benchmarker_access_token_policy(benchmark):
                 "Effect": "Allow",
                 "Action": ["s3:*"],
                 "Resource": [
-                    f"arn:aws:s3:::{benchmark}.?.?",
-                    f"arn:aws:s3:::{benchmark}.?.?/*",
-                    f"arn:aws:s3:::{benchmark}.?.??",
-                    f"arn:aws:s3:::{benchmark}.?.??/*",
-                    f"arn:aws:s3:::{benchmark}.??.?/*",
-                    f"arn:aws:s3:::{benchmark}.??.?",
-                    f"arn:aws:s3:::{benchmark}.??.??/*",
-                    f"arn:aws:s3:::{benchmark}.??.??",
-                    f"arn:aws:s3:::{benchmark}.overview/*",
-                    f"arn:aws:s3:::{benchmark}.overview",
-                    f"arn:aws:s3:::{benchmark}.test.?/*",
-                    f"arn:aws:s3:::{benchmark}.test.?",
-                    f"arn:aws:s3:::{benchmark}.test.??/*",
-                    f"arn:aws:s3:::{benchmark}.test.??",
-                ],
-            },
-            {
-                "Effect": "Allow",
-                "Action": ["s3:ListAllMyBuckets"],
-                "Resource": ["arn:aws:s3:::*"],
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "s3:GetBucketLocation",
-                    "s3:PutObject",
-                    "s3:PutObjectTagging",
-                    "s3:GetObject",
-                ],
-                "Resource": [
-                    f"arn:aws:s3:::benchmarks",
-                    f"arn:aws:s3:::benchmarks/{benchmark}",
+                    f"arn:aws:s3:::{benchmark}",
                 ],
             },
             {
                 "Effect": "Deny",
-                "Action": ["s3:BypassGovernanceRetention"],
+                "Action": [
+                    "s3:BypassGovernanceRetention",
+                    "s3:DeleteObjectTagging",
+                    "s3:DeleteObjectVersion",
+                    "s3:DeleteObjectVersionTagging",
+                    "s3:DeleteObjectRetention",
+                    "s3:DeleteBucket",
+                    "s3:ForceDeleteBucket",
+                    "s3:DeleteBucketPolicy",
+                ],
                 "Resource": [
-                    f"arn:aws:s3:::*",
+                    f"arn:aws:s3:::{benchmark}",
                 ],
             },
         ],
@@ -75,4 +53,4 @@ def bucket_readonly_policy(bucket_name):
 if __name__ == "__main__":
     import json
 
-    print(json.dumps(benchmarker_access_token_policy("bm"), indent=2))
+    print(json.dumps(benchmarker_access_token_policy("obob"), indent=2))

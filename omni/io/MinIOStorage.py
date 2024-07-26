@@ -4,13 +4,17 @@ import datetime
 import io
 import json
 import logging
+import os
 import re
 from typing import Union
 from urllib.parse import urlparse
 
 import dateutil.parser
 import minio
+import minio.commonconfig
 import minio.deleteobjects
+import minio.retention
+import packaging.version
 import requests
 from bs4 import BeautifulSoup
 from packaging.version import Version
@@ -22,6 +26,124 @@ logging.basicConfig(level=logging.ERROR)
 logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+
+def valid_version(version: str):
+    try:
+        packaging.version.parse(version)
+        return True
+    except packaging.version.InvalidVersion:
+        return False
+
+
+def get_s3_object_versions_and_tags(client, benchmark):
+    if not client.bucket_exists(benchmark):
+        raise ValueError(f"Benchmark {benchmark} does not exist.")
+
+    object_ls = list(
+        client.list_objects(
+            benchmark, include_version=True, include_user_meta=True, recursive=True
+        )
+    )
+    object_names = [x.object_name for x in object_ls]
+    version_ids = [x.version_id for x in object_ls]
+    sizes = [x.size for x in object_ls]
+    last_modified = [x.last_modified for x in object_ls]
+    uq_names = list(set(object_names))
+
+    di = {}
+    for uq in uq_names:
+        di[uq] = {}
+        # tv = [v for v,n in zip(version_ids,object_names) if n == uq]
+        tmpinds = [i for i, n in enumerate(object_names) if n == uq]
+        tv = [version_ids[i] for i in tmpinds]
+        ts = [sizes[i] for i in tmpinds]
+        tlm = [last_modified[i] for i in tmpinds]
+        tdl = [object_ls[i].is_delete_marker for i in tmpinds]
+        for j, v in enumerate(tv):
+            tags_filt = {}
+            if not tdl[j]:
+                tags = client.get_object_tags(benchmark, uq, version_id=v)
+                if not tags is None:
+                    for k, w in tags.items():
+                        if valid_version(k):
+                            tags_filt[k] = w
+            di[uq][v] = {}
+            di[uq][v]["tags"] = tags_filt
+            tmpinds2 = [i for i, tvers in enumerate(tv) if tvers == v]
+            di[uq][v]["size"] = ts[tmpinds2[0]]
+            di[uq][v]["last_modified"] = tlm[tmpinds2[0]]
+            di[uq][v]["is_delete_marker"] = tdl[tmpinds2[0]]
+    return di
+
+
+def get_s3_objects_to_tag(objdic, tracked_dirs=["out", "versions"]):
+    object_names = sorted(list(objdic.keys()))
+    newest_versions = []
+    for uq in object_names:
+        subdatetimels = []
+        for v in objdic[uq].keys():
+            subdatetimels.append(objdic[uq][v]["last_modified"])
+        maxind = [k for k, sd in enumerate(subdatetimels) if sd == max(subdatetimels)][
+            0
+        ]
+        newest_versions.append(list(objdic[uq].keys())[maxind])
+
+    newest_version_exists = []
+    for uq, v in zip(object_names, newest_versions):
+        newest_version_exists.append(not objdic[uq][v]["is_delete_marker"])
+
+    is_tracked_basedirls = []
+    for n in object_names:
+        while not os.path.split(n)[0] == "":
+            n = os.path.split(n)[0]
+        if n in tracked_dirs:
+            is_tracked_basedirls.append(True)
+        else:
+            is_tracked_basedirls.append(False)
+
+    do_tag = []
+    for nve, itb in zip(newest_version_exists, is_tracked_basedirls):
+        if nve and itb:
+            do_tag.append(True)
+        else:
+            do_tag.append(False)
+    object_names_to_tag = [n for n, dt in zip(object_names, do_tag) if dt]
+    versionid_of_objects_to_tag = [
+        newest_versions[i] for i, dt in enumerate(do_tag) if dt
+    ]
+    return object_names_to_tag, versionid_of_objects_to_tag
+
+
+def get_single_s3version_from_bmversion(di, object_name, query_version):
+    return list(
+        filter(
+            lambda v: query_version in di[object_name][v]["tags"].keys(),
+            di[object_name].keys(),
+        )
+    )
+
+
+def get_s3version_from_bmversion(di, query_version):
+    vv_ls = []
+    for uq in di.keys():
+        tmpv = get_single_s3version_from_bmversion(di, uq, query_version)
+        if len(tmpv) == 0:
+            continue
+        elif len(tmpv) > 1:
+            raise ValueError("Multiple versions found")
+        else:
+            vv_ls.append(
+                [uq, tmpv[0], di[uq][tmpv[0]]["last_modified"], di[uq][tmpv[0]]["size"]]
+            )
+    return vv_ls
+
+
+def prepare_csv_s3version_from_bmversion(vv_ls):
+    outstr = "name,version_id,last_modified,size\n"
+    for vv in vv_ls:
+        outstr += f"{vv[0]},{vv[1]},{vv[2]},{vv[3]}\n"
+    return outstr
 
 
 def get_meta_mtime(preauthurl, containername, objectname):
@@ -64,26 +186,38 @@ def set_bucket_public_readonly(client, bucket_name):
     client.set_bucket_policy(bucket_name, json.dumps(policy))
 
 
+def set_bucket_lifecycle_config(client, bucket_name, noncurrent_days=1):
+    lifecycle_config = minio.lifecycleconfig.LifecycleConfig(
+        [
+            minio.lifecycleconfig.Rule(
+                minio.commonconfig.ENABLED,
+                rule_filter=minio.lifecycleconfig.Filter(prefix="*"),
+                rule_id="rule1",
+                noncurrent_version_expiration=minio.lifecycleconfig.NoncurrentVersionExpiration(
+                    noncurrent_days=noncurrent_days
+                ),
+            ),
+        ],
+    )
+    client.set_bucket_lifecycle(bucket_name, lifecycle_config)
+
+
 class MinIOStorage(RemoteStorage):
     def __init__(self, auth_options, benchmark):
         super().__init__(auth_options, benchmark)
-        self.containers = list()
         if "access_key" in self.auth_options.keys():
             self.client = self.connect()
             self._test_connect()
-            self._get_benchmarks()
 
-            if not benchmark in self.benchmarks:
+            if not self.client.bucket_exists(benchmark):
                 logger.warning(
                     f"Benchmark {benchmark} does not exist, creating new benchmark."
                 )
                 self._create_benchmark(benchmark)
-                self._get_containers()
-                self._get_benchmarks()
 
             self._get_versions()
         else:
-            self._get_versions(readonly=True)
+            self._get_versions()
             # read-only mode
             pass
 
@@ -115,204 +249,106 @@ class MinIOStorage(RemoteStorage):
         except Exception as e:
             raise e
 
-    def _get_containers(self) -> None:
-        try:
-            containers = list()
-            for bucket in self.client.list_buckets():
-                containers.append(bucket.name)
-            self.containers = containers
-
-        except Exception as e:
-            logger.error(e.value)
-
-    def _get_benchmarks(self, update: bool = True) -> None:
-        if len(self.containers) == 0 or update:
-            self._get_containers()
-        benchmarks = list()
-        for con in self.containers:
-            # remove major and minor version from benchmark name
-            bm = "".join(con.split(".")[:-2])
-            if bm not in benchmarks and bm != "":
-                benchmarks.append(bm)
-        self.benchmarks = benchmarks
-
-    def _create_benchmark(self, benchmark, update=True):
-        if len(self.benchmarks) == 0 or update:
-            self._get_benchmarks()
-        if benchmark in self.benchmarks:
+    def _create_benchmark(self, benchmark):
+        if self.client.bucket_exists(benchmark):
             raise ValueError("Benchmark already exists")
         # create new version
-        self.client.make_bucket(bucket_name=f"{benchmark}.test.1")
-        set_bucket_public_readonly(self.client, f"{benchmark}.test.1")
-        if not self.client.bucket_exists(f"{benchmark}.test.1"):
-            raise Exception(f"Benchmark creation of {benchmark}.test.1 failed")
-        self.client.make_bucket(bucket_name=f"{benchmark}.overview")
-        set_bucket_public_readonly(self.client, f"{benchmark}.overview")
-        if not self.client.bucket_exists(f"{benchmark}.overview"):
-            raise Exception(f"Benchmark creation of {benchmark}.overview failed")
+        self.client.make_bucket(bucket_name=benchmark, object_lock=True)
+        set_bucket_public_readonly(self.client, benchmark)
+        set_bucket_lifecycle_config(self.client, benchmark, noncurrent_days=1)
+        _ = self.client.put_object(
+            self.benchmark, "versions/.ignore", io.BytesIO(b""), 0
+        )
+        if not self.client.bucket_exists(benchmark):
+            raise Exception(f"Bucket creation for benchmark {benchmark} failed")
 
-        self.client.make_bucket(bucket_name=f"{benchmark}.0.1")
-        set_bucket_public_readonly(self.client, f"{benchmark}.0.1")
-        if not self.client.bucket_exists(f"{benchmark}.0.1"):
-            raise Exception(f"Benchmark creation of {benchmark}.0.1 failed")
-        self._update_overview(cleanup=True)
-
-        # add benchmark to overview
-        self.client.put_object("benchmarks", benchmark, io.BytesIO(b""), 0)
-
-    def _get_versions(self, update=True, readonly=False):
-        if not "secret_key" in self.auth_options.keys() or readonly:
-            url = urlparse(f"{self.auth_options['endpoint']}/{self.benchmark}.overview")
-            if self.auth_options["secure"]:
-                url = url._replace(scheme="https")
-            else:
-                url = url._replace(scheme="http")
-            params = {"format": "xml"}
-            response = requests.get(url.geturl(), params=params)
-            if response.ok:
-                response_text = response.text
-            else:
-                response.raise_for_status()
-            soup = BeautifulSoup(response_text, "xml")
-            allversions = [obj.find("Key").text for obj in soup.find_all("Contents")]
-            versions = list()
-            other_versions = list()
-            for version in allversions:
-                if re.match(f"(\\d+).(\\d+)", version):
-                    versions.append(Version(version))
-                elif re.match(f"test.(\\d+)", version):
-                    other_versions.append(version)
-            self.versions = versions
-            self.other_versions = other_versions
-
+    def _get_versions(self):
+        url = urlparse(f"{self.auth_options['endpoint']}/{self.benchmark}")
+        if self.auth_options["secure"]:
+            url = url._replace(scheme="https")
         else:
-            if update:
-                self._get_containers()
-            versions = list()
-            other_versions = list()
-            for con in self.containers:
-                if re.match(f"{self.benchmark}.(\\d+).(\\d+)", con):
-                    versions.append(Version(".".join(con.split(".")[-2:])))
-                elif re.match(f"{self.benchmark}.test.(\\d+)", con):
-                    other_versions.append(".".join(con.split(".")[-2:]))
-            self.versions = versions
-            self.other_versions = other_versions
-
-    def _update_overview(self, cleanup=True):
-        # check versions in overview
-        all_versions_in_overview = []
-        for element in self.client.list_objects(f"{self.benchmark}.overview"):
-            all_versions_in_overview.append(element.object_name)
-
-        versions_in_overview = []
-        other_versions_in_overview = []
-        for v in all_versions_in_overview:
-            try:
-                versions_in_overview.append(Version(v))
-            except:
-                other_versions_in_overview.append(v)
-
-        # available benchmark versions
-        self._get_versions()
-
-        # missing versions
-        versions_not_in_overview = [
-            v for v in self.versions if v not in versions_in_overview
+            url = url._replace(scheme="http")
+        params = {"format": "xml"}
+        response = requests.get(url.geturl(), params=params)
+        if response.ok:
+            response_text = response.text
+        else:
+            response.raise_for_status()
+        soup = BeautifulSoup(response_text, "xml")
+        allversions = [
+            obj.find("Key").text.split("/")[1].replace(".csv", "")
+            for obj in soup.find_all("Contents")
+            if obj.find("Key").text.split("/")[0] == "versions"
         ]
-        other_versions_not_in_overview = [
-            v for v in self.other_versions if v not in other_versions_in_overview
-        ]
+        versions = list()
+        for version in allversions:
+            if re.match(f"(\\d+).(\\d+)", version):
+                versions.append(Version(version))
+        self.versions = versions
 
-        # create missing versions
-        for v in versions_not_in_overview:
-            result = self.client.put_object(
-                f"{self.benchmark}.overview", f"{v.major}.{v.minor}", io.BytesIO(b""), 0
-            )
-        for v in other_versions_not_in_overview:
-            result = self.client.put_object(
-                f"{self.benchmark}.overview", v, io.BytesIO(b""), 0
+    def create_new_version(self):
+        if self.version is None:
+            raise ValueError(
+                "No version provided, set version first with method 'set_version'"
             )
 
-        # remove unavailable versions
-        if cleanup:
-            all_versions_in_overview = []
-            for element in self.client.list_objects(f"{self.benchmark}.overview"):
-                all_versions_in_overview.append(element.object_name)
-            versions_in_overview = []
-            other_versions_in_overview = []
-            for v in all_versions_in_overview:
-                try:
-                    versions_in_overview.append(Version(v))
-                except:
-                    other_versions_in_overview.append(v)
-
-            versions_in_overview_but_unavailable = []
-            for v in versions_in_overview:
-                if v not in self.versions:
-                    versions_in_overview_but_unavailable.append(f"{v.major}.{v.minor}")
-            other_versions_in_overview_but_unavailable = []
-            for v in other_versions_in_overview:
-                if v not in self.other_versions:
-                    other_versions_in_overview_but_unavailable.append(v)
-
-            deletes = self.client.remove_objects(
-                f"{self.benchmark}.overview",
-                [
-                    minio.deleteobjects.DeleteObject(v)
-                    for v in versions_in_overview_but_unavailable
-                ],
-            )
-            for obj in deletes:
-                raise Exception(f"Deletion failed: {obj}")
-
-            deletes = self.client.remove_objects(
-                f"{self.benchmark}.overview",
-                [
-                    minio.deleteobjects.DeleteObject(v)
-                    for v in other_versions_in_overview_but_unavailable
-                ],
-            )
-            for delete in deletes:
-                raise Exception(f"Deletion failed: {delete}")
-
-    def _create_new_version(self):
-        if self.version_new is None:
-            raise ValueError("No version provided")
+        if not "access_key" in self.auth_options.keys():
+            raise ValueError("Read-only mode, cannot create new version")
 
         # update
         self._get_versions()
-        # check if version exists
-        if not self.version_new in self.versions:
-            # create new version
-            self.client.make_bucket(
-                bucket_name=f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}"
-            )
-            set_bucket_public_readonly(
-                self.client,
-                f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}",
-            )
-            if not self.client.bucket_exists(
-                f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}"
-            ):
-                raise Exception(
-                    f"Benchmark creation of {self.benchmark}.{self.version_new.major}.{self.version_new.minor} failed"
-                )
-            # update
-            self._update_overview()
-        else:
+        if self.version in self.versions:
             raise ValueError("Version already exists")
 
-        if not self.version_new in self.versions:
+        # get all objects
+        objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
+
+        # get objects to tag
+        object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(objdic)
+
+        # Tag all objects with current version
+        tags = minio.datatypes.Tags.new_object_tags()
+        tags[str(self.version)] = "1"
+        for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
+            self.client.set_object_tags(self.benchmark, n, tags, version_id=v)
+
+        # set retention policy of objects
+        retention_config = minio.retention.Retention(
+            minio.commonconfig.GOVERNANCE,
+            datetime.datetime.utcnow() + datetime.timedelta(weeks=1000),
+        )
+        for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
+            self.client.set_object_retention(
+                self.benchmark, n, config=retention_config, version_id=v
+            )
+
+        # result = client.put_object(benchmark, "out/test.txt", io.BytesIO(b"asdf"), 4)
+        # client.remove_object(benchmark, "out/test.txt")
+
+        # write versions/{{version}}.csv
+        vv_ls = get_s3version_from_bmversion(objdic, str(self.version))
+        vv_str = prepare_csv_s3version_from_bmversion(vv_ls)
+        version_filename = f"versions/{self.version}.csv"
+        _ = self.client.put_object(
+            self.benchmark, version_filename, io.BytesIO(vv_str.encode()), len(vv_str)
+        )
+
+        # tag and set retention policy of version file
+        self.client.set_object_tags(self.benchmark, version_filename, tags)
+        self.client.set_object_retention(
+            self.benchmark, version_filename, config=retention_config
+        )
+
+        # check if version exists
+        self._get_versions()
+        if not self.version in self.versions:
             raise ValueError("Version creation failed")
 
     def _get_objects(self, readonly=False):
         if self.version is None:
             raise ValueError("No version provided")
         if not "secret_key" in self.auth_options.keys() or readonly:
-            containername = (
-                f"{self.benchmark}.{self.version.major}.{self.version.minor}"
-            )
-            url = urlparse(f"{self.auth_options['endpoint']}/{containername}")
+            url = urlparse(f"{self.auth_options['endpoint']}/{self.benchmark}")
             if self.auth_options["secure"]:
                 url = url._replace(scheme="https")
             else:
@@ -335,17 +371,12 @@ class MinIOStorage(RemoteStorage):
                 else:
                     url = url._replace(scheme="http")
                 mtime, accesstime = get_meta_mtime(
-                    url.geturl(), containername, obj.find("Key").text
+                    url.geturl(), self.benchmark, obj.find("Key").text
                 )
                 files[obj.find("Key").text] = {
                     "hash": obj.find("ETag").text.replace('"', ""),
                     "size": int(obj.find("Size").text),
                     "last_modified": obj.find("LastModified").text,
-                    "symlink_path": (
-                        obj.find("symlink_path").text
-                        if obj.find("symlink_path") is not None
-                        else ""
-                    ),
                     "x-object-meta-mtime": mtime,
                     "accesstime": accesstime,
                 }
@@ -356,7 +387,7 @@ class MinIOStorage(RemoteStorage):
             # get all objects
 
             for element in self.client.list_objects(
-                f"{self.benchmark}.{self.version.major}.{self.version.minor}",
+                self.benchmark,
                 recursive=True,
             ):
                 if type(element.last_modified) is str:
@@ -364,7 +395,6 @@ class MinIOStorage(RemoteStorage):
                         "size": element.size,
                         "last_modified": element.last_modified,
                         "hash": element.etag.replace('"', ""),
-                        "symlink_path": "",
                     }
                 elif type(element.last_modified) is datetime.datetime:
                     files[element.object_name] = {
@@ -373,83 +403,11 @@ class MinIOStorage(RemoteStorage):
                             "%Y-%m-%dT%H:%M:%S.%f"
                         ),
                         "hash": element.etag.replace('"', ""),
-                        "symlink_path": "",
                     }
                 else:
                     ValueError("Invalid last_modified")
 
             self.files = files
-
-    def find_objects_to_copy(self, reference_time=None, tagging_type="all"):
-        if tagging_type not in ["all"]:
-            raise ValueError("Invalid tagging type")
-        if tagging_type == "all":
-            if reference_time is None:
-                reference_time = datetime.datetime.now()
-            elif not type(reference_time) is datetime.datetime:
-                raise ValueError("Invalid reference time, must be datetime object")
-            if len(self.files) == 0:
-                self._get_objects()
-
-            if len(self.files) == 0:
-                return
-            else:
-                for filename in self.files.keys():
-                    if "x-object-meta-mtime" in self.files[filename].keys():
-                        file_time = datetime.datetime.fromtimestamp(
-                            float(self.files[filename]["x-object-meta-mtime"])
-                        )
-                    elif "x-object-meta-last-modified" in self.files[filename].keys():
-                        file_time = dateutil.parser.parse(
-                            self.files[filename]["x-object-meta-last-modified"]
-                        )
-                    else:
-                        file_time = dateutil.parser.parse(
-                            self.files[filename]["last_modified"]
-                        )
-                    if file_time < reference_time:
-                        self.files[filename]["copy"] = True
-                    else:
-                        self.files[filename]["copy"] = False
-
-    def copy_objects(self, type="copy"):
-        if type not in ["copy", "symlink"]:
-            raise ValueError("Invalid type")
-        if self.version is None or self.version_new is None:
-            raise ValueError("No version provided")
-
-        if type == "copy":
-            filenames = [
-                filename
-                for filename in self.files.keys()
-                if self.files[filename]["copy"]
-            ]
-            for filename in filenames:
-                out = self.client.copy_object(
-                    f"{self.benchmark}.{self.version_new.major}.{self.version_new.minor}",
-                    filename,
-                    minio.commonconfig.CopySource(
-                        bucket_name=f"{self.benchmark}.{self.version.major}.{self.version.minor}",
-                        object_name=filename,
-                    ),
-                )
-                self.files[out.object_name]["copied"] = True
-        if type == "symlink":
-            raise NotImplementedError("Symlink copying not implemented")
-
-    def create_new_version(
-        self,
-        version_new: Union[None, str] = None,
-        tagging_type: str = "all",
-        copy_type: str = "copy",
-    ):
-        self.set_current_version()
-        self.set_new_version(version_new)
-
-        self._create_new_version()
-        self._get_objects()
-        self.find_objects_to_copy(tagging_type=tagging_type)
-        self.copy_objects(copy_type)
 
     def archive_version(self, version):
         NotImplementedError
