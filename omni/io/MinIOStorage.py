@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import Union
+from typing import Dict
 from urllib.parse import urlparse
 
 import dateutil.parser
@@ -14,26 +14,16 @@ import minio
 import minio.commonconfig
 import minio.deleteobjects
 import minio.retention
-import packaging.version
 import requests
-from bs4 import BeautifulSoup
 from packaging.version import Version
 
-from omni.io.RemoteStorage import RemoteStorage
-from omni.io.S3config import bucket_readonly_policy
+from omni.io.RemoteStorage import RemoteStorage, is_valid_version
+from omni.io.S3config import S3_DEFAULT_STORAGE_OPTIONS, bucket_readonly_policy
 
 logging.basicConfig(level=logging.ERROR)
 logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
-def valid_version(version: str):
-    try:
-        packaging.version.parse(version)
-        return True
-    except packaging.version.InvalidVersion:
-        return False
 
 
 def get_s3_object_versions_and_tags(client, benchmark, readonly=False):
@@ -68,7 +58,7 @@ def get_s3_object_versions_and_tags(client, benchmark, readonly=False):
                     tags = client.get_object_tags(benchmark, uq, version_id=v)
                     if not tags is None:
                         for k, w in tags.items():
-                            if valid_version(k):
+                            if is_valid_version(k):
                                 tags_filt[k] = w
             di[uq][v] = {}
             di[uq][v]["tags"] = tags_filt
@@ -80,7 +70,9 @@ def get_s3_object_versions_and_tags(client, benchmark, readonly=False):
     return di
 
 
-def get_s3_objects_to_tag(objdic, tracked_dirs=["out", "versions"]):
+def get_s3_objects_to_tag(
+    objdic, tracked_dirs=S3_DEFAULT_STORAGE_OPTIONS["tracked_directories"]
+):
     object_names = sorted(list(objdic.keys()))
     newest_versions = []
     for uq in object_names:
@@ -98,6 +90,7 @@ def get_s3_objects_to_tag(objdic, tracked_dirs=["out", "versions"]):
 
     is_tracked_basedirls = []
     for n in object_names:
+        # get root directory
         while not os.path.split(n)[0] == "":
             n = os.path.split(n)[0]
         if n in tracked_dirs:
@@ -212,7 +205,12 @@ def set_bucket_lifecycle_config(client, bucket_name, noncurrent_days=1):
 
 
 class MinIOStorage(RemoteStorage):
-    def __init__(self, auth_options, benchmark):
+    def __init__(
+        self,
+        auth_options: Dict,
+        benchmark: str,
+        storage_options: Dict = S3_DEFAULT_STORAGE_OPTIONS,
+    ):
         super().__init__(auth_options, benchmark)
         assert "endpoint" in self.auth_options.keys()
         if "access_key" in self.auth_options.keys():
@@ -275,7 +273,7 @@ class MinIOStorage(RemoteStorage):
         set_bucket_public_readonly(self.client, benchmark)
         set_bucket_lifecycle_config(self.client, benchmark, noncurrent_days=1)
         _ = self.client.put_object(
-            self.benchmark, "versions/.ignore", io.BytesIO(b""), 0
+            self.benchmark, "versions/0.0.csv", io.BytesIO(b""), 0
         )
         if not self.client.bucket_exists(benchmark):
             raise Exception(f"Bucket creation for benchmark {benchmark} failed")
@@ -313,7 +311,9 @@ class MinIOStorage(RemoteStorage):
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
 
         # get objects to tag
-        object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(objdic)
+        object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(
+            objdic, tracked_dirs=self.storage_options["tracked_directories"]
+        )
 
         # Tag all objects with current version
         tags = minio.datatypes.Tags.new_object_tags()
@@ -381,7 +381,7 @@ class MinIOStorage(RemoteStorage):
 
             # get objects to tag
             object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(
-                objdic
+                objdic, tracked_dirs=self.storage_options["tracked_directories"]
             )
             objdict = {}
             for obj, vt in zip(object_names_to_tag, versionid_of_objects_to_tag):

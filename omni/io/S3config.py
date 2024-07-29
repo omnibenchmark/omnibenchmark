@@ -1,3 +1,8 @@
+from omni.io.RemoteStorage import DEFAULT_STORAGE_OPTIONS
+
+S3_DEFAULT_STORAGE_OPTIONS = {**DEFAULT_STORAGE_OPTIONS}
+
+
 def benchmarker_access_token_policy(benchmark):
     """S3 policy for access token for specific benchmark, allows archiving (Governance Retention)"""
     return {

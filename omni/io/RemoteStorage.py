@@ -3,7 +3,18 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict, Union
 
+import packaging.version
 from packaging.version import Version
+
+DEFAULT_STORAGE_OPTIONS = {"tracked_directories": ["out", "versions"]}
+
+
+def is_valid_version(version: str):
+    try:
+        packaging.version.parse(version)
+        return True
+    except packaging.version.InvalidVersion:
+        return False
 
 
 class RemoteStorage(metaclass=ABCMeta):
@@ -16,6 +27,7 @@ class RemoteStorage(metaclass=ABCMeta):
     - files (dict): A dictionary of files.
     - benchmark (str): The current benchmark.
     - auth_options (dict): The authentication options.
+    - storage_options (dict): The storage options.
 
     Methods:
     - __init__(auth_options, benchmark): Initializes the RemoteStorage object.
@@ -35,12 +47,15 @@ class RemoteStorage(metaclass=ABCMeta):
     - delete_version(version): Deletes a specific benchmark version.
     """
 
-    def __init__(self, auth_options: Dict, benchmark: str):
+    storage_options = DEFAULT_STORAGE_OPTIONS
+
+    def __init__(self, auth_options: Dict, benchmark: str, storage_options: Dict = {}):
         self.version = None
         self.versions = list()
         self.files = dict()
         self._parse_benchmark(benchmark)
         self._parse_auth_options(auth_options)
+        self._parse_auth_options(storage_options)
 
     def _parse_benchmark(self, benchmark: str) -> None:
         if not type(benchmark) is str:
@@ -51,6 +66,11 @@ class RemoteStorage(metaclass=ABCMeta):
         if not type(auth_options) is dict:
             raise ValueError("auth_options must be a dictionary")
         self.auth_options = auth_options
+
+    def _parse_storage_options(self, storage_options: Dict) -> None:
+        if not type(storage_options) is dict:
+            raise ValueError("storage_options must be a dictionary")
+        self.storage_options = {**self.storage_options, **storage_options}
 
     @abstractmethod
     def connect(self):
