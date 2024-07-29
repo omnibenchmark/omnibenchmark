@@ -43,7 +43,7 @@ for eb in easyconfigs:
             # largely from https://github.com/sassy-crick/Singularity-Easybuild        
             easy.create_definition_file(easyconfig = wildcards.easyconfig,
                                         singularity_recipe = output.singularity_recipe,
-                                        envmodule = envmodule_name, nthreads = str(int(NTHREADS)))
+                                        envmodule = envmodule_name, nthreads = 2)
             # easy.singularity_build(easyconfig = wildcards.easyconfig,
             #                                     singularity_recipe = output.singularity_recipe)
             shell("""
