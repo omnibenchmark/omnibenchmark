@@ -67,13 +67,10 @@ def install_lmod():
 #     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
 
 def export_lmod_env_vars():
-    # cmd = 'bash ./utils/export_module_envvars.sh'
-    # output = subprocess.check_output(
-    #     cmd, stderr = subprocess.STDOUT, shell = True,
-    #     universal_newlines = True)
-    # return(output)
-    print('not implemented')
-
+    cmd = 'bash ./utils/export_modules.sh'
+    output = subprocess.check_output(
+        cmd, stderr = subprocess.STDOUT, shell = True,
+        universal_newlines = True)
     
 def generate_default_easybuild_config_arguments(workdir):
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')

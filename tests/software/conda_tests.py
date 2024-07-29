@@ -26,3 +26,9 @@ def test_conda():
         produced = op.join('test0.out'),
         expected = op.join('00_conda', 'expected_results', 'test0.out'),
         method= 'conda')
+
+def test_omni_python_import():
+    import omni
+
+def test_omni_easybuild_import():
+    from omni.software import easybuild_backend as easy

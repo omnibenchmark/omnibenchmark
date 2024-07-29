@@ -143,7 +143,6 @@ jobs:
           export LMOD_CMD=$HOME/lmod/"$LMOD_VERS"/libexec/lmod
           
           export > $HOME/${{matrix.modules_tool}}.env
-          head $HOME/${{matrix.modules_tool}}.env
 
           if [ -f $HOME/${{matrix.modules_tool}}.env ]; then
             echo "envfile set, attempting to source"
@@ -157,13 +156,9 @@ jobs:
         shell: bash -el {0}
         run: |
           cd tests/software
-
-          echo $PATH
           . $HOME/mamba.env
-          echo $PATH
 
-          head $HOME/${{matrix.modules_tool}}.env
-
+          which pytest
           pytest -v -x --show-capture=stderr \
               --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               singularity_tests.py --envfile $HOME/${{matrix.modules_tool}}.env

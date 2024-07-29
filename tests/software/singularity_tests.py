@@ -41,8 +41,8 @@ def test_singularity_cmd():
     check_cmd_zero_exit('singularity --version')
 
 def test_module_cmd():
-    # from omni.software import easybuild_backend as easy
-    # easy.export_lmod_env_vars()
+    from omni.software import easybuild_backend as easy
+    easy.export_lmod_env_vars()
     check_cmd_zero_exit('module --help')
     
 def test_omni_python_import():
@@ -72,5 +72,3 @@ def test_omni_easybuild_import():
 
 # def test_easybuild_cli():
 
-# regardless of whether conda or singularity    
-from tests import *
