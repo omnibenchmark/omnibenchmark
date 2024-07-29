@@ -1,9 +1,9 @@
 """cli commands related to benchmark infos and stats"""
 
-from typing_extensions import Annotated
-
 import typer
 from packaging.version import Version
+from typing_extensions import Annotated
+
 import omni.io.files
 
 cli = typer.Typer(add_completion=False)
@@ -68,30 +68,6 @@ def diff_benchmark(
     typer.echo(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
-
-
-@cli.command("list")
-def list_benchmarks(
-    endpoint: Annotated[
-        str,
-        typer.Option(
-            "--endpoint",
-            "-e",
-            help="remote/object storage.",
-        ),
-    ],
-):
-    """List all available benchmarks and versions at a specific endpoint"""
-    typer.echo(f"Available benchmarks at {endpoint}:")
-    benchmark_names = omni.io.files.get_benchmarks_public(endpoint)
-    benchmarks = {}
-    for benchmark in benchmark_names:
-        benchmarks[benchmark] = omni.io.files.get_benchmark_versions_public(
-            benchmark, endpoint
-        )
-    for key, value in sorted(benchmarks.items()):
-        value = (value or [None])[-1]
-        typer.echo(f"{key:>20}     latest: {value:>5}")
 
 
 @cli.command("list versions")

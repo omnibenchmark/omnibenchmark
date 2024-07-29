@@ -41,7 +41,7 @@ def list_files(
 
     ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
     # set version
-    ss.set_current_version(version)
+    ss.set_version(version)
     # list objects of version
     ss._get_objects()
 
@@ -167,39 +167,3 @@ def checksum_files(
             if verbose:
                 print(f"MD5 checksum failed for {i}")
     return failed_checksums
-
-
-def get_benchmarks_public(endpoint: str) -> List[str]:
-    """List all available benchmarks"""
-    url = urlparse(f"{endpoint}/benchmarks")
-    response = requests.get(url.geturl(), params={"format": "xml"})
-    if response.ok:
-        response_text = response.text
-    else:
-        response.raise_for_status()
-    soup = BeautifulSoup(response_text, "xml")
-    benchmark_names = [obj.find("Key").text for obj in soup.find_all("Contents")]
-    benchmarks = []
-    for benchmark in benchmark_names:
-        url = urlparse(f"{endpoint}/{benchmark}.overview")
-        response = requests.get(url.geturl(), params={"format": "xml"})
-        if response.ok:
-            benchmarks.append(benchmark)
-    return benchmarks
-
-
-def get_benchmark_versions_public(benchmark: str, endpoint: str) -> List[str]:
-    url = urlparse(f"{endpoint}/{benchmark}.overview")
-    response = requests.get(url.geturl(), params={"format": "xml"})
-    if response.ok:
-        soup = BeautifulSoup(response.text, "xml")
-        buckets = [obj.find("Key").text for obj in soup.find_all("Contents")]
-        versions = []
-        for bucket in buckets:
-            if re.search(r"(\d+\.\d+)", bucket):
-                versions.append(bucket)
-
-        versions.sort(key=Version)
-        return versions
-    else:
-        response.raise_for_status()
