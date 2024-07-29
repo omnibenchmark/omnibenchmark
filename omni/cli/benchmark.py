@@ -4,7 +4,7 @@ import typer
 from packaging.version import Version
 from typing_extensions import Annotated
 
-import omni.io.files
+from omni.io.utils import get_storage
 
 cli = typer.Typer(add_completion=False)
 
@@ -91,8 +91,21 @@ def list_versions(
 ):
     """List all available benchmarks versions at a specific endpoint."""
     typer.echo(f"Available versions of {benchmark} at {endpoint}:")
-    versions = omni.io.files.get_benchmark_versions_public(benchmark, endpoint)
-    if len(versions) > 0:
-        versions.sort(key=Version)
-        for version in versions:
+    # TODO: for testing until get_bench_definition is implemented
+    if __name__ == "__main__":
+        minio_auth_options_public = {
+            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
+            "secure": False,
+        }
+        bench_yaml = {
+            "auth_options": minio_auth_options_public,
+            "storage_type": "minio",
+        }
+        benchmark = "testversioning"
+        version = "0.1"
+
+    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
+    if len(ss.versions) > 0:
+        ss.versions.sort(key=Version)
+        for version in ss.versions:
             typer.echo(f"{version:>8}")

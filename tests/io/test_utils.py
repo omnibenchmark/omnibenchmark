@@ -1,8 +1,8 @@
 import os
 import sys
 
+import minio
 import pytest
-import requests
 
 import omni.io
 import omni.io.utils as oiu
@@ -18,15 +18,15 @@ minio_testcontainer = MinIOSetup(sys.platform == "linux")
 )
 def test_get_storage():
     with TmpMinIOStorage(minio_testcontainer) as tmp:
-        _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="bm")
+        _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="test")
         ss = oiu.get_storage(
             storage_type="minio",
             auth_options=tmp.auth_options_readonly,
-            benchmark="bm",
+            benchmark="test",
         )
         assert isinstance(ss, omni.io.MinIOStorage.MinIOStorage)
 
-        with pytest.raises(requests.exceptions.HTTPError):
+        with pytest.raises(minio.error.S3Error):
             ss = oiu.get_storage(
                 storage_type="minio",
                 auth_options=tmp.auth_options_readonly,

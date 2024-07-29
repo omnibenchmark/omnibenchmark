@@ -47,15 +47,13 @@ class RemoteStorage(metaclass=ABCMeta):
     - delete_version(version): Deletes a specific benchmark version.
     """
 
-    storage_options = DEFAULT_STORAGE_OPTIONS
-
     def __init__(self, auth_options: Dict, benchmark: str, storage_options: Dict = {}):
         self.version = None
         self.versions = list()
         self.files = dict()
         self._parse_benchmark(benchmark)
         self._parse_auth_options(auth_options)
-        self._parse_auth_options(storage_options)
+        self._parse_storage_options(storage_options)
 
     def _parse_benchmark(self, benchmark: str) -> None:
         if not type(benchmark) is str:
@@ -70,7 +68,7 @@ class RemoteStorage(metaclass=ABCMeta):
     def _parse_storage_options(self, storage_options: Dict) -> None:
         if not type(storage_options) is dict:
             raise ValueError("storage_options must be a dictionary")
-        self.storage_options = {**self.storage_options, **storage_options}
+        self.storage_options = {**DEFAULT_STORAGE_OPTIONS, **storage_options}
 
     @abstractmethod
     def connect(self):
@@ -164,12 +162,23 @@ class RemoteStorage(metaclass=ABCMeta):
         NotImplementedError
 
     @abstractmethod
-    def _get_objects(self, readonly=False):
+    def _get_objects(self):
         """
         Retrieves the objects in the storage for the current benchmark version.
 
         Args:
             readonly (bool, optional): Whether to retrieve the objects in read-only mode. Defaults to False.
+        """
+        NotImplementedError
+
+    @abstractmethod
+    def download_object(self, object_name: str, local_path: str):
+        """
+        Downloads an object from the storage.
+
+        Args:
+            object_name (str): The name of the object.
+            local_path (str): The local path to download the object.
         """
         NotImplementedError
 

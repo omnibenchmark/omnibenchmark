@@ -20,7 +20,7 @@ minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
 class TestMinIOStorage:
     def test_init_fail(self):
-        with pytest.raises(KeyError):
+        with pytest.raises(AssertionError):
             ss = MinIOStorage(auth_options={}, benchmark="test")
 
     def test_init_success(self):

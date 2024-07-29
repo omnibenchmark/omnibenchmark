@@ -9,12 +9,9 @@ import re
 from typing import Dict
 from urllib.parse import urlparse
 
-import dateutil.parser
 import minio
 import minio.commonconfig
-import minio.deleteobjects
 import minio.retention
-import requests
 from packaging.version import Version
 
 from omni.io.RemoteStorage import RemoteStorage, is_valid_version
@@ -148,41 +145,6 @@ def prepare_csv_s3version_from_bmversion(vv_ls):
     return outstr
 
 
-def get_meta_mtime(preauthurl, containername, objectname):
-    """
-    Retrieves the metadata modification time and access time of a file from a MinIO storage.
-
-    Args:
-        preauthurl (str): The pre-authenticated URL of the MinIO storage.
-        containername (str): The name of the container where the file is stored.
-        objectname (str): The name of the file.
-
-    Returns:
-        tuple: A tuple containing the file's metadata modification time and access time.
-
-    Raises:
-        requests.HTTPError: If the HTTP request to retrieve the file fails.
-    """
-    urlfile = f"{preauthurl}/{containername}/{objectname}"
-    response = requests.get(urlfile)
-    if response.ok:
-        response_headers = response.headers
-        if "X-Object-Meta-Mtime" in response_headers.keys():
-            file_time = datetime.datetime.fromtimestamp(
-                float(response_headers["X-Object-Meta-Mtime"]), datetime.timezone.utc
-            )
-        elif "X-Object-Meta-Last-Modified" in response_headers.keys():
-            file_time = dateutil.parser.parse(
-                response_headers["X-Object-Meta-Last-Modified"]
-            )
-        else:
-            file_time = dateutil.parser.parse(response_headers["Last-Modified"])
-        access_time = dateutil.parser.parse(response_headers["Date"])
-        return file_time, access_time
-    else:
-        response.raise_for_status()
-
-
 def set_bucket_public_readonly(client, bucket_name):
     policy = bucket_readonly_policy(bucket_name)
     client.set_bucket_policy(bucket_name, json.dumps(policy))
@@ -211,7 +173,7 @@ class MinIOStorage(RemoteStorage):
         benchmark: str,
         storage_options: Dict = S3_DEFAULT_STORAGE_OPTIONS,
     ):
-        super().__init__(auth_options, benchmark)
+        super().__init__(auth_options, benchmark, storage_options)
         assert "endpoint" in self.auth_options.keys()
         if "access_key" in self.auth_options.keys():
             self.client = self.connect()
@@ -228,8 +190,6 @@ class MinIOStorage(RemoteStorage):
         else:
             self.roclient = self.connect(readonly=True)
             self._get_versions()
-            # read-only mode
-            pass
 
     def connect(self, readonly=False):
         """
@@ -272,9 +232,9 @@ class MinIOStorage(RemoteStorage):
         self.client.make_bucket(bucket_name=benchmark, object_lock=True)
         set_bucket_public_readonly(self.client, benchmark)
         set_bucket_lifecycle_config(self.client, benchmark, noncurrent_days=1)
-        _ = self.client.put_object(
-            self.benchmark, "versions/0.0.csv", io.BytesIO(b""), 0
-        )
+        # _ = self.client.put_object(
+        #     self.benchmark, "versions/.ignore.csv", io.BytesIO(b""), 0
+        # )
         if not self.client.bucket_exists(benchmark):
             raise Exception(f"Bucket creation for benchmark {benchmark} failed")
 
@@ -353,7 +313,7 @@ class MinIOStorage(RemoteStorage):
         if not self.version in self.versions:
             raise ValueError("Version creation failed")
 
-    def _get_objects(self, readonly=False):
+    def _get_objects(self):
         if self.version is None:
             raise ValueError("No version provided")
 
@@ -392,6 +352,22 @@ class MinIOStorage(RemoteStorage):
                 objdict[obj]["last_modified"] = objdic[obj][vt]["last_modified"]
 
         self.files = objdict
+
+    def download_object(self, object_name: str, local_path: str):
+        if self.version is None:
+            raise ValueError("No version provided")
+        if self.files is None:
+            self._get_objects()
+        if self.files is None:
+            raise ValueError("No objects found")
+        if object_name not in self.files.keys():
+            raise ValueError("Object not found")
+        _ = self.roclient.fget_object(
+            self.benchmark,
+            object_name,
+            local_path,
+            version_id=self.files[object_name]["version_id"],
+        )
 
     def archive_version(self, version):
         NotImplementedError
