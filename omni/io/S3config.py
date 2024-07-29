@@ -12,6 +12,7 @@ def benchmarker_access_token_policy(benchmark):
                 "Effect": "Allow",
                 "Action": ["s3:*"],
                 "Resource": [
+                    f"arn:aws:s3:::{benchmark}/*",
                     f"arn:aws:s3:::{benchmark}",
                 ],
             },

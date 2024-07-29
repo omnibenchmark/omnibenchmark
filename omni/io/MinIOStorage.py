@@ -221,7 +221,7 @@ class MinIOStorage(RemoteStorage):
 
     def _test_connect(self) -> None:
         try:
-            _ = self.client.list_buckets()
+            _ = self.client.list_objects(self.benchmark)
         except Exception as e:
             raise e
 
