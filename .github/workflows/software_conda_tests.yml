@@ -18,7 +18,7 @@
 ## GPLv2
 ## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
 
-name: software
+name: software_conda
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
     strategy:
       matrix:
         # test_group: [1, 2]      
-        test_group: [1, 2, 3]
+        test_group: [1]
         py_ver: ["3.12"]
         modules_tool: [Lmod-8.6.8]  # only Lmod
         module_syntax: [Lua]
@@ -161,21 +161,5 @@ jobs:
           echo $PATH
           
           pytest -v -x --show-capture=stderr \
-              --splits 8 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              --splits 1 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               conda_tests.py --envfile $HOME/mamba.env
-              
-      - name: Test with singularity or modules
-        shell: bash -el {0}
-        run: |
-          cd tests/software
-
-          echo $PATH
-          . $HOME/mamba.env
-          echo $PATH
-
-          head ${{matrix.modules_tool}}.env
-
-          pytest -v -x --show-capture=stderr \
-              --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              singularity_tests.py --envfile $HOME/${{matrix.modules_tool}}.env
-              
