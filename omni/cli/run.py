@@ -31,7 +31,6 @@ def run_benchmark(
         typer.Option(
             "--update",
             "-u",
-            prompt="Are you sure you want to re-run entire workflow?",
             help="Force re-run execution for all modules and stages.",
         ),
     ] = False,
@@ -64,15 +63,22 @@ def run_benchmark(
         raise typer.Exit(code=1)
 
     else:
+        if update:
+            update_prompt = typer.confirm(
+                "Are you sure you want to re-run the entire workflow?", abort=True
+            )
+            if not update_prompt:
+                raise typer.Abort()
+
         benchmark = validate_benchmark(benchmark)
 
+        typer.echo("Running benchmark...")
         # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
         # Controlling resource allocation with Snakemake is tricky
         # -c only controls the number of parallel executed rules
         # bioinfo methods are not designed with limited resources in mind (most)
         # module yaml for communicating resources for individual methods
-        typer.echo("Running benchmark...")
-        success = workflow.run_workflow(benchmark, cores=1, update=update, dry=dry)
+        success = workflow.run_workflow(benchmark, cores=1, update=update, dryrun=dry)
 
         if success:
             typer.echo(
@@ -81,7 +87,7 @@ def run_benchmark(
         else:
             typer.echo("Benchmark run has failed.", err=True, color=typer.colors.RED)
 
-        raise typer.Exit(code=success)
+        raise typer.Exit(code=0 if success else 1)
 
 
 @cli.command("module")
@@ -131,7 +137,6 @@ def run_module(
         typer.Option(
             "--update",
             "-u",
-            prompt="Are you sure you want to re-run entire workflow?",
             help="Force re-run execution for all modules and stages.",
         ),
     ] = False,
@@ -179,7 +184,7 @@ def run_module(
             if behaviour == "example":
                 typer.echo("Running module on a predefined remote example dataset.")
             if behaviour == "all":
-                typer.echo("Running module on all available remote example datasets.")
+                typer.echo("Running module on all available remote datasets.")
 
             # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
             # TODO Implement remote execution using remote url from benchmark definition
@@ -193,17 +198,31 @@ def run_module(
                 f"Running module on a dataset provided in a custom directory. (input_dir: {input_dir})"
             )
 
+            if update:
+                update_prompt = typer.confirm(
+                    "Are you sure you want to re-run the entire workflow?", abort=True
+                )
+                if not update_prompt:
+                    raise typer.Abort()
+
             benchmark = validate_benchmark(benchmark)
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
             if len(benchmark_nodes) > 0:
                 typer.echo(
-                    f"Found {len(benchmark_nodes)} workflow nodes for module {module}. Running module benchmark..."
+                    f"Found {len(benchmark_nodes)} workflow nodes for module {module}."
                 )
+                typer.echo("Running module benchmark...")
 
                 # Check available files in input_dir to figure out what dataset are we processing
                 benchmark_datasets = benchmark.get_benchmark_datasets()
                 dataset = None
-                if os.path.isdir(input_dir):
+
+                # if we're given the initial dataset module to process, then we know
+                if module in benchmark_datasets:
+                    dataset = module
+
+                # else we try to figure the dataset based on the files present in the input directory
+                elif os.path.isdir(input_dir):
                     files = os.listdir(input_dir)
                     base_names = [file.split(".")[0] for file in files]
                     dataset = next(
@@ -218,7 +237,7 @@ def run_module(
                             dataset=dataset,
                             cores=1,
                             update=update,
-                            dry=dry,
+                            dryrun=dry,
                         )
 
                         if success:
@@ -233,7 +252,7 @@ def run_module(
                                 color=typer.colors.RED,
                             )
 
-                        raise typer.Exit(code=success)
+                        raise typer.Exit(code=0 if success else 1)
                 else:
                     typer.echo(
                         f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input_dir}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
@@ -245,7 +264,7 @@ def run_module(
 
             else:
                 typer.echo(
-                    f"Error: Could not find module with id {module} in benchmark definition",
+                    f"Error: Could not find module with id `{module}` in benchmark definition",
                     err=True,
                     color=typer.colors.RED,
                 )
@@ -264,7 +283,7 @@ def validate_benchmark(benchmark_file: str) -> Benchmark:
 
         except ValueError as e:
             typer.echo(
-                f"Error: Failed to parse YAML as a valid OmniBenchmark: {e}",
+                f"Error: Failed to parse YAML as a valid OmniBenchmark: {str(e)}.",
                 err=True,
                 color=typer.colors.RED,
             )
@@ -294,7 +313,7 @@ def validate_benchmark(benchmark_file: str) -> Benchmark:
 
     else:
         typer.echo(
-            "Erorr: Invalid benchmark input. Please provide a valid YAML file path.",
+            "Error: Invalid benchmark input. Please provide a valid YAML file path.",
             err=True,
             color=typer.colors.RED,
         )

@@ -1,9 +1,8 @@
-import os
 from pathlib import Path
 
 import pytest
 
-from tests.run.Snakemake_setup import SnakemakeSetup
+from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 
 def test_run_workflow_001():

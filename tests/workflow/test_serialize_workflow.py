@@ -1,7 +1,7 @@
 import os.path
 from pathlib import Path
 
-from tests.run.Snakemake_setup import SnakemakeSetup
+from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 
 def test_serialize_workflow_001():

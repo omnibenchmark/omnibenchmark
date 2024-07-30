@@ -11,7 +11,7 @@ class WorkflowEngine:
         self,
         benchmark: Benchmark,
         cores: int = 1,
-        update: int = True,
+        update: bool = True,
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **kwargs
@@ -53,7 +53,7 @@ class WorkflowEngine:
         input_dir: str,
         dataset: str,
         cores: int = 1,
-        update: int = True,
+        update: bool = True,
         dryrun: bool = False,
         work_dir: str = os.getcwd(),
         **kwargs

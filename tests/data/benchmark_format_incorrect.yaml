@@ -1,0 +1,16 @@
+id: mock_benchmark
+description: simple benchmark, user for fast testing
+version: 1.0
+benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
+storage: https://storage.github.com/
+storage_api: S3
+benchmark_yaml_spec: 0.01
+software_environments:
+steps:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
