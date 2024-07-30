@@ -18,11 +18,11 @@ WD = './testing_03'
 
 rule all:
     input:
-        op.join(WD, 'binutils-2.35.eb_hello.txt')
+        op.join(WD, 'binutils-2.35.eb_ld.txt')
 
 os.makedirs(WD, exist_ok = True)
 
-easy.export_lmod_env_vars()
+# easy.export_lmod_env_vars()
 
 for eb in easyconfigs:
     rule:
@@ -40,10 +40,9 @@ for eb in easyconfigs:
         run:
             envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
             print('--', eb, envmodule_name, '----------------')
-            # largely from https://github.com/sassy-crick/Singularity-Easybuild        
             easy.create_definition_file(easyconfig = wildcards.easyconfig,
                                         singularity_recipe = output.singularity_recipe,
-                                        envmodule = envmodule_name, nthreads = 2)
+                                        envmodule = envmodule_name, nthreads = '2')
             # easy.singularity_build(easyconfig = wildcards.easyconfig,
             #                                     singularity_recipe = output.singularity_recipe)
             shell("""
@@ -61,14 +60,11 @@ for eb in easyconfigs:
         singularity:
             op.join(WD, eb + '.sif')
         output:
-            op.join(WD, '{easyconfig}_hello.txt')
-        # threads:
-        #     NTHREADS
+            op.join(WD, '{easyconfig}_ld.txt')
         shell:
             """
             ld --version > {output}
             """
             
 onsuccess:
-    # os.system('rm -rf ' + WD)
     print('delete would go here')

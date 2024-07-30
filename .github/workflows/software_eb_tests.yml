@@ -92,7 +92,7 @@ jobs:
 
       - name: Extra OS / apt (apptainer)
         run: |
-          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer
+          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
 
       - name: Install omnibenchmark from source
         shell: bash -el {0}
@@ -101,16 +101,16 @@ jobs:
 
           pip install -e .
       
-      - name: install EasyBuild framework
-        run: |
-          cd $HOME
-          BRANCH=main
-          git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-framework.git
-          cd easybuild-framework; git log -n 1; cd -
-          pip install $PWD/easybuild-framework
-          git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-easyblocks.git
-          cd easybuild-easyblocks; git log -n 1; cd -
-          pip install $PWD/easybuild-easyblocks
+      ## - name: install EasyBuild framework
+      ##   run: |
+      ##     cd $HOME
+      ##     BRANCH=main
+      ##     git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-framework.git
+      ##     cd easybuild-framework; git log -n 1; cd -
+      ##     pip install $PWD/easybuild-framework
+      ##     git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-easyblocks.git
+      ##     cd easybuild-easyblocks; git log -n 1; cd -
+      ##     pip install $PWD/easybuild-easyblocks
 
       - name: Install modules tool (lmod/TCL; from easybuild-framework)
         run: |
@@ -137,10 +137,10 @@ jobs:
           export PYTHONPATH=$WORKDIR
           export EASYBUILD_MODULES_TOOL=Lmod
 
-          LMOD_VERS=$(echo ${{matrix.modules_tool}} | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+$')
-          ## echo $LMOD_VERS
-          source /home/runner/lmod/"$LMOD_VERS"/init/bash
-          export LMOD_CMD=$HOME/lmod/"$LMOD_VERS"/libexec/lmod
+          ## LMOD_VERS=$(echo ${{matrix.modules_tool}} | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+$')
+          ## ## echo $LMOD_VERS
+          ## source /home/runner/lmod/"$LMOD_VERS"/init/bash
+          ## export LMOD_CMD=$HOME/lmod/"$LMOD_VERS"/libexec/lmod
           
           export > $HOME/${{matrix.modules_tool}}.env
 

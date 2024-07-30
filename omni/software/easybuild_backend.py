@@ -15,6 +15,9 @@ from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_eas
 from easybuild.tools.options import set_up_configuration
 from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
 
+from importlib import resources as impresources
+from . import templates
+
 HOME=op.expanduser("~")
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
@@ -220,8 +223,9 @@ def check_envmodule_status(envmodule):
 #             cmd += " --container-build-image"        
 #     return(cmd)
 
-def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads, templates_path = '.'):
-    with open(op.join(templates_path, 'templates', 'ubuntu_jammy.txt'), 'r') as ubuntu, open(singularity_recipe, 'w') as sing:
+def create_definition_file(easyconfig, singularity_recipe, envmodule, nthreads):
+    template = impresources.files(templates) / 'ubuntu_jammy.txt'
+    with open(template, 'rt') as ubuntu, open(singularity_recipe, 'w') as sing:
         for line in ubuntu.read().split('\n'):
             if 'EASYCONFIG' in line:
                 line = line.replace('EASYCONFIG', easyconfig)

@@ -11,10 +11,10 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import sys
-import os
+import sys, os #, subprocess
 import os.path as op
 import pytest
+from easybuild.tools.modules import modules_tool
 
 from utils.run import run, check_cmd_zero_exit
 
@@ -42,8 +42,9 @@ def test_singularity_cmd():
 
 # def test_module_cmd():
 #     from omni.software import easybuild_backend as easy
-#     easy.export_lmod_env_vars()
-#     check_cmd_zero_exit('module --help')
+#     # assert easy.check_available_modules() == ['lmod', 'settarg']
+#     mod_tool = modules_tool()
+#     # assert len(mod_tool.available(envmodule)) != 0
     
 def test_omni_python_import():
     import omni
@@ -51,15 +52,12 @@ def test_omni_python_import():
 def test_omni_easybuild_import():
     from omni.software import easybuild_backend as easy
 
-def test_easybuild_build():
+def test_easybuild_sys_toolchain_build():
     # try:
     run(Snakefile = op.join("03_easybuild_build", "Snakefile"),
-        produced = op.join('testing_03', 'binutils-2.35.eb_hello.txt'),
-        expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_hello.txt'),
+        produced = op.join('testing_03', 'binutils-2.35.eb_ld.txt'),
+        expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_ld.txt'),
         method= 'apptainer')
-    with open(op.join(WD, 'binutils-2.35.eb_hello.txt')) as fh:
-        print(fh.read())
-    os.system('ls -l ' + op.join(WD, 'binutils-2.35.eb_hello.txt'))
 
 # def test_easybuild_build_toolchain():
 #     run(Snakefile = op.join("04_easybuild_build_toolchain", "Snakefile"),
