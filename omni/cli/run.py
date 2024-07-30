@@ -194,9 +194,7 @@ def run_module(
             )
             raise typer.Exit(code=1)
         else:
-            typer.echo(
-                f"Running module on a dataset provided in a custom directory. (input_dir: {input_dir})"
-            )
+            typer.echo(f"Running module on a dataset provided in a custom directory.")
 
             if update:
                 update_prompt = typer.confirm(
