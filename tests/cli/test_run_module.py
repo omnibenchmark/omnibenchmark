@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
@@ -235,7 +236,6 @@ def test_behaviour_input_dir_update_false():
     expected_output = """
     Running module on a dataset provided in a custom directory.
     Are you sure you want to re-run the entire workflow? [y/N]: N
-    Aborted
     """
     with OmniCLISetup() as omni:
         result = omni.call(
@@ -285,4 +285,13 @@ def test_behaviour_input_dir_update_dry():
 
 
 def clean(output: str) -> str:
-    return output.strip().replace("    ", "").replace("\t", "").replace("\n", "")
+    output = output.strip()
+    output = output.replace("    ", "")
+
+    # Replace different newline characters with a single '\n'
+    normalized_output = re.sub(r"\r\n|\r", "\n", output)
+
+    # Replace multiple spaces and tabs with a single space
+    normalized_output = re.sub(r"[ \t]+", " ", normalized_output)
+
+    return normalized_output

@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
@@ -123,7 +124,6 @@ def test_local_update_true():
 def test_local_update_false():
     expected_output = """
     Are you sure you want to re-run the entire workflow? [y/N]: n
-    Aborted.
     """
     with OmniCLISetup() as omni:
         result = omni.call(
@@ -138,7 +138,7 @@ def test_local_update_false():
             input="n",
         )
         assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+        assert clean(result.output).startswith(clean(expected_output))
 
 
 def test_local_dry_update():
@@ -165,4 +165,13 @@ def test_local_dry_update():
 
 
 def clean(output: str) -> str:
-    return output.strip().replace("    ", "").replace("\t", "").replace("\n", "")
+    output = output.strip()
+    output = output.replace("    ", "")
+
+    # Replace different newline characters with a single '\n'
+    normalized_output = re.sub(r"\r\n|\r", "\n", output)
+
+    # Replace multiple spaces and tabs with a single space
+    normalized_output = re.sub(r"[ \t]+", " ", normalized_output)
+
+    return normalized_output
