@@ -1,0 +1,70 @@
+#!/usr/bin/env snakemake -s
+
+# import glob
+# import re
+import os
+import os.path as op
+# from shutil import which
+# from omni.software.easybuild_backend import *
+# from omni.software.conda_backend import *
+from omni.software import easybuild_backend as easy
+# from omni.software import common
+
+LMOD_VERS="8.7"
+
+easyconfigs = ['binutils-2.35.eb']
+
+WD = './testing_03'
+
+rule all:
+    input:
+        op.join(WD, 'binutils-2.35.eb_ld.txt')
+
+os.makedirs(WD, exist_ok = True)
+
+# easy.export_lmod_env_vars()
+
+for eb in easyconfigs:
+    rule:
+        name: f"{{easyconfig}}_easybuild_singularity".format(easyconfig=eb)
+        wildcard_constraints:
+            easyconfig=eb
+        output:
+            singularity_recipe = op.join(WD, 'Singularity_{easyconfig}.txt'),
+            container = op.join(WD, '{easyconfig}' + '.sif')
+        log:
+            op.join(WD, 'Singularity_{easyconfig}.log')
+        params:
+            workdir = WD,
+            LMOD_VERS = LMOD_VERS
+        run:
+            envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
+            print('--', eb, envmodule_name, '----------------')
+            easy.create_definition_file(easyconfig = wildcards.easyconfig,
+                                        singularity_recipe = output.singularity_recipe,
+                                        envmodule = envmodule_name, nthreads = '2')
+            # easy.singularity_build(easyconfig = wildcards.easyconfig,
+            #                                     singularity_recipe = output.singularity_recipe)
+            shell("""
+            export PATH=/usr/sbin:$PATH
+            singularity build \
+               --fakeroot \
+               {output.container} \
+               {output.singularity_recipe} &> {log}""")            
+    rule:
+        name: f"{{easyconfig}}_test".format(easyconfig=eb)
+        wildcard_constraints:
+            easyconfig = eb
+        input:
+            container = op.join(WD, '{easyconfig}' + '.sif')
+        singularity:
+            op.join(WD, eb + '.sif')
+        output:
+            op.join(WD, '{easyconfig}_ld.txt')
+        shell:
+            """
+            ld --version > {output}
+            """
+            
+onsuccess:
+    print('delete would go here')
