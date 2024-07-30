@@ -31,7 +31,8 @@ def run_benchmark(
         typer.Option(
             "--update",
             "-u",
-            help="Run code for non existing outputs only.",
+            prompt="Are you sure you want to re-run entire workflow?",
+            help="Force re-run execution for all modules and stages.",
         ),
     ] = False,
     dry: Annotated[
@@ -47,54 +48,40 @@ def run_benchmark(
         typer.Option(
             "--local",
             "-l",
-            help="Execute and store results locally",
+            help="Execute and store results locally. Default False.",
         ),
-    ] = True,
-    remote: Annotated[
-        Optional[str],
-        typer.Option(
-            "--remote",
-            "-r",
-            help="The remote endpoint to use for storing results.",
-        ),
-    ] = None,
+    ] = False,
 ):
     """Run a benchmark as specified in the yaml."""
 
-    # TODO Include `local` and `remote` execution options once storage is integrated
-    # TODO Is it really necessary to have both `local` and `remote`. Could we assume that given an endpoint, you want the output files to be stored remotely?
     if not local:
+        # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
+        # TODO Implement remote execution using remote url from benchmark definition
         typer.echo(
-            f"`local` argument is not supported yet. Workflows can only be run in local mode.",
+            f"Error: Remote execution is not supported yet. Workflows can only be run in local mode.",
             err=True,
         )
         raise typer.Exit(code=1)
 
-    # Check how snakemake storage decorators work, do we have caching locally or just remote?
-    # Only allow local override, and by default work with remote
-    if remote is not None:
-        typer.echo(
-            f"`remote` argument is not supported yet. Workflows can only be run in local mode.",
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    benchmark = validate_benchmark(benchmark)
-
-    # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
-    # Controlling resource allocation with Snakemake is tricky
-    # -c only controls the number of parallel executed rules
-    # bioinfo methods are not designed with limited resources in mind (most)
-    # module yaml for communicating resources for individual methods
-    typer.echo("Running benchmark...")
-    success = workflow.run_workflow(benchmark, cores=1, update=update, dry=dry)
-
-    if success:
-        typer.echo("Benchmark run has finished successfully.", color=typer.colors.GREEN)
     else:
-        typer.echo("Benchmark run has failed.", err=True, color=typer.colors.RED)
+        benchmark = validate_benchmark(benchmark)
 
-    raise typer.Exit(code=success)
+        # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
+        # Controlling resource allocation with Snakemake is tricky
+        # -c only controls the number of parallel executed rules
+        # bioinfo methods are not designed with limited resources in mind (most)
+        # module yaml for communicating resources for individual methods
+        typer.echo("Running benchmark...")
+        success = workflow.run_workflow(benchmark, cores=1, update=update, dry=dry)
+
+        if success:
+            typer.echo(
+                "Benchmark run has finished successfully.", color=typer.colors.GREEN
+            )
+        else:
+            typer.echo("Benchmark run has failed.", err=True, color=typer.colors.RED)
+
+        raise typer.Exit(code=success)
 
 
 @cli.command("module")
@@ -116,19 +103,36 @@ def run_module(
         ),
     ],
     input_dir: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             "--input",
             "-i",
-            help="Input directory containing required input files for module.",
+            help="Run on inputs from input directory.",
         ),
-    ],
+    ] = None,
+    example: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--example",
+            "-e",
+            help="Run on remote example inputs only.",
+        ),
+    ] = None,
+    all: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--all",
+            "-a",
+            help="Run on all valid benchmark inputs.",
+        ),
+    ] = None,
     update: Annotated[
         bool,
         typer.Option(
             "--update",
             "-u",
-            help="Run code for non existing outputs only.",
+            prompt="Are you sure you want to re-run entire workflow?",
+            help="Force re-run execution for all modules and stages.",
         ),
     ] = False,
     dry: Annotated[
@@ -139,99 +143,113 @@ def run_module(
             help="Dry run",
         ),
     ] = False,
-    example: Annotated[
-        bool,
-        typer.Option(
-            "--example",
-            "-e",
-            help="Run on example inputs only.",
-        ),
-    ] = True,
-    all: Annotated[
-        bool,
-        typer.Option(
-            "--all",
-            "-a",
-            help="Run on all valid benchmark inputs.",
-        ),
-    ] = False,
 ):
-    """Run a specific module on all or example inputs locally."""
+    """
+    Run a specific module on various datasets or custom inputs. This command does not have a default behavior. You must explicitly choose one of the following options:
 
-    # No default, just description about the use cases.
-    # Use cases:
-    # 1. custom input_dir
-    # 2. downloaded example files
-    # 3. downloaded all available inputs
+    1. `--input-dir`: Provide a path to a custom directory to use as the input dataset.
+    2. `--example`: Set this flag to execute the module on a remote example dataset.
+    3. `--all`: Set this flag to run the module on all available remote datasets.
 
-    # TODO Do we also need a stage argument?
-    # TODO --all and --example are mutually exclusive. Can we use one flag only and run the other on default?
-    if not example:
+    Note: You must select one of these options for the command to run.
+    """
+
+    behaviours = {"input_dir": input_dir, "example": example, "all": all}
+
+    non_none_behaviours = {
+        key: value for key, value in behaviours.items() if value is not None
+    }
+    if len(non_none_behaviours) == 0:
         typer.echo(
-            f"`example` argument is not supported yet. Module workflows can only be run on example input.",
+            "Error: At least one option must be specified. Use '--input-dir', '--example', or '--all'.",
             err=True,
         )
         raise typer.Exit(code=1)
-
-    if all is not None:
+    elif len(non_none_behaviours) >= 2:
         typer.echo(
-            f"`all` argument is not supported yet. Module workflows can only be run on example input.",
+            "Error: Only one of '--input-dir', '--example', or '--all' should be set. Please choose only one option.",
             err=True,
         )
         raise typer.Exit(code=1)
+    else:
+        # Construct a message specifying which option is set
+        behaviour = list(non_none_behaviours)[0]
 
-    benchmark = validate_benchmark(benchmark)
-    benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
-    if len(benchmark_nodes) > 0:
-        typer.echo(
-            f"Found {len(benchmark_nodes)} workflow nodes for module {module}. Running module benchmark..."
-        )
+        if behaviour == "example" or behaviour == "all":
+            if behaviour == "example":
+                typer.echo("Running module on a predefined remote example dataset.")
+            if behaviour == "all":
+                typer.echo("Running module on all available remote example datasets.")
 
-        # Check available files in input_dir to figure out what dataset are we processing
-        benchmark_datasets = benchmark.get_benchmark_datasets()
-        dataset = None
-        if os.path.isdir(input_dir):
-            files = os.listdir(input_dir)
-            base_names = [file.split(".")[0] for file in files]
-            dataset = next((d for d in benchmark_datasets if d in base_names), None)
-
-        if dataset is not None:
-            for benchmark_node in benchmark_nodes:
-                # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
-                # Download: allow configuring output_directory, and by default should be cwd
-                success = workflow.run_node_workflow(
-                    node=benchmark_node,
-                    input_dir=input_dir,
-                    dataset=dataset,
-                    cores=1,
-                    update=update,
-                    dry=dry,
-                )
-
-                if success:
-                    typer.echo(
-                        "Module run has finished successfully.",
-                        color=typer.colors.GREEN,
-                    )
-                else:
-                    typer.echo(
-                        "Module run has failed.", err=True, color=typer.colors.RED
-                    )
-
-                raise typer.Exit(code=success)
-        else:
+            # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
+            # TODO Implement remote execution using remote url from benchmark definition
             typer.echo(
-                f"Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input_dir}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
+                "Error: Remote execution is not supported yet. Workflows can only be run in local mode.",
                 err=True,
             )
-
             raise typer.Exit(code=1)
+        else:
+            typer.echo(
+                f"Running module on a dataset provided in a custom directory. (input_dir: {input_dir})"
+            )
 
-    else:
-        typer.echo(
-            f"Could not find module with id {module} in benchmark definition", err=True
-        )
-        raise typer.Exit(code=1)
+            benchmark = validate_benchmark(benchmark)
+            benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
+            if len(benchmark_nodes) > 0:
+                typer.echo(
+                    f"Found {len(benchmark_nodes)} workflow nodes for module {module}. Running module benchmark..."
+                )
+
+                # Check available files in input_dir to figure out what dataset are we processing
+                benchmark_datasets = benchmark.get_benchmark_datasets()
+                dataset = None
+                if os.path.isdir(input_dir):
+                    files = os.listdir(input_dir)
+                    base_names = [file.split(".")[0] for file in files]
+                    dataset = next(
+                        (d for d in benchmark_datasets if d in base_names), None
+                    )
+
+                if dataset is not None:
+                    for benchmark_node in benchmark_nodes:
+                        success = workflow.run_node_workflow(
+                            node=benchmark_node,
+                            input_dir=input_dir,
+                            dataset=dataset,
+                            cores=1,
+                            update=update,
+                            dry=dry,
+                        )
+
+                        if success:
+                            typer.echo(
+                                "Module run has finished successfully.",
+                                color=typer.colors.GREEN,
+                            )
+                        else:
+                            typer.echo(
+                                "Module run has failed.",
+                                err=True,
+                                color=typer.colors.RED,
+                            )
+
+                        raise typer.Exit(code=success)
+                else:
+                    typer.echo(
+                        f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input_dir}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
+                        err=True,
+                        color=typer.colors.RED,
+                    )
+
+                    raise typer.Exit(code=1)
+
+            else:
+                typer.echo(
+                    f"Error: Could not find module with id {module} in benchmark definition",
+                    err=True,
+                    color=typer.colors.RED,
+                )
+                raise typer.Exit(code=1)
 
 
 def validate_benchmark(benchmark_file: str) -> Benchmark:
@@ -246,31 +264,37 @@ def validate_benchmark(benchmark_file: str) -> Benchmark:
 
         except ValueError as e:
             typer.echo(
-                f"Failed to parse YAML as a valid OmniBenchmark: {e}",
+                f"Error: Failed to parse YAML as a valid OmniBenchmark: {e}",
                 err=True,
                 color=typer.colors.RED,
             )
             raise typer.Exit(code=1)
 
         except yaml.YAMLError as e:
-            typer.echo(f"Error in YAML file: {e}.", err=True, color=typer.colors.RED)
+            typer.echo(
+                f"Error: YAML file format error: {e}.", err=True, color=typer.colors.RED
+            )
             raise typer.Exit(code=1)
 
         except FileNotFoundError:
             typer.echo(
-                "Benchmark YAML file not found.", err=True, color=typer.colors.RED
+                "Error: Benchmark YAML file not found.",
+                err=True,
+                color=typer.colors.RED,
             )
             raise typer.Exit(code=1)
 
         except Exception as e:
             typer.echo(
-                f"An unexpected error occurred: {e}", err=True, color=typer.colors.RED
+                f"Error: An unexpected error occurred: {e}",
+                err=True,
+                color=typer.colors.RED,
             )
             raise typer.Exit(code=1)
 
     else:
         typer.echo(
-            "Invalid benchmark input. Please provide a valid YAML file path.",
+            "Erorr: Invalid benchmark input. Please provide a valid YAML file path.",
             err=True,
             color=typer.colors.RED,
         )
