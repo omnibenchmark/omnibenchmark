@@ -251,7 +251,7 @@ class SnakemakeEngine(WorkflowEngine):
             f"dataset={dataset}",
         ]
 
-        if not update:
+        if update:
             argv.append("-F")
 
         if dryrun:

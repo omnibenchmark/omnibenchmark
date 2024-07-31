@@ -101,8 +101,8 @@ def test_local_dry():
 
 def test_local_update_true():
     expected_output = """
-    Are you sure you want to re-run the entire workflow? [y/N]: Y
     Benchmark YAML file integrity check passed.
+    Are you sure you want to re-run the entire workflow? [y/N]: Y
     Running benchmark...
     """
     with OmniCLISetup() as omni:
@@ -123,6 +123,7 @@ def test_local_update_true():
 
 def test_local_update_false():
     expected_output = """
+    Benchmark YAML file integrity check passed.
     Are you sure you want to re-run the entire workflow? [y/N]: n
     """
     with OmniCLISetup() as omni:
@@ -143,7 +144,6 @@ def test_local_update_false():
 
 def test_local_dry_update():
     expected_output = """
-    Are you sure you want to re-run the entire workflow? [y/N]: y
     Benchmark YAML file integrity check passed.
     Running benchmark...
     """

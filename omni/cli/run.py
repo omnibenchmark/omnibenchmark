@@ -63,21 +63,21 @@ def run_benchmark(
         raise typer.Exit(code=1)
 
     else:
-        if update:
+        benchmark = validate_benchmark(benchmark)
+
+        if update and not dry:
             update_prompt = typer.confirm(
                 "Are you sure you want to re-run the entire workflow?", abort=True
             )
             if not update_prompt:
                 raise typer.Abort()
 
-        benchmark = validate_benchmark(benchmark)
-
-        typer.echo("Running benchmark...")
         # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
         # Controlling resource allocation with Snakemake is tricky
         # -c only controls the number of parallel executed rules
         # bioinfo methods are not designed with limited resources in mind (most)
         # module yaml for communicating resources for individual methods
+        typer.echo("Running benchmark...")
         success = workflow.run_workflow(benchmark, cores=1, update=update, dryrun=dry)
 
         if success:
@@ -108,7 +108,7 @@ def run_module(
             help="Module (ID) to execute.",
         ),
     ],
-    input_dir: Annotated[
+    input: Annotated[
         Optional[str],
         typer.Option(
             "--input",
@@ -152,27 +152,27 @@ def run_module(
     """
     Run a specific module on various datasets or custom inputs. This command does not have a default behavior. You must explicitly choose one of the following options:
 
-    1. `--input-dir`: Provide a path to a custom directory to use as the input dataset.
+    1. `--input`: Provide a path to a custom directory to use as the input dataset.
     2. `--example`: Set this flag to execute the module on a remote example dataset.
     3. `--all`: Set this flag to run the module on all available remote datasets.
 
     Note: You must select one of these options for the command to run.
     """
 
-    behaviours = {"input_dir": input_dir, "example": example, "all": all}
+    behaviours = {"input": input, "example": example, "all": all}
 
     non_none_behaviours = {
         key: value for key, value in behaviours.items() if value is not None
     }
     if len(non_none_behaviours) == 0:
         typer.echo(
-            "Error: At least one option must be specified. Use '--input-dir', '--example', or '--all'.",
+            "Error: At least one option must be specified. Use '--input', '--example', or '--all'.",
             err=True,
         )
         raise typer.Exit(code=1)
     elif len(non_none_behaviours) >= 2:
         typer.echo(
-            "Error: Only one of '--input-dir', '--example', or '--all' should be set. Please choose only one option.",
+            "Error: Only one of '--input', '--example', or '--all' should be set. Please choose only one option.",
             err=True,
         )
         raise typer.Exit(code=1)
@@ -194,16 +194,16 @@ def run_module(
             )
             raise typer.Exit(code=1)
         else:
-            typer.echo(f"Running module on a dataset provided in a custom directory.")
+            benchmark = validate_benchmark(benchmark)
 
-            if update:
+            if update and not dry:
                 update_prompt = typer.confirm(
                     "Are you sure you want to re-run the entire workflow?", abort=True
                 )
                 if not update_prompt:
                     raise typer.Abort()
 
-            benchmark = validate_benchmark(benchmark)
+            typer.echo(f"Running module on a dataset provided in a custom directory.")
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
             if len(benchmark_nodes) > 0:
                 typer.echo(
@@ -211,7 +211,7 @@ def run_module(
                 )
                 typer.echo("Running module benchmark...")
 
-                # Check available files in input_dir to figure out what dataset are we processing
+                # Check available files in input to figure out what dataset are we processing
                 benchmark_datasets = benchmark.get_benchmark_datasets()
                 dataset = None
 
@@ -220,8 +220,8 @@ def run_module(
                     dataset = module
 
                 # else we try to figure the dataset based on the files present in the input directory
-                elif os.path.isdir(input_dir):
-                    files = os.listdir(input_dir)
+                elif os.path.isdir(input):
+                    files = os.listdir(input)
                     base_names = [file.split(".")[0] for file in files]
                     dataset = next(
                         (d for d in benchmark_datasets if d in base_names), None
@@ -231,7 +231,7 @@ def run_module(
                     for benchmark_node in benchmark_nodes:
                         success = workflow.run_node_workflow(
                             node=benchmark_node,
-                            input_dir=input_dir,
+                            input_dir=input,
                             dataset=dataset,
                             cores=1,
                             update=update,
@@ -253,7 +253,7 @@ def run_module(
                         raise typer.Exit(code=0 if success else 1)
                 else:
                     typer.echo(
-                        f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input_dir}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
+                        f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
                         err=True,
                         color=typer.colors.RED,
                     )
