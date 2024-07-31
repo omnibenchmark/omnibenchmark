@@ -9,6 +9,7 @@ import re
 from typing import Dict
 from urllib.parse import urlparse
 
+import boto3
 import minio
 import minio.commonconfig
 import minio.retention
@@ -230,6 +231,13 @@ class MinIOStorage(RemoteStorage):
             raise ValueError("Benchmark already exists")
         # create new version
         self.client.make_bucket(bucket_name=benchmark, object_lock=True)
+        if self.client._base_url.is_aws_host:
+            s3 = boto3.client(
+                "s3",
+                aws_access_key_id=self.auth_options["access_key"],
+                aws_secret_access_key=self.auth_options["secret_key"],
+            )
+            s3.delete_public_access_block(Bucket=benchmark)
         set_bucket_public_readonly(self.client, benchmark)
         set_bucket_lifecycle_config(self.client, benchmark, noncurrent_days=1)
         # _ = self.client.put_object(
