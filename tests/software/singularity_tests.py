@@ -15,8 +15,8 @@ import sys, os #, subprocess
 import os.path as op
 import pytest
 from easybuild.tools.modules import modules_tool
-
 from utils.run import run, check_cmd_zero_exit
+from omni.software import easybuild_backend as eb
 
 sys.path.insert(0, op.dirname(__file__))
 # WD = op.dirname(__file__)
@@ -32,13 +32,16 @@ def test_singularity_nonexistent():
         run(Snakefile = op.join("02_singularity_nonexistent", "Snakefile"),
         produced = op.join('test0.out'),
         expected = op.join('02_singularity_nonexistent', 'expected_results', 'test0.out'),
-        method= 'apptainer')
-
+        method= 'apptainer') 
+    
 def test_easybuild_cmd():
     check_cmd_zero_exit('eb --version')
 
 def test_singularity_cmd():
     check_cmd_zero_exit('singularity --version')
+
+def test_bash_cmd():
+    check_cmd_zero_exit('bash --version')
 
 # def test_module_cmd():
 #     from omni.software import easybuild_backend as easy
@@ -52,10 +55,13 @@ def test_omni_python_import():
 def test_omni_easybuild_import():
     from omni.software import easybuild_backend as easy
 
+def test_env_export():
+    eb.export_lmod_env_vars()
+    
 def test_easybuild_sys_toolchain_build():
     # try:
     run(Snakefile = op.join("03_easybuild_build", "Snakefile"),
-        produced = op.join('testing_03', 'binutils-2.35.eb_ld.txt'),
+        produced = op.join('binutils-2.35.eb_ld.txt'),
         expected = op.join('03_easybuild_build', 'expected_results', 'binutils-2.35.eb_ld.txt'),
         method= 'apptainer')
 

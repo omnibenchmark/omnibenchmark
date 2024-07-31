@@ -88,7 +88,7 @@ jobs:
           # for testing OpenMPI-system*eb we need to have Open MPI installed
           sudo apt-get install libopenmpi-dev openmpi-bin
           ## required for test_dep_graph
-          pip install pep8 python-graph-core python-graph-dot
+          ## pip install pep8 python-graph-core python-graph-dot
 
       - name: Extra OS / apt (apptainer)
         run: |
@@ -155,6 +155,8 @@ jobs:
       - name: Test with conda
         ## env:
         ##   CI: true
+        env:
+          CI: false
         shell: bash {0}
         run: |
           cd tests/software
@@ -162,7 +164,7 @@ jobs:
           echo $PATH
           . $HOME/mamba.env
           echo $PATH
-          
+               
           pytest -v -x --show-capture=stderr \
               --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               conda_tests.py --envfile $HOME/mamba.env

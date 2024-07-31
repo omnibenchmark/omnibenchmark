@@ -9,16 +9,17 @@ import os.path as op
 # from omni.software.conda_backend import *
 from omni.software import easybuild_backend as easy
 # from omni.software import common
+import shutil
 
 LMOD_VERS="8.7"
 
 easyconfigs = ['binutils-2.35.eb']
 
-WD = './testing_03'
+WD = 'testing_03'
 
 rule all:
     input:
-        op.join(WD, 'binutils-2.35.eb_ld.txt')
+        op.join('binutils-2.35.eb_ld.txt')
 
 os.makedirs(WD, exist_ok = True)
 
@@ -60,11 +61,11 @@ for eb in easyconfigs:
         singularity:
             op.join(WD, eb + '.sif')
         output:
-            op.join(WD, '{easyconfig}_ld.txt')
+            op.join('{easyconfig}_ld.txt')
         shell:
             """
             ld --version > {output}
             """
             
 onsuccess:
-    print('delete would go here')
+    shutil.rmtree(WD)

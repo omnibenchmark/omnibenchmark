@@ -152,7 +152,7 @@ jobs:
             echo "envfile not set"
           fi
           
-      - name: Test with singularity or modules
+      - name: Singularity tests
         shell: bash -el {0}
         run: |
           cd tests/software
@@ -162,4 +162,14 @@ jobs:
           pytest -v -x --show-capture=stderr \
               --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               singularity_tests.py --envfile $HOME/${{matrix.modules_tool}}.env
-              
+
+      - name: CLI tests
+        shell: bash -el {0}
+        run: |
+          cd tests/software
+          . $HOME/mamba.env
+
+          which pytest
+          pytest -v -x --show-capture=stderr \
+              --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              cli_tests.py --envfile $HOME/${{matrix.modules_tool}}.env

@@ -17,6 +17,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.12" # so snmk >8 is installable
+setuptools="^72.1.0"
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
@@ -26,7 +27,6 @@ snakemake="^8.11.6"
 snakedeploy="^0.10.0"
 #snakemake-interface-common="^1.17.2"
 #snakemake-interface-executor-plugins="^9.2.0"
-setuptools="^70.0.0"
 
 ## these are not poetry dependencies, todo move somewhere (tbd, depending on whether
 ##  using poetry or something else)
@@ -34,6 +34,23 @@ pytest-cov = "^4.1.0"
 pytest-split = "^0.9.0"
 pytest-xdist = "^3.6.1"
 pytest-dotenv = "^0.5.2"
+
+## io start
+aiohttp = "^3.9.5"
+async = "^0.6.2"
+tqdm = "^4.66.4"
+requests = "^2.31.0"
+bs4 = "^0.0.2"
+lxml = "^5.2.1"
+python-dateutil = "^2.9.0.post0"
+minio = "^7.2.7"
+python-swiftclient = { version = "^4.5.0", optional = true}
+boto3 = {version = "^1.34.102", optional = true}
+pre-commit = "^3.7.1"
+isort = "^5.13.2"
+testcontainers = "^4.5.1"
+## io end
+
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"

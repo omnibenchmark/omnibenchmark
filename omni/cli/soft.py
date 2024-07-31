@@ -2,13 +2,13 @@
 
 from typing_extensions import Annotated
 
-from omni.software import easybuild_backend
+from omni.software import easybuild_backend as eb
 from omni.software import conda_backend
 from omni.software import common
 
 import typer
 
-import os
+import os, sys
 
 # import logging
 
@@ -26,26 +26,32 @@ def singularity_build(
     ],
 ):
     """Build a singularity (fakeroot) image for a given easyconfig."""
-    typer.echo(f"Installing software for {easyconfig} within a Singularity container.")
+    typer.echo(f"Installing software for {easyconfig} within a Singularity container. It will take some time.")
     
     ## check lmod
-    easybuild_backend.export_lmod_env_vars()
-    # easybuild_backend.check_module_tool()
+    eb.export_lmod_env_vars()
+    # eb.check_module_tool()
 
     ## check easybuild
-    easybuild_backend.check_easybuild_status()
-    
+    eb.check_easybuild_status()
+
+    ## check the easyconfig exists
+    try:
+        fp = eb.get_easyconfig_full_path(easyconfig = easyconfig, workdir = os.getcwd())
+    except:
+        print('ERROR: easyconfig not found.\n')
+        sys.exit()
+        
     ## do
     singularity_recipe = 'Singularity_' + easyconfig + '.txt'
-    envmodule_name = easybuild_backend.get_envmodule_name_from_easyconfig(easyconfig, workdir = os.getcwd())    
-    easybuild_backend.create_definition_file(
+    envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig, workdir = os.getcwd())    
+    eb.create_definition_file(
         easyconfig = easyconfig,
         singularity_recipe = singularity_recipe,
-        envmodule = envmodule_name, nthreads = str(len(os.sched_getaffinity(0))),
-        templates_path = os.path.dirname(easybuild_backend.__file__))
+        envmodule = envmodule_name, nthreads = str(len(os.sched_getaffinity(0))))
 
-    easybuild_backend.singularity_build(easyconfig = easyconfig, singularity_recipe = singularity_recipe)
-    
+    eb.singularity_build(easyconfig = easyconfig, singularity_recipe = singularity_recipe)
+    print('DONE: recipe and image built for ' + singularity_recipe)
 
 @cli.command("pin")
 def pin_conda_env(
@@ -59,8 +65,9 @@ def pin_conda_env(
     ],
 ):
     """Pins all conda env-related dependencies versions using snakedeploy."""
-    typer.echo(f"Pinning {conda_env} via snakedeploy.")
+    typer.echo(f"Pinning {conda_env} via snakedeploy. It will take some time.")
     conda_backend.pin_conda_envs(conda_env)
+    typer.echo(f'DONE: Pinned {conda_env}\n')
 
 
 ## these belong to the validator, not here
@@ -83,11 +90,11 @@ def check(
     typer.echo(f"Checking whether the component {what} is available.")
 
     if what == 'easybuild':
-        easybuild_backend.check_easybuild_status()
+        eb.check_easybuild_status()
     elif what == 'lmod':
-        easybuild_backend.export_lmod_env_vars()
-        easybuild_backend.check_lmod_status()
+        eb.export_lmod_env_vars()
+        eb.check_lmod_status()
     elif what == 'singularity':
-        easybuild_backend.check_singularity_status()
+        eb.check_singularity_status()
     else:
         return('not implemented')

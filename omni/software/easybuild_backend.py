@@ -17,6 +17,7 @@ from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
 
 from importlib import resources as impresources
 from . import templates
+from . import utils
 
 HOME=op.expanduser("~")
 
@@ -43,8 +44,8 @@ def check_easybuild_status():
         return("ERROR easybuild not found")
     return(ret)
 
-def install_lmod():
-    print('not implemented')
+# def install_lmod():
+#     print('not implemented')
 #     try:
 #         subprocess.call(["wget", "--help"])
 #     except FileNotFoundError:
@@ -69,8 +70,14 @@ def install_lmod():
 #     os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
 #     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
 
-def export_lmod_env_vars():
-    cmd = 'bash ./utils/export_modules.sh'
+# def export_lmod_env_vars(export_modules_script = op.join(op.dirname(__file__), 'utils', 'export_modules.sh')):
+#     cmd = 'bash ' + export_modules_script
+#     output = subprocess.check_output(
+#         cmd, stderr = subprocess.STDOUT, shell = True,
+#         universal_newlines = True)
+
+def export_lmod_env_vars(export_modules_script = impresources.files(utils) / 'export_modules.sh'):
+    cmd = 'bash ' + str(export_modules_script)
     output = subprocess.check_output(
         cmd, stderr = subprocess.STDOUT, shell = True,
         universal_newlines = True)
@@ -158,9 +165,14 @@ def parse_easyconfig(ec_fn, workdir):
     return ec_path, ec_dicts[0]['ec']
 
 def get_easyconfig_full_path(easyconfig, workdir):
-    ec_path, ec = parse_easyconfig(easyconfig, workdir)
-    return(ec_path)
+    try:
+        ec_path, ec = parse_easyconfig(easyconfig, workdir)
+        return(ec_path)
+    except:
+        raise FileNotFoundError('ERROR: easyconfig not found.\n')
+        # sys.exit('Premature exit')
 
+    
 def get_envmodule_name_from_easyconfig(easyconfig, workdir):
     ec_path, ec = parse_easyconfig(easyconfig, workdir)
     return(os.path.join(ec['name'], det_full_ec_version(ec)))
