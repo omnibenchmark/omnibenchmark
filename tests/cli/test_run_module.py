@@ -3,8 +3,8 @@ from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
 
-benchmark_data = "../data/"
-benchmark_data_path = Path(__file__).parent / benchmark_data
+benchmark_path = Path(__file__).parent / "../"
+benchmark_data_path = benchmark_path / "data/"
 
 
 def test_default():
@@ -91,6 +91,7 @@ def test_behaviour_all():
 
 def test_benchmark_not_found():
     expected_output = """
+    Running module on a dataset provided in a custom directory.
     Error: Benchmark YAML file not found.
     """
     with OmniCLISetup() as omni:
@@ -103,7 +104,7 @@ def test_benchmark_not_found():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
             ]
         )
         assert result.exit_code == 1
@@ -112,6 +113,7 @@ def test_benchmark_not_found():
 
 def test_benchmark_format_incorrect():
     expected_output = """
+    Running module on a dataset provided in a custom directory.
     Error: Failed to parse YAML as a valid OmniBenchmark: software_environments must be supplied.
     """
     with OmniCLISetup() as omni:
@@ -124,7 +126,7 @@ def test_benchmark_format_incorrect():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
             ]
         )
         assert result.exit_code == 1
@@ -133,8 +135,8 @@ def test_benchmark_format_incorrect():
 
 def test_module_not_found():
     expected_output = """
-    Benchmark YAML file integrity check passed.
     Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
     Error: Could not find module with id `not-existing` in benchmark definition
     """
     with OmniCLISetup() as omni:
@@ -147,7 +149,7 @@ def test_module_not_found():
                 "--module",
                 "not-existing",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
             ]
         )
         assert result.exit_code == 1
@@ -156,8 +158,8 @@ def test_module_not_found():
 
 def test_behaviour_input():
     expected_output = """
-    Benchmark YAML file integrity check passed.
     Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
@@ -171,7 +173,7 @@ def test_behaviour_input():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
             ]
         )
         assert result.exit_code == 0
@@ -180,8 +182,8 @@ def test_behaviour_input():
 
 def test_behaviour_input_dry():
     expected_output = """
-    Benchmark YAML file integrity check passed.
     Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
@@ -195,7 +197,7 @@ def test_behaviour_input_dry():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
                 "--dry",
             ]
         )
@@ -205,9 +207,9 @@ def test_behaviour_input_dry():
 
 def test_behaviour_input_update_true():
     expected_output = """
+    Running module on a dataset provided in a custom directory.
     Benchmark YAML file integrity check passed.
     Are you sure you want to re-run the entire workflow? [y/N]: y
-    Running module on a dataset provided in a custom directory.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
@@ -221,7 +223,7 @@ def test_behaviour_input_update_true():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}",
+                f"{benchmark_path}",
                 "--update",
             ],
             input="y",
@@ -232,6 +234,7 @@ def test_behaviour_input_update_true():
 
 def test_behaviour_input_update_false():
     expected_output = """
+    Running module on a dataset provided in a custom directory.
     Benchmark YAML file integrity check passed.
     Are you sure you want to re-run the entire workflow? [y/N]: N
     """
@@ -245,7 +248,7 @@ def test_behaviour_input_update_false():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
                 "--update",
             ],
             input="N",
@@ -256,8 +259,8 @@ def test_behaviour_input_update_false():
 
 def test_behaviour_input_update_dry():
     expected_output = """
-    Benchmark YAML file integrity check passed.
     Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
@@ -271,8 +274,86 @@ def test_behaviour_input_update_dry():
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_data_path}/",
+                f"{benchmark_path}/",
                 "--update",
+                "--dry",
+            ],
+            input="y",
+        )
+        assert result.exit_code == 0
+        assert clean(result.output).startswith(clean(expected_output))
+
+
+def test_behaviour_input_missing_input_dir():
+    expected_output = """
+    Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
+    Found 2 workflow nodes for module M1.
+    Running module benchmark...
+    Error: Input directory does not exist or is not a valid directory:
+    """
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "module",
+                "--benchmark",
+                f"{benchmark_data_path}/Benchmark_001.yaml",
+                "--module",
+                "M1",
+                "--input",
+                f"{benchmark_path}/data/D1/default/methods",
+            ],
+            input="y",
+        )
+        assert result.exit_code == 1
+        assert clean(result.output).startswith(clean(expected_output))
+
+
+def test_behaviour_input_missing_input_files():
+    expected_output = """
+    Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
+    Found 2 workflow nodes for module M1.
+    Running module benchmark...
+    Error: The following required input files are missing from the input directory: ['D1.meta.json']
+    """
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "module",
+                "--benchmark",
+                f"{benchmark_data_path}/Benchmark_001.yaml",
+                "--module",
+                "M1",
+                "--input",
+                f"{benchmark_path}/data/D1/missing_files",
+            ],
+            input="y",
+        )
+        assert result.exit_code == 1
+        assert clean(result.output).startswith(clean(expected_output))
+
+
+def test_behaviour_input_nested_module_dry():
+    expected_output = """
+    Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
+    Found 2 workflow nodes for module M1.
+    Running module benchmark...
+    """
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "module",
+                "--benchmark",
+                f"{benchmark_data_path}/Benchmark_001.yaml",
+                "--module",
+                "M1",
+                "--input",
+                f"{benchmark_path}/data/D1/default",
                 "--dry",
             ],
             input="y",

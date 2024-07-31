@@ -1,5 +1,6 @@
 """cli commands related to benchmark/module execution and start"""
 import os
+from itertools import chain
 from pathlib import Path
 from typing import Optional
 
@@ -203,6 +204,7 @@ def run_module(
             )
             raise typer.Exit(code=1)
         else:
+            typer.echo(f"Running module on a dataset provided in a custom directory.")
             benchmark = validate_benchmark(benchmark)
 
             if update and not dry:
@@ -212,7 +214,6 @@ def run_module(
                 if not update_prompt:
                     raise typer.Abort()
 
-            typer.echo(f"Running module on a dataset provided in a custom directory.")
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
             if len(benchmark_nodes) > 0:
                 typer.echo(
@@ -220,50 +221,90 @@ def run_module(
                 )
                 typer.echo("Running module benchmark...")
 
-                # Check available files in input to figure out what dataset are we processing
-                benchmark_datasets = benchmark.get_benchmark_datasets()
-                dataset = None
+                # Check if input path exists and is a directory
+                if os.path.exists(input) and os.path.isdir(input):
+                    benchmark_datasets = benchmark.get_benchmark_datasets()
 
-                # if we're given the initial dataset module to process, then we know
-                if module in benchmark_datasets:
-                    dataset = module
+                    # Check available files in input to figure out what dataset are we processing
+                    # if we're given the initial dataset module to process, then we know
+                    if module in benchmark_datasets:
+                        dataset = module
 
-                # else we try to figure the dataset based on the files present in the input directory
-                elif os.path.isdir(input):
-                    files = os.listdir(input)
-                    base_names = [file.split(".")[0] for file in files]
-                    dataset = next(
-                        (d for d in benchmark_datasets if d in base_names), None
-                    )
-
-                if dataset is not None:
-                    for benchmark_node in benchmark_nodes:
-                        # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
-                        success = workflow.run_node_workflow(
-                            node=benchmark_node,
-                            input_dir=input,
-                            dataset=dataset,
-                            cores=1,
-                            update=update,
-                            dryrun=dry,
+                    # else we try to figure the dataset based on the files present in the input directory
+                    else:
+                        files = os.listdir(input)
+                        base_names = [file.split(".")[0] for file in files]
+                        dataset = next(
+                            (d for d in benchmark_datasets if d in base_names), None
                         )
 
-                        if success:
-                            typer.echo(
-                                "Module run has finished successfully.",
-                                color=typer.colors.GREEN,
-                            )
+                    if dataset is not None:
+                        # Check if input directory contains all necessary input files
+                        required_inputs = list(
+                            map(lambda node: node.get_inputs(), benchmark_nodes)
+                        )
+                        required_inputs = list(chain.from_iterable(required_inputs))
+                        required_input_files = list(
+                            set([os.path.basename(path) for path in required_inputs])
+                        )
+                        required_input_files = [
+                            file.format(dataset=dataset)
+                            for file in required_input_files
+                        ]
+
+                        input_files = os.listdir(input)
+                        missing_files = [
+                            file
+                            for file in required_input_files
+                            if file not in input_files
+                        ]
+
+                        if len(missing_files) is 0:
+                            for benchmark_node in benchmark_nodes:
+                                # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
+                                success = workflow.run_node_workflow(
+                                    node=benchmark_node,
+                                    input_dir=input,
+                                    dataset=dataset,
+                                    cores=1,
+                                    update=update,
+                                    dryrun=dry,
+                                )
+
+                                if success:
+                                    typer.echo(
+                                        "Module run has finished successfully.",
+                                        color=typer.colors.GREEN,
+                                    )
+                                else:
+                                    typer.echo(
+                                        "Module run has failed.",
+                                        err=True,
+                                        color=typer.colors.RED,
+                                    )
+
+                                raise typer.Exit(code=0 if success else 1)
+
                         else:
                             typer.echo(
-                                "Module run has failed.",
+                                f"Error: The following required input files are missing from the input directory: {missing_files}.",
                                 err=True,
                                 color=typer.colors.RED,
                             )
 
-                        raise typer.Exit(code=0 if success else 1)
+                            raise typer.Exit(code=1)
+
+                    else:
+                        typer.echo(
+                            f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
+                            err=True,
+                            color=typer.colors.RED,
+                        )
+
+                        raise typer.Exit(code=1)
                 else:
                     typer.echo(
-                        f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
+                        f"Error: Input directory does not exist or is not a valid directory: `{input}`",
                         err=True,
                         color=typer.colors.RED,
                     )
