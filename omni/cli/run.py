@@ -26,6 +26,14 @@ def run_benchmark(
             help="Path to benchmark yaml file or benchmark id.",
         ),
     ],
+    cores: Annotated[
+        int,
+        typer.Option(
+            "--cores",
+            "-c",
+            help="The parallelism level for the workflow scheduler.",
+        ),
+    ] = 1,
     update: Annotated[
         bool,
         typer.Option(
@@ -72,13 +80,14 @@ def run_benchmark(
             if not update_prompt:
                 raise typer.Abort()
 
-        # TODO How should we configure `cores` from the CLI? Should we leave the default to 1 core? What about other resources like memory?
         # Controlling resource allocation with Snakemake is tricky
-        # -c only controls the number of parallel executed rules
+        # -c only controls the number of parallelism for the Snakemake scheduler
         # bioinfo methods are not designed with limited resources in mind (most)
-        # module yaml for communicating resources for individual methods
+        # Future: Create yaml for communicating resources for individual methods
         typer.echo("Running benchmark...")
-        success = workflow.run_workflow(benchmark, cores=1, update=update, dryrun=dry)
+        success = workflow.run_workflow(
+            benchmark, cores=cores, update=update, dryrun=dry
+        )
 
         if success:
             typer.echo(
@@ -229,6 +238,7 @@ def run_module(
 
                 if dataset is not None:
                     for benchmark_node in benchmark_nodes:
+                        # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
                         success = workflow.run_node_workflow(
                             node=benchmark_node,
                             input_dir=input,
