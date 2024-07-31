@@ -17,7 +17,6 @@ from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
 
 from importlib import resources as impresources
 from . import templates
-from . import utils
 
 HOME=op.expanduser("~")
 
@@ -70,17 +69,19 @@ def check_easybuild_status():
 #     os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
 #     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
 
-# def export_lmod_env_vars(export_modules_script = op.join(op.dirname(__file__), 'utils', 'export_modules.sh')):
-#     cmd = 'bash ' + export_modules_script
-#     output = subprocess.check_output(
-#         cmd, stderr = subprocess.STDOUT, shell = True,
-#         universal_newlines = True)
-
-def export_lmod_env_vars(export_modules_script = impresources.files(utils) / 'export_modules.sh'):
-    cmd = 'bash ' + str(export_modules_script)
+def export_lmod_env_vars(export_modules_script = op.join(op.dirname(__file__), 'utils', 'export_modules.sh')):
+    cmd = 'bash ' + export_modules_script
     output = subprocess.check_output(
         cmd, stderr = subprocess.STDOUT, shell = True,
         universal_newlines = True)
+
+# def export_lmod_env_vars():
+#     from omni.software import utils
+#     export_modules_script = op.join(str(utils.__path__[0]), 'export_modules.sh')
+#     cmd = 'bash ' + str(export_modules_script)
+#     output = subprocess.check_output(
+#         cmd, stderr = subprocess.STDOUT, shell = True,
+#         universal_newlines = True)
     
 def generate_default_easybuild_config_arguments(workdir):
     modulepath = op.join(workdir, 'easybuild', 'modules', 'all')
