@@ -35,12 +35,11 @@ To create a benchmark version (or snapshot) the newest file versions in specifie
 The `0.1.csv` file contains columns `name`,`version_id`,`last_modified`,`size`,`etag`.
 
 
-# How to use S3Storage/MinIOStorage
+# How to use MinIOStorage (S3)
 
-## get new access key
+## Create policy
 
-In the MinIO Console navigate to 'Access Keys' and click 'Create access key'. Set 'Restrict beyond user policy' to 'ON'. Create new policy with
-
+Create new policy with
 ```
 import omni
 import json
@@ -48,14 +47,26 @@ policy = omni.io.S3config.benchmarker_access_token_policy(<BENCHMARK>)
 print(json.dumps(policy, indent=2))
 ```
 
-Replace the displayed policy with the output of the above command.
-Enter a name (Preferable syntax: `Benchmark: <BENCHMARK>`) and a description. Click on `Create` and copy the access key and secret key. Save in a `<CONFIG>.json` file somewhere with the following format:
+## Create new access key
+
+### MinIO
+
+In the MinIO Console navigate to 'Access Keys' and click 'Create access key'. Set 'Restrict beyond user policy' to 'ON'. Replace the displayed policy with the output of the above command.
+Enter a name (Preferable syntax: `Benchmark: <BENCHMARK>`) and a description. Click on `Create` and copy the access key and secret key.
+
+### AWS
+
+Create a new user. Create a new policy with the output of the above command. Attach policy to user. Create access key for user.
+
+## Save access key information locally
+
+Save the access key and secret key in a `<CONFIG>.json` file somewhere with the following format:
 
 ```
 {"endpoint": "<URL>", "access_key": "<ACCESS_KEY>", "secret_key": "<SECURE_KEY>", "secure": false}
 ```
 
-## setup
+## Usage
 
 To use the MinIOStorage class, use the following code:
 
@@ -70,6 +81,6 @@ ms = MinIOStorage(auth_options=auth_options, benchmark="<BENCHMARK>")
 ms.versions
 ```
 
-## example usage
+## Example usage
 
 See [examples/storage_usage.py](examples/storage_usage.py).
