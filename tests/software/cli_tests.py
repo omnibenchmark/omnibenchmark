@@ -19,7 +19,7 @@ test_cases = [
     ),
     (
         "software build --easyconfig zlib-1.2.10.eb",
-        "DONE: recipe and image built for Singularity_zlib-1.2.10.eb.txt"        
+        "Installing software for zlib-1.2.10.eb within a Singularity container"      
     ),
     (
         "software pin --env data/ripgrep.yml",
@@ -31,3 +31,4 @@ test_cases = [
 def test_typer(command, expected_output):
     result = runner.invoke(cli, shlex.split(command))
     assert expected_output in result.stdout
+    assert result.exit_code == 0
