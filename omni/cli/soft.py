@@ -29,7 +29,7 @@ def singularity_build(
     typer.echo(f"Installing software for {easyconfig} within a Singularity container. It will take some time.")
     
     ## check lmod
-    eb.export_lmod_env_vars()
+    # eb.export_lmod_env_vars()
     # eb.check_module_tool()
 
     ## check easybuild

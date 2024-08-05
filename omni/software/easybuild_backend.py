@@ -71,8 +71,8 @@ def check_easybuild_status():
 
 def export_lmod_env_vars(export_modules_script = op.join(op.dirname(__file__), 'utils', 'export_modules.sh')):
     cmd = 'bash ' + export_modules_script
-    output = subprocess.check_output(
-        cmd, stderr = subprocess.STDOUT, shell = True,
+    output = subprocess.run(
+        cmd.split(' '), stderr = subprocess.STDOUT, shell = False,
         universal_newlines = True)
 
 # def export_lmod_env_vars():

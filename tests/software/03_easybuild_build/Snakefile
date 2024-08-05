@@ -40,7 +40,9 @@ for eb in easyconfigs:
         params:
             workdir = WD
         run:
+            shell("bash {input.export_modules}")
             easy.export_lmod_env_vars()
+            easy.check_easybuild_status()
             envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
             print('--', eb, envmodule_name, '----------------')
             easy.create_definition_file(easyconfig = wildcards.easyconfig,
