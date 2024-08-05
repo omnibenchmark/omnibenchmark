@@ -69,11 +69,11 @@ def check_easybuild_status():
 #     os.system('/bin/bash -c "source %s"' % op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'init', 'bash'))
 #     os.environ['LMOD_CMD'] =  op.join(op.expanduser('~'), 'soft', 'lmod', LMOD_VERS, 'libexec', 'lmod')
 
-def export_lmod_env_vars(export_modules_script = op.join(op.dirname(__file__), 'utils', 'export_modules.sh')):
-    cmd = 'bash ' + export_modules_script
-    output = subprocess.run(
-        cmd.split(' '), stderr = subprocess.STDOUT, shell = False,
-        universal_newlines = True)
+# def export_lmod_env_vars(export_modules_script = op.join(op.dirname(__file__), 'utils', 'export_modules.sh')):
+#     cmd = 'bash ' + export_modules_script
+#     output = subprocess.run(
+#         cmd.split(' '), stderr = subprocess.STDOUT, shell = False,
+#         universal_newlines = True)
 
 # def export_lmod_env_vars():
 #     from omni.software import utils
@@ -175,7 +175,7 @@ def get_easyconfig_full_path(easyconfig, workdir):
 
     
 def get_envmodule_name_from_easyconfig(easyconfig, workdir):
-    export_lmod_env_vars()
+    # export_lmod_env_vars()
     ec_path, ec = parse_easyconfig(easyconfig, workdir)
     return(os.path.join(ec['name'], det_full_ec_version(ec)))
 

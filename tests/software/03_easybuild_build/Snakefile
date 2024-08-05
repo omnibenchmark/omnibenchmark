@@ -30,8 +30,6 @@ for eb in easyconfigs:
         name: f"{{easyconfig}}_easybuild_singularity".format(easyconfig=eb)
         wildcard_constraints:
             easyconfig=eb
-        input:
-            export_modules = op.join('utils', 'export_modules.sh')
         output:
             singularity_recipe = op.join(WD, 'Singularity_{easyconfig}.txt'),
             container = op.join(WD, '{easyconfig}' + '.sif')
@@ -40,8 +38,6 @@ for eb in easyconfigs:
         params:
             workdir = WD
         run:
-            shell("bash {input.export_modules}")
-            easy.export_lmod_env_vars()
             easy.check_easybuild_status()
             envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
             print('--', eb, envmodule_name, '----------------')
@@ -51,7 +47,6 @@ for eb in easyconfigs:
             # easy.singularity_build(easyconfig = wildcards.easyconfig,
             #                                     singularity_recipe = output.singularity_recipe)
             shell("""
-            bash {input.export_modules}
             export PATH=/usr/sbin:$PATH
             singularity build \
                --fakeroot \

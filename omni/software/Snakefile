@@ -55,7 +55,7 @@ rule all:
 #             install_lmod()
 
 
-export_lmod_env_vars()
+# export_lmod_env_vars()
 
 for eb in easyconfigs:
     rule:

@@ -92,7 +92,7 @@ def check(
     if what == 'easybuild':
         eb.check_easybuild_status()
     elif what == 'lmod':
-        eb.export_lmod_env_vars()
+        # eb.export_lmod_env_vars()
         eb.check_lmod_status()
     elif what == 'singularity':
         eb.check_singularity_status()

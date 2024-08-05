@@ -38,11 +38,11 @@ jobs:
         # test_group: [1, 2]      
         test_group: [1, 2, 3]
         py_ver: ["3.12"]
-        modules_tool: [Lmod-8.6.8]  # only Lmod
+        ## modules_tool: [Lmod-8.6.8]  # only Lmod
         module_syntax: [Lua]
-        exclude:
-          - modules_tool: Lmod-7.8.22
-            module_syntax: Tcl
+        ## exclude:
+        ##   - modules_tool: Lmod-7.8.22
+        ##     module_syntax: Tcl
       fail-fast: false
       
     runs-on: ubuntu-latest
@@ -64,11 +64,11 @@ jobs:
           environment-name: omb
           cache-environment: true
 
-      - name: Get mambaish path
-        shell: bash -el {0}
-        run: |
-          echo $PATH > path_with_mamba
-          export > $HOME/mamba.env
+      ## - name: Get mambaish path
+      ##   shell: bash -el {0}
+      ##   run: |
+      ##     echo $PATH > path_with_mamba
+      ##     export > $HOME/mamba.env
 
       - name: install OS & Python packages
         run: |
@@ -88,11 +88,11 @@ jobs:
           # for testing OpenMPI-system*eb we need to have Open MPI installed
           sudo apt-get install libopenmpi-dev openmpi-bin
           ## required for test_dep_graph
-          ## pip install pep8 python-graph-core python-graph-dot
+          pip install pep8 python-graph-core python-graph-dot
 
       - name: Extra OS / apt (apptainer)
         run: |
-          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer
+          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
 
       - name: Install omnibenchmark from source
         shell: bash -el {0}
@@ -101,70 +101,66 @@ jobs:
 
           pip install -e .
       
-      - name: install EasyBuild framework
-        run: |
-          cd $HOME
-          BRANCH=main
-          git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-framework.git
-          cd easybuild-framework; git log -n 1; cd -
-          pip install $PWD/easybuild-framework
-          git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-easyblocks.git
-          cd easybuild-easyblocks; git log -n 1; cd -
-          pip install $PWD/easybuild-easyblocks
+      ## - name: install EasyBuild framework
+      ##   run: |
+      ##     cd $HOME
+      ##     BRANCH=main
+      ##     git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-framework.git
+      ##     cd easybuild-framework; git log -n 1; cd -
+      ##     pip install $PWD/easybuild-framework
+      ##     git clone -b $BRANCH --depth 10 --single-branch https://github.com/easybuilders/easybuild-easyblocks.git
+      ##     cd easybuild-easyblocks; git log -n 1; cd -
+      ##     pip install $PWD/easybuild-easyblocks
 
-      - name: Install modules tool (lmod/TCL; from easybuild-framework)
-        run: |
-          cd $HOME
-          # use install_eb_dep.sh script provided with easybuild-framework
-          wget https://raw.githubusercontent.com/easybuilders/easybuild-framework/114862506cc904903c368eb224fa6766c80bfca8/easybuild/scripts/install_eb_dep.sh
-          # chmod +x install_eb_dep.sh
+      ## - name: Install modules tool (lmod/TCL; from easybuild-framework)
+      ##   run: |
+      ##     cd $HOME
+      ##     # use install_eb_dep.sh script provided with easybuild-framework
+      ##     wget https://raw.githubusercontent.com/easybuilders/easybuild-framework/114862506cc904903c368eb224fa6766c80bfca8/easybuild/scripts/install_eb_dep.sh
+      ##     # chmod +x install_eb_dep.sh
           
-          export INSTALL_DEP=./install_eb_dep.sh
-          echo "Found install_eb_dep.sh script: $INSTALL_DEP"
-          # install modules tool
-          source $INSTALL_DEP ${{matrix.modules_tool}} $HOME
+      ##     export INSTALL_DEP=./install_eb_dep.sh
+      ##     echo "Found install_eb_dep.sh script: $INSTALL_DEP"
+      ##     # install modules tool
+      ##     source $INSTALL_DEP ${{matrix.modules_tool}} $HOME
           
-          # changes in environment are not passed to other steps, so need to create files...
-          echo $MOD_INIT > mod_init
-          echo $PATH > path_with_module
-          if [ ! -z $MODULESHOME ]; then echo $MODULESHOME > moduleshome; fi
+      ##     # changes in environment are not passed to other steps, so need to create files...
+      ##     echo $MOD_INIT > mod_init
+      ##     echo $PATH > path_with_module
+      ##     if [ ! -z $MODULESHOME ]; then echo $MODULESHOME > moduleshome; fi
 
-          # make sure 'eb' is available via $PATH, and that $PYTHONPATH is set (some tests expect that);
-          # also pick up changes to $PATH set by sourcing $MOD_INIT
-          source $(cat $HOME/mod_init)
-          WORKDIR=$GITHUB_WORKSPACE/easybuild-easyconfigs
-          export PATH=$(cat $HOME/path_with_module)
-          export PYTHONPATH=$WORKDIR
-          export EASYBUILD_MODULES_TOOL=Lmod
+      ##     # make sure 'eb' is available via $PATH, and that $PYTHONPATH is set (some tests expect that);
+      ##     # also pick up changes to $PATH set by sourcing $MOD_INIT
+      ##     source $(cat $HOME/mod_init)
+      ##     WORKDIR=$GITHUB_WORKSPACE/easybuild-easyconfigs
+      ##     export PATH=$(cat $HOME/path_with_module)
+      ##     export PYTHONPATH=$WORKDIR
+      ##     export EASYBUILD_MODULES_TOOL=Lmod
 
-          LMOD_VERS=$(echo ${{matrix.modules_tool}} | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+$')
-          ## echo $LMOD_VERS
-          source /home/runner/lmod/"$LMOD_VERS"/init/bash
-          export LMOD_CMD=$HOME/lmod/"$LMOD_VERS"/libexec/lmod
+      ##     ## LMOD_VERS=$(echo ${{matrix.modules_tool}} | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+$')
+      ##     ## ## echo $LMOD_VERS
+      ##     ## source /home/runner/lmod/"$LMOD_VERS"/init/bash
+      ##     ## export LMOD_CMD=$HOME/lmod/"$LMOD_VERS"/libexec/lmod
           
-          export > $HOME/${{matrix.modules_tool}}.env
+      ##     export > $HOME/${{matrix.modules_tool}}.env
 
-          if [ -f $HOME/${{matrix.modules_tool}}.env ]; then
-            echo "envfile set, attempting to source"
-            source $HOME/${{matrix.modules_tool}}.env
-            echo $PATH
-          else
-            echo "envfile not set"
-          fi
-
-      - name: Test with conda
+      ##     if [ -f $HOME/${{matrix.modules_tool}}.env ]; then
+      ##       echo "envfile set, attempting to source"
+      ##       source $HOME/${{matrix.modules_tool}}.env
+      ##       echo $PATH
+      ##     else
+      ##       echo "envfile not set"
+      ##     fi
+          
+      - name: Conda tests
         ## env:
         ##   CI: true
         env:
           CI: false
-        shell: bash {0}
+        shell: bash -el {0}
         run: |
           cd tests/software
-
-          echo $PATH
-          . $HOME/mamba.env
-          echo $PATH
                
           pytest -v -x --show-capture=stderr \
               --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              conda_tests.py --envfile $HOME/mamba.env
+              conda_tests.py

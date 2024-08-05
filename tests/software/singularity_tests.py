@@ -55,8 +55,8 @@ def test_omni_python_import():
 def test_omni_easybuild_import():
     from omni.software import easybuild_backend as easy
 
-def test_env_export():
-    eb.export_lmod_env_vars()
+# def test_env_export():
+#     eb.export_lmod_env_vars()
     
 def test_easybuild_sys_toolchain_build():
     # try:
