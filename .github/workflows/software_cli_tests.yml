@@ -18,7 +18,7 @@
 ## GPLv2
 ## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
 
-name: software_eb_singularity
+name: software_cli
 
 on:
   push:
@@ -81,12 +81,12 @@ jobs:
       - name: Extra OS / apt (apptainer)
         run: |
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
-              
-      - name: Singularity tests
+      
+      - name: CLI tests
         shell: bash -el {0}
         run: |
           cd tests/software
           
           pytest -v -x --show-capture=stderr \
               --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              singularity_tests.py
+              cli_tests.py
