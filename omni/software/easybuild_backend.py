@@ -175,6 +175,7 @@ def get_easyconfig_full_path(easyconfig, workdir):
 
     
 def get_envmodule_name_from_easyconfig(easyconfig, workdir):
+    export_lmod_env_vars()
     ec_path, ec = parse_easyconfig(easyconfig, workdir)
     return(os.path.join(ec['name'], det_full_ec_version(ec)))
 
