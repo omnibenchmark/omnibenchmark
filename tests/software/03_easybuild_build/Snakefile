@@ -8,6 +8,7 @@ import os.path as op
 # from omni.software.easybuild_backend import *
 # from omni.software.conda_backend import *
 from omni.software import easybuild_backend as easy
+from omni.software import common
 # from omni.software import common
 import shutil
 
@@ -35,11 +36,9 @@ for eb in easyconfigs:
             container = op.join(WD, '{easyconfig}' + '.sif')
         log:
             op.join(WD, 'Singularity_{easyconfig}.log')
-        params:
-            workdir = WD
         run:
-            easy.check_easybuild_status()
-            envmodule_name = easy.get_envmodule_name_from_easyconfig(eb, workdir = WD)
+            common.check_easybuild_status()
+            envmodule_name = easy.get_envmodule_name_from_easyconfig(eb)
             print('--', eb, envmodule_name, '----------------')
             easy.create_definition_file(easyconfig = wildcards.easyconfig,
                                         singularity_recipe = output.singularity_recipe,

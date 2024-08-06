@@ -18,7 +18,7 @@
 ## GPLv2
 ## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
 
-name: software_cli
+name: software
 
 on:
   push:
@@ -27,19 +27,19 @@ on:
   pull_request:
 
 concurrency:
-  # Cancel concurrent flows on PRs
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  testing:
+  software_testing:
     strategy:
       matrix:
-        test_group: [1, 2, 3]
+        os: [ubuntu-22.04]
+        test_group: [1, 2]
         py_ver: ["3.12"]
       fail-fast: false
       
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,14 +49,18 @@ jobs:
         shell: bash -el {0}
         run: |
           cp test-environment.yml test-environment-${{ matrix.py_ver }}.yml
-          sed -E -i 's/- python.+/- python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
-          
+          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
+                 
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: test-environment-${{ matrix.py_ver }}.yml
           environment-name: omb
           cache-environment: true
+
+      - name: Add poetry group dependencies, we are not using poetry here
+        run: |
+          pip install pytest-cov pytest-split pytest-xdist
 
       - name: install OS & Python packages
         run: |
@@ -77,16 +81,27 @@ jobs:
           sudo apt-get install libopenmpi-dev openmpi-bin
           ## required for test_dep_graph
           pip install pep8 python-graph-core python-graph-dot
-
+        
       - name: Extra OS / apt (apptainer)
         run: |
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
-      
-      - name: CLI tests
+          
+      - name: Test
+        ## env:
+        ##   CI: true
+        env:
+          CI: false
         shell: bash -el {0}
         run: |
           cd tests/software
+
+          source "$LMOD_PKG"/init/profile
+          module use "$HOME"/.local/easybuild/modules/all
+          # module spider
+          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init   
+          # export > mod.env
           
           pytest -v -x --show-capture=stderr \
-              --splits 3 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_tests.py
+              --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
+              conda_tests.py singularity_tests.py envmodules_tests.py

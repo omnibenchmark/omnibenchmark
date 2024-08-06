@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "omni"
+name = "omnibenchmark"
 version = "0.1.0"
-description = ""
+description = "An tool for automated scientific benchmarking"
 authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>"]
 readme = "README.md"
 packages = [{include = "omni"}]
@@ -21,21 +21,14 @@ setuptools="^72.1.0"
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
-typer = {extras = ["all"], version = "^0.12.3"}
+typer = "^0.12.3"
+# typer-slim = {version = "^0.12.3"}
+# typer-cli = {version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 snakemake="^8.11.6"
 snakedeploy="^0.10.0"
-#snakemake-interface-common="^1.17.2"
-#snakemake-interface-executor-plugins="^9.2.0"
 
-## these are not poetry dependencies, todo move somewhere (tbd, depending on whether
-##  using poetry or something else)
-pytest-cov = "^4.1.0"
-pytest-split = "^0.9.0"
-pytest-xdist = "^3.6.1"
-# pytest-dotenv = "^0.5.2"
-
-## io start
+## io start ----------------
 aiohttp = "^3.9.5"
 async = "^0.6.2"
 tqdm = "^4.66.4"
@@ -49,14 +42,16 @@ boto3 = {version = "^1.34.102", optional = true}
 pre-commit = "^3.7.1"
 isort = "^5.13.2"
 testcontainers = "^4.5.1"
-## io end
-
+## io end -----------------
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 black = "^23.12.0"
 
 [tool.poetry.group.test.dependencies]
+pytest-cov = "^4.1.0"
+pytest-split = "^0.9.0"
+pytest-xdist = "^3.6.1"
 genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
 
 [tool.poetry.scripts]
@@ -65,19 +60,3 @@ ob = 'omni.cli.main:cli'
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-# dynamic = ["dependencies"]
-
-# [tool.setuptools.dynamic]
-# dependencies = { file = ["requirements.txt"] }
-
-# [tool.pytest.ini_options]
-# testpaths = [
-#     "tests/software",
-# ]
-
-# [tool.setuptools.dynamic]
-# dependencies = { file = ["requirements.txt"] }
-
-# [tool.setuptools.dynamic.optional-dependencies]
-# dev = { file = ["requirements-dev.txt"] }

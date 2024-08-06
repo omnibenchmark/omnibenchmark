@@ -13,7 +13,7 @@ from omni.cli import run
 from omni.cli import validate
 
 
-cli = typer.Typer(add_completion = False, no_args_is_help = True)
+cli = typer.Typer(add_completion=False, no_args_is_help=True)
 cli.add_typer(
     benchmark.cli, name="benchmark", help="Manage benchmarks and their versions."
 )

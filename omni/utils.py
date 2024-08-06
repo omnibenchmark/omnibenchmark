@@ -1,4 +1,5 @@
 """ General utils functions"""
+
 from linkml_runtime.loaders import yaml_loader
 from pathlib import Path
 from typing import List, Union, Any

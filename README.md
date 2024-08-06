@@ -13,7 +13,9 @@ The entrypoint to omnibenchmark. It contains a cli and multiple utility function
 
 # How to install
 
-1. Install micromamba, mamba or conda, activate
-2. Create an environment
-3. Install using the `test-environment.yml` - includes snakemake and omnibenchmark
-4. Install easybuild, lua, lmod, apptainer, bootstrap
+0. Install singularity and debootstrap.
+1. Install micromamba, mamba or conda, activate with `micromamba activate`.
+2. Create an environment. If named omnibenchmark, `micromamba create -n omnibenchmark`.
+3. Activate it with `micromamba activate omnibenchmark`.
+4. Clone this repository and get to its root.
+5. Install with `micromamba install -f test-environment.yml`.

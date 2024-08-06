@@ -1,0 +1,80 @@
+#!/usr/bin/env snakemake -s
+
+# import glob
+# import re
+import os
+import os.path as op
+# from shutil import which
+# from omni.software.easybuild_backend import *
+# from omni.software.conda_backend import *
+from omni.software import easybuild_backend as easy
+from omni.software import common
+# from omni.software import common
+import shutil
+from env_modules_python import module
+
+LMOD_VERS="8.7"
+
+easyconfigs = ['binutils-2.35.eb']
+
+WD = 'testing_04'
+
+rule all:
+    input:
+        op.join('binutils-2.35.eb_ld.txt')
+
+os.makedirs(WD, exist_ok = True)
+
+# easy.export_lmod_env_vars()
+
+# shell.executable("/bin/bash")
+# shell.prefix("source ~/.bashrc; source $LMOD_PKG/init/bash; module use ~/.local/easybuild/modules/all;")
+
+
+for eb in easyconfigs:
+    rule:
+        name: f"{{easyconfig}}_easybuild_build".format(easyconfig=eb)
+        wildcard_constraints:
+            easyconfig=eb
+        output:
+            flag = op.join(WD, '{easyconfig}_flag')
+        log:
+            op.join(WD, 'install_{easyconfig}.log')
+        params:
+            workdir = WD
+        run:
+            print(module('list'))
+            common.check_easybuild_status()
+            easy.easybuild_easyconfig(easyconfig = eb,
+                                      threads = 2)
+            with open(output.flag, 'a'):
+                os.utime(output.flag, None)
+            
+    rule:
+        name: f"{{easyconfig}}_test".format(easyconfig=eb)
+        wildcard_constraints:
+            easyconfig = eb
+        input:
+            flag = op.join(WD, '{easyconfig}_flag')
+        envmodules:
+            op.join('all', easy.get_envmodule_name_from_easyconfig(eb))
+        params:
+            env = easy.get_envmodule_name_from_easyconfig(eb)
+        output:
+            op.join('{easyconfig}_ld.txt')
+        shell:
+            """
+            # cat $LMOD_PKG/init/bash
+            # source ~/.bashrc
+            # source $LMOD_PKG/init/bash
+            # module use ~/.local/easybuild/modules/all
+            # export | grep -i module
+            # # export
+            # # module load {params.env}
+            # # export > {output}
+            # module list
+            ld --version > {output}
+            """
+            
+# onsuccess:
+#     shutil.rmtree(WD)

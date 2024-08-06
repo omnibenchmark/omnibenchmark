@@ -11,24 +11,15 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import sys
-import os
+import sys, os  # , subprocess
 import os.path as op
 import pytest
-
+from easybuild.tools.modules import modules_tool
 from utils.run import run, check_cmd_zero_exit
+from omni.software import easybuild_backend as eb
 
 sys.path.insert(0, op.dirname(__file__))
 # WD = op.dirname(__file__)
-
-
-def test_conda():
-    run(
-        Snakefile=op.join("00_conda", "Snakefile"),
-        produced=op.join("test0.out"),
-        expected=op.join("00_conda", "expected_results", "test0.out"),
-        method="conda",
-    )
 
 
 def test_omni_python_import():
@@ -37,3 +28,17 @@ def test_omni_python_import():
 
 def test_omni_easybuild_import():
     from omni.software import easybuild_backend as easy
+
+
+## this won't work on Mac
+def test_easybuild_sys_toolchain_build():
+    run(
+        Snakefile=op.join("04_easybuild_build_envmodules", "Snakefile"),
+        produced=op.join("binutils-2.35.eb_ld.txt"),
+        expected=op.join(
+            "04_easybuild_build_envmodules",
+            "expected_results",
+            "binutils-2.35.eb_ld.txt",
+        ),
+        method="envmodules",
+    )

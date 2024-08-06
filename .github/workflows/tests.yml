@@ -10,10 +10,10 @@ on:
     paths:
       - .github/workflows/tests.yml
       - tests/**/*.py
-  pull_request:
-    paths:
-      - .github/workflows/tests.yml
-      - tests/**/*.py
+    pull_request:
+      paths:
+        - .github/workflows/tests.yml
+        - tests/**/*.py
 
 jobs:
   run-tests:
@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10"]
+        python-version: ["3.12"]
         poetry-version: ["1.8.0"]
     defaults:
       run:
