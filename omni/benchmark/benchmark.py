@@ -31,7 +31,7 @@ class Benchmark:
     def get_definition(self):
         return self.converter.get_definition()
 
-    def get_definition_file(self):
+    def get_definition_file(self) -> Path:
         return self.converter.benchmark_file
 
     def get_nodes(self):

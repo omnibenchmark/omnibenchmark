@@ -4,6 +4,7 @@ import hashlib
 import subprocess
 import logging
 import os
+from pathlib import Path
 from typing import List
 
 from git import Repo
@@ -21,20 +22,20 @@ def mock_execution(inputs: List[str], output: str, snakemake: Snakemake):
 
 
 def execution(
-    module_dir: str,
+    module_dir: Path,
     module_name: str,
-    output_dir: str,
+    output_dir: Path,
     dataset: str,
     inputs_map: dict[str, str],
     parameters: List[str],
 ):
-    run_sh = os.path.join(module_dir, "run.sh")
+    run_sh = module_dir / "run.sh"
     if not os.path.exists(run_sh):
         logging.error(f"ERROR: {module_name} run.sh script does not exist.")
         raise RuntimeError(f"{module_name} run.sh script does not exist")
 
     # Constructing the command list
-    command = [run_sh, output_dir, dataset]
+    command = [run_sh.as_posix(), output_dir.as_posix(), dataset]
 
     # Adding input files with their respective keys
     if inputs_map:
@@ -47,6 +48,7 @@ def execution(
 
     try:
         # Execute the shell script
+        print(command)
         result = subprocess.run(command, check=True, capture_output=True, text=True)
         return result.stdout
 
@@ -67,18 +69,18 @@ def generate_unique_repo_folder_name(repo_url, commit_hash):
     return folder_name
 
 
-def clone_module(output_dir: str, repository_url: str, commit_hash: str):
+def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
     module_name = generate_unique_repo_folder_name(repository_url, commit_hash)
-    module_dir = os.path.join(output_dir, module_name)
+    module_dir = output_dir / module_name
 
-    if not os.path.exists(module_dir):
+    if not module_dir.exists():
         logging.info(
-            f"Cloning module `{repository_url}:{commit_hash}` to `{module_dir}`"
+            f"Cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
         )
-        repo = Repo.clone_from(repository_url, module_dir)
+        repo = Repo.clone_from(repository_url, module_dir.as_posix())
         repo.git.checkout(commit_hash)
     else:
-        repo = Repo(module_dir)
+        repo = Repo(module_dir.as_posix())
 
     if repo.head.commit.hexsha[:7] != commit_hash:
         logging.error(
@@ -122,15 +124,15 @@ try:
     dump_parameters_to_file(output_dir, parameters)
 
     # Clone github repository
-    repositories_dir = os.path.join(".snakemake", "repos")
+    repositories_dir = Path(".snakemake") / "repos"
     module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 
     # Execute module code
     module_name = snakemake.rule
 
-    output_dir = os.path.commonpath(snakemake.output)
+    output_dir = Path(str(os.path.commonpath(snakemake.output)))
     if len(snakemake.output) == 1:
-        output_dir = os.path.dirname(output_dir)
+        output_dir = Path(os.path.dirname(output_dir))
 
     execution(
         module_dir,

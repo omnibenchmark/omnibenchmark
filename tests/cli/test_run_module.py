@@ -3,8 +3,8 @@ from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
 
-benchmark_path = Path(__file__).parent / "../"
-benchmark_data_path = benchmark_path / "data/"
+benchmark_path = Path(__file__).parent / ".."
+benchmark_data_path = benchmark_path / "data"
 
 
 def test_default():
@@ -17,7 +17,7 @@ def test_default():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
             ]
@@ -36,7 +36,7 @@ def test_multiple_behaviours_set():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--all",
@@ -58,7 +58,7 @@ def test_behaviour_example():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--example",
@@ -79,7 +79,7 @@ def test_behaviour_all():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--all",
@@ -100,11 +100,11 @@ def test_benchmark_not_found():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/does_not_exist.yaml",
+                str(benchmark_data_path / "does_not_exist.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
             ]
         )
         assert result.exit_code == 1
@@ -122,11 +122,11 @@ def test_benchmark_format_incorrect():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/benchmark_format_incorrect.yaml",
+                str(benchmark_data_path / "benchmark_format_incorrect.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
             ]
         )
         assert result.exit_code == 1
@@ -145,11 +145,11 @@ def test_module_not_found():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "not-existing",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
             ]
         )
         assert result.exit_code == 1
@@ -169,11 +169,11 @@ def test_behaviour_input():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
             ]
         )
         assert result.exit_code == 0
@@ -193,11 +193,11 @@ def test_behaviour_input_dry():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
                 "--dry",
             ]
         )
@@ -219,11 +219,11 @@ def test_behaviour_input_update_true():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}",
+                str(benchmark_path),
                 "--update",
             ],
             input="y",
@@ -244,11 +244,11 @@ def test_behaviour_input_update_false():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
                 "--update",
             ],
             input="N",
@@ -270,11 +270,11 @@ def test_behaviour_input_update_dry():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--input",
-                f"{benchmark_path}/",
+                str(benchmark_path),
                 "--update",
                 "--dry",
             ],
@@ -298,11 +298,11 @@ def test_behaviour_input_missing_input_dir():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/Benchmark_001.yaml",
+                str(benchmark_data_path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
                 "--input",
-                f"{benchmark_path}/data/D1/default/methods",
+                str(benchmark_path / "data" / "D1" / "default" / "methods"),
             ],
             input="y",
         )
@@ -324,11 +324,11 @@ def test_behaviour_input_missing_input_files():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/Benchmark_001.yaml",
+                str(benchmark_data_path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
                 "--input",
-                f"{benchmark_path}/data/D1/missing_files",
+                str(benchmark_path / "data" / "D1" / "missing_files"),
             ],
             input="y",
         )
@@ -349,11 +349,11 @@ def test_behaviour_input_nested_module_dry():
                 "run",
                 "module",
                 "--benchmark",
-                f"{benchmark_data_path}/Benchmark_001.yaml",
+                str(benchmark_data_path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
                 "--input",
-                f"{benchmark_path}/data/D1/default",
+                str(benchmark_path / "data" / "D1" / "default"),
                 "--dry",
             ],
             input="y",

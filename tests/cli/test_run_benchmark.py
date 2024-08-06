@@ -3,7 +3,7 @@ from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
 
-benchmark_data = "../data/"
+benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 
 
@@ -17,7 +17,7 @@ def test_default():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
             ]
         )
         assert result.exit_code == 1
@@ -34,7 +34,7 @@ def test_benchmark_not_found():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/does_not_exist.yaml",
+                str(benchmark_data_path / "does_not_exist.yaml"),
                 "--local",
             ]
         )
@@ -52,7 +52,7 @@ def test_benchmark_format_incorrect():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/benchmark_format_incorrect.yaml",
+                str(benchmark_data_path / "benchmark_format_incorrect.yaml"),
                 "--local",
             ]
         )
@@ -71,7 +71,7 @@ def test_local():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--local",
             ],
         )
@@ -90,7 +90,7 @@ def test_local_dry():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--local",
                 "--dry",
             ]
@@ -111,7 +111,7 @@ def test_local_update_true():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--local",
                 "--update",
             ],
@@ -132,7 +132,7 @@ def test_local_update_false():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--local",
                 "--update",
             ],
@@ -153,7 +153,7 @@ def test_local_dry_update():
                 "run",
                 "benchmark",
                 "--benchmark",
-                f"{benchmark_data_path}/mock_benchmark.yaml",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--local",
                 "--update",
                 "--dry",

@@ -9,7 +9,7 @@ from omni.utils import merge_dict_list, parse_instance
 
 class LinkMLConverter:
     def __init__(self, benchmark_file: Path):
-        self.benchmark_file = os.path.abspath(benchmark_file)
+        self.benchmark_file = benchmark_file
         self.model = parse_instance(benchmark_file, omni_schema.Benchmark)
 
     def get_name(self) -> str:

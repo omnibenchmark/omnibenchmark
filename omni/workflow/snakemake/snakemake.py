@@ -27,7 +27,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
-        work_dir: str = os.getcwd(),
+        work_dir: Path = Path(os.getcwd()),
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -60,7 +60,7 @@ class SnakemakeEngine(WorkflowEngine):
         return success
 
     def serialize_workflow(
-        self, benchmark: Benchmark, output_dir: str = os.getcwd()
+        self, benchmark: Benchmark, output_dir: Path = Path(os.getcwd())
     ) -> Path:
         """
         Serializes a Snakefile for the benchmark.
@@ -80,13 +80,13 @@ class SnakemakeEngine(WorkflowEngine):
         author = benchmark.get_benchmark_author()
 
         # Serialize Snakemake file
-        snakefile_path = os.path.join(output_dir, "Snakefile")
+        snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
         with open(snakefile_path, "w", encoding="utf-8") as f:
             self._write_snakefile_header(f, name, version, author)
             self._write_includes(f, INCLUDES)
 
             # Load benchmark from yaml file
-            f.write(f'benchmark = load("{benchmark_file}")\n\n')
+            f.write(f'benchmark = load("{benchmark_file.as_posix()}")\n\n')
 
             # Create capture all rule
             f.write("all_paths = sorted(benchmark.get_output_paths())\n")
@@ -102,12 +102,12 @@ class SnakemakeEngine(WorkflowEngine):
     def run_node_workflow(
         self,
         node: BenchmarkNode,
-        input_dir: str,
+        input_dir: Path,
         dataset: str,
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
-        work_dir: str = os.getcwd(),
+        work_dir: Path = Path(os.getcwd()),
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -151,7 +151,7 @@ class SnakemakeEngine(WorkflowEngine):
         return success
 
     def serialize_node_workflow(
-        self, node: BenchmarkNode, output_dir: str = os.getcwd()
+        self, node: BenchmarkNode, output_dir: Path = Path(os.getcwd())
     ) -> Path:
         """
         Serializes a Snakefile for a benchmark node.
@@ -171,13 +171,15 @@ class SnakemakeEngine(WorkflowEngine):
         author = node.get_benchmark_author()
 
         # Serialize Snakemake file
-        snakefile_path = os.path.join(output_dir, "Snakefile")
+        snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
         with open(snakefile_path, "w") as f:
             self._write_snakefile_header(f, name, version, author)
             self._write_includes(f, INCLUDES)
 
             # Load benchmark from yaml file
-            f.write(f'node = load_node("{benchmark_file}", "{node.get_id()}")\n\n')
+            f.write(
+                f'node = load_node("{benchmark_file.as_posix()}", "{node.get_id()}")\n\n'
+            )
 
             # Create capture all rule
             f.write("input_paths = node.get_input_paths(config)\n")
@@ -232,8 +234,8 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int,
         update: bool,
         dryrun: bool,
-        work_dir: str,
-        input_dir: Optional[str] = None,
+        work_dir: Path,
+        input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
         **snakemake_kwargs,
     ):
@@ -241,13 +243,13 @@ class SnakemakeEngine(WorkflowEngine):
 
         argv = [
             "--snakefile",
-            snakefile,
+            str(snakefile),
             "--cores",
             str(cores),
             "--directory",
-            work_dir,
+            str(work_dir),
             "--config",
-            f"input={input_dir}",
+            f"input={str(input_dir)}",
             f"dataset={dataset}",
         ]
 

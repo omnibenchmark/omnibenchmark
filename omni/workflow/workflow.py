@@ -13,7 +13,7 @@ class WorkflowEngine:
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
-        work_dir: str = os.getcwd(),
+        work_dir: Path = Path(os.getcwd()),
         **kwargs
     ) -> bool:
         """
@@ -33,7 +33,7 @@ class WorkflowEngine:
         raise NotImplementedError("Method not implemented yet")
 
     def serialize_workflow(
-        self, benchmark: Benchmark, output_dir: str = os.getcwd()
+        self, benchmark: Benchmark, output_dir: Path = Path(os.getcwd())
     ) -> Path:
         """
         Serializes a workflow file for the benchmark.
@@ -50,12 +50,12 @@ class WorkflowEngine:
     def run_node_workflow(
         self,
         node: BenchmarkNode,
-        input_dir: str,
+        input_dir: Path,
         dataset: str,
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
-        work_dir: str = os.getcwd(),
+        work_dir: Path = Path(os.getcwd()),
         **kwargs
     ) -> bool:
         """
@@ -77,7 +77,7 @@ class WorkflowEngine:
         raise NotImplementedError("Method not implemented yet")
 
     def serialize_node_workflow(
-        self, node: BenchmarkNode, output_dir: str = os.getcwd()
+        self, node: BenchmarkNode, output_dir: Path = Path(os.getcwd())
     ) -> Path:
         """
         Serializes a workflow file for a benchmark node.

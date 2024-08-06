@@ -264,7 +264,7 @@ def run_module(
                                 # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
                                 success = workflow.run_node_workflow(
                                     node=benchmark_node,
-                                    input_dir=input,
+                                    input_dir=Path(input),
                                     dataset=dataset,
                                     cores=1,
                                     update=update,
