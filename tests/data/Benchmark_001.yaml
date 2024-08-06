@@ -60,10 +60,9 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: ac5365e
     inputs:
-      - entries: [
-          data.counts,
-          data.meta
-        ]
+      - entries:
+          - data.counts
+          - data.meta
     outputs:
       - id: process.filtered
         path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
@@ -87,16 +86,14 @@ stages:
           url: https://github.com/omnibenchmark-example/method.git
           commit: 1004cdd
     inputs:
-      - entries: [
-          data.counts,
-          data.meta,
-          data.data_specific_params
-        ]
-      - entries: [
-          process.filtered,
-          data.meta,
-          data.data_specific_params
-        ]
+      - entries:
+          - data.counts
+          - data.meta
+          - data.data_specific_params
+      - entries:
+          - process.filtered
+          - data.meta
+          - data.data_specific_params
     outputs:
       - id: methods.mapping
         path: "{input}/{stage}/{module}/{params}/{dataset}.model.out.gz"
@@ -119,11 +116,10 @@ stages:
           url: https://github.com/omnibenchmark-example/metric.git
           commit: 5587457
     inputs:
-      - entries: [
-          methods.mapping,
-          data.meta,
-          data.data_specific_params
-      ]
+      - entries:
+          - methods.mapping
+          - data.meta
+          - data.data_specific_params
     outputs:
       - id: metrics.mapping
         path: "{input}/{stage}/{module}/{params}/{dataset}.results.txt"

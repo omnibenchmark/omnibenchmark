@@ -259,7 +259,7 @@ def run_module(
                             if file not in input_files
                         ]
 
-                        if len(missing_files) is 0:
+                        if len(missing_files) == 0:
                             for benchmark_node in benchmark_nodes:
                                 # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
                                 success = workflow.run_node_workflow(
