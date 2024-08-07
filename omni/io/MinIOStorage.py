@@ -231,7 +231,7 @@ class MinIOStorage(RemoteStorage):
             self.roclient = self.connect(readonly=True)
             self._get_versions()
 
-    def connect(self, readonly=False):
+    def connect(self, readonly=False) -> minio.Minio:
         """
         Connects to the MinIO storage.
 
@@ -265,7 +265,7 @@ class MinIOStorage(RemoteStorage):
         except Exception as e:
             raise e
 
-    def _create_benchmark(self, benchmark):
+    def _create_benchmark(self, benchmark) -> None:
         if self.client.bucket_exists(benchmark):
             raise ValueError("Benchmark already exists")
         # create new version
@@ -285,7 +285,7 @@ class MinIOStorage(RemoteStorage):
         if not self.client.bucket_exists(benchmark):
             raise Exception(f"Bucket creation for benchmark {benchmark} failed")
 
-    def _get_versions(self):
+    def _get_versions(self) -> None:
         versionobjects = list(
             self.roclient.list_objects(
                 self.benchmark, prefix="versions", recursive=True
@@ -300,7 +300,7 @@ class MinIOStorage(RemoteStorage):
                 versions.append(Version(version))
         self.versions = versions
 
-    def create_new_version(self):
+    def create_new_version(self) -> None:
         if self.version is None:
             raise ValueError(
                 "No version provided, set version first with method 'set_version'"
@@ -360,7 +360,7 @@ class MinIOStorage(RemoteStorage):
         if not self.version in self.versions:
             raise ValueError("Version creation failed")
 
-    def _get_objects(self):
+    def _get_objects(self) -> None:
         if self.version is None:
             raise ValueError("No version provided")
 
@@ -400,7 +400,7 @@ class MinIOStorage(RemoteStorage):
 
         self.files = objdict
 
-    def download_object(self, object_name: str, local_path: str):
+    def download_object(self, object_name: str, local_path: str) -> None:
         if self.version is None:
             raise ValueError("No version provided")
         if self.files is None:
