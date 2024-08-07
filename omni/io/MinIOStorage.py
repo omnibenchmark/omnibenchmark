@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import Dict
+from typing import Dict, List, Union
 from urllib.parse import urlparse
 
 import boto3
@@ -24,7 +24,20 @@ logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-def get_s3_object_versions_and_tags(client, benchmark, readonly=False):
+def get_s3_object_versions_and_tags(
+    client: minio.Minio, benchmark: str, readonly: bool = False
+) -> Dict:
+    """
+    Retrieve the metadata of all objects in a S3 Bucket.
+
+    Args:
+    - client: A MinIO client object.
+    - benchmark: The name of the S3 bucket.
+    - readonly: A boolean indicating whether the client is read-only. Object tags can only be retrieved if the client is not read-only.
+
+    Returns:
+    - A dictionary of objects and associated metadata.
+    """
     if not client.bucket_exists(benchmark):
         raise ValueError(f"Benchmark {benchmark} does not exist.")
 
@@ -33,125 +46,151 @@ def get_s3_object_versions_and_tags(client, benchmark, readonly=False):
             benchmark, include_version=True, include_user_meta=True, recursive=True
         )
     )
-    object_names = [x.object_name for x in object_ls]
-    version_ids = [x.version_id for x in object_ls]
-    sizes = [x.size for x in object_ls]
-    last_modified = [x.last_modified for x in object_ls]
-    uq_names = list(set(object_names))
+    from itertools import groupby
+
+    # Group listed objects by their name
+    grouped_objects = groupby(object_ls, key=lambda o: o.object_name)
 
     di = {}
-    for uq in uq_names:
-        di[uq] = {}
-        # tv = [v for v,n in zip(version_ids,object_names) if n == uq]
-        tmpinds = [i for i, n in enumerate(object_names) if n == uq]
-        tv = [version_ids[i] for i in tmpinds]
-        ts = [sizes[i] for i in tmpinds]
-        tlm = [last_modified[i] for i in tmpinds]
-        tdl = [object_ls[i].is_delete_marker for i in tmpinds]
-        etl = [object_ls[i].etag for i in tmpinds]
-        for j, v in enumerate(tv):
+
+    # Iterate over object groups
+    for object_name, objects in grouped_objects:
+        objects = list(objects)
+        di[object_name] = {}
+
+        # Extract attributes for the objects group
+        version_ids = [o.version_id for o in objects]
+        sizes = [o.size for o in objects]
+        last_modified = [o.last_modified for o in objects]
+        is_delete_markers = [o.is_delete_marker for o in objects]
+        etags = [o.etag for o in objects]
+
+        # Iterate to all versions and create a dictionary entry
+        for i, v in enumerate(version_ids):
             tags_filt = {}
-            if not readonly:
-                if not tdl[j]:
-                    tags = client.get_object_tags(benchmark, uq, version_id=v)
-                    if not tags is None:
-                        for k, w in tags.items():
-                            if is_valid_version(k):
-                                tags_filt[k] = w
-            di[uq][v] = {}
-            di[uq][v]["tags"] = tags_filt
-            tmpinds2 = [i for i, tvers in enumerate(tv) if tvers == v]
-            di[uq][v]["size"] = ts[tmpinds2[0]]
-            di[uq][v]["last_modified"] = tlm[tmpinds2[0]]
-            di[uq][v]["is_delete_marker"] = tdl[tmpinds2[0]]
-            di[uq][v]["etag"] = etl[tmpinds2[0]]
+            if not readonly and not is_delete_markers[i]:
+                tags = client.get_object_tags(benchmark, object_name, version_id=v)
+                if tags is not None:
+                    tags_filt = {k: w for k, w in tags.items() if is_valid_version(k)}
+
+            di[object_name][v] = {
+                "tags": tags_filt,
+                "size": sizes[i],
+                "last_modified": last_modified[i],
+                "is_delete_marker": is_delete_markers[i],
+                "etag": etags[i],
+            }
     return di
 
 
 def get_s3_objects_to_tag(
-    objdic, tracked_dirs=S3_DEFAULT_STORAGE_OPTIONS["tracked_directories"]
-):
+    objdic: Dict, tracked_dirs: List = S3_DEFAULT_STORAGE_OPTIONS["tracked_directories"]
+) -> List:
+    """
+    Get a list of objects that need to be tagged with the current version.
+
+    Args:
+    - objdic: A dictionary of objects and associated metadata.
+    - tracked_dirs: A list of directories to track.
+
+    Returns:
+    - A list of object names and a list of version ids.
+    """
     object_names = sorted(list(objdic.keys()))
-    newest_versions = []
-    for uq in object_names:
-        subdatetimels = []
-        for v in objdic[uq].keys():
-            subdatetimels.append(objdic[uq][v]["last_modified"])
-        maxind = [k for k, sd in enumerate(subdatetimels) if sd == max(subdatetimels)][
-            0
-        ]
-        newest_versions.append(list(objdic[uq].keys())[maxind])
-
-    newest_version_exists = []
-    for uq, v in zip(object_names, newest_versions):
-        newest_version_exists.append(not objdic[uq][v]["is_delete_marker"])
-
-    is_tracked_basedirls = []
-    for n in object_names:
+    object_names_to_tag = []
+    versionid_of_objects_to_tag = []
+    for object_name in object_names:
+        # get newest version
+        newest_version = sorted(
+            objdic[object_name].items(),
+            key=lambda it: it[1]["last_modified"],
+            reverse=True,
+        )[0][0]
         # get root directory
-        while not os.path.split(n)[0] == "":
-            n = os.path.split(n)[0]
-        if n in tracked_dirs:
-            is_tracked_basedirls.append(True)
-        else:
-            is_tracked_basedirls.append(False)
-
-    do_tag = []
-    for nve, itb in zip(newest_version_exists, is_tracked_basedirls):
-        if nve and itb:
-            do_tag.append(True)
-        else:
-            do_tag.append(False)
-    object_names_to_tag = [n for n, dt in zip(object_names, do_tag) if dt]
-    versionid_of_objects_to_tag = [
-        newest_versions[i] for i, dt in enumerate(do_tag) if dt
-    ]
+        object_name_red = object_name
+        while not os.path.split(object_name_red)[0] == "":
+            object_name_red = os.path.split(object_name_red)[0]
+            if object_name_red in tracked_dirs:
+                break
+        # check if newest version exists and
+        # if object is in tracked directories
+        if (object_name_red in tracked_dirs) and (
+            not objdic[object_name][newest_version]["is_delete_marker"]
+        ):
+            object_names_to_tag.append(object_name)
+            versionid_of_objects_to_tag.append(newest_version)
     return object_names_to_tag, versionid_of_objects_to_tag
 
 
-def get_single_s3version_from_bmversion(di, object_name, query_version):
-    return list(
+def get_single_s3version_from_bmversion(
+    di: Dict, object_name: str, query_version: str
+) -> Union[str, None]:
+    """
+    Get the object version where the tag matches the benchmark version.
+
+    Args:
+    - di: A dictionary of objects and associated metadata.
+    - object_name: The name of the object.
+    - query_version: The benchmark version to query.
+
+    Returns:
+    - The object version or None where the tag matches the benchmark version.
+    """
+    version_ls = list(
         filter(
             lambda v: query_version in di[object_name][v]["tags"].keys(),
             di[object_name].keys(),
         )
     )
+    if len(version_ls) > 1:
+        raise ValueError(f"Multiple versions found for object {object_name}")
+    return version_ls[0] if version_ls else None
 
 
-def get_s3version_from_bmversion(di, query_version):
-    vv_ls = []
-    for uq in di.keys():
-        tmpv = get_single_s3version_from_bmversion(di, uq, query_version)
-        if len(tmpv) == 0:
-            continue
-        elif len(tmpv) > 1:
-            raise ValueError("Multiple versions found")
-        else:
-            vv_ls.append(
-                [
-                    uq,
-                    tmpv[0],
-                    di[uq][tmpv[0]]["last_modified"],
-                    di[uq][tmpv[0]]["size"],
-                    di[uq][tmpv[0]]["etag"],
-                ]
-            )
-    return vv_ls
+def get_s3version_from_bmversion(di: Dict, query_version: str) -> List:
+    """
+    Get the versions of all objects where the tag matches the benchmark version.
+
+    Args:
+    - di: A dictionary of objects and associated metadata.
+    - query_version: The benchmark version to query.
+
+    Returns:
+    - A list of objects and associated versions where the tag matches the benchmark
+    """
+    summary_ls = []
+    for object_name in di.keys():
+        version_id = get_single_s3version_from_bmversion(di, object_name, query_version)
+        summary_ls.append(
+            [
+                object_name,
+                version_id,
+                di[object_name][version_id]["last_modified"],
+                di[object_name][version_id]["size"],
+                di[object_name][version_id]["etag"],
+            ]
+        )
+    return summary_ls
 
 
-def prepare_csv_s3version_from_bmversion(vv_ls):
+def prepare_csv_s3version_from_bmversion(summary_ls: List) -> str:
+    """
+    Prepare a CSV string from a list of objects and associated versions.
+    """
     outstr = "name,version_id,last_modified,size,etag\n"
-    for vv in vv_ls:
-        outstr += f"{vv[0]},{vv[1]},{vv[2]},{vv[3]},{vv[4]}\n"
+    for element in summary_ls:
+        outstr += f"{element[0]},{element[1]},{element[2]},{element[3]},{element[4]}\n"
     return outstr
 
 
-def set_bucket_public_readonly(client, bucket_name):
+def set_bucket_public_readonly(client: minio.Minio, bucket_name: str):
     policy = bucket_readonly_policy(bucket_name)
     client.set_bucket_policy(bucket_name, json.dumps(policy))
 
 
-def set_bucket_lifecycle_config(client, bucket_name, noncurrent_days=1):
+def set_bucket_lifecycle_config(
+    client: minio.Minio, bucket_name: str, noncurrent_days: int = 1
+):
     lifecycle_config = minio.lifecycleconfig.LifecycleConfig(
         [
             minio.lifecycleconfig.Rule(
