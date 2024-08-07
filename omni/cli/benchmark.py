@@ -1,5 +1,8 @@
 """cli commands related to benchmark infos and stats"""
 
+import datetime
+import difflib
+
 import typer
 from packaging.version import Version
 from typing_extensions import Annotated
@@ -67,6 +70,59 @@ def diff_benchmark(
     """Show differences between 2 benchmark versions."""
     typer.echo(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
+    )
+    if __name__ == "__main__":
+        # TODO: for testing until get_bench_definition is implemented
+        minio_auth_options_public = {
+            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
+            "secure": False,
+        }
+        bench_yaml = {
+            "auth_options": minio_auth_options_public,
+            "storage_type": "minio",
+        }
+        benchmark = "testversioning2"
+        version1 = "0.1"
+        version2 = "0.2"
+    # setup storage
+    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
+
+    # get objects for first version
+    ss.set_version(version1)
+    ss._get_objects()
+    files_v1 = [
+        f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        for f in ss.files.items()
+    ]
+    creation_time_v1 = datetime.datetime.fromisoformat(
+        ss.files[f"versions/{version1}.csv"]["last_modified"]
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    # get objects for second version
+    ss.set_version(version2)
+    ss._get_objects()
+    files_v2 = [
+        f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        for f in ss.files.items()
+    ]
+    creation_time_v2 = datetime.datetime.fromisoformat(
+        ss.files[f"versions/{version2}.csv"]["last_modified"]
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    # diff the two versions
+    typer.echo(
+        "".join(
+            list(
+                difflib.unified_diff(
+                    files_v1,
+                    files_v2,
+                    fromfile=f"version {version1}",
+                    tofile=f"version {version2}",
+                    fromfiledate=creation_time_v1,
+                    tofiledate=creation_time_v2,
+                )
+            )
+        )
     )
 
 

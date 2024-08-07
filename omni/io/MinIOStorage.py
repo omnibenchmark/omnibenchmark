@@ -171,15 +171,16 @@ def get_s3version_from_bmversion(di: Dict, query_version: str) -> List:
     summary_ls = []
     for object_name in di.keys():
         version_id = get_single_s3version_from_bmversion(di, object_name, query_version)
-        summary_ls.append(
-            [
-                object_name,
-                version_id,
-                di[object_name][version_id]["last_modified"],
-                di[object_name][version_id]["size"],
-                di[object_name][version_id]["etag"],
-            ]
-        )
+        if version_id is not None:
+            summary_ls.append(
+                [
+                    object_name,
+                    version_id,
+                    di[object_name][version_id]["last_modified"],
+                    di[object_name][version_id]["size"],
+                    di[object_name][version_id]["etag"],
+                ]
+            )
     return summary_ls
 
 
@@ -400,6 +401,18 @@ class MinIOStorage(RemoteStorage):
                 objdict[tmpsplit[0]] = {}
                 for i, head in enumerate(header[1:]):
                     objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
+
+            # add overview file to files
+            response_headers = response.getheaders()
+            objdict[f"versions/{self.version}.csv"] = {
+                "version_id": response_headers.get("x-amz-version-id"),
+                # some parsing of date to get to consistent format
+                "last_modified": datetime.datetime.strptime(
+                    response_headers.get("last-modified"), "%a, %d %b %Y %H:%M:%S GMT"
+                ).strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),
+                "size": response_headers.get("content-length"),
+                "etag": response_headers.get("etag").replace('"', ""),
+            }
         else:
             # get all objects
             objdic = get_s3_object_versions_and_tags(
