@@ -5,6 +5,7 @@ import sys
 import pytest
 from packaging.version import Version
 
+from omni.io.exception import RemoteStorageInvalidInputException
 from omni.io.MinIOStorage import MinIOStorage
 from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
@@ -74,7 +75,7 @@ class TestMinIOStorage:
     def test__create_new_version_fail_if_no_version_provided(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_base)
-        with pytest.raises(ValueError):
+        with pytest.raises(RemoteStorageInvalidInputException):
             ss.create_new_version()
 
     def test__create_new_version_success_if_version_provided(self):

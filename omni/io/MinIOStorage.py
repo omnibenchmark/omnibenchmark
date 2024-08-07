@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+from itertools import groupby
 from typing import Dict, List, Union
 from urllib.parse import urlparse
 
@@ -15,6 +16,12 @@ import minio.commonconfig
 import minio.retention
 from packaging.version import Version
 
+from omni.io.exception import (
+    MinIOStorageBucketManipulationException,
+    MinIOStorageConnectionException,
+    MinIOStorageVersioningCorruptionException,
+    RemoteStorageInvalidInputException,
+)
 from omni.io.RemoteStorage import RemoteStorage, is_valid_version
 from omni.io.S3config import S3_DEFAULT_STORAGE_OPTIONS, bucket_readonly_policy
 
@@ -39,14 +46,15 @@ def get_s3_object_versions_and_tags(
     - A dictionary of objects and associated metadata.
     """
     if not client.bucket_exists(benchmark):
-        raise ValueError(f"Benchmark {benchmark} does not exist.")
+        raise MinIOStorageBucketManipulationException(
+            f"Benchmark {benchmark} does not exist."
+        )
 
     object_ls = list(
         client.list_objects(
             benchmark, include_version=True, include_user_meta=True, recursive=True
         )
     )
-    from itertools import groupby
 
     # Group listed objects by their name
     grouped_objects = groupby(object_ls, key=lambda o: o.object_name)
@@ -143,7 +151,9 @@ def get_single_s3version_from_bmversion(
         )
     )
     if len(version_ls) > 1:
-        raise ValueError(f"Multiple versions found for object {object_name}")
+        raise MinIOStorageVersioningCorruptionException(
+            f"Multiple versions found for object {object_name}"
+        )
     return version_ls[0] if version_ls else None
 
 
@@ -262,12 +272,14 @@ class MinIOStorage(RemoteStorage):
     def _test_connect(self) -> None:
         try:
             _ = self.client.list_objects(self.benchmark)
-        except Exception as e:
+        except MinIOStorageConnectionException as e:
             raise e
 
     def _create_benchmark(self, benchmark) -> None:
         if self.client.bucket_exists(benchmark):
-            raise ValueError("Benchmark already exists")
+            raise MinIOStorageBucketManipulationException(
+                f"Benchmark {benchmark} already exists."
+            )
         # create new version
         self.client.make_bucket(bucket_name=benchmark, object_lock=True)
         if self.client._base_url.is_aws_host:
@@ -283,7 +295,9 @@ class MinIOStorage(RemoteStorage):
         #     self.benchmark, "versions/.ignore.csv", io.BytesIO(b""), 0
         # )
         if not self.client.bucket_exists(benchmark):
-            raise Exception(f"Bucket creation for benchmark {benchmark} failed")
+            raise MinIOStorageBucketManipulationException(
+                f"Bucket creation for benchmark {benchmark} failed"
+            )
 
     def _get_versions(self) -> None:
         versionobjects = list(
@@ -302,17 +316,21 @@ class MinIOStorage(RemoteStorage):
 
     def create_new_version(self) -> None:
         if self.version is None:
-            raise ValueError(
+            raise RemoteStorageInvalidInputException(
                 "No version provided, set version first with method 'set_version'"
             )
 
         if not "access_key" in self.auth_options.keys():
-            raise ValueError("Read-only mode, cannot create new version")
+            raise RemoteStorageInvalidInputException(
+                "Read-only mode, cannot create new version, set access_key and secret_key in auth_options"
+            )
 
         # update
         self._get_versions()
         if self.version in self.versions:
-            raise ValueError("Version already exists")
+            raise RemoteStorageInvalidInputException(
+                "Version already exists, set new version with method 'set_version'"
+            )
 
         # get all objects
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
@@ -358,11 +376,13 @@ class MinIOStorage(RemoteStorage):
         # check if version exists
         self._get_versions()
         if not self.version in self.versions:
-            raise ValueError("Version creation failed")
+            raise MinIOStorageBucketManipulationException("Version creation failed")
 
     def _get_objects(self) -> None:
         if self.version is None:
-            raise ValueError("No version provided")
+            raise RemoteStorageInvalidInputException(
+                "No version provided, set version first with method 'set_version'"
+            )
 
         if self.version in self.versions:
             # read overview file
@@ -402,13 +422,15 @@ class MinIOStorage(RemoteStorage):
 
     def download_object(self, object_name: str, local_path: str) -> None:
         if self.version is None:
-            raise ValueError("No version provided")
+            raise RemoteStorageInvalidInputException(
+                "No version provided. Set version first with method 'set_version'"
+            )
         if self.files is None:
             self._get_objects()
         if self.files is None:
-            raise ValueError("No objects found")
+            raise RemoteStorageInvalidInputException("No objects found")
         if object_name not in self.files.keys():
-            raise ValueError("Object not found")
+            raise RemoteStorageInvalidInputException(f"Object {object_name} not found")
         _ = self.roclient.fget_object(
             self.benchmark,
             object_name,

@@ -6,6 +6,8 @@ from typing import Dict, Union
 import packaging.version
 from packaging.version import Version
 
+from omni.io.exception import RemoteStorageInvalidInputException
+
 DEFAULT_STORAGE_OPTIONS = {"tracked_directories": ["out", "versions"]}
 
 
@@ -57,17 +59,21 @@ class RemoteStorage(metaclass=ABCMeta):
 
     def _parse_benchmark(self, benchmark: str) -> None:
         if not type(benchmark) is str:
-            raise ValueError("benchmark must be a string")
+            raise RemoteStorageInvalidInputException("benchmark must be a string")
         self.benchmark = benchmark
 
     def _parse_auth_options(self, auth_options: Dict) -> None:
         if not type(auth_options) is dict:
-            raise ValueError("auth_options must be a dictionary")
+            raise RemoteStorageInvalidInputException(
+                "auth_options must be a dictionary"
+            )
         self.auth_options = auth_options
 
     def _parse_storage_options(self, storage_options: Dict) -> None:
         if not type(storage_options) is dict:
-            raise ValueError("storage_options must be a dictionary")
+            raise RemoteStorageInvalidInputException(
+                "storage_options must be a dictionary"
+            )
         self.storage_options = {**DEFAULT_STORAGE_OPTIONS, **storage_options}
 
     @abstractmethod
@@ -121,7 +127,7 @@ class RemoteStorage(metaclass=ABCMeta):
             Version: The parsed version.
 
         Raises:
-            ValueError: If an invalid version is provided.
+            RemoteStorageInvalidInputException: If an invalid version is provided.
         """
         if self.versions == []:
             self._get_versions()
@@ -145,7 +151,7 @@ class RemoteStorage(metaclass=ABCMeta):
             version (None or str, optional): The version number as a string. Defaults to None which sets the latest version.
 
         Raises:
-            ValueError: If version does not exist in the available versions.
+            RemoteStorageInvalidInputException: If version does not exist in the available versions.
         """
         self.version = self._parse_version(version)
 
