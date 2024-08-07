@@ -129,15 +129,10 @@ class RemoteStorage(metaclass=ABCMeta):
             if self.versions == []:
                 version_out = Version("0.1")
             else:
-                version_out = max(self.versions)
-                if version_out.minor > 98:
-                    raise ValueError(
-                        f"Minor Version {version_out.minor} cannot be incremented. Please increment the major version."
-                    )
-                else:
-                    version_out = Version(
-                        f"{version_out.major}.{version_out.minor + 1}"
-                    )
+                max_current_version = max(self.versions)
+                version_out = Version(
+                    f"{max_current_version.major}.{max_current_version.minor + 1}"
+                )
         else:
             version_out = Version(version)
         return version_out
