@@ -33,14 +33,16 @@ def test_run_node_workflow_001():
             / "param_1"
         )
         assert os.path.exists(process_P1_output)
-        shutil.rmtree(process_P1_output)
+        shutil.rmtree(process_P1_output, onerror=setup._remove_readonly)
 
         # Then run the workflow for the missing computational node
         benchmark_node_3 = benchmark_nodes[3]
         input_dir = Path(os.getcwd()) / "out" / "data" / "D1" / "default"
-        assert setup.workflow.run_node_workflow(
+        success = setup.workflow.run_node_workflow(
             benchmark_node_3, input_dir=input_dir, dataset="D1"
         )
+
+        assert success == 1
 
 
 @pytest.mark.skip(reason="Benchmark_002 is not working properly yet")
@@ -57,4 +59,4 @@ def test_run_node_workflow_002():
 
         benchmark_node_3 = benchmark_nodes[3]
         success = setup.workflow.run_node_workflow(benchmark_node_3)
-        assert success
+        assert success == 1

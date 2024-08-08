@@ -44,7 +44,7 @@ def execution(
     # Adding input files with their respective keys
     if inputs_map:
         for k, v in inputs_map.items():
-            command.extend([f"--{k}", v])
+            command.extend([f"--{k}", Path(v).as_posix()])
 
     # Adding extra parameters
     if parameters:
@@ -84,13 +84,13 @@ def _create_command(executable_path: Path) -> list[str]:
 
     if extension == ".py":
         # Execute Python script
-        return ["python3", executable_path]
+        return ["python3", executable_path.as_posix()]
     elif extension == ".R":
         # Execute R script
-        return ["Rscript", executable_path]
+        return ["Rscript", executable_path.as_posix()]
     elif extension == ".sh":
         # Execute shell script
-        return ["sh", executable_path]
+        return ["sh", executable_path.as_posix()]
     else:
         logging.error(
             f"ERROR: Unsupported script extension: {extension}. Only Python/R/Shell scripts are supported."
