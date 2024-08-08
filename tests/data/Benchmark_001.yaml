@@ -26,13 +26,13 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 41aaa0a
+          commit: 63b7b36
       - id: D2
         name: "Dataset 2"
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 41aaa0a
+          commit: 63b7b36
     outputs:
       - id: data.counts
         path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
@@ -50,7 +50,7 @@ stages:
           - values: ["-a 1", "-b 0.1"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: ac5365e
+          commit: aeec1db
       - id: P2
         software_environment: "R"
         parameters:
@@ -58,7 +58,7 @@ stages:
           - values: ["-a 1", "-b 0.1"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: ac5365e
+          commit: aeec1db
     inputs:
       - entries:
           - data.counts
@@ -74,7 +74,7 @@ stages:
         exclude: [ D2 ]
         repository:
           url: https://github.com/omnibenchmark-example/method.git
-          commit: 1004cdd
+          commit: 8f2f835
       - id: M2
         software_environment: "python"
         parameters:
@@ -84,7 +84,7 @@ stages:
           - D1
         repository:
           url: https://github.com/omnibenchmark-example/method.git
-          commit: 1004cdd
+          commit: 8f2f835
     inputs:
       - entries:
           - data.counts
@@ -104,17 +104,17 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
-          commit: 5587457
+          commit: 579c643
       - id: m2
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
-          commit: 5587457
+          commit: 579c643
       - id: m3
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
-          commit: 5587457
+          commit: 579c643
     inputs:
       - entries:
           - methods.mapping

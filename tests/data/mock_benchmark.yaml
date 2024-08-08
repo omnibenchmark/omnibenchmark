@@ -20,4 +20,4 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 41aaa0a
+          commit: 63b7b36

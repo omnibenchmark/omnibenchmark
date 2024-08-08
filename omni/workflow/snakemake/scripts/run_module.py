@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import hashlib
-import subprocess
 import logging
 import os
 from pathlib import Path
@@ -10,55 +9,7 @@ from typing import List
 from git import Repo
 from snakemake.script import Snakemake
 
-
-def mock_execution(inputs: List[str], output: str, snakemake: Snakemake):
-    print("Processed", inputs, "to", output, "using threads", snakemake.threads)
-    print("  bench_iteration is", snakemake.bench_iteration)
-    print("  resources are", snakemake.resources)
-    print("  wildcards are", snakemake.wildcards)
-    print("  rule is", snakemake.rule)
-    print("  scriptdir is", snakemake.scriptdir)
-    print("  params are", snakemake.params)
-
-
-def execution(
-    module_dir: Path,
-    module_name: str,
-    output_dir: Path,
-    dataset: str,
-    inputs_map: dict[str, str],
-    parameters: List[str],
-):
-    run_sh = module_dir / "run.sh"
-    if not os.path.exists(run_sh):
-        logging.error(f"ERROR: {module_name} run.sh script does not exist.")
-        raise RuntimeError(f"{module_name} run.sh script does not exist")
-
-    # Constructing the command list
-    command = [run_sh.as_posix(), output_dir.as_posix(), dataset]
-
-    # Adding input files with their respective keys
-    if inputs_map:
-        for k, v in inputs_map.items():
-            command.extend([f"--{k}", v])
-
-    # Adding extra parameters
-    if parameters:
-        command.extend(parameters)
-
-    try:
-        # Execute the shell script
-        print(command)
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-        return result.stdout
-
-    except subprocess.CalledProcessError as e:
-        logging.error(
-            f"ERROR: Executing {run_sh} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
-        )
-        raise RuntimeError(
-            f"ERROR: Executing {run_sh} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
-        ) from e
+from omni.workflow.snakemake.scripts.execution import execution
 
 
 # Create a unique folder name based on the repository URL and commit hash
