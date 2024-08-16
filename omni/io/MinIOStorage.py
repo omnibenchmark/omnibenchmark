@@ -7,7 +7,7 @@ import logging
 import os
 import re
 from itertools import groupby
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 from urllib.parse import urlparse
 
 import boto3
@@ -93,7 +93,7 @@ def get_s3_object_versions_and_tags(
 
 def get_s3_objects_to_tag(
     objdic: Dict, tracked_dirs: List = S3_DEFAULT_STORAGE_OPTIONS["tracked_directories"]
-) -> List:
+) -> Tuple[List, List]:
     """
     Get a list of objects that need to be tagged with the current version.
 
@@ -127,6 +127,17 @@ def get_s3_objects_to_tag(
         ):
             object_names_to_tag.append(object_name)
             versionid_of_objects_to_tag.append(newest_version)
+    return object_names_to_tag, versionid_of_objects_to_tag
+
+
+# TODO: filter objects based on workflow. Currently removing objects from a
+# benchmark is not possible.
+def filter_s3_objects_to_tag(
+    object_names_to_tag: List,
+    versionid_of_objects_to_tag: List,
+    filter_options: Union[Dict, None] = None,
+    object_name_list: Union[List, None] = None,
+) -> Tuple[List, List]:
     return object_names_to_tag, versionid_of_objects_to_tag
 
 
@@ -339,6 +350,12 @@ class MinIOStorage(RemoteStorage):
         # get objects to tag
         object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(
             objdic, tracked_dirs=self.storage_options["tracked_directories"]
+        )
+
+        # filter objects based on workflow
+        # TODO: implement
+        object_names_to_tag, versionid_of_objects_to_tag = filter_s3_objects_to_tag(
+            object_names_to_tag, versionid_of_objects_to_tag
         )
 
         # Tag all objects with current version
