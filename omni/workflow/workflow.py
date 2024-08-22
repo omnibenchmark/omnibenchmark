@@ -1,12 +1,13 @@
 import os.path
 from pathlib import Path
-
+from abc import ABCMeta, abstractmethod
 from omni.benchmark import Benchmark, BenchmarkNode
 
 
-class WorkflowEngine:
+class WorkflowEngine(metaclass=ABCMeta):
     """Interface for the workflow engine."""
 
+    @abstractmethod
     def run_workflow(
         self,
         benchmark: Benchmark,
@@ -32,6 +33,7 @@ class WorkflowEngine:
         """
         raise NotImplementedError("Method not implemented yet")
 
+    @abstractmethod
     def serialize_workflow(
         self, benchmark: Benchmark, output_dir: Path = Path(os.getcwd())
     ) -> Path:
@@ -47,6 +49,7 @@ class WorkflowEngine:
         """
         raise NotImplementedError("Method not implemented yet")
 
+    @abstractmethod
     def run_node_workflow(
         self,
         node: BenchmarkNode,
@@ -76,6 +79,7 @@ class WorkflowEngine:
         """
         raise NotImplementedError("Method not implemented yet")
 
+    @abstractmethod
     def serialize_node_workflow(
         self, node: BenchmarkNode, output_dir: Path = Path(os.getcwd())
     ) -> Path:
