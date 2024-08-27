@@ -335,7 +335,7 @@ uvloop = ["uvloop (>=0.15.2)"]
 name = "boto3"
 version = "1.35.6"
 description = "The AWS SDK for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "boto3-1.35.6-py3-none-any.whl", hash = "sha256:c35c560ef0cb0f133b6104bc374d60eeb7cb69c1d5d7907e4305a285d162bef0"},
@@ -354,7 +354,7 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 name = "botocore"
 version = "1.35.6"
 description = "Low-level, data-driven core of boto 3."
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "botocore-1.35.6-py3-none-any.whl", hash = "sha256:8378c6cfef2dee15eb7b3ebbb55ba9c1de959f231292039b81eb35b72c50ad59"},
@@ -1458,7 +1458,7 @@ i18n = ["Babel (>=2.7)"]
 name = "jmespath"
 version = "1.0.1"
 description = "JSON Matching Expressions"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980"},
@@ -3267,7 +3267,7 @@ files = [
 name = "s3transfer"
 version = "0.10.2"
 description = "An Amazon S3 Transfer Manager"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "s3transfer-0.10.2-py3-none-any.whl", hash = "sha256:eca1c20de70a39daee580aef4986996620f365c4e0fda6a86100231d62f1bf69"},
@@ -3945,4 +3945,4 @@ swift = ["python-swiftclient"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "d3744884d41d1340008b6816f753c81325481a1f2dfd202efbd38eb8d34c32df"
+content-hash = "c40141153590a3bc83a39da80775ac5253f987519971f9923551e76c2c48a99a"
