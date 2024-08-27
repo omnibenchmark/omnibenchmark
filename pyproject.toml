@@ -44,6 +44,9 @@ isort = "^5.13.2"
 testcontainers = "^4.5.1"
 ## io end -----------------
 
+matplotlib = "3.8.0"
+networkx = "^3.3"
+
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 black = "^23.12.0"
@@ -53,6 +56,7 @@ pytest-cov = "^4.1.0"
 pytest-split = "^0.9.0"
 pytest-xdist = "^3.6.1"
 genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
+argparse = "^1.4.0"
 
 [tool.poetry.scripts]
 ob = 'omni.cli.main:cli'
@@ -60,3 +64,6 @@ ob = 'omni.cli.main:cli'
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"
