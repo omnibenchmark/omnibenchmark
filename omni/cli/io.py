@@ -1,12 +1,18 @@
 """cli commands related to input/output files"""
 
-from pathlib import Path
 from typing import List, Optional
 from typing_extensions import Annotated
 
 import typer
 
-cli = typer.Typer(add_completion=False)
+cli = typer.Typer(
+    add_completion=True,
+    no_args_is_help=True,
+    pretty_exceptions_short=False,
+    rich_markup_mode=None,
+    pretty_exceptions_enable=False,
+    help="List, download and check input/output files.",
+)
 
 
 @cli.command("list")

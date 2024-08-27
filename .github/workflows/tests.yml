@@ -22,23 +22,32 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10"]
+        python-version: ["3.12"]
         poetry-version: ["1.8.0"]
+        r-version: ["4.3.3"]
     defaults:
       run:
         shell: bash
     runs-on: ${{ matrix.os }}
     steps:
       #----------------------------------------------
-      #       check-out repo and set-up python
+      #       check-out repo and set-up python, R
       #----------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v4
+
       - name: Set up python ${{ matrix.python-version }}
         id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Setup R ${{ matrix.r-version }}
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.r-version }}
+          # Enable RStudio Package Manager to speed up package installation
+          use-public-rspm: true
       #----------------------------------------------
       #  -----  install & configure poetry  -----
       #----------------------------------------------
@@ -51,22 +60,32 @@ jobs:
       #       load cached venv if cache exists
       #----------------------------------------------
       - name: Load cached venv
-        id: cached-poetry-dependencies
+        id: cached-dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          path: | 
+            .venv
+            ${{ env.R_LIBS_USER }}
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.r-version }}-${{ hashFiles('**/poetry.lock') }}
       #----------------------------------------------
       # install dependencies if cache does not exist
       #----------------------------------------------
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      - name: Install Poetry dependencies
+        if: steps.cached-dependencies.outputs.cache-hit != 'true'
         run: poetry install --all-extras --no-interaction --no-root
+
+      - name: Install R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::argparse
+
       #----------------------------------------------
       # install your root project, if required
       #----------------------------------------------
       - name: Install library
         run: poetry install --all-extras --no-interaction
+
       #----------------------------------------------
       # run test suite and output coverage file
       #----------------------------------------------
@@ -83,7 +102,7 @@ jobs:
       #----------------------------------------------
       # Report coverage
       #----------------------------------------------
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10' &&  matrix.poetry-version == '1.8.0' }}
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' &&  matrix.poetry-version == '1.8.0' }}
         name: Comment coverage result
         uses: MishaKav/pytest-coverage-comment@main
         with:
