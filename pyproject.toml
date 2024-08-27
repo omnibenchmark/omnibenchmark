@@ -1,9 +1,8 @@
-
 [tool.poetry]
 name = "omnibenchmark"
 version = "0.1.0"
 description = "An tool for automated scientific benchmarking"
-authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>"]
+authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>", "Daniel Incicau <daniel.incicau@gmail.com>"]
 readme = "README.md"
 packages = [{include = "omni"}]
 homepage = "https://github.com/omnibenchmark/omni-py"
@@ -17,19 +16,14 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.12" # so snmk >8 is installable
-setuptools="^72.1.0"
+python = "^3.12"
+
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
-typer = "^0.12.3"
-# typer-slim = {version = "^0.12.3"}
-# typer-cli = {version = "^0.12.3"}
-typing-extensions = "^4.11.0"
-snakemake="^8.11.6"
-snakedeploy="^0.10.0"
 
-## io start ----------------
+typer = {extras = ["all"], version = "^0.12.3"}
+typing-extensions = "^4.11.0"
+
 aiohttp = "^3.9.5"
 async = "^0.6.2"
 tqdm = "^4.66.4"
@@ -43,49 +37,22 @@ boto3 = {version = "^1.34.102", optional = true}
 pre-commit = "^3.7.1"
 isort = "^5.13.2"
 testcontainers = "^4.5.1"
-
-[tool.poetry.dependencies]
-python = "^3.12" # so snmk >8 is installable
-setuptools="^72.1.0"
-easybuild="^4.9.2"
-easybuild-easyblocks="^4.9.2"
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
-typer = "^0.12.3"
-
-typing-extensions = "^4.11.0"
-snakemake="^8.11.6"
-snakedeploy="^0.10.0"
-
-## io start ----------------
-aiohttp = "^3.9.5"
-async = "^0.6.2"
-tqdm = "^4.66.4"
-requests = "^2.31.0"
-bs4 = "^0.0.2"
-lxml = "^5.2.1"
-python-dateutil = "^2.9.0.post0"
-minio = "^7.2.7"
-python-swiftclient = { version = "^4.5.0", optional = true}
-boto3 = {version = "^1.34.102", optional = true}
-pre-commit = "^3.7.1"
-isort = "^5.13.2"
-testcontainers = "^4.5.1"
-## io end -----------------
 
 matplotlib = "3.8.0"
 networkx = "^3.3"
 
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.2"}
 snakemake = "^8.16.0"
+snakedeploy="^0.10.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 black = "^23.12.0"
-
-[tool.poetry.group.test.dependencies]
 pytest-cov = "^4.1.0"
 pytest-split = "^0.9.0"
 pytest-xdist = "^3.6.1"
+
+[tool.poetry.group.test.dependencies]
 genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
 argparse = "^1.4.0"
 
@@ -94,21 +61,11 @@ ob = 'omni.cli.main:cli'
 
 [build-system]
 requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"## io end -----------------
-
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^3.6.0"
-black = "^23.12.0"
-
-[tool.poetry.group.test.dependencies]
-pytest-cov = "^4.1.0"
-pytest-split = "^0.9.0"
-pytest-xdist = "^3.6.1"
-genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
-
-[tool.poetry.scripts]
-ob = 'omni.cli.main:cli'
-
-[build-system]
-requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.extras]
+s3 = ["boto3"]
+swift = ["python-swiftclient"]
+
+[tool.isort]
+profile = "black"
