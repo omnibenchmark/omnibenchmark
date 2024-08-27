@@ -21,10 +21,9 @@
 name: software
 
 on:
-  push:
-    branches: 
-      - sw_imallona
   pull_request:
+    branches:
+      - 'main'
 
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}

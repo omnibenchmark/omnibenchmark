@@ -21,11 +21,10 @@
 name: software
 
 on:
-  push:
-    branches:
-      - sw_imallona
   pull_request:
-
+    branches:
+      - 'main'  
+  
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -34,7 +33,7 @@ jobs:
   software_testing:
     strategy:
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-22.04, ubuntu-20.04]
         test_group: [1, 2]
         py_ver: ["3.12"]
       fail-fast: false
