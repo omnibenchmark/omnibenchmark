@@ -8,3 +8,5 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Add first version of remote storage backend
 - Draft easybuild and conda capabilities (for Linux)
 - Add workflow engine interface and Snakemake backend
+- Add workflow engine interface and Snakemake backend
+
