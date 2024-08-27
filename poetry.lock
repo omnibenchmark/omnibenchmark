@@ -2113,7 +2113,7 @@ files = [
 [[package]]
 name = "omni-schema"
 version = "0.0.1"
-description = "Data model foromnibenchmark."
+description = "Data model for omnibenchmark."
 optional = false
 python-versions = "^3.9"
 files = []
@@ -2128,8 +2128,8 @@ docs = []
 [package.source]
 type = "git"
 url = "https://github.com/omnibenchmark/omni-schema.git"
-reference = "version/0.0.2"
-resolved_reference = "07b3a7703e19b6013e59fbcf3a13c74d46a4ad10"
+reference = "version/0.0.3"
+resolved_reference = "b476584ba1d2237cdc25503ba174c812693ba366"
 
 [[package]]
 name = "packaging"
@@ -3625,4 +3625,4 @@ swift = ["python-swiftclient"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "2c9fd8d076084b00658b1e8b6912816918e54ee9f525b23c4c9c179652fdd09e"
+content-hash = "0b8dae2cbd838d48f31ec7c6e630be7da41cf2559272b3cedee55a0dee8cb159"

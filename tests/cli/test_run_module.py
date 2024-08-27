@@ -114,7 +114,7 @@ def test_benchmark_not_found():
 def test_benchmark_format_incorrect():
     expected_output = """
     Running module on a dataset provided in a custom directory.
-    Error: Failed to parse YAML as a valid OmniBenchmark: software_environments must be supplied.
+    Error: Failed to parse YAML as a valid OmniBenchmark: software_backend must be supplied.
     """
     with OmniCLISetup() as omni:
         result = omni.call(
