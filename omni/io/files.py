@@ -1,17 +1,9 @@
 """Functions to manage files"""
 
-import asyncio
-import re
 import warnings
-from pathlib import Path
-from typing import List, Union
-from urllib.parse import urlparse
+from typing import Union
 
-import aiohttp
-import requests
 import tqdm
-from bs4 import BeautifulSoup
-from packaging.version import Version
 
 from omni.io.utils import get_storage, md5
 from omni.sync import get_bench_definition
@@ -38,87 +30,24 @@ def list_files(
             "auth_options": minio_auth_options_public,
             "storage_type": "minio",
         }
+        benchmark = "testversioning"
+        version = "0.1"
 
     ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
     # set version
-    ss.set_current_version(version)
+    ss.set_version(version)
     # list objects of version
     ss._get_objects()
 
     # get urls
-    names = list(ss.files.keys())
+    objectnames = list(ss.files.keys())
+    etags = [ss.files[objectname]["etag"] for objectname in objectnames]
 
     # TODO: filter by arguments
-    # names = ...
+    # objectnames = ...
+    # etags = ...
 
-    # create urls
-    urls = {}
-    for name in names:
-        url = urlparse(
-            f"{ss.auth_options['endpoint']}/{ss.benchmark}.{ss.major_version}.{ss.minor_version}/{name}"
-        )
-        if "secure" in ss.auth_options.keys() and not ss.auth_options["secure"]:
-            url = url._replace(scheme="http")
-        else:
-            url = url._replace(scheme="https")
-        urls[name] = {
-            "url": url.geturl(),
-            "size": int(ss.files[name]["size"]),
-            "md5": ss.files[name]["hash"],
-        }
-    return urls
-
-
-# adapted from https://realpython.com/python-download-file-from-url/#performing-parallel-file-downloads
-async def retrieve_file(url: str):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            # to remove schema
-            urlp = urlparse(url)
-            # to remove benchmark name
-            filename = re.sub("^/[a-zA-Z0-9._-]*/", "", urlp.path)
-            # create missing directories
-            Path(filename).parent.mkdir(parents=True, exist_ok=True)
-            # download file
-            with open(filename, mode="wb") as file:
-                while True:
-                    chunk = await response.content.read()
-                    if not chunk:
-                        break
-                    file.write(chunk)
-            return response.headers
-
-
-async def retrieve_files(urls: List[str], verbose: bool = False):
-    if verbose:
-        print("Downloading files...")
-    tasks = [retrieve_file(url) for url in urls]
-    from tqdm.asyncio import tqdm_asyncio
-
-    headers = await tqdm_asyncio.gather(*tasks, delay=5, disable=not verbose)
-    return headers
-
-
-def get_file(url: Union[str, list[str]], verbose: bool = False):
-    """Download specific file(s) based on its url"""
-    if type(url) is str:
-        headers = asyncio.run(retrieve_file(url))
-        filenames = re.sub("^/[a-zA-Z0-9._-]*/", "", urlparse(url).path)
-    elif type(url) is list:
-        headers = asyncio.run(retrieve_files(url))
-        filenames = [re.sub("^/[a-zA-Z0-9._-]*/", "", urlparse(u).path) for u in url]
-    else:
-        raise ValueError("url must be a string or a list of strings")
-
-    # md5 checksum
-    if verbose:
-        print("Checking MD5 checksums...")
-    for i in tqdm.tqdm(len(filenames), delay=5, disable=not verbose):
-        md5sum_val = md5(filenames[i])
-        if not headers[i]["ETag"].replace('"', "") == md5sum_val:
-            warnings.warn(f"MD5 checksum failed for {filenames[i]}", Warning)
-
-    return filenames
+    return objectnames, etags
 
 
 def download_files(
@@ -131,8 +60,42 @@ def download_files(
     verbose: bool = False,
 ):
     """Download all available files for a certain benchmark, version and stage"""
-    urls = list_files(benchmark, type, stage, module, file_id, version, verbose=verbose)
-    filenames = get_file([urls[i]["url"] for i in urls.keys()], verbose=verbose)
+    objectnames, etags = list_files(
+        benchmark, type, stage, module, file_id, version, verbose=verbose
+    )
+
+    # storage path locally
+    filenames = objectnames
+
+    # TODO: for testing until get_bench_definition is implemented
+    if __name__ == "__main__":
+        minio_auth_options_public = {
+            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
+            "secure": False,
+        }
+        bench_yaml = {
+            "auth_options": minio_auth_options_public,
+            "storage_type": "minio",
+        }
+        benchmark = "testversioning"
+        version = "0.1"
+    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
+    ss.set_version(version)
+
+    for objectname, filename in tqdm.tqdm(
+        zip(objectnames, filenames), delay=5, disable=not verbose
+    ):
+        ss.download_object(objectname, filename)
+
+    if verbose:
+        print("Checking MD5 checksums...")
+    for etag, filename in tqdm.tqdm(
+        zip(etags, filenames), delay=5, disable=not verbose
+    ):
+        md5sum_val = md5(filename)
+        if not etag.replace('"', "") == md5sum_val:
+            warnings.warn(f"MD5 checksum failed for {filename}", Warning)
+
     return filenames
 
 
@@ -147,59 +110,15 @@ def checksum_files(
 ):
     """Compare md5 checksums of available files for a certain benchmark, version and stage with local versions"""
 
-    urls = list_files(benchmark, type, stage, module, file_id, version)
+    objectnames, etags = list_files(benchmark, type, stage, module, file_id, version)
 
-    for i in tqdm.tqdm(urls.keys(), delay=5, disable=not verbose):
-        # to remove schema
-        urlp = urlparse(urls[i]["url"])
-        # to remove benchmark name
-        filename = re.sub("^/[a-zA-Z0-9._-]*/", "", urlp.path)
-        if Path(filename).exists():
-            md5_local = md5(filename)
-        else:
-            md5_local = None
-        urls[filename]["md5_local"] = md5_local
+    filenames = objectnames
 
     failed_checksums = []
-    for i in urls.keys():
-        if not urls[i]["md5"] == urls[i]["md5_local"]:
-            failed_checksums.append(i)
-            if verbose:
-                print(f"MD5 checksum failed for {i}")
+    for etag, filename in tqdm.tqdm(
+        zip(etags, filenames), delay=5, disable=not verbose
+    ):
+        md5sum_val = md5(filename)
+        if not etag.replace('"', "") == md5sum_val:
+            failed_checksums.append(filename)
     return failed_checksums
-
-
-def get_benchmarks_public(endpoint: str) -> List[str]:
-    """List all available benchmarks"""
-    url = urlparse(f"{endpoint}/benchmarks")
-    response = requests.get(url.geturl(), params={"format": "xml"})
-    if response.ok:
-        response_text = response.text
-    else:
-        response.raise_for_status()
-    soup = BeautifulSoup(response_text, "xml")
-    benchmark_names = [obj.find("Key").text for obj in soup.find_all("Contents")]
-    benchmarks = []
-    for benchmark in benchmark_names:
-        url = urlparse(f"{endpoint}/{benchmark}.overview")
-        response = requests.get(url.geturl(), params={"format": "xml"})
-        if response.ok:
-            benchmarks.append(benchmark)
-    return benchmarks
-
-
-def get_benchmark_versions_public(benchmark: str, endpoint: str) -> List[str]:
-    url = urlparse(f"{endpoint}/{benchmark}.overview")
-    response = requests.get(url.geturl(), params={"format": "xml"})
-    if response.ok:
-        soup = BeautifulSoup(response.text, "xml")
-        buckets = [obj.find("Key").text for obj in soup.find_all("Contents")]
-        versions = []
-        for bucket in buckets:
-            if re.search(r"(\d+\.\d+)", bucket):
-                versions.append(bucket)
-
-        versions.sort(key=Version)
-        return versions
-    else:
-        response.raise_for_status()
