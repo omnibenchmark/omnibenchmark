@@ -10,10 +10,10 @@ on:
     paths:
       - .github/workflows/tests.yml
       - tests/**/*.py
-  pull_request:
-    paths:
-      - .github/workflows/tests.yml
-      - tests/**/*.py
+    pull_request:
+      paths:
+        - .github/workflows/tests.yml
+        - tests/**/*.py
 
 jobs:
   run-tests:

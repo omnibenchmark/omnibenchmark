@@ -1,0 +1,134 @@
+## updated from Snakemake's test suite
+##
+## https://raw.githubusercontent.com/snakemake/snakemake/main/.github/workflows/main.yml
+## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
+## From Koester's license above:
+##
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+## PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+## FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+## OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+## DEALINGS IN THE SOFTWARE.
+##
+## and from easybuilders/easybuild-easyconfigs test suite
+##
+## Derivative work from Kenneth Hoste and colleagues
+## https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/.github/workflows/unit_tests.yml
+## GPLv2
+## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
+
+name: software
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+
+concurrency:
+  group: ci-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  software_testing:
+    strategy:
+      matrix:
+        os: [macos-14, macos-13]
+        test_group: [1]
+        py_ver: ["3.12"]
+      fail-fast: false
+      
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+        if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
+        
+      - name: Install Lmod using homebrew
+        shell: bash -el {0}
+        run: |
+             bash
+             brew upgrade
+             brew install coreutils
+             ## brew install gcc
+             ## brew install python
+             ## brew install git
+             ## brew install git-lfs
+             brew install lmod             
+             ## brew install wget
+             ## brew install bash
+             ## brew untap homebrew/cask
+             ## brew untap homebrew/core
+             ## brew reinstall openssl@3
+             ## brew reinstall ruby@3.0
+             ## brew reinstall packer
+             ## brew install curl
+             # brew reinstall cmake
+             ## if [ -f /usr/local/opt/lmod/init/profile ]; then
+             ##    source /usr/local/opt/lmod/init/profile
+             ## fi
+             ## if [ -f /opt/homebrew/opt/lmod/init/profile ]; then
+             ##    source /opt/homebrew/opt/lmod/init/profile
+             ## fi
+             brew install micromamba
+
+      - name: Modify python version in test env
+        shell: bash -el {0}
+        run: |
+          cp mac-test-environment.yml test-environment-${{ matrix.py_ver }}.yml
+          sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml > tmp.yml
+          mv tmp.yml test-environment-${{ matrix.py_ver }}.yml
+                     
+
+      - name: Manually create env
+        shell: bash -el {0}
+        run: |
+          eval "$(micromamba shell hook --shell bash)"
+          micromamba create -n omnibenchmark
+          micromamba activate omnibenchmark
+          micromamba install -f test-environment-${{ matrix.py_ver }}.yml
+
+      - name: Modify bashrc
+        env:
+          CI: true
+        shell: bash -el {0}
+        run: |
+           cat <<'EOF' >>~/.bashrc
+           if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+                source /opt/homebrew/opt/lmod/init/profile
+           fi
+           if [ -f /usr/local/opt/lmod/init/bash ]; then
+                source /usr/local/opt/lmod/init/profile
+           fi
+           eval "$(micromamba shell hook --shell bash)" 
+           EOF
+        
+      - name: Test
+        env:
+          CI: true
+        shell: bash -el {0}
+        run: |
+          
+          module --version
+
+          ## eval "$(micromamba shell hook --shell bash)"    
+          micromamba activate
+          micromamba activate omnibenchmark
+          
+          cd tests/software
+
+          mkdir -p "$HOME"/.local/easybuild/modules/all
+          module use "$HOME"/.local/easybuild/modules/all
+
+          export MODULEPATH="$HOME"/.local/easybuild/modules/all:$MODULEPATH
+          
+          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+          
+          pytest -v -x --show-capture=stderr \
+               conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py \
+               -k 'not test_easybuild_sys_toolchain_build'
