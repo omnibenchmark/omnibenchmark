@@ -5,6 +5,6 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0](https://github.com/omnibenchmark/omni-py) (unreleased)
 - Setup CI
-- Add workflow engine support (Snakemake)
-- Add remote storage support (MinIO)
-- Add software backend (easybuild, conda, apptainer)
+- Add first version of remote storage backend
+- Draft easybuild and conda capabilities (for Linux)
+- Add workflow engine interface and Snakemake backend
