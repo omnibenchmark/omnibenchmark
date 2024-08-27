@@ -322,17 +322,17 @@ uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
 name = "boto3"
-version = "1.35.2"
+version = "1.35.6"
 description = "The AWS SDK for Python"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "boto3-1.35.2-py3-none-any.whl", hash = "sha256:c2f0837a259002489e59d1c30008791e3b3bb59e30e48c64e1d2d270147a4549"},
-    {file = "boto3-1.35.2.tar.gz", hash = "sha256:cbf197ce28f04bc1ffa1db0aa26a1903d9bfa57a490f70537932e84367cdd15b"},
+    {file = "boto3-1.35.6-py3-none-any.whl", hash = "sha256:c35c560ef0cb0f133b6104bc374d60eeb7cb69c1d5d7907e4305a285d162bef0"},
+    {file = "boto3-1.35.6.tar.gz", hash = "sha256:b41deed9ca7e0a619510a22e256e3e38b5f532624b4aff8964a1e870877b37bc"},
 ]
 
 [package.dependencies]
-botocore = ">=1.35.2,<1.36.0"
+botocore = ">=1.35.6,<1.36.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.10.0,<0.11.0"
 
@@ -341,13 +341,13 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.35.2"
+version = "1.35.6"
 description = "Low-level, data-driven core of boto 3."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "botocore-1.35.2-py3-none-any.whl", hash = "sha256:92b168d8be79055bb25754aa34d699866d8aa66abc69f8ce99b0c191bd9c6e70"},
-    {file = "botocore-1.35.2.tar.gz", hash = "sha256:96c8eb6f0baed623a1b57ca9f24cb21d5508872cf0dfebb55527a85b6dbc76ba"},
+    {file = "botocore-1.35.6-py3-none-any.whl", hash = "sha256:8378c6cfef2dee15eb7b3ebbb55ba9c1de959f231292039b81eb35b72c50ad59"},
+    {file = "botocore-1.35.6.tar.gz", hash = "sha256:93ef31b80b05758db4dd67e010348a05b9ff43f82839629b7ac334f2a454996e"},
 ]
 
 [package.dependencies]
@@ -1182,13 +1182,13 @@ license = ["ukkonen"]
 
 [[package]]
 name = "idna"
-version = "3.7"
+version = "3.8"
 description = "Internationalized Domain Names in Applications (IDNA)"
 optional = false
-python-versions = ">=3.5"
+python-versions = ">=3.6"
 files = [
-    {file = "idna-3.7-py3-none-any.whl", hash = "sha256:82fee1fc78add43492d3a1898bfa6d8a904cc97d8427f683ed8e798d07761aa0"},
-    {file = "idna-3.7.tar.gz", hash = "sha256:028ff3aadf0609c1fd278d8ea3089299412a7a8b9bd005dd08b9f8285bcb5cfc"},
+    {file = "idna-3.8-py3-none-any.whl", hash = "sha256:050b4e5baadcd44d760cedbd2b8e639f2ff89bbc7a5730fcc662954303377aac"},
+    {file = "idna-3.8.tar.gz", hash = "sha256:d838c2c0ed6fced7693d5e8ab8e734d5f8fda53a039c0164afb0b82e771e3603"},
 ]
 
 [[package]]
@@ -1397,13 +1397,13 @@ test = ["ipykernel", "pre-commit", "pytest (<8)", "pytest-cov", "pytest-timeout"
 
 [[package]]
 name = "linkml-runtime"
-version = "1.8.1"
+version = "1.8.2"
 description = "Runtime environment for LinkML, the Linked open data modeling language"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "linkml_runtime-1.8.1-py3-none-any.whl", hash = "sha256:bb825462d1609cea055ccf23ee772c846d3e14d34dc8286fa64a132cbf4aa3d2"},
-    {file = "linkml_runtime-1.8.1.tar.gz", hash = "sha256:2839143c1518579bc4baeaec3b1b854d241e1b792ccecc756bb860c66a633a44"},
+    {file = "linkml_runtime-1.8.2-py3-none-any.whl", hash = "sha256:a66d7b5b82cb57b2d6c603c75ca22db4bae0409e0fb2b9e7835f921a23716096"},
+    {file = "linkml_runtime-1.8.2.tar.gz", hash = "sha256:f5067aeeb96c8d3ca1761b55b82d927af88d810459d533fb1f7876a90224b130"},
 ]
 
 [package.dependencies]
@@ -2418,13 +2418,13 @@ typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
 name = "pygithub"
-version = "2.3.0"
+version = "2.4.0"
 description = "Use the full Github API v3"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "PyGithub-2.3.0-py3-none-any.whl", hash = "sha256:65b499728be3ce7b0cd2cd760da3b32f0f4d7bc55e5e0677617f90f6564e793e"},
-    {file = "PyGithub-2.3.0.tar.gz", hash = "sha256:0148d7347a1cdeed99af905077010aef81a4dad988b0ba51d4108bf66b443f7e"},
+    {file = "PyGithub-2.4.0-py3-none-any.whl", hash = "sha256:81935aa4bdc939fba98fee1cb47422c09157c56a27966476ff92775602b9ee24"},
+    {file = "pygithub-2.4.0.tar.gz", hash = "sha256:6601e22627e87bac192f1e2e39c6e6f69a43152cfb8f307cee575879320b3051"},
 ]
 
 [package.dependencies]
@@ -2497,13 +2497,13 @@ tests = ["hypothesis (>=3.27.0)", "pytest (>=3.2.1,!=3.3.0)"]
 
 [[package]]
 name = "pyparsing"
-version = "3.1.2"
+version = "3.1.4"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
 optional = false
 python-versions = ">=3.6.8"
 files = [
-    {file = "pyparsing-3.1.2-py3-none-any.whl", hash = "sha256:f9db75911801ed778fe61bb643079ff86601aca99fcae6345aa67292038fb742"},
-    {file = "pyparsing-3.1.2.tar.gz", hash = "sha256:a1bac0ce561155ecc3ed78ca94d3c9378656ad4c94c1270de543f621420f94ad"},
+    {file = "pyparsing-3.1.4-py3-none-any.whl", hash = "sha256:a6a7ee4235a3f944aa1fa2249307708f893fe5717dc603503c6c7969c070fb7c"},
+    {file = "pyparsing-3.1.4.tar.gz", hash = "sha256:f86ec8d1a83f11977c9a6ea7598e8c27fc5cddfa5b07ea2241edbbde1d7bc032"},
 ]
 
 [package.extras]
@@ -2817,13 +2817,13 @@ files = [
 
 [[package]]
 name = "rich"
-version = "13.7.1"
+version = "13.8.0"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
 optional = false
 python-versions = ">=3.7.0"
 files = [
-    {file = "rich-13.7.1-py3-none-any.whl", hash = "sha256:4edbae314f59eb482f54e9e30bf00d33350aaa94f4bfcd4e9e3110e64d0d7222"},
-    {file = "rich-13.7.1.tar.gz", hash = "sha256:9be308cb1fe2f1f57d67ce99e95af38a1e2bc71ad9813b0e247cf7ffbcc3a432"},
+    {file = "rich-13.8.0-py3-none-any.whl", hash = "sha256:2e85306a063b9492dffc86278197a60cbece75bcb766022f3436f567cae11bdc"},
+    {file = "rich-13.8.0.tar.gz", hash = "sha256:a5ac1f1cd448ade0d59cc3356f7db7a7ccda2c8cbae9c7a90c28ff463d3e91f4"},
 ]
 
 [package.dependencies]
@@ -3328,13 +3328,13 @@ test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,
 
 [[package]]
 name = "typer"
-version = "0.12.4"
+version = "0.12.5"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "typer-0.12.4-py3-none-any.whl", hash = "sha256:819aa03699f438397e876aa12b0d63766864ecba1b579092cc9fe35d886e34b6"},
-    {file = "typer-0.12.4.tar.gz", hash = "sha256:c9c1613ed6a166162705b3347b8d10b661ccc5d95692654d0fb628118f2c34e6"},
+    {file = "typer-0.12.5-py3-none-any.whl", hash = "sha256:62fe4e471711b147e3365034133904df3e235698399bc4de2b36c8579298d52b"},
+    {file = "typer-0.12.5.tar.gz", hash = "sha256:f592f089bedcc8ec1b974125d64851029c3b1af145f04aca64d69410f0c9b722"},
 ]
 
 [package.dependencies]

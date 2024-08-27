@@ -162,5 +162,9 @@ cython_debug/
 # tildes
 *~
 
-# snakemake stuff
-*/.snakemake/*
+# Custom omni-benchmark specific folders
+out/
+log/
+.snakemake/
+output_dag.png
+Snakefile

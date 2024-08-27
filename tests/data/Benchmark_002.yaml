@@ -1,0 +1,135 @@
+id: Benchmark_002
+name: peiying_with_easyconfigs
+description: peiying's fixed yaml
+benchmarker: "Peiying Cai at Robinsons Lab"
+version: 1.0
+storage: https://storage.github.com/
+storage_api: S3
+benchmark_yaml_spec: 0.01
+software_environments:
+  R:
+    description: "R 4.3.3 with gfbf-2023 toolchain"
+    easyconfig: R_4.3.3-gfbf-2023b.eb
+    envmodule: R/4.3.3-gfbf-2023b
+    conda: R_4.3.3_try.yaml # or perhaps not
+    apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
+  scanpy:
+    description: "Scanpy vX for python3.12.0 with gfbf-2023 toolchain"
+    easyconfig: scanpy_vX-gfbf-2023b.eb
+    envmodule: scanpy/vX-gfbf-2023b
+    conda: scanpy_vX_test.yaml
+    apptainer: http://registry.ch/scanpy_vX-gfbf-2023b.sif
+stages:
+  - id: data
+    modules:
+      - id: libd_DLPFC
+        software_environment: "R"
+        repository:
+          url: https://github.com/omnibenchmark-example/data
+          commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+      - id: data.meta
+        path: "{input}/{stage}/{module}/{params}/{dataset}.meta.json"
+      - id: data.label
+        path: "{input}/{stage}/{module}/{params}/{dataset}.label.json"
+      - id: data.coord
+        path: "{input}/{stage}/{module}/{params}/{dataset}.coord.json"
+      - id: data.ncluster
+        path: "{input}/{stage}/{module}/{params}/{dataset}_ncluster.txt"
+
+  - id: normalization
+    modules:
+      - id: lognorm
+        software_environment: "R"
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+    inputs:
+      - entries: [
+          data.counts,
+          data.meta
+        ]
+    outputs:
+      - id: data.normalized
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+
+  - id: select_counts
+    modules:
+      - id: scanpy
+        software_environment: "scanpy"
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+      - id: seurat
+        software_environment: "scanpy"
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+    inputs:
+      - entries:
+          - data.normalized
+          - data.counts
+          - data.meta
+    outputs:
+      - id: select_counts.selected
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+
+  - id: select_lognorm
+    modules:
+      - id: moran
+        exclude: [select_counts]
+        software_environment: "R"
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+      - id: scran
+        exclude: [select_counts]
+        software_environment: "R"
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+    inputs:
+      - entries:
+          - data.normalized
+          - data.meta
+          - data.coord
+    outputs:
+      - id: select_lognorm.selected
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+
+  - id: dimred
+    modules:
+      - id: sklearn
+        software_environment: "scanpy"
+        repository:
+          url : https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+        parameters:
+          - values: ["-scale false"]
+    inputs:
+      - entries:
+          - data.normalized
+          - data.meta
+          - data.coord
+          - select_counts.selected
+    outputs:
+      - id: pca.matrix
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+
+  - id: methods
+    modules:
+      - id: BayesSpace
+        software_environment: "scanpy"
+        repository:
+          url: git@github.com:omnibenchmark-example/metric.git
+          commit: 579c643
+    inputs:
+      - entries:
+          - data.meta
+          - data.ncluster
+          - pca.matrix
+    outputs:
+      - id: methods.label
+        path: "{input}/{stage}/{module}/{params}/{dataset}.model.out.gz"

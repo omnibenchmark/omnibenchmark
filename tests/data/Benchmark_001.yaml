@@ -1,0 +1,125 @@
+id: Benchmark_001
+description: simple benchmark, somewhat explicit, simple params
+version: 1.0
+benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
+storage: https://storage.github.com/
+storage_api: S3
+benchmark_yaml_spec: 0.01
+software_environments:
+  R:
+    description: "R 4.3.3 with gfbf-2023 toolchain"
+    easyconfig: R_4.3.3-gfbf-2023b.eb
+    envmodule: R/4.3.3-gfbf-2023b
+    conda: R_4.3.3_try.yaml # or perhaps not
+    apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
+  python:
+    description: "Ppython3.12.0 with gfbf-2023 toolchain"
+    easyconfig: python_vX-gfbf-2023b.eb
+    envmodule: python/vX-gfbf-2023b
+    conda: python_vX_test.yaml
+    apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+      - id: D2
+        name: "Dataset 2"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+      - id: data.meta
+        path: "{input}/{stage}/{module}/{params}/{dataset}.meta.json"
+      - id: data.data_specific_params
+        path: "{input}/{stage}/{module}/{params}/{dataset}_params.txt"
+
+  - id: process
+    modules:
+      - id: P1
+        software_environment: "R"
+        parameters:
+          - values: ["-a 0", "-b 0.1"]
+          - values: ["-a 1", "-b 0.1"]
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+      - id: P2
+        software_environment: "R"
+        parameters:
+          - values: ["-a 0", "-b 0"]
+          - values: ["-a 1", "-b 0.1"]
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: aeec1db
+    inputs:
+      - entries:
+          - data.counts
+          - data.meta
+    outputs:
+      - id: process.filtered
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+
+  - id: methods
+    modules:
+      - id: M1
+        software_environment: "python"
+        exclude: [ D2 ]
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+      - id: M2
+        software_environment: "python"
+        parameters:
+          - values: ["-d1", "-e 1"]
+          - values: ["-d1", "-e 2"]
+        exclude:
+          - D1
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+    inputs:
+      - entries:
+          - data.counts
+          - data.meta
+          - data.data_specific_params
+      - entries:
+          - process.filtered
+          - data.meta
+          - data.data_specific_params
+    outputs:
+      - id: methods.mapping
+        path: "{input}/{stage}/{module}/{params}/{dataset}.model.out.gz"
+
+  - id: metrics
+    modules:
+      - id: m1
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+      - id: m2
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+      - id: m3
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+    inputs:
+      - entries:
+          - methods.mapping
+          - data.meta
+          - data.data_specific_params
+    outputs:
+      - id: metrics.mapping
+        path: "{input}/{stage}/{module}/{params}/{dataset}.results.txt"

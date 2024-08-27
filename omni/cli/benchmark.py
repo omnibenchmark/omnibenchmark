@@ -1,10 +1,13 @@
 """cli commands related to benchmark infos and stats"""
 
-from typing_extensions import Annotated
+import datetime
+import difflib
 
 import typer
 from packaging.version import Version
-import omni.io.files
+from typing_extensions import Annotated
+
+from omni.io.utils import get_storage
 
 cli = typer.Typer(add_completion=False)
 
@@ -68,30 +71,59 @@ def diff_benchmark(
     typer.echo(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
+    if __name__ == "__main__":
+        # TODO: for testing until get_bench_definition is implemented
+        minio_auth_options_public = {
+            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
+            "secure": False,
+        }
+        bench_yaml = {
+            "auth_options": minio_auth_options_public,
+            "storage_type": "minio",
+        }
+        benchmark = "testversioning2"
+        version1 = "0.1"
+        version2 = "0.2"
+    # setup storage
+    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
 
+    # get objects for first version
+    ss.set_version(version1)
+    ss._get_objects()
+    files_v1 = [
+        f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        for f in ss.files.items()
+    ]
+    creation_time_v1 = datetime.datetime.fromisoformat(
+        ss.files[f"versions/{version1}.csv"]["last_modified"]
+    ).strftime("%Y-%m-%d %H:%M:%S")
 
-@cli.command("list")
-def list_benchmarks(
-    endpoint: Annotated[
-        str,
-        typer.Option(
-            "--endpoint",
-            "-e",
-            help="remote/object storage.",
-        ),
-    ],
-):
-    """List all available benchmarks and versions at a specific endpoint"""
-    typer.echo(f"Available benchmarks at {endpoint}:")
-    benchmark_names = omni.io.files.get_benchmarks_public(endpoint)
-    benchmarks = {}
-    for benchmark in benchmark_names:
-        benchmarks[benchmark] = omni.io.files.get_benchmark_versions_public(
-            benchmark, endpoint
+    # get objects for second version
+    ss.set_version(version2)
+    ss._get_objects()
+    files_v2 = [
+        f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        for f in ss.files.items()
+    ]
+    creation_time_v2 = datetime.datetime.fromisoformat(
+        ss.files[f"versions/{version2}.csv"]["last_modified"]
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+    # diff the two versions
+    typer.echo(
+        "".join(
+            list(
+                difflib.unified_diff(
+                    files_v1,
+                    files_v2,
+                    fromfile=f"version {version1}",
+                    tofile=f"version {version2}",
+                    fromfiledate=creation_time_v1,
+                    tofiledate=creation_time_v2,
+                )
+            )
         )
-    for key, value in sorted(benchmarks.items()):
-        value = (value or [None])[-1]
-        typer.echo(f"{key:>20}     latest: {value:>5}")
+    )
 
 
 @cli.command("list versions")
@@ -115,8 +147,21 @@ def list_versions(
 ):
     """List all available benchmarks versions at a specific endpoint."""
     typer.echo(f"Available versions of {benchmark} at {endpoint}:")
-    versions = omni.io.files.get_benchmark_versions_public(benchmark, endpoint)
-    if len(versions) > 0:
-        versions.sort(key=Version)
-        for version in versions:
+    # TODO: for testing until get_bench_definition is implemented
+    if __name__ == "__main__":
+        minio_auth_options_public = {
+            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
+            "secure": False,
+        }
+        bench_yaml = {
+            "auth_options": minio_auth_options_public,
+            "storage_type": "minio",
+        }
+        benchmark = "testversioning"
+        version = "0.1"
+
+    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
+    if len(ss.versions) > 0:
+        ss.versions.sort(key=Version)
+        for version in ss.versions:
             typer.echo(f"{version:>8}")

@@ -26,7 +26,7 @@ cli.add_typer(
 #     docker.cli, name="docker", help="use docker to manage software environments"
 # )
 cli.add_typer(io.cli, name="files", help="List, download and check input/output files.")
-cli.add_typer(run.cli, name="run", help="Execute benchmarks or modules")
+cli.add_typer(run.cli, name="run", help="Execute benchmarks or modules.")
 cli.add_typer(
     validate.cli, name="validate", help="Validate benchmarks, modules or files"
 )
