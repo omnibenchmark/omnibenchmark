@@ -9,13 +9,4 @@
 </p>
 
 
-The entrypoint to omnibenchmark. It contains a cli and multiple utility functions to support module development via requirements checks, validation and container handling. 
-
-# How to install
-
-0. Install singularity and debootstrap.
-1. Install micromamba, mamba or conda, activate with `micromamba activate`.
-2. Create an environment. If named omnibenchmark, `micromamba create -n omnibenchmark`.
-3. Activate it with `micromamba activate omnibenchmark`.
-4. Clone this repository and get to its root.
-5. Install with `micromamba install -f test-environment.yml`.
+[Omnibenchmark](https://omnibenchmark.org), a continuous benchmarking tool

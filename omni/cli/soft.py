@@ -16,7 +16,7 @@ import os, sys
 cli = typer.Typer(
     add_completion=True,
     no_args_is_help=True,
-    pretty_exceptions_short=True,
+    pretty_exceptions_short=False,
     rich_markup_mode=None,
     pretty_exceptions_enable=False,
     help="Manage benchmark-specific software installations.",
@@ -78,7 +78,7 @@ def singularity_build(
     try:
         fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
     except:
-        print("ERROR: easyconfig not found.\n")
+        typer.echo("ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED)
         sys.exit()
 
     ## do
@@ -92,7 +92,7 @@ def singularity_build(
     )
 
     eb.singularity_build(singularity_recipe=singularity_recipe, easyconfig=easyconfig)
-    print("DONE: recipe and image built for " + singularity_recipe)
+    typer.echo("DONE: recipe and image built for " + singularity_recipe)
 
 
 @sing_cli.command("push")
@@ -139,7 +139,7 @@ def singularity_push(
         docker_password=docker_password,
         oras=oras,
     )
-    print("DONE\n.")
+    typer.echo("DONE\n.")
 
 
 ## envmodules ########################################################################################
@@ -176,7 +176,7 @@ def envmodules_build(
         sys.exit()
 
     eb.easybuild_easyconfig(easyconfig=easyconfig, threads=threads)
-    print("DONE")
+    typer.echo("DONE")
 
 
 # @module_cli.command('list')
@@ -268,6 +268,6 @@ def check(
             "Bad `--what` value. Please check help (`ob software check --help`)."
         )
     if ret.returncode == 0:
-        print("OK:", ret)
+        typer.echo("OK:", ret)
     else:
-        print("Failed:", ret)
+        typer.echo("Failed:", ret)

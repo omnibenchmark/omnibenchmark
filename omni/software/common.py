@@ -11,17 +11,14 @@ import subprocess
 
 
 def check_call(command: str, use_shell: bool = False) -> subprocess.CompletedProcess:
-    try:
-        ret = subprocess.run(
-            command.split(" "),
-            text=True,
-            capture_output=True,
-            check=True,
-            shell=use_shell,
-        )
-        return ret
-    except Exception as e:
-        return print("ERROR:", e)
+    ret = subprocess.run(
+        command.split(" "),
+        text=True,
+        capture_output=True,
+        check=True,
+        shell=use_shell,
+    )
+    return ret
 
 
 def check_lmod_status() -> subprocess.CompletedProcess:
