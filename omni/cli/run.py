@@ -13,7 +13,15 @@ from omni.benchmark import Benchmark
 from omni.workflow.snakemake import SnakemakeEngine
 from omni.workflow.workflow import WorkflowEngine
 
-cli = typer.Typer(add_completion=False)
+cli = typer.Typer(
+    add_completion=True,
+    no_args_is_help=True,
+    pretty_exceptions_short=False,
+    rich_markup_mode=None,
+    pretty_exceptions_enable=False,
+    help="Execute benchmarks or modules.",
+)
+
 workflow: WorkflowEngine = SnakemakeEngine()
 
 
@@ -27,11 +35,11 @@ def run_benchmark(
             help="Path to benchmark yaml file or benchmark id.",
         ),
     ],
-    cores: Annotated[
+    threads: Annotated[
         int,
         typer.Option(
-            "--cores",
-            "-c",
+            "--threads",
+            "-p",
             help="The parallelism level for the workflow scheduler.",
         ),
     ] = 1,
@@ -87,7 +95,7 @@ def run_benchmark(
         # Future: Create yaml for communicating resources for individual methods
         typer.echo("Running benchmark...")
         success = workflow.run_workflow(
-            benchmark, cores=cores, update=update, dryrun=dry
+            benchmark, cores=threads, update=update, dryrun=dry
         )
 
         if success:

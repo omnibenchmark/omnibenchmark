@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "omni"
+name = "omnibenchmark"
 version = "0.1.0"
-description = ""
-authors = ["almutlue <almut.lue@gmail.com>"]
+description = "An tool for automated scientific benchmarking"
+authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>", "Daniel Incicau <daniel.incicau@gmail.com>"]
 readme = "README.md"
 packages = [{include = "omni"}]
-homepage = "https://github.com/almutlue/omni-py"
-repository = "https://github.com/almutlue/omni-py"
+homepage = "https://github.com/omnibenchmark/omni-py"
+repository = "https://github.com/omnibenchmark/omni-py"
 classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
@@ -16,7 +16,7 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 
