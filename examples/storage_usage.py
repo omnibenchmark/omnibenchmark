@@ -1,3 +1,4 @@
+import io
 import json
 
 from omni.io.MinIOStorage import MinIOStorage
@@ -10,94 +11,46 @@ with open("<CONFIG>.json", "r") as file:
 ########################################################
 
 # setup object, existing benchmark or new benchmark
-ms = MinIOStorage(auth_options, benchmark="tb")
+ms = MinIOStorage(auth_options, benchmark="obob")
 
-# manually update overview bucket, usually not required
-ms._update_overview()
+# upload objects to benchmark
+_ = ms.client.put_object(ms.benchmark, "out/f1.txt", io.BytesIO(b"f1"), 2)
+_ = ms.client.put_object(ms.benchmark, "out/f2.txt", io.BytesIO(b"f2"), 2)
 
-# util: list containers
-ms._get_containers()
-# util: parse and list benchmarks
-ms._get_benchmarks()
 # util: get available benchmark versions
 ms._get_versions()
 
 # set version (latest)
-ms.set_current_version()
-print(f"{ms.major_version}.{ms.minor_version}")
+ms.set_version()
+# version to create
+print(f"{ms.version}")
 # set version (manual)
-ms.set_current_version(0, 1)
-print(f"{ms.major_version}.{ms.minor_version}")
+ms.set_version("0.1")
+# version to create
+print(f"{ms.version}")
 
-# parse new minor version (increment)
-ms._parse_new_version(None, True)
-# parse new major version (increment)
-ms._parse_new_version(True, None)
-# parse new version (manual)
-ms._parse_new_version(0, 2)
-
-# create new version
-ms.set_new_version(0, 2)
-# newly created version
-print(f"{ms.major_version_new}.{ms.minor_version_new}")
-
-# create new container for new version
-ms._create_new_version()
-# list versions of benchmark
-ms._get_versions()
-
-# list objects of version
-ms._get_objects()
-ms.files
-
-# mark objects to copy to new version
-ms.find_objects_to_copy()
-ms.files
-
-# copy flagged objects to new version
-ms.copy_objects()
-ms.files
-
-########################################################
-### Example one-step usage of the SwiftStorage class
-########################################################
-
-# setup object, existing benchmark or new benchmark
-ms = MinIOStorage(auth_options, benchmark="tb")
-
+# create version
 ms.create_new_version()
-
-########################################################
-### Example public link download of object
-########################################################
-
-# auth only need public URL (key 'preauthurl')
-auth_options_public = auth_options.copy()
-del auth_options_public["access_key"]
-del auth_options_public["secret_key"]
-# retrieves versions from container tb2.overview which contains a list of versions
-ms = MinIOStorage(auth_options_public, benchmark="tb")
+# list versions of benchmark
 ms.versions
 
-# set version (latest)
-ms.set_current_version()
-ms.major_version
-ms.minor_version
+# update object
+_ = ms.client.put_object(ms.benchmark, "out/f1.txt", io.BytesIO(b"f1v2"), 4)
+# prepare new version
+ms.set_version()
+# create version
+ms.create_new_version()
 
-# list objects of version
+# list objects of version 0.2
 ms._get_objects()
 ms.files
 
-# get test container content
-ms.major_version = "test"
+# list objects of version 0.1
+ms.set_version("0.1")
 ms._get_objects()
 ms.files
 
-# get file content
-names = list(ms.files.keys())
-import requests
 
-response = requests.get(
-    f"https://{auth_options_public['endpoint']}/{ms.benchmark}.{ms.major_version}.{ms.minor_version}/{names[0]}"
-)
-response.text
+# download object to file (tmp.txt)
+object_name = list(ms.files.keys())[0]
+ms.download_object(object_name, "tmp.txt")

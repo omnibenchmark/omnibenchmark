@@ -1,5 +1,7 @@
 import re
+import time
 
+import minio
 from testcontainers.minio import MinioContainer
 
 from omni.io.MinIOStorage import set_bucket_public_readonly
@@ -13,8 +15,6 @@ class MinIOSetup:
                 image="minio/minio:RELEASE.2024-06-13T22-53-53Z"
             )
             self.minio.start()
-            self.minio.get_client().make_bucket("benchmarks")
-            set_bucket_public_readonly(self.minio.get_client(), "benchmarks")
 
     def __enter__(self):
         return self
@@ -51,15 +51,25 @@ class TmpMinIOStorage:
             tmp_auth_options["endpoint"].replace("http://", "").replace("https://", "")
         )
         cleanupss = self.minio.get_client()
+        # cleanupss = ss.client
         buckets = [i.name for i in cleanupss.list_buckets()]
         for bucket in buckets:
-            if re.search(rf"^{self.bucket_base}\.", bucket) or re.search(
-                rf"^{self.bucket_base}\d\.", bucket
-            ):
-                objects = cleanupss.list_objects(bucket, recursive=True)
-                for object in objects:
-                    cleanupss.remove_object(bucket, object.object_name)
-                cleanupss.remove_bucket(bucket)
+            objects = cleanupss.list_objects(
+                bucket, recursive=True, include_version=True
+            )
+            delobjectls = []
+            for object in objects:
+                delobjectls.append(
+                    minio.deleteobjects.DeleteObject(
+                        name=object.object_name, version_id=object.version_id
+                    )
+                )
+            errors = cleanupss.remove_objects(
+                bucket, delobjectls, bypass_governance_mode=True
+            )
+            for error in errors:
+                print("error occurred when deleting object", error)
+            cleanupss.remove_bucket(bucket)
 
     def __enter__(self):
         return self
