@@ -1,7 +1,7 @@
 name: Code Style Check
 
 on:
-  pull_request:
+  push:
     paths:
       - .github/workflows/code-style.yml
       - omni/**/*.py
