@@ -18,7 +18,7 @@
 ## GPLv2
 ## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
 
-name: software
+name: software_linux
 
 on:
   pull_request:
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  software_testing:
+  software_testing_linux:
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-20.04]
