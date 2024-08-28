@@ -88,8 +88,12 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
+          export
+          echo $PYTHONPATH
           poetry add boto3 ## not installed otherwise
-          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+          # poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+          pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+
       #----------------------------------------------
       # Generate badges
       #----------------------------------------------
