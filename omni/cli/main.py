@@ -6,7 +6,8 @@ from pathlib import Path
 from typing_extensions import Annotated
 
 from omni.cli import benchmark
-from omni.cli import docker
+
+# from omni.cli import docker
 from omni.cli import soft
 from omni.cli import io
 from omni.cli import run
@@ -32,51 +33,51 @@ cli.add_typer(
 )
 
 
-@cli.command("trigger checks")
-def trigger_checks(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-    repo: Annotated[
-        str,
-        typer.Option(
-            "--repo",
-            "-r",
-            help="Repository url to check.",
-        ),
-    ],
-):
-    """Trigger benchmark-specific checks in a certain repository."""
-    typer.echo(f"Trigger {benchmark} checks in {repo}.", err=True)
+# @cli.command("trigger checks")
+# def trigger_checks(
+#     benchmark: Annotated[
+#         str,
+#         typer.Option(
+#             "--benchmark",
+#             "-b",
+#             help="Path to benchmark yaml file or benchmark id.",
+#         ),
+#     ],
+#     repo: Annotated[
+#         str,
+#         typer.Option(
+#             "--repo",
+#             "-r",
+#             help="Repository url to check.",
+#         ),
+#     ],
+# ):
+#     """Trigger benchmark-specific checks in a certain repository."""
+#     typer.echo(f"Trigger {benchmark} checks in {repo}.", err=True)
 
 
-@cli.command("start module")
-def start_module(
-    module_name: Annotated[Path, typer.Argument(...)],
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-    stage: Annotated[
-        str,
-        typer.Option(
-            "--stage",
-            "-s",
-            help="Stage to associate the module with.",
-        ),
-    ],
-):
-    """Start a new gitlab module at a certain stage."""
-    typer.echo(
-        f"Start module {module_name} as part of {benchmark} on stage {stage}.", err=True
-    )
-    # NOTE: We probably also need a gitlab url? Not sure about module_name?
+# @cli.command("start module")
+# def start_module(
+#     module_name: Annotated[Path, typer.Argument(...)],
+#     benchmark: Annotated[
+#         str,
+#         typer.Option(
+#             "--benchmark",
+#             "-b",
+#             help="Path to benchmark yaml file or benchmark id.",
+#         ),
+#     ],
+#     stage: Annotated[
+#         str,
+#         typer.Option(
+#             "--stage",
+#             "-s",
+#             help="Stage to associate the module with.",
+#         ),
+#     ],
+# ):
+#     """Start a new gitlab module at a certain stage."""
+#     typer.echo(
+#         f"Start module {module_name} as part of {benchmark} on stage {stage}.", err=True
+#     )
+#     # NOTE: We probably also need a gitlab url? Not sure about module_name?

@@ -4,7 +4,7 @@ from typing_extensions import Annotated
 
 import typer
 
-cli = typer.Typer(add_completion=False)
+cli = typer.Typer(add_completion=False, no_args_is_help=True)
 
 
 @cli.command("file")
