@@ -55,10 +55,6 @@ jobs:
           environment-name: omb
           cache-environment: true
 
-      - name: Add poetry group dependencies, we are not using poetry here
-        run: |
-          pip install pytest-cov pytest-split pytest-xdist
-
       - name: install OS & Python packages
         run: |
           # disable apt-get update, we don't really need it,
@@ -97,7 +93,10 @@ jobs:
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init   
           # export > mod.env
-          
+
+          ## poetry toml section ignored by pip during env creation
+          pip install pytest-cov pytest-split pytest-xdist        
+
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
