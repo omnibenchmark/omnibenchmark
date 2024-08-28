@@ -1,3 +1,4 @@
+## omnibenchmark
 
 <p align="center">
 <a href="ttps://github.com/omnibenchmark/omni-py"><img alt="Tests" src="./reports/tests.svg"></a>
@@ -7,7 +8,5 @@
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
-## omni-py
 
-The entrypoint for module contributor to omnibenchmark. It contains a cli and multiple utility functions to support
-module development via requirements checks, validation and container handling.
+[Omnibenchmark](https://omnibenchmark.org), a continuous benchmarking tool

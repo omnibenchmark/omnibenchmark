@@ -4,16 +4,7 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/tests.yml
-      - tests/**/*.py
   pull_request:
-    paths:
-      - .github/workflows/tests.yml
-      - tests/**/*.py
 
 jobs:
   run-tests:
@@ -91,7 +82,10 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+          ## skip software tests, they're done differently
+          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
+              tests/benchmark tests/cli tests/workflow tests/io
+
       #----------------------------------------------
       # Generate badges
       #----------------------------------------------

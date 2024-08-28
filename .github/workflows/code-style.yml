@@ -2,10 +2,6 @@ name: Code Style Check
 
 on:
   pull_request:
-    paths:
-      - .github/workflows/code-style.yml
-      - omni/**/*.py
-      - tests/**/*.py
 
 jobs:
   code-style:

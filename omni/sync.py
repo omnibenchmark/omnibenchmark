@@ -1,4 +1,5 @@
 """Sync benchmark definition file"""
+
 import json
 import os
 import requests

@@ -1,0 +1,171 @@
+Bootstrap: debootstrap
+#OSVersion: 22.04
+OSVersion: jammy
+MirrorURL: http://archive.ubuntu.com/ubuntu/
+
+%post
+sed -i 's/main/main universe/' /etc/apt/sources.list
+apt update 
+apt dist-upgrade -y 
+apt install -y python3 python3-setuptools # lmod
+apt install -y python3-pip
+apt install -y bzip2 gzip tar zip unzip xz-utils tcl-dev
+apt install -y curl wget rsync cpio locales
+apt install -y patch make
+apt install -y file git debianutils
+apt install -y gcc 
+apt install -y libibverbs-dev 
+apt install -y libssl-dev
+apt install -y binutils libthread-queue-any-perl
+apt install -y procps
+apt install -y man libdb-dev
+apt clean
+
+# install lmod start
+LUA_VERS=5.1.4.8
+mkdir -p /opt/apps/lua && cd /opt/apps/lua
+wget --quiet https://sourceforge.net/projects/lmod/files/lua-"$LUA_VERS".tar.gz/download
+tar xzf download
+cd lua*8
+./configure --prefix=/opt/apps/lua/"$LUA_VERS"
+make; make install
+cd /opt/apps/lua; ln -s "$LUA_VERS" lua
+mkdir -p /usr/local/bin; ln -s /opt/apps/lua/lua/bin/lua /usr/local/bin
+ln -s /opt/apps/lua/lua/bin/luac /usr/local/bin
+
+LMOD_VERS=8.7
+mkdir -p /usr/share/lmod/ && cd /usr/share/lmod
+wget --quiet https://sourceforge.net/projects/lmod/files/Lmod-"$LMOD_VERS".tar.bz2/download
+tar xfj download && cd Lmod-"$LMOD_VERS"
+./configure --prefix=/usr/share/ && make install
+export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
+. /usr/share/lmod/lmod/init/bash
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
+ln -s /usr/share/lmod/lmod/libexec/lmod /usr/local/bin
+ln -s /usr/share/lmod/lmod/init/profile        /etc/profile.d/z00_lmod.sh
+ln -s /usr/share/lmod/lmod/init/cshrc          /etc/profile.d/z00_lmod.csh
+
+# # install lmod end
+
+
+# install EasyBuild using pip3 this time
+python3 -m pip install -U pip
+python3 -m pip install wheel
+python3 -m pip install -U setuptools==70.1.1
+python3 -m pip install easybuild==4.9.2
+python3 -m pip install rich
+
+# create easybuild user
+id easybuild || useradd -s /bin/bash -m easybuild
+
+# create /app software installation prefix + /scratch sandbox directory
+if [ ! -d /app ]; then mkdir -p /app; chown easybuild:easybuild -R /app; fi
+if [ ! -d /scratch ]; then mkdir -p /scratch; chown easybuild:easybuild -R /scratch; fi
+if [ ! -d /home/easybuild ]; then mkdir -p /home/easybuild; chown easybuild:easybuild -R /home/easybuild;fi
+
+mkdir /root/bin
+cat >> /root/bin/uid-change.sh << 'EOD'
+#!/usr/bin/env bash
+# script to correct the UID/GID of easybuild user
+# in case fakeroot was used
+chown -R easybuild:easybuild /app/
+chown -R easybuild:easybuild /home/easybuild/
+chown -R easybuild:easybuild /scratch/
+EOD
+chmod u+x /root/bin/uid-change.sh 
+# install Lmod RC file
+cat > /etc/lmodrc.lua << EOD
+scDescriptT = {
+  {
+    ["dir"]       = "/app/lmodcache",
+    ["timestamp"] = "/app/lmodcache/timestamp",
+  },
+}
+EOD
+# verbose commands, exit on first error
+set -ve
+set -o noclobber
+
+# We set this so if we need to open the container again, we got the environment set up correctly
+cat >> /home/easybuild/.bashrc << 'EOG'
+export EASYBUILD_PREFIX=/scratch
+export EASYBUILD_TMPDIR=/scratch/tmp
+export EASYBUILD_SOURCEPATH=/scratch/sources:/tmp/easybuild/sources
+export EASYBUILD_INSTALLPATH=/app
+export EASYBUILD_PARALLEL=EASYBUILDNTHREADSINT
+export EB_PYTHON=python3
+export MODULEPATH=/app/modules/all
+alias eb="eb --robot --download-timeout=1000"
+export PYTHONIOENCODING="utf-8"
+export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
+. /usr/share/lmod/lmod/init/bash
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
+EOG
+
+# configure EasyBuild
+cat > /home/easybuild/eb-install.sh << 'EOD'
+#!/bin/bash  
+shopt -s expand_aliases
+export EASYBUILD_PREFIX=/scratch 
+export EASYBUILD_TMPDIR=/scratch/tmp 
+export EASYBUILD_SOURCEPATH=/scratch/sources:/tmp/easybuild/sources 
+export EASYBUILD_INSTALLPATH=/app 
+export EASYBUILD_PARALLEL=EASYBUILDNTHREADSINT
+export EB_PYTHON=python3
+alias eb="eb --robot --download-timeout=1000"
+export PYTHONIOENCODING="utf-8"
+export PATH=/usr/share/lmod/lmod/libexec/:"$PATH"
+. /usr/share/lmod/lmod/init/bash
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
+EOD
+
+echo "eb --fetch EASYCONFIG" >>  /home/easybuild/eb-install.sh 
+echo "eb EASYCONFIG" >>  /home/easybuild/eb-install.sh 
+cat >> /home/easybuild/eb-install.sh << 'EOD'
+mkdir -p /app/lmodcache 
+$LMOD_DIR/update_lmod_system_cache_files -d /app/lmodcache -t /app/lmodcache/timestamp /app/modules/all  
+EOD
+chown easybuild:easybuild /home/easybuild/eb-install.sh
+chmod a+x /home/easybuild/eb-install.sh
+
+su -l easybuild -c /home/easybuild/eb-install.sh
+
+# cleanup, everything in /scratch is assumed to be temporary
+rm -rf /scratch/*
+
+%runscript
+eval "$@"
+
+%environment
+export LC_ALL=C
+    
+# make sure that 'module' and 'ml' commands are defined
+. /etc/profile # (original)
+# . /etc/profile.d/z00_lmod.sh # rather (2nd July 2024, Izaskun)
+export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod  # rather (2nd July 2024, Izaskun)
+# increase threshold time for Lmod to write cache in $HOME (which we don't want to do)
+export LMOD_SHORT_TIME=86400
+# purge any modules that may be loaded outside container
+module --force purge
+
+# avoid picking up modules from outside of container
+module unuse $MODULEPATH
+# pick up modules installed in /app
+export MODULEPATH="/app/modules/all"
+# setting up the installation environment:
+USER=$(whoami)
+# this seems to be needed to make sure the terminal is working:
+export TERM=xterm-256color
+# load module(s) corresponding to installed software
+module load ENVMODULENAME
+ 
+%labels
+EasyConfig-file $(easyconfig)
+
+# %test
+# . /etc/profile 
+# if ! command -v module &> /dev/null
+# then
+#     echo "module command could not be found"
+#     exit 1
+# fi

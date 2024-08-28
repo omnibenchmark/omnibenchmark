@@ -15,8 +15,11 @@ classifiers = [
     "Programming Language :: Python"
 ]
 
+
 [tool.poetry.dependencies]
 python = "^3.12"
+setuptools="^72.1.0"
+
 typer = {extras = ["all"], version = "^0.12.3"}
 typing-extensions = "^4.11.0"
 
@@ -34,19 +37,25 @@ pre-commit = "^3.7.1"
 isort = "^5.13.2"
 testcontainers = "^4.5.1"
 
-
 matplotlib = "3.8.0"
 networkx = "^3.3"
 
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.3"}
 snakemake = "^8.16.0"
+
+easybuild="^4.9.2"
+easybuild-easyblocks="^4.9.2"
+snakedeploy="^0.10.0"
+
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 black = "^23.12.0"
-pytest-cov = "^4.1.0"
 
 
 [tool.poetry.group.test.dependencies]
+pytest-cov = "^4.1.0"
+pytest-split = "^0.9.0"
+pytest-xdist = "^3.6.1"
 genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
 argparse = "^1.4.0"
 
@@ -63,3 +72,6 @@ swift = ["python-swiftclient"]
 
 [tool.isort]
 profile = "black"
+
+
+
