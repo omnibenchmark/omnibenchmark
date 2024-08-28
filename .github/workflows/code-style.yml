@@ -1,7 +1,7 @@
 name: Code Style Check
 
 on:
-  push:
+  pull_request:
 
 jobs:
   code-style:

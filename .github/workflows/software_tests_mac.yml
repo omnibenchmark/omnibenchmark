@@ -126,6 +126,8 @@ jobs:
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:$MODULEPATH
           
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+
+          pip install pytest-cov pytest-split pytest-xdist # boto3
           
           pytest -v -x --show-capture=stderr \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py \

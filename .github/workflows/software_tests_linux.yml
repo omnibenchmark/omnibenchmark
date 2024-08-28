@@ -21,7 +21,7 @@
 name: software
 
 on:
-  push:
+  pull_request:
       
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
