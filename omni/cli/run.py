@@ -328,6 +328,7 @@ def run_module(
                 raise typer.Exit(code=1)
 
 
+## to validate the YAML
 def validate_benchmark(benchmark_file: str) -> Benchmark:
     if benchmark_file.endswith(".yaml") or benchmark_file.endswith(".yml"):
         try:
@@ -375,3 +376,19 @@ def validate_benchmark(benchmark_file: str) -> Benchmark:
             color=typer.colors.RED,
         )
         raise typer.Exit(code=1)
+
+
+@cli.command("validate")
+def validate_yaml(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Path to benchmark yaml file or benchmark id.",
+        ),
+    ],
+):
+    """Validate a benchmark yaml."""
+    typer.echo("Validating a benchmark yaml.")
+    benchmark = validate_benchmark(benchmark)

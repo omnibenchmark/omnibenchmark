@@ -6,31 +6,25 @@ from pathlib import Path
 from typing_extensions import Annotated
 
 from omni.cli import benchmark
-
-# from omni.cli import docker
 from omni.cli import soft
 from omni.cli import io
 from omni.cli import run
-from omni.cli import validate
-
 
 cli = typer.Typer(add_completion=False, no_args_is_help=True)
+
 cli.add_typer(
     benchmark.cli, name="benchmark", help="Manage benchmarks and their versions."
 )
+
 cli.add_typer(
     soft.cli,
     name="software",
     help="Manage and install benchmark-specific software environments",
 )
-# cli.add_typer(
-#     docker.cli, name="docker", help="use docker to manage software environments"
-# )
+
 cli.add_typer(io.cli, name="files", help="List, download and check input/output files.")
+
 cli.add_typer(run.cli, name="run", help="Execute benchmarks or modules.")
-cli.add_typer(
-    validate.cli, name="validate", help="Validate benchmarks, modules or files"
-)
 
 
 # @cli.command("trigger checks")

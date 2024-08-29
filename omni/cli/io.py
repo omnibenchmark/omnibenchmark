@@ -115,16 +115,16 @@ def download_files(
     )
 
 
-@cli.command("checksum")
-def checksum_files(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-):
-    """Generate md5sums of all benchmark outputs"""
-    typer.echo(f"Generate md5sums for benchmark {benchmark}")
+# @cli.command("checksum")
+# def checksum_files(
+#     benchmark: Annotated[
+#         str,
+#         typer.Option(
+#             "--benchmark",
+#             "-b",
+#             help="Path to benchmark yaml file or benchmark id.",
+#         ),
+#     ],
+# ):
+#     """Generate md5sums of all benchmark outputs"""
+#     typer.echo(f"Generate md5sums for benchmark {benchmark}")

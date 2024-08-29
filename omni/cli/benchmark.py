@@ -12,32 +12,32 @@ from omni.io.utils import get_storage
 cli = typer.Typer(add_completion=False, no_args_is_help=True)
 
 
-@cli.command("archive")
-def archive_benchmark(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark", "-b", help="Path to benchmark yaml file or benchmark id."
-        ),
-    ],
-):
-    """Archive a benchmark (changes to read-only permissions)"""
-    typer.echo(f"Archiving benchmark with yaml {benchmark}", err=True)
+# @cli.command("archive")
+# def archive_benchmark(
+#     benchmark: Annotated[
+#         str,
+#         typer.Option(
+#             "--benchmark", "-b", help="Path to benchmark yaml file or benchmark id."
+#         ),
+#     ],
+# ):
+#     """Archive a benchmark (changes to read-only permissions)"""
+#     typer.echo(f"Archiving benchmark with yaml {benchmark}", err=True)
 
 
-@cli.command("cite")
-def cite_benchmark(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-):
-    """Get the citation for a specific benchmark."""
-    typer.echo(f"Citation for benchmark: {benchmark}")
+# @cli.command("cite")
+# def cite_benchmark(
+#     benchmark: Annotated[
+#         str,
+#         typer.Option(
+#             "--benchmark",
+#             "-b",
+#             help="Path to benchmark yaml file or benchmark id.",
+#         ),
+#     ],
+# ):
+#     """Get the citation for a specific benchmark."""
+#     typer.echo(f"Citation for benchmark: {benchmark}")
 
 
 @cli.command("diff")
