@@ -2,6 +2,10 @@
 
 import typer
 
+# ## to disable rich
+# import typer.core
+# typer.core.rich = None
+
 from pathlib import Path
 from typing_extensions import Annotated
 

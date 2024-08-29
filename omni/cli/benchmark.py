@@ -126,7 +126,7 @@ def diff_benchmark(
     )
 
 
-@cli.command("list versions")
+@cli.command("list-versions")
 def list_versions(
     benchmark: Annotated[
         str,

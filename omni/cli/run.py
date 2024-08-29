@@ -14,7 +14,7 @@ from omni.workflow.snakemake import SnakemakeEngine
 from omni.workflow.workflow import WorkflowEngine
 
 cli = typer.Typer(
-    add_completion=True,
+    add_completion=False,
     no_args_is_help=True,
     pretty_exceptions_short=False,
     rich_markup_mode=None,
