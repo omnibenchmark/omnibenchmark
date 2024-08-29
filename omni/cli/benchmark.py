@@ -9,7 +9,7 @@ from typing_extensions import Annotated
 
 from omni.io.utils import get_storage
 
-cli = typer.Typer(add_completion=False)
+cli = typer.Typer(add_completion=False, no_args_is_help=True)
 
 
 @cli.command("archive")

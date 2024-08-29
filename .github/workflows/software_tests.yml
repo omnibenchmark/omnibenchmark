@@ -97,7 +97,7 @@ jobs:
           ## poetry toml section ignored by pip during env creation
           pip install pytest-cov pytest-split pytest-xdist        
 
-          pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
+          # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
@@ -186,7 +186,7 @@ jobs:
           ## poetry toml section ignored by pip during env creation       
           pip install pytest-cov pytest-split pytest-xdist
 
-          pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
+          # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py \

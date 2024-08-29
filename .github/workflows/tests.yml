@@ -78,14 +78,24 @@ jobs:
         run: poetry install --all-extras --no-interaction
 
       #----------------------------------------------
-      # run test suite and output coverage file
+      # run test suite and output coverage file for mac and linux
       #----------------------------------------------
       - name: Run tests
         run: |
           ## skip software tests, they're done differently
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 
+      #----------------------------------------------
+      # run test suite and output coverage file for windows
+      #----------------------------------------------
+      - name: Run tests
+        run: |
+          ## skip software tests, they're done differently
+          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+        if: matrix.os == 'windows-latest'
+      
       #----------------------------------------------
       # Generate badges
       #----------------------------------------------
