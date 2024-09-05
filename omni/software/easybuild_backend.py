@@ -200,3 +200,42 @@ def singularity_push(
         )
     except Exception as exc:
         return ("ERROR singularity build failed:", exc)
+
+
+def docker_build(easyconfig: str, dockerfile: str) -> subprocess.CompletedProcess:
+    """
+    Builds a Dockerfile
+    Args:
+    - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
+    - dockerfile (str): path to a Dockerfile
+    """
+    try:
+        cmd = "docker build  -f " + dockerfile
+        output = subprocess.run(
+            cmd.split(" "), shell=False, text=True, capture_output=True, check=True
+        )
+    except subprocess.CalledProcessError as exc:
+        return ("ERROR docker build failed:", exc.returncode, exc.output)
+
+
+def create_dockerfile(
+    easyconfig: str, dockerfile: str, envmodule: str, nthreads: int = 2
+) -> None:
+    """
+    Materializes a Dockerfile to build a given easyconfig, using a Singularity recipe template.
+    Args:
+    - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
+    - dockerfile (str): path to a dockerfile template
+    - envmodule (str): the envmodule name
+    - nthreads (int): number of threads for easybuild
+    """
+    template = impresources.files(templates) / "ubuntu_jammy_docker.txt"
+    with open(template, "rt") as ubuntu, open(dockerfile, "w") as df:
+        for line in ubuntu.read().split("\n"):
+            if "EASYCONFIG" in line:
+                line = line.replace("EASYCONFIG", easyconfig)
+            if "ENVMODULENAME" in line:
+                line = line.replace("ENVMODULENAME", envmodule)
+            if "EASYBUILDNTHREADSINT" in line:
+                line = line.replace("EASYBUILDNTHREADSINT", nthreads)
+            df.write(line + "\n")
