@@ -10,7 +10,7 @@ Calls workflow capabilities to reuse schema / yaml parsing logics
 import subprocess
 
 
-def check_call(command: str, use_shell: bool = False) -> subprocess.CompletedProcess:
+def check_call(command: str, use_shell: bool = True) -> subprocess.CompletedProcess:
     ret = subprocess.run(
         command.split(" "),
         text=True,

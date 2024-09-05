@@ -122,7 +122,7 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
         
-      - name: Install Lmod using homebrew
+      - name: Install Lmod and docker using homebrew
         shell: bash -el {0}
         run: |
              bash
@@ -130,6 +130,8 @@ jobs:
              brew install coreutils
              brew install lmod
              brew install micromamba
+             brew install go
+             brew install docker
 
       - name: Modify python version in test env
         shell: bash -el {0}
