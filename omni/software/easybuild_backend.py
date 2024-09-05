@@ -202,20 +202,22 @@ def singularity_push(
         return ("ERROR singularity build failed:", exc)
 
 
-def docker_build(easyconfig: str, dockerfile: str) -> subprocess.CompletedProcess:
+def docker_build(
+    easyconfig: str, dockerfile: str, name: str
+) -> subprocess.CompletedProcess:
     """
     Builds a Dockerfile
     Args:
     - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
     - dockerfile (str): path to a Dockerfile
     """
-    try:
-        cmd = "docker build  -f " + dockerfile
-        output = subprocess.run(
-            cmd.split(" "), shell=False, text=True, capture_output=True, check=True
-        )
-    except subprocess.CalledProcessError as exc:
-        return ("ERROR docker build failed:", exc.returncode, exc.output)
+    # try:
+    cmd = "docker build -f " + dockerfile + " -t " + name + " ."
+    output = subprocess.run(
+        cmd.split(" "), shell=False, text=True, capture_output=True, check=True
+    )
+    # except Exception as exc:
+    #     return ("ERROR docker build failed:", exc)
 
 
 def create_dockerfile(

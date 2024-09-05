@@ -101,7 +101,7 @@ jobs:
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py
+              conda_tests.py singularity_tests.py envmodules_tests.py cli_docker_tests.py
   
   software_testing_mac:
     strategy:
@@ -190,4 +190,5 @@ jobs:
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py \
+               cli_docker_tests.py \
                -k 'not test_easybuild_sys_toolchain_build'

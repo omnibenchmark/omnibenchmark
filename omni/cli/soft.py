@@ -279,9 +279,9 @@ def check(
             "Bad `--what` value. Please check help (`ob software check --help`)."
         )
     if ret.returncode == 0:
-        typer.echo("OK:", ret)
+        typer.echo("OK: " + ret.stdout)
     else:
-        typer.echo("Failed:", ret)
+        typer.echo("Failed: " + ret.returncode)
 
 
 ## docker
@@ -315,7 +315,6 @@ def docker_build(
         typer.echo("ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED)
         sys.exit()
 
-    ## do
     docker_recipe = "Dockerfile_" + easyconfig + ".txt"
     envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig)
     eb.create_dockerfile(
@@ -324,6 +323,8 @@ def docker_build(
         envmodule=envmodule_name,
         nthreads=str(len(os.sched_getaffinity(0))),
     )
-
-    eb.docker_build(dockerfile=docker_recipe, easyconfig=easyconfig)
-    typer.echo("DONE: dockerfile and docker image built for " + docker_recipe)
+    typer.echo("DONE: dockerfile built for " + docker_recipe)
+    eb.docker_build(
+        dockerfile=docker_recipe, easyconfig=easyconfig, name=envmodule_name
+    )
+    typer.echo("DONE: docker image built for " + docker_recipe)
