@@ -30,9 +30,10 @@ set_up_configuration(args=["--quiet"], silent=True)
 
 
 def generate_default_easybuild_config_arguments(
-    modulepath: str = op.join(HOME, ".local", "easybuild", "modules", "all")
+    modulepath: str = op.join(HOME, ".local", "easybuild", "modules", "all"),
+    sourcepath: str = op.join(HOME, ".local", "easybuild", "sources"),
 ) -> str:
-    args = "--installpath-modules=" + modulepath
+    args = "--installpath-modules=" + modulepath + " --sourcepath " + sourcepath
     return args
 
 
@@ -57,7 +58,7 @@ def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) ->
 def easybuild_easyconfig(
     easyconfig: str,
     threads: int = 2,
-) -> int:
+) -> subprocess.CompletedProcess:
     """
     Easybuilds an easyconfig
 
@@ -69,7 +70,10 @@ def easybuild_easyconfig(
     cmd = construct_easybuild_easyconfig_command(easyconfig=easyconfig, threads=threads)
 
     # try:
-    output = subprocess.call(cmd, shell=True)
+    ret = subprocess.run(cmd, shell=True, capture_output=True, check=True)
+    print(ret.stdout)
+    print(ret.stderr)
+    return ret
     # except subprocess.CalledProcessError as exc:
     #     return ("ERROR easybuild failed:", exc.returncode, exc.output)
 
