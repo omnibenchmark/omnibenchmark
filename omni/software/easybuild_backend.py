@@ -201,7 +201,7 @@ def singularity_push(
     except Exception as exc:
         return ("ERROR singularity build failed:", exc)
 
-
+## not used, snakemake cannot use docker containers
 def docker_build(
     easyconfig: str, dockerfile: str, name: str
 ) -> subprocess.CompletedProcess:
@@ -219,7 +219,7 @@ def docker_build(
     # except Exception as exc:
     #     return ("ERROR docker build failed:", exc)
 
-
+## not used, snakemake cannot use docker containers
 def create_dockerfile(
     easyconfig: str, dockerfile: str, envmodule: str, nthreads: int = 2
 ) -> None:

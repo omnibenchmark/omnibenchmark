@@ -101,7 +101,7 @@ jobs:
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py cli_docker_tests.py
+              conda_tests.py singularity_tests.py envmodules_tests.py # cli_docker_tests.py
   
   software_testing_mac:
     strategy:
@@ -122,7 +122,7 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
         
-      - name: Install Lmod and docker using homebrew
+      - name: Install Lmod using homebrew
         shell: bash -el {0}
         run: |
              bash
@@ -130,8 +130,6 @@ jobs:
              brew install coreutils
              brew install lmod
              brew install micromamba
-             brew install go
-             brew install docker
 
       - name: Modify python version in test env
         shell: bash -el {0}
@@ -192,5 +190,4 @@ jobs:
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py \
-               cli_docker_tests.py \
                -k 'not test_easybuild_sys_toolchain_build'
