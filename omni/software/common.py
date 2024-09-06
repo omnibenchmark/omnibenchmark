@@ -36,6 +36,7 @@ def check_easybuild_status() -> subprocess.CompletedProcess:
 def check_conda_status() -> subprocess.CompletedProcess:
     return check_call("conda --version")
 
+
 ## not used, snakemake cannot use docker containers directly
 def check_docker_status() -> subprocess.CompletedProcess:
     return check_call("docker --version")
