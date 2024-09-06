@@ -11,14 +11,13 @@ from typing_extensions import Annotated
 
 from omni.cli import benchmark
 from omni.cli import soft
-from omni.cli import io
+
+# from omni.cli import io
 from omni.cli import run
 
 cli = typer.Typer(add_completion=False, no_args_is_help=True)
 
-cli.add_typer(
-    benchmark.cli, name="benchmark", help="Manage benchmarks and their versions."
-)
+cli.add_typer(benchmark.cli, name="info", help="Manage benchmarks and their versions.")
 
 cli.add_typer(
     soft.cli,
@@ -26,7 +25,7 @@ cli.add_typer(
     help="Manage and install benchmark-specific software environments",
 )
 
-cli.add_typer(io.cli, name="files", help="List, download and check input/output files.")
+# cli.add_typer(io.cli, name="files", help="List, download and check input/output files.")
 
 cli.add_typer(run.cli, name="run", help="Execute benchmarks or modules.")
 
