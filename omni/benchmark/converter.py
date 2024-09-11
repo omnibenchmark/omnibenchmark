@@ -39,6 +39,13 @@ class LinkMLConverter:
             easyconfigs.append(se["easyconfig"])
         return easyconfigs
 
+    def get_conda_envs(self):
+        """Get conda envs"""
+        envs = []
+        for se in self.model.software_environments:
+            envs.append(se["conda"])
+        return envs
+
     def get_stages(self) -> Dict[str, omni_schema.Stage]:
         """Get benchmark stages"""
 

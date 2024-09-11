@@ -37,6 +37,9 @@ class Benchmark:
     def get_easyconfigs(self):
         return self.converter.get_easyconfigs()
 
+    def get_conda_envs(self):
+        return self.converter.get_conda_envs()
+
     def get_nodes(self):
         return list(self.G.nodes)
 

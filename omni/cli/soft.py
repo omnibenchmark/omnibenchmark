@@ -368,6 +368,39 @@ def pin_conda_env(
     typer.echo(f"\nDONE: Pinned {conda_env}\n")
 
 
+@conda_cli.command("prepare")
+def conda_prepare(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Benchmark YAML file",
+        ),
+    ],
+):
+    """Pin all conda envs needed for a given benchmark YAML."""
+    typer.echo(f"Pinning conda envs for {benchmark}. It will take some time.")
+
+    if common.check_conda_status().returncode != 0:
+        raise ("ERROR: conda not installed")
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+
+    for conda in benchmark.get_conda_envs():
+        if not os.path.isfile(os.path.join("envs", conda)):
+            typer.echo(
+                "ERROR: theconda env file at "
+                + os.path.join("envs", conda)
+                + "does not exist."
+            )
+            sys.exit()
+        conda_backend.pin_conda_envs(os.path.join("envs", conda))
+    typer.echo("DONE: pinned all conda envs.")
+
+
 ## general stuff ######################################################################################
 
 
