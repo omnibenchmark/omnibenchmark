@@ -7,6 +7,7 @@ import typer
 from packaging.version import Version
 from typing_extensions import Annotated
 
+from omni.cli.run import validate_benchmark
 from omni.io.utils import get_storage
 
 cli = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -71,21 +72,17 @@ def diff_benchmark(
     typer.echo(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
-    if __name__ == "__main__":
-        # TODO: for testing until get_bench_definition is implemented
-        minio_auth_options_public = {
-            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
-            "secure": False,
-        }
-        bench_yaml = {
-            "auth_options": minio_auth_options_public,
-            "storage_type": "minio",
-        }
-        benchmark = "testversioning2"
-        version1 = "0.1"
-        version2 = "0.2"
+    benchmark = validate_benchmark(benchmark)
+
+    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
+
     # setup storage
-    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
+    # TODO: add bucket_name to schema
+    ss = get_storage(
+        str(benchmark.converter.model.storage_api),
+        auth_options,
+        str(benchmark.converter.model.id),
+    )
 
     # get objects for first version
     ss.set_version(version1)
@@ -94,9 +91,12 @@ def diff_benchmark(
         f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
         for f in ss.files.items()
     ]
-    creation_time_v1 = datetime.datetime.fromisoformat(
-        ss.files[f"versions/{version1}.csv"]["last_modified"]
-    ).strftime("%Y-%m-%d %H:%M:%S")
+    if f"versions/{version1}.csv" in ss.files.keys():
+        creation_time_v1 = datetime.datetime.fromisoformat(
+            ss.files[f"versions/{version1}.csv"]["last_modified"]
+        ).strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        creation_time_v1 = ""
 
     # get objects for second version
     ss.set_version(version2)
@@ -105,9 +105,12 @@ def diff_benchmark(
         f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
         for f in ss.files.items()
     ]
-    creation_time_v2 = datetime.datetime.fromisoformat(
-        ss.files[f"versions/{version2}.csv"]["last_modified"]
-    ).strftime("%Y-%m-%d %H:%M:%S")
+    if f"versions/{version2}.csv" in ss.files.keys():
+        creation_time_v2 = datetime.datetime.fromisoformat(
+            ss.files[f"versions/{version2}.csv"]["last_modified"]
+        ).strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        creation_time_v2 = ""
 
     # diff the two versions
     typer.echo(

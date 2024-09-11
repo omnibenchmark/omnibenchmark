@@ -4,6 +4,8 @@ import hashlib
 
 from omni.io.MinIOStorage import MinIOStorage
 
+# from omni_schema.datamodel.omni_schema import StorageAPIEnum
+
 
 def get_storage(storage_type: str, auth_options: dict, benchmark: str):
     """
@@ -17,7 +19,7 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str):
     Returns:
     - RemoteStorage: The remote storage object.
     """
-    if storage_type == "minio":
+    if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
         return MinIOStorage(auth_options, benchmark)
     else:
         raise ValueError("Invalid storage type")
