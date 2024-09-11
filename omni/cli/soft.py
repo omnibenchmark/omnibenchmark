@@ -99,8 +99,20 @@ def singularity_build(
         nthreads=str(len(os.sched_getaffinity(0))),
     )
 
-    eb.singularity_build(singularity_recipe=singularity_recipe, easyconfig=easyconfig)
-    typer.echo("DONE: recipe and image built for " + singularity_recipe)
+    typer.echo(
+        "DONE: singularity recipe written for "
+        + singularity_recipe
+        + "\nDOING: building the image"
+    )
+
+    sb = eb.singularity_build(
+        singularity_recipe=singularity_recipe, easyconfig=easyconfig
+    )
+    if sb.returncode != 0:
+        typer.echo("ERROR: " + sb.stderr)
+    if sb.returncode == 0:
+        typer.echo(sb.stdout)
+        typer.echo("DONE: singularity image built for " + singularity_recipe)
 
 
 @sing_cli.command("push")
@@ -183,8 +195,12 @@ def envmodules_build(
         print("ERROR: easyconfig not found.\n")
         sys.exit()
 
-    eb.easybuild_easyconfig(easyconfig=easyconfig, threads=threads)
-    typer.echo("DONE")
+    p = eb.easybuild_easyconfig(easyconfig=easyconfig, threads=threads)
+    if p.returncode != 0:
+        typer.echo("ERROR: " + p.stderr)
+    if p.returncode == 0:
+        typer.echo(p.stdout)
+    typer.echo("DONE: built " + easyconfig)
 
 
 # @module_cli.command('list')
@@ -278,10 +294,10 @@ def check(
         raise typer.BadParameter(
             "Bad `--what` value. Please check help (`ob software check --help`)."
         )
-    if ret.returncode == 0 or (ret.returncode == 1 and what == 'singularity'):
-        typer.echo("OK: " + what)
+    if ret.returncode == 0:
+        typer.echo("OK: " + ret.stdout)
     else:
-        typer.echo("Failed: " + ret.returncode)
+        typer.echo("Failed: " + ret.stdout + ret.stderr)
 
 
 ## docker

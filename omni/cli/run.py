@@ -1,4 +1,5 @@
 """cli commands related to benchmark/module execution and start"""
+
 import os
 from itertools import chain
 from pathlib import Path

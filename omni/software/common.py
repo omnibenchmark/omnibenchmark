@@ -12,10 +12,10 @@ import subprocess
 
 def check_call(command: str, use_shell: bool = True) -> subprocess.CompletedProcess:
     ret = subprocess.run(
-        command.split(" "),
+        command,
         text=True,
         capture_output=True,
-        check=False,
+        check=True,
         shell=use_shell,
     )
     return ret

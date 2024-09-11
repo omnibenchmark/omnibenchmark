@@ -70,9 +70,9 @@ def easybuild_easyconfig(
     cmd = construct_easybuild_easyconfig_command(easyconfig=easyconfig, threads=threads)
 
     # try:
-    ret = subprocess.run(cmd, shell=True, capture_output=True, check=True)
-    print(ret.stdout)
-    print(ret.stderr)
+    ret = subprocess.run(cmd, shell=True, capture_output=True, check=False)
+    # print(ret.stdout)
+    # print(ret.stderr)
     return ret
     # except subprocess.CalledProcessError as exc:
     #     return ("ERROR easybuild failed:", exc.returncode, exc.output)
@@ -178,16 +178,15 @@ def singularity_build(
     - singularity_recipe (str): path to a Singularity template
     """
     image_name = op.basename(easyconfig) + ".sif"
-    try:
-        cmd = "singularity build --fakeroot " + image_name + " " + singularity_recipe
-        # output = subprocess.check_output(
-        #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
-        # )
-        output = subprocess.run(
-            cmd.split(" "), shell=False, text=True, capture_output=True, check=True
-        )
-    except subprocess.CalledProcessError as exc:
-        return ("ERROR singularity build failed:", exc.returncode, exc.output)
+
+    cmd = "singularity build --fakeroot " + image_name + " " + singularity_recipe
+    # output = subprocess.check_output(
+    #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
+    # )
+    output = subprocess.run(
+        cmd.split(" "), shell=False, text=True, capture_output=True, check=False
+    )
+    return output
 
 
 ## untested,drafted 06 Aug 2024
