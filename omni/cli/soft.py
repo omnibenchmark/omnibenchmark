@@ -14,7 +14,7 @@ import os, sys
 # import logging
 
 cli = typer.Typer(
-    add_completion=False,
+    add_completion=True,
     no_args_is_help=True,
     pretty_exceptions_short=False,
     rich_markup_mode=None,
@@ -49,6 +49,14 @@ cli.add_typer(
     help="Manage envmodules-based software installations. Uses easybuild to build software.",
 )
 
+docker_cli = typer.Typer(
+    add_completion=True, no_args_is_help=True, pretty_exceptions_short=True
+)
+cli.add_typer(
+    docker_cli,
+    name="docker",
+    help="Manage docker based software installations. Uses easybuild to build software.",
+)
 
 ## singularity #####################################################################################
 
@@ -245,7 +253,8 @@ def check(
                --what singularity : singularity \n
                --what module      : module tool, typically lmod \n 
                --what easybuild   : easybuild \n
-               --what conda       : conda \n""",
+               --what conda       : conda \n
+               --what docker      : docker \n""",
         ),
     ],
 ):
@@ -263,11 +272,59 @@ def check(
         ret = common.check_singularity_status()
     elif what == "conda":
         ret = common.check_conda_status()
+    elif what == "docker":
+        ret = common.check_docker_status()
     else:
         raise typer.BadParameter(
             "Bad `--what` value. Please check help (`ob software check --help`)."
         )
-    if ret.returncode == 0:
-        typer.echo("OK:", ret)
+    if ret.returncode == 0 or (ret.returncode == 1 and what == 'singularity'):
+        typer.echo("OK: " + what)
     else:
-        typer.echo("Failed:", ret)
+        typer.echo("Failed: " + ret.returncode)
+
+
+## docker
+
+
+@docker_cli.command("build")
+def docker_build(
+    easyconfig: Annotated[
+        str,
+        typer.Option(
+            "--easyconfig",
+            "-e",
+            help="Easyconfig",
+        ),
+    ],
+):
+    """Build a docker image for a given easyconfig."""
+    typer.echo(
+        f"Installing software for {easyconfig} within a docker container. It will take some time."
+    )
+
+    if common.check_easybuild_status().returncode != 0:
+        raise ("ERROR: Easybuild not installed")
+    if common.check_docker_status().returncode != 0:
+        raise ("ERROR: Docker not installed")
+
+    ## check the easyconfig exists
+    try:
+        fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
+    except:
+        typer.echo("ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED)
+        sys.exit()
+
+    docker_recipe = "Dockerfile_" + easyconfig + ".txt"
+    envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig)
+    eb.create_dockerfile(
+        easyconfig=easyconfig,
+        dockerfile=docker_recipe,
+        envmodule=envmodule_name,
+        nthreads=str(len(os.sched_getaffinity(0))),
+    )
+    typer.echo("DONE: dockerfile built for " + docker_recipe)
+    eb.docker_build(
+        dockerfile=docker_recipe, easyconfig=easyconfig, name=envmodule_name
+    )
+    typer.echo("DONE: docker image built for " + docker_recipe)

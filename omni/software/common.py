@@ -10,12 +10,12 @@ Calls workflow capabilities to reuse schema / yaml parsing logics
 import subprocess
 
 
-def check_call(command: str, use_shell: bool = False) -> subprocess.CompletedProcess:
+def check_call(command: str, use_shell: bool = True) -> subprocess.CompletedProcess:
     ret = subprocess.run(
         command.split(" "),
         text=True,
         capture_output=True,
-        check=True,
+        check=False,
         shell=use_shell,
     )
     return ret
@@ -35,3 +35,8 @@ def check_easybuild_status() -> subprocess.CompletedProcess:
 
 def check_conda_status() -> subprocess.CompletedProcess:
     return check_call("conda --version")
+
+
+## not used, snakemake cannot use docker containers directly
+def check_docker_status() -> subprocess.CompletedProcess:
+    return check_call("docker --version")
