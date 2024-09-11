@@ -164,4 +164,3 @@ class Benchmark:
             ]
 
             return paths + self._construct_output_paths(new_prefix, tail)
-
