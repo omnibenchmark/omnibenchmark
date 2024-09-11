@@ -70,7 +70,9 @@ def easybuild_easyconfig(
     cmd = construct_easybuild_easyconfig_command(easyconfig=easyconfig, threads=threads)
 
     # try:
-    ret = subprocess.run(cmd, shell=True, capture_output=True, check=False)
+    ret = subprocess.run(
+        cmd.split(" "), shell=False, capture_output=True, check=False, text=True
+    )
     # print(ret.stdout)
     # print(ret.stderr)
     return ret

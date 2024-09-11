@@ -43,7 +43,7 @@ for eb in easyconfigs:
         params:
             workdir = WD
         run:
-            with open(log.log, 'wb') as logtxt: 
+            with open(log.log, 'w') as logtxt: 
                 print(module('list'))
                 common.check_easybuild_status()
                 ret = easy.easybuild_easyconfig(easyconfig = eb,

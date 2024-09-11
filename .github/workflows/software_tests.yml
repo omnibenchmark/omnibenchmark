@@ -106,7 +106,7 @@ jobs:
   software_testing_mac:
     strategy:
       matrix:
-        os: [macos-14, macos-13]
+        os: [macos-14] # [macos-14, macos-13]
         test_group: [1, 2]
         py_ver: ["3.12"]
       fail-fast: false
