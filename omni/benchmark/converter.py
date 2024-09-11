@@ -11,7 +11,7 @@ class LinkMLConverter:
     def __init__(self, benchmark_file: Path):
         self.benchmark_file = benchmark_file
         self.model = parse_instance(benchmark_file, omni_schema.Benchmark)
-
+    
     def get_name(self) -> str:
         """Get name of the benchmark"""
 
@@ -31,6 +31,13 @@ class LinkMLConverter:
         """Get underlying benchmark"""
 
         return self.model
+
+    def get_easyconfigs(self):
+        """Get easyconfigs"""
+        easyconfigs = []
+        for se in self.model.software_environments:
+            easyconfigs.append(se['easyconfig'])
+        return(easyconfigs)
 
     def get_stages(self) -> Dict[str, omni_schema.Stage]:
         """Get benchmark stages"""

@@ -6,8 +6,9 @@ from typing_extensions import Annotated
 from omni.software import easybuild_backend as eb
 from omni.software import conda_backend
 from omni.software import common
+from omni.benchmark import Benchmark
 
-import typer
+import typer, yaml
 
 import os, sys
 
@@ -114,6 +115,66 @@ def singularity_build(
         typer.echo(sb.stdout)
         typer.echo("DONE: singularity image built for " + singularity_recipe)
 
+
+@sing_cli.command("prepare")
+def singularity_prepare(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Benchmark YAML file",
+        ),
+    ],
+):
+    """Build all singularity (fakeroot) images needed for a given benchmark YAML."""
+    typer.echo(
+        f"Installing software for {benchmark} using Singularity containers. It will take some time."
+    )
+
+    if common.check_easybuild_status().returncode != 0:
+        raise ("ERROR: Easybuild not installed")
+    if common.check_singularity_status().returncode != 0:
+        raise ("ERROR: Singularity not installed")
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))        
+    
+    for easyconfig in benchmark.get_easyconfigs():
+        print(easyconfig)
+        ## check the easyconfig exists
+        try:
+            fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
+        except:
+            typer.echo("ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED)
+            sys.exit()
+
+        ## do
+        singularity_recipe = "Singularity_" + easyconfig + ".txt"
+        envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig)
+        eb.create_definition_file(
+            easyconfig=easyconfig,
+            singularity_recipe=singularity_recipe,
+            envmodule=envmodule_name,
+            nthreads=str(len(os.sched_getaffinity(0))),
+        )
+
+        typer.echo(
+            "DONE: singularity recipe written for "
+            + singularity_recipe
+            + "\nDOING: building the image"
+        )
+
+        sb = eb.singularity_build(
+            singularity_recipe=singularity_recipe, easyconfig=easyconfig
+        )
+        if sb.returncode != 0:
+            typer.echo("ERROR: " + sb.stderr)
+        if sb.returncode == 0:
+            typer.echo(sb.stdout)
+            typer.echo("DONE: singularity image built for " + singularity_recipe)
+        typer.echo("DONE: singularity images built.")
 
 @sing_cli.command("push")
 def singularity_push(

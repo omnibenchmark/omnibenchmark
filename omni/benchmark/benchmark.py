@@ -34,6 +34,9 @@ class Benchmark:
     def get_definition_file(self) -> Path:
         return self.converter.benchmark_file
 
+    def get_easyconfigs(self):
+        return self.converter.get_easyconfigs()
+
     def get_nodes(self):
         return list(self.G.nodes)
 
@@ -161,3 +164,4 @@ class Benchmark:
             ]
 
             return paths + self._construct_output_paths(new_prefix, tail)
+
