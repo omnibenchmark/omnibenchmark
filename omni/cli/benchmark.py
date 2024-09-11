@@ -138,32 +138,23 @@ def list_versions(
             "-b",
             help="Path to benchmark yaml file or benchmark id.",
         ),
-    ],
-    endpoint: Annotated[
-        str,
-        typer.Option(
-            "--endpoint",
-            "-e",
-            help="remote/object storage.",
-        ),
-    ],
+    ]
 ):
     """List all available benchmarks versions at a specific endpoint."""
-    typer.echo(f"Available versions of {benchmark} at {endpoint}:")
-    # TODO: for testing until get_bench_definition is implemented
-    if __name__ == "__main__":
-        minio_auth_options_public = {
-            "endpoint": "https://omnibenchmark.mls.uzh.ch:9000",
-            "secure": False,
-        }
-        bench_yaml = {
-            "auth_options": minio_auth_options_public,
-            "storage_type": "minio",
-        }
-        benchmark = "testversioning"
-        version = "0.1"
+    typer.echo(f"Available versions of {benchmark}:")
 
-    ss = get_storage(bench_yaml["storage_type"], bench_yaml["auth_options"], benchmark)
+    benchmark = validate_benchmark(benchmark)
+
+    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
+
+    # setup storage
+    # TODO: add bucket_name to schema
+    ss = get_storage(
+        str(benchmark.converter.model.storage_api),
+        auth_options,
+        str(benchmark.converter.model.id),
+    )
+
     if len(ss.versions) > 0:
         ss.versions.sort(key=Version)
         for version in ss.versions:

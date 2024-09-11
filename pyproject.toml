@@ -46,6 +46,7 @@ snakemake = "^8.16.0"
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
 snakedeploy="^0.10.0"
+snakemake-storage-plugin-s3 = "^0.2.12"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
