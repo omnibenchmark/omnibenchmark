@@ -71,7 +71,7 @@ def remote_storage_snakemake_args(benchmark: Benchmark) -> dict:
         auth_options = S3_access_config_from_env()
         return {
             "default-storage-provider": "s3",
-            "default-storage-prefix": f"s3://{benchmark.converter.model.id}",
+            "default-storage-prefix": f"s3://{benchmark.converter.model.storage_bucket_name}",
             "storage-s3-endpoint-url": benchmark.converter.model.storage,
             "storage-s3-access-key": auth_options["access_key"],
             "storage-s3-secret-key": auth_options["secret_key"],

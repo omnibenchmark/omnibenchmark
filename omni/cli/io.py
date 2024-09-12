@@ -45,7 +45,7 @@ def create_benchmark_version(
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
-        str(benchmark.converter.model.id),
+        str(benchmark.converter.model.storage_bucket_name),
     )
     ss.set_version(benchmark.get_benchmark_version())
     if ss.version in ss.versions:

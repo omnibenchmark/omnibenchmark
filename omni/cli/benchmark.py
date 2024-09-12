@@ -85,7 +85,7 @@ def diff_benchmark(
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
-        str(benchmark.converter.model.id),
+        str(benchmark.converter.model.storage_bucket_name),
     )
 
     # get objects for first version
@@ -158,7 +158,7 @@ def list_versions(
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
-        str(benchmark.converter.model.id),
+        str(benchmark.converter.model.storage_bucket_name),
     )
 
     if len(ss.versions) > 0:

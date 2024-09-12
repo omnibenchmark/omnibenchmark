@@ -2329,8 +2329,8 @@ docs = []
 [package.source]
 type = "git"
 url = "https://github.com/omnibenchmark/omni-schema.git"
-reference = "version/0.0.3"
-resolved_reference = "b476584ba1d2237cdc25503ba174c812693ba366"
+reference = "version/0.0.4"
+resolved_reference = "798c63be85edd5f73215b1571c383e2851806a55"
 
 [[package]]
 name = "packaging"
@@ -4081,4 +4081,4 @@ swift = ["python-swiftclient"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "7dbdccf9183b70c6f5f64e190b525a461add4f0bebd8c0105f0e4483730860cc"
+content-hash = "aaf133d2601c692bb44f81f9a64a0c4971846c645291fd36286bc71996e02d9b"
