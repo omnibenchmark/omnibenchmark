@@ -1,5 +1,6 @@
 """cli commands related to input/output files"""
 
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -201,3 +202,34 @@ def checksum_files(
             typer.echo(filename)
         raise typer.Exit(code=1)
     typer.echo("Done")
+
+
+@cli.command("create-policy")
+def create_policy(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Path to benchmark yaml file or benchmark id.",
+        ),
+    ]
+):
+    """Create a new policy for a benchmark."""
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+
+    if (
+        str(benchmark.converter.model.storage_api).upper() == "MINIO"
+        or str(benchmark.converter.model.storage_api).upper() == "S3"
+    ):
+        policy = omni.io.S3config.benchmarker_access_token_policy(
+            benchmark.converter.model.storage_bucket_name
+        )
+        typer.echo(json.dumps(policy, indent=2))
+    else:
+        typer.echo(
+            "Error: Invalid storage type. Only MinIO/S3 storage is supported.", err=True
+        )
+        raise typer.Exit(code=1)

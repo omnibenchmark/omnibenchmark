@@ -5,8 +5,6 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0](https://github.com/omnibenchmark/omni-py) (unreleased)
 - Setup CI
-- Add first version of remote storage backend
+- Add first version of remote storage backend and incorporated into cli
 - Draft easybuild and conda capabilities (for Linux)
 - Add workflow engine interface and Snakemake backend
-- Add workflow engine interface and Snakemake backend
-
