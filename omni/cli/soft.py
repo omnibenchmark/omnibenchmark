@@ -6,8 +6,9 @@ from typing_extensions import Annotated
 from omni.software import easybuild_backend as eb
 from omni.software import conda_backend
 from omni.software import common
+from omni.benchmark import Benchmark
 
-import typer
+import typer, yaml
 
 import os, sys
 
@@ -49,14 +50,14 @@ cli.add_typer(
     help="Manage envmodules-based software installations. Uses easybuild to build software.",
 )
 
-docker_cli = typer.Typer(
-    add_completion=True, no_args_is_help=True, pretty_exceptions_short=True
-)
-cli.add_typer(
-    docker_cli,
-    name="docker",
-    help="Manage docker based software installations. Uses easybuild to build software.",
-)
+# docker_cli = typer.Typer(
+#     add_completion=True, no_args_is_help=True, pretty_exceptions_short=True
+# )
+# cli.add_typer(
+#     docker_cli,
+#     name="docker",
+#     help="Manage docker based software installations. Uses easybuild to build software.",
+# )
 
 ## singularity #####################################################################################
 
@@ -113,6 +114,69 @@ def singularity_build(
     if sb.returncode == 0:
         typer.echo(sb.stdout)
         typer.echo("DONE: singularity image built for " + singularity_recipe)
+
+
+@sing_cli.command("prepare")
+def singularity_prepare(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Benchmark YAML file",
+        ),
+    ],
+):
+    """Build all singularity (fakeroot) images needed for a given benchmark YAML."""
+    typer.echo(
+        f"Installing software for {benchmark} using Singularity containers. It will take some time."
+    )
+
+    if common.check_easybuild_status().returncode != 0:
+        raise ("ERROR: Easybuild not installed")
+    if common.check_singularity_status().returncode != 0:
+        raise ("ERROR: Singularity not installed")
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+
+    for easyconfig in benchmark.get_easyconfigs():
+        print(easyconfig)
+        ## check the easyconfig exists
+        try:
+            fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
+        except:
+            typer.echo(
+                "ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED
+            )
+            sys.exit()
+
+        ## do
+        singularity_recipe = "Singularity_" + easyconfig + ".txt"
+        envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig)
+        eb.create_definition_file(
+            easyconfig=easyconfig,
+            singularity_recipe=singularity_recipe,
+            envmodule=envmodule_name,
+            nthreads=str(len(os.sched_getaffinity(0))),
+        )
+
+        typer.echo(
+            "DONE: singularity recipe written for "
+            + singularity_recipe
+            + "\nDOING: building the image"
+        )
+
+        sb = eb.singularity_build(
+            singularity_recipe=singularity_recipe, easyconfig=easyconfig
+        )
+        if sb.returncode != 0:
+            typer.echo("ERROR: " + sb.stderr)
+        if sb.returncode == 0:
+            typer.echo(sb.stdout)
+            typer.echo("DONE: singularity image built for " + singularity_recipe)
+        typer.echo("DONE: singularity images built.")
 
 
 @sing_cli.command("push")
@@ -235,6 +299,55 @@ def envmodules_build(
 #     print('DONE')
 
 
+@module_cli.command("prepare")
+def envmodules_prepare(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Benchmark YAML file",
+        ),
+    ],
+    threads: Annotated[
+        int,
+        typer.Option("--threads", "-p", help="Number of threads"),
+    ] = 2,
+):
+    """Build all envmodules needed for a given benchmark YAML."""
+    typer.echo(
+        f"Installing software for {benchmark} using envmodules. It will take some time."
+    )
+
+    if common.check_easybuild_status().returncode != 0:
+        raise ("ERROR: Easybuild not installed")
+    if common.check_lmod_status().returncode != 0:
+        raise ("ERROR: lmod not installed")
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+
+    for easyconfig in benchmark.get_easyconfigs():
+        print(easyconfig)
+        ## check the easyconfig exists
+        try:
+            fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
+        except:
+            typer.echo(
+                "ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED
+            )
+            sys.exit()
+
+        p = eb.easybuild_easyconfig(easyconfig=easyconfig, threads=threads)
+        if p.returncode != 0:
+            typer.echo("ERROR: " + p.stderr)
+            if p.returncode == 0:
+                typer.echo(p.stdout)
+            typer.echo("DONE: built " + easyconfig)
+        typer.echo("DONE: built all easyconfigs")
+
+
 ## conda #############################################################################################
 
 
@@ -255,6 +368,39 @@ def pin_conda_env(
     typer.echo(f"\nDONE: Pinned {conda_env}\n")
 
 
+@conda_cli.command("prepare")
+def conda_prepare(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Benchmark YAML file",
+        ),
+    ],
+):
+    """Pin all conda envs needed for a given benchmark YAML."""
+    typer.echo(f"Pinning conda envs for {benchmark}. It will take some time.")
+
+    if common.check_conda_status().returncode != 0:
+        raise ("ERROR: conda not installed")
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+
+    for conda in benchmark.get_conda_envs():
+        if not os.path.isfile(os.path.join("envs", conda)):
+            typer.echo(
+                "ERROR: theconda env file at "
+                + os.path.join("envs", conda)
+                + "does not exist."
+            )
+            sys.exit()
+        conda_backend.pin_conda_envs(os.path.join("envs", conda))
+    typer.echo("DONE: pinned all conda envs.")
+
+
 ## general stuff ######################################################################################
 
 
@@ -269,8 +415,7 @@ def check(
                --what singularity : singularity \n
                --what module      : module tool, typically lmod \n 
                --what easybuild   : easybuild \n
-               --what conda       : conda \n
-               --what docker      : docker \n""",
+               --what conda       : conda \n""",
         ),
     ],
 ):
@@ -288,8 +433,8 @@ def check(
         ret = common.check_singularity_status()
     elif what == "conda":
         ret = common.check_conda_status()
-    elif what == "docker":
-        ret = common.check_docker_status()
+    # elif what == "docker":
+    #     ret = common.check_docker_status()
     else:
         raise typer.BadParameter(
             "Bad `--what` value. Please check help (`ob software check --help`)."
@@ -303,44 +448,44 @@ def check(
 ## docker
 
 
-@docker_cli.command("build")
-def docker_build(
-    easyconfig: Annotated[
-        str,
-        typer.Option(
-            "--easyconfig",
-            "-e",
-            help="Easyconfig",
-        ),
-    ],
-):
-    """Build a docker image for a given easyconfig."""
-    typer.echo(
-        f"Installing software for {easyconfig} within a docker container. It will take some time."
-    )
+# @docker_cli.command("build")
+# def docker_build(
+#     easyconfig: Annotated[
+#         str,
+#         typer.Option(
+#             "--easyconfig",
+#             "-e",
+#             help="Easyconfig",
+#         ),
+#     ],
+# ):
+#     """Build a docker image for a given easyconfig."""
+#     typer.echo(
+#         f"Installing software for {easyconfig} within a docker container. It will take some time."
+#     )
 
-    if common.check_easybuild_status().returncode != 0:
-        raise ("ERROR: Easybuild not installed")
-    if common.check_docker_status().returncode != 0:
-        raise ("ERROR: Docker not installed")
+#     if common.check_easybuild_status().returncode != 0:
+#         raise ("ERROR: Easybuild not installed")
+#     if common.check_docker_status().returncode != 0:
+#         raise ("ERROR: Docker not installed")
 
-    ## check the easyconfig exists
-    try:
-        fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
-    except:
-        typer.echo("ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED)
-        sys.exit()
+#     ## check the easyconfig exists
+#     try:
+#         fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
+#     except:
+#         typer.echo("ERROR: easyconfig not found.\n", err=True, color=typer.colors.RED)
+#         sys.exit()
 
-    docker_recipe = "Dockerfile_" + easyconfig + ".txt"
-    envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig)
-    eb.create_dockerfile(
-        easyconfig=easyconfig,
-        dockerfile=docker_recipe,
-        envmodule=envmodule_name,
-        nthreads=str(len(os.sched_getaffinity(0))),
-    )
-    typer.echo("DONE: dockerfile built for " + docker_recipe)
-    eb.docker_build(
-        dockerfile=docker_recipe, easyconfig=easyconfig, name=envmodule_name
-    )
-    typer.echo("DONE: docker image built for " + docker_recipe)
+#     docker_recipe = "Dockerfile_" + easyconfig + ".txt"
+#     envmodule_name = eb.get_envmodule_name_from_easyconfig(easyconfig)
+#     eb.create_dockerfile(
+#         easyconfig=easyconfig,
+#         dockerfile=docker_recipe,
+#         envmodule=envmodule_name,
+#         nthreads=str(len(os.sched_getaffinity(0))),
+#     )
+#     typer.echo("DONE: dockerfile built for " + docker_recipe)
+#     eb.docker_build(
+#         dockerfile=docker_recipe, easyconfig=easyconfig, name=envmodule_name
+#     )
+#     typer.echo("DONE: docker image built for " + docker_recipe)

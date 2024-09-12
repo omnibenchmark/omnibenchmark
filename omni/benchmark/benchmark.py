@@ -34,6 +34,12 @@ class Benchmark:
     def get_definition_file(self) -> Path:
         return self.converter.benchmark_file
 
+    def get_easyconfigs(self):
+        return self.converter.get_easyconfigs()
+
+    def get_conda_envs(self):
+        return self.converter.get_conda_envs()
+
     def get_nodes(self):
         return list(self.G.nodes)
 

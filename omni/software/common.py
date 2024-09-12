@@ -22,7 +22,11 @@ def check_call(command: str, use_shell: bool = True) -> subprocess.CompletedProc
 
 
 def check_lmod_status() -> subprocess.CompletedProcess:
-    return check_call("type module", use_shell=True)
+    # return check_call("type module", use_shell=True)
+    ret = subprocess.run(
+        ["type", "module"], text=True, capture_output=True, check=False, shell=True
+    )
+    return ret
 
 
 def check_singularity_status() -> subprocess.CompletedProcess:
@@ -37,6 +41,6 @@ def check_conda_status() -> subprocess.CompletedProcess:
     return check_call("conda --version")
 
 
-## not used, snakemake cannot use docker containers directly
-def check_docker_status() -> subprocess.CompletedProcess:
-    return check_call("docker --version")
+# ## not used, snakemake cannot use docker containers directly
+# def check_docker_status() -> subprocess.CompletedProcess:
+#     return check_call("docker --version")
