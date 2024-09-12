@@ -2,12 +2,14 @@
 
 import datetime
 import difflib
+from pathlib import Path
 
 import typer
+import yaml
 from packaging.version import Version
 from typing_extensions import Annotated
 
-from omni.cli.run import validate_benchmark
+from omni.benchmark import Benchmark
 from omni.io.utils import get_storage
 
 cli = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -72,7 +74,9 @@ def diff_benchmark(
     typer.echo(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
-    benchmark = validate_benchmark(benchmark)
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
 
     auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
@@ -143,7 +147,9 @@ def list_versions(
     """List all available benchmarks versions at a specific endpoint."""
     typer.echo(f"Available versions of {benchmark}:")
 
-    benchmark = validate_benchmark(benchmark)
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
 
     auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 

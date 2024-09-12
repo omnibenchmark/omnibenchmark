@@ -1,11 +1,14 @@
 """cli commands related to input/output files"""
 
+from pathlib import Path
 from typing import List, Optional
 
 import typer
+import yaml
 from typing_extensions import Annotated
 
-from omni.cli.run import validate_benchmark
+import omni.io.files
+from omni.benchmark import Benchmark
 from omni.io.utils import get_storage, remote_storage_args
 
 cli = typer.Typer(
@@ -30,7 +33,9 @@ def create_benchmark_version(
     ]
 ):
     """Create a new benchmark version."""
-    benchmark = validate_benchmark(benchmark)
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
 
     auth_options = remote_storage_args(benchmark)
     # auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
@@ -98,51 +103,19 @@ def list_files(
     ] = None,
 ):
     """List all or specific files for a benchmark."""
-    typer.echo(
-        f"(not implemented) List {type} files for {benchmark} at stage {stage} from module {module}:",
-        err=True,
-    )
     if file_id is not None:
         typer.echo("--file_id is not implemented")
         raise typer.Exit(code=1)
-    if type is not None:
+    if type != "all":
         typer.echo("--type is not implemented")
         raise typer.Exit(code=1)
 
-    benchmark = validate_benchmark(benchmark)
-
-    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
-
-    # TODO: add bucket_name to schema
-    ss = get_storage(
-        str(benchmark.converter.model.storage_api),
-        auth_options,
-        str(benchmark.converter.model.id),
+    objectnames, etags = omni.io.files.list_files(
+        benchmark=benchmark, type=type, stage=stage, module=module, file_id=file_id
     )
-    ss.set_version(benchmark.get_benchmark_version())
-    ss._get_objects()
-
-    all_files = benchmark.get_output_paths()
-    expected_files = []
-    for file in all_files:
-        filter_stage = False
-        if stage is not None:
-            if file.split("/")[-4] != stage:
-                filter_stage = True
-
-        filter_module = False
-        if module is not None:
-            if file.split("/")[-3] != module:
-                filter_module = True
-
-        if not filter_stage and not filter_module:
-            expected_files.append(file.replace("{dataset}", file.split("/")[2]))
-
-    real_files = {k: v for k, v in ss.files.items() if k in expected_files}
-
-    if len(real_files) > 0:
-        for file in real_files:
-            typer.echo(file)
+    if len(objectnames) > 0:
+        for objectname, etag in zip(objectnames, etags):
+            typer.echo(f"{etag} {objectname}")
 
 
 @cli.command("download")
@@ -189,9 +162,20 @@ def download_files(
     ] = None,
 ):
     """Download all or specific files for a benchmark."""
-    typer.echo(
-        f" (not implemented) Download {type} files for {benchmark} at stage {stage} from module {module}",
-        err=True,
+    if file_id is not None:
+        typer.echo("--file_id is not implemented")
+        raise typer.Exit(code=1)
+    if type != "all":
+        typer.echo("--type is not implemented")
+        raise typer.Exit(code=1)
+
+    omni.io.files.download_files(
+        benchmark=benchmark,
+        type=type,
+        stage=stage,
+        module=module,
+        file_id=file_id,
+        verbose=True,
     )
 
 
@@ -207,4 +191,13 @@ def checksum_files(
     ],
 ):
     """Generate md5sums of all benchmark outputs"""
-    typer.echo(f"Generate md5sums for benchmark {benchmark}")
+    typer.echo(f"Checking MD5 checksums... ", nl=False)
+    failed_checks_filenames = omni.io.files.checksum_files(
+        benchmark=benchmark, verbose=True
+    )
+    if len(failed_checks_filenames) > 0:
+        typer.echo("Failed checksums:")
+        for filename in failed_checks_filenames:
+            typer.echo(filename)
+        raise typer.Exit(code=1)
+    typer.echo("Done")
