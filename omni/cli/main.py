@@ -1,19 +1,16 @@
 """Cli implementation of omni-py via typer"""
 
+from pathlib import Path
+
 import typer
+from typing_extensions import Annotated
+
+from omni.cli import benchmark, io, run, soft
 
 # ## to disable rich
 # import typer.core
 # typer.core.rich = None
 
-from pathlib import Path
-from typing_extensions import Annotated
-
-from omni.cli import benchmark
-from omni.cli import soft
-
-# from omni.cli import io
-from omni.cli import run
 
 cli = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -25,7 +22,9 @@ cli.add_typer(
     help="Manage and install benchmark-specific software environments",
 )
 
-# cli.add_typer(io.cli, name="files", help="List, download and check input/output files.")
+cli.add_typer(
+    io.cli, name="storage", help="List, download and check input/output files."
+)
 
 cli.add_typer(run.cli, name="run", help="Execute benchmarks or modules.")
 

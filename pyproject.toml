@@ -40,12 +40,13 @@ testcontainers = "^4.5.1"
 matplotlib = "3.8.0"
 networkx = "^3.3"
 
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.3"}
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.4"}
 snakemake = "^8.16.0"
 
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
 snakedeploy="^0.10.0"
+snakemake-storage-plugin-s3 = "^0.2.12"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"

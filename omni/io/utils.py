@@ -2,7 +2,11 @@
 
 import hashlib
 
+from omni.benchmark import Benchmark
 from omni.io.MinIOStorage import MinIOStorage
+from omni.io.S3config import S3_access_config_from_env
+
+# from omni_schema.datamodel.omni_schema import StorageAPIEnum
 
 
 def get_storage(storage_type: str, auth_options: dict, benchmark: str):
@@ -17,7 +21,7 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str):
     Returns:
     - RemoteStorage: The remote storage object.
     """
-    if storage_type == "minio":
+    if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
         return MinIOStorage(auth_options, benchmark)
     else:
         raise ValueError("Invalid storage type")
@@ -41,3 +45,36 @@ def sizeof_fmt(num: int, suffix: str = "B"):
             return f"{num:3.1f}{unit}{suffix}"
         num /= 1024.0
     return f"{num:.1f}Yi{suffix}"
+
+
+def remote_storage_args(benchmark: Benchmark) -> dict:
+    if (
+        str(benchmark.converter.model.storage_api).upper() == "MINIO"
+        or str(benchmark.converter.model.storage_api).upper() == "S3"
+    ):
+        auth_options = S3_access_config_from_env()
+        return {
+            "endpoint": benchmark.converter.model.storage,
+            "secure": False,
+            "access_key": auth_options["access_key"],
+            "secret_key": auth_options["secret_key"],
+        }
+    else:
+        raise ValueError("Invalid storage api")
+
+
+def remote_storage_snakemake_args(benchmark: Benchmark) -> dict:
+    if (
+        str(benchmark.converter.model.storage_api).upper() == "MINIO"
+        or str(benchmark.converter.model.storage_api).upper() == "S3"
+    ):
+        auth_options = S3_access_config_from_env()
+        return {
+            "default-storage-provider": "s3",
+            "default-storage-prefix": f"s3://{benchmark.converter.model.storage_bucket_name}",
+            "storage-s3-endpoint-url": benchmark.converter.model.storage,
+            "storage-s3-access-key": auth_options["access_key"],
+            "storage-s3-secret-key": auth_options["secret_key"],
+        }
+    else:
+        raise ValueError("Invalid storage api")

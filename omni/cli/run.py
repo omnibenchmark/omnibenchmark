@@ -5,12 +5,12 @@ from itertools import chain
 from pathlib import Path
 from typing import Optional
 
+import typer
 import yaml
 from typing_extensions import Annotated
 
-import typer
-
 from omni.benchmark import Benchmark
+from omni.io.utils import remote_storage_snakemake_args
 from omni.workflow.snakemake import SnakemakeEngine
 from omni.workflow.workflow import WorkflowEngine
 
@@ -71,42 +71,35 @@ def run_benchmark(
 ):
     """Run a benchmark as specified in the yaml."""
 
+    benchmark = validate_benchmark(benchmark)
+
+    if update and not dry:
+        update_prompt = typer.confirm(
+            "Are you sure you want to re-run the entire workflow?", abort=True
+        )
+        if not update_prompt:
+            raise typer.Abort()
+
     if not local:
-        # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
-        # TODO Implement remote execution using remote url from benchmark definition
-        typer.echo(
-            f"Error: Remote execution is not supported yet. Workflows can only be run in local mode.",
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
+        storage_options = remote_storage_snakemake_args(benchmark)
     else:
-        benchmark = validate_benchmark(benchmark)
+        storage_options = {}
 
-        if update and not dry:
-            update_prompt = typer.confirm(
-                "Are you sure you want to re-run the entire workflow?", abort=True
-            )
-            if not update_prompt:
-                raise typer.Abort()
+    # Controlling resource allocation with Snakemake is tricky
+    # -c only controls the number of parallelism for the Snakemake scheduler
+    # bioinfo methods are not designed with limited resources in mind (most)
+    # Future: Create yaml for communicating resources for individual methods
+    typer.echo("Running benchmark...")
+    success = workflow.run_workflow(
+        benchmark, cores=threads, update=update, dryrun=dry, **storage_options
+    )
 
-        # Controlling resource allocation with Snakemake is tricky
-        # -c only controls the number of parallelism for the Snakemake scheduler
-        # bioinfo methods are not designed with limited resources in mind (most)
-        # Future: Create yaml for communicating resources for individual methods
-        typer.echo("Running benchmark...")
-        success = workflow.run_workflow(
-            benchmark, cores=threads, update=update, dryrun=dry
-        )
+    if success:
+        typer.echo("Benchmark run has finished successfully.", color=typer.colors.GREEN)
+    else:
+        typer.echo("Benchmark run has failed.", err=True, color=typer.colors.RED)
 
-        if success:
-            typer.echo(
-                "Benchmark run has finished successfully.", color=typer.colors.GREEN
-            )
-        else:
-            typer.echo("Benchmark run has failed.", err=True, color=typer.colors.RED)
-
-        raise typer.Exit(code=0 if success else 1)
+    raise typer.Exit(code=0 if success else 1)
 
 
 @cli.command("module")

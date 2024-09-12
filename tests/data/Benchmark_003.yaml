@@ -1,25 +1,25 @@
-id: Benchmark_001
+id: benchmark003
 description: simple benchmark, somewhat explicit, simple params
 version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-storage: https://storage.github.com/
+storage:  http://omnibenchmark.mls.uzh.ch:9000
 storage_api: S3
-storage_bucket_name: benchmark001
+storage_bucket_name: benchmark003
 benchmark_yaml_spec: 0.01
 software_backend: envmodules
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
-    easyconfig: R-4.3.3-gfbf-2023b.eb
+    easyconfig: R_4.3.3-gfbf-2023b.eb
     envmodule: R/4.3.3-gfbf-2023b
     conda: R_4.3.3_try.yaml # or perhaps not
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
   python:
     description: "Ppython3.12.0 with gfbf-2023 toolchain"
-    easyconfig: Python-3.9.6-GCCcore-11.2.0.eb
-    envmodule: python/3.9.6-GCCcore-11.2.0
+    easyconfig: python_vX-gfbf-2023b.eb
+    envmodule: python/vX-gfbf-2023b
     conda: python_vX_test.yaml
-    apptainer: http://registry.ch/Python-3.9.6-GCCcore-11.2.0.eb.sif 
+    apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 stages:
   - id: data
     modules:
