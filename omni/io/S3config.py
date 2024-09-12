@@ -84,6 +84,5 @@ def S3_access_config_from_env() -> dict:
 
 
 if __name__ == "__main__":
-
     print(json.dumps(benchmarker_access_token_policy("obob"), indent=2))
     print(json.dumps(bucket_readonly_policy("omnibenchmarktestbucket"), indent=2))
