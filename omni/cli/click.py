@@ -2,15 +2,15 @@
 
 import click
 
-from pathlib import Path
+# from pathlib import Path
 
-from omni.benchmark import Benchmark
-from omni.software import easybuild_backend as eb
-from omni.software import conda_backend
-from omni.software import common
-import yaml
+# from omni.benchmark import Benchmark
+# from omni.software import easybuild_backend as eb
+# from omni.software import conda_backend
+# from omni.software import common
+# import yaml
 
-import os, sys
+# import os, sys
 
 
 @click.group()
@@ -80,7 +80,8 @@ def singularity_build(easyconfig):
     click.echo(
         f"Installing software for {easyconfig} within a Singularity container. It will take some time."
     )
-
+    from omni.software import common
+    from omni.software import easybuild_backend as eb
     if common.check_easybuild_status().returncode != 0:
         raise ("ERROR: Easybuild not installed")
     if common.check_singularity_status().returncode != 0:
@@ -126,7 +127,9 @@ def singularity_prepare(benchmark):
     click.echo(
         f"Installing software for {benchmark} using Singularity containers. It will take some time."
     )
-
+    from omni.software import common
+    from omni.software import easybuild_backend as eb
+    
     if common.check_easybuild_status().returncode != 0:
         raise ("ERROR: Easybuild not installed")
     if common.check_singularity_status().returncode != 0:
@@ -186,7 +189,8 @@ def singularity_prepare(benchmark):
 def singularity_push(docker_username, docker_password, sif, oras):
     """Pushes a singularity SIF file to an ORAS-compatible registry."""
     click.echo(f"Pushing {sif} to the registry {oras}.")
-
+    
+    from omni.software import easybuild_backend as eb
     eb.push_to_registry(
         sif=sif,
         docker_username=docker_username,
@@ -214,6 +218,8 @@ def envmodules_build(easyconfig):
         f"Installing software for {easyconfig} using easybuild. It will take some time."
     )
 
+    from omni.software import common
+    from omni.software import easybuild_backend as eb
     if common.check_easybuild_status().returncode != 0:
         raise ("ERROR: Easybuild not installed")
 
@@ -284,6 +290,8 @@ software.add_command(conda)
 def pin_conda_env(conda_env):
     """Pin all conda env-related dependencies versions using snakedeploy."""
     click.echo(f"Pinning {conda_env} via snakedeploy. It will take some time.")
+    from omni.software import common
+    from omni.software import conda_backend
     conda_backend.pin_conda_envs(conda_env)
     click.echo(f"\nDONE: Pinned {conda_env}\n")
 
@@ -293,7 +301,8 @@ def pin_conda_env(conda_env):
 def conda_prepare(benchmark):
     """Pin all conda envs needed for a given benchmark YAML."""
     click.echo(f"Pinning conda envs for {benchmark}. It will take some time.")
-
+    from omni.software import common
+    from omni.software import conda_backend
     if common.check_conda_status().returncode != 0:
         raise ("ERROR: conda not installed")
 
@@ -329,7 +338,7 @@ def check(ctx, what):
     click.echo(
         f"Checking software stack handlers / backends (singularity, easybuild, etc)."
     )
-
+    from omni.software import common
     if what == "easybuild":
         ret = common.check_easybuild_status()
     elif what == "module":
