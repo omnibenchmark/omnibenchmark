@@ -20,7 +20,8 @@ classifiers = [
 python = "^3.12"
 #setuptools="^72.1.0"
 
-# typer = {extras = ["all"], version = "^0.12.3"}
+# typer for testing only
+typer = {extras = ["all"], version = "^0.12.3"} 
 click="^8.1.7"
 typing-extensions = "^4.11.0"
 
