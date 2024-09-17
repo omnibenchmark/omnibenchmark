@@ -82,11 +82,11 @@ class Validator:
                 if environment.conda is None:
                     environment_exists = False
 
-            # TODO Check if actual environment files exist
+            # TODO Maybe check if actual environment files exist
             if not environment_exists:
                 self.errors.append(
                     ValidationError(
-                        f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend}'"
+                        f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
                     )
                 )
 

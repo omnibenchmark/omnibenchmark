@@ -77,6 +77,24 @@ def test_benchmark_format_incorrect():
         assert clean(result.output) == clean(expected_output)
 
 
+def test_benchmark_software_does_not_exist():
+    expected_output = """
+    Error: An unexpected error occurred: Software environment with id 'python' does not define the following backend: 'conda'.
+    """
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(benchmark_data_path / "benchmark_software_does_not_exist.yaml"),
+                "--local",
+            ]
+        )
+        assert result.exit_code == 1
+        assert clean(result.output) == clean(expected_output)
+
+
 def test_local():
     expected_output = """
     Benchmark YAML file integrity check passed.

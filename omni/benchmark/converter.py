@@ -30,14 +30,18 @@ class LinkMLConverter:
     def get_software_backend(self) -> omni_schema.SoftwareBackendEnum:
         """Get software backend of the benchmark"""
 
-        return self.model.software_backend
+        return self.model.software_backend.code
 
     def get_software_environments(
         self,
     ) -> Dict[omni_schema.SoftwareEnvironmentId, omni_schema.SoftwareEnvironment]:
         """Get software environments"""
 
-        return self.model.software_environments
+        environments = {}
+        for env in self.model.software_environments:
+            environments[env.id] = env
+
+        return environments
 
     def get_definition(self) -> omni_schema.Benchmark:
         """Get underlying benchmark"""
