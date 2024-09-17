@@ -77,19 +77,25 @@ class Validator:
                 software_backend == SoftwareBackendEnum.apptainer
                 or software_backend == SoftwareBackendEnum.docker
             ):
-                environment_path = Validator.get_environment_path(benchmark_dir, environment.apptainer)
+                environment_path = Validator.get_environment_path(
+                    benchmark_dir, environment.apptainer
+                )
 
                 if environment.apptainer is None:
                     environment_exists = False
 
             if software_backend == SoftwareBackendEnum.envmodules:
-                environment_path = Validator.get_environment_path(benchmark_dir, environment.envmodule)
+                environment_path = Validator.get_environment_path(
+                    benchmark_dir, environment.envmodule
+                )
 
                 if environment.envmodule is None:
                     environment_exists = False
 
             if software_backend == SoftwareBackendEnum.conda:
-                environment_path = Validator.get_environment_path(benchmark_dir, environment.conda)
+                environment_path = Validator.get_environment_path(
+                    benchmark_dir, environment.conda
+                )
 
                 if environment.conda is None:
                     environment_exists = False
@@ -100,7 +106,9 @@ class Validator:
                         f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
                     )
                 )
-            elif not Validator.is_url(environment_path) and not os.path.exists(environment_path):
+            elif not Validator.is_url(environment_path) and not os.path.exists(
+                environment_path
+            ):
                 self.errors.append(
                     ValidationError(
                         f"Software environment path for '{software_backend.text}' does not exist: '{environment_path}'."
@@ -134,7 +142,9 @@ class Validator:
         # Check if the string is a valid URL using urlparse
         try:
             result = urlparse(string)
-            return all([result.scheme, result.netloc])  # Valid if both scheme and netloc are present
+            return all(
+                [result.scheme, result.netloc]
+            )  # Valid if both scheme and netloc are present
         except ValueError:
             return False
 
