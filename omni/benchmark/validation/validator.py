@@ -1,7 +1,7 @@
 import os.path
 from collections import Counter
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 from urllib.parse import urlparse
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
@@ -129,7 +129,12 @@ class Validator:
         return duplicate_ids
 
     @staticmethod
-    def get_environment_path(benchmark_dir: Path, environment: str) -> str:
+    def get_environment_path(
+        benchmark_dir: Path, environment: Optional[str]
+    ) -> Optional[str]:
+        if not environment:
+            return None
+
         if Validator.is_url(environment) or Validator.is_absolute_path(environment):
             environment_path = environment
         else:
