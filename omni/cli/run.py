@@ -71,8 +71,10 @@ def run_benchmark(
 ):
     """Run a benchmark as specified in the yaml."""
 
+    # Validate benchmark YAML
     benchmark = validate_benchmark(benchmark)
 
+    # Confirm workflow re-run
     if update and not dry:
         update_prompt = typer.confirm(
             "Are you sure you want to re-run the entire workflow?", abort=True
@@ -80,10 +82,14 @@ def run_benchmark(
         if not update_prompt:
             raise typer.Abort()
 
+    # Construct storage options
     if not local:
         storage_options = remote_storage_snakemake_args(benchmark)
     else:
         storage_options = {}
+
+    # Retrieve software backend
+    software_backend = benchmark.get_benchmark_software_backend()
 
     # Controlling resource allocation with Snakemake is tricky
     # -c only controls the number of parallelism for the Snakemake scheduler
@@ -91,7 +97,12 @@ def run_benchmark(
     # Future: Create yaml for communicating resources for individual methods
     typer.echo("Running benchmark...")
     success = workflow.run_workflow(
-        benchmark, cores=threads, update=update, dryrun=dry, **storage_options
+        benchmark,
+        cores=threads,
+        update=update,
+        dryrun=dry,
+        backend=software_backend,
+        **storage_options,
     )
 
     if success:
@@ -207,14 +218,20 @@ def run_module(
             raise typer.Exit(code=1)
         else:
             typer.echo(f"Running module on a dataset provided in a custom directory.")
+
+            # Validate benchmark YAML
             benchmark = validate_benchmark(benchmark)
 
+            # Confirm workflow re-run
             if update and not dry:
                 update_prompt = typer.confirm(
                     "Are you sure you want to re-run the entire workflow?", abort=True
                 )
                 if not update_prompt:
                     raise typer.Abort()
+
+            # Retrieve software backend
+            software_backend = benchmark.get_benchmark_software_backend()
 
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
             if len(benchmark_nodes) > 0:
@@ -271,6 +288,7 @@ def run_module(
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
+                                    backend=software_backend,
                                 )
 
                                 if success:
@@ -322,6 +340,28 @@ def run_module(
                 raise typer.Exit(code=1)
 
 
+@cli.command("validate")
+def validate_yaml(
+    benchmark: Annotated[
+        str,
+        typer.Option(
+            "--benchmark",
+            "-b",
+            help="Path to benchmark yaml file or benchmark id.",
+        ),
+    ],
+):
+    """Validate a benchmark yaml."""
+    typer.echo("Validating a benchmark yaml.")
+    _ = validate_benchmark(benchmark)
+
+    typer.echo(
+        "Benchmark yaml has been successfully validated.",
+        color=typer.colors.GREEN,
+    )
+    raise typer.Exit(code=0)
+
+
 ## to validate the YAML
 def validate_benchmark(benchmark_file: str) -> Benchmark:
     if benchmark_file.endswith(".yaml") or benchmark_file.endswith(".yml"):
@@ -370,19 +410,3 @@ def validate_benchmark(benchmark_file: str) -> Benchmark:
             color=typer.colors.RED,
         )
         raise typer.Exit(code=1)
-
-
-@cli.command("validate")
-def validate_yaml(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-):
-    """Validate a benchmark yaml."""
-    typer.echo("Validating a benchmark yaml.")
-    benchmark = validate_benchmark(benchmark)

@@ -1,16 +1,18 @@
 import os
 
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from omni.workflow.snakemake import scripts
 from omni.workflow.snakemake.format import formatter
 
 def create_node_rule(node, benchmark):
     if node.is_initial():
-        return _create_initial_node(node)
+        return _create_initial_node(benchmark, node)
     else:
         return _create_intermediate_node(benchmark, node)
 
 
-def _create_initial_node(node):
+def _create_initial_node(benchmark, node):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -18,6 +20,9 @@ def _create_initial_node(node):
     repository = node.get_repository()
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
+
+    backend = benchmark.get_benchmark_software_backend()
+    software_environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -28,6 +33,12 @@ def _create_initial_node(node):
             dataset=module_id
         output:
             formatter.format_output_templates_to_be_expanded(node),
+        conda:
+            software_environment.conda if backend == SoftwareBackendEnum.conda else None
+        envmodules:
+            software_environment.envmodule if backend == SoftwareBackendEnum.envmodules else None
+        container:
+            software_environment.apptainer if (backend == SoftwareBackendEnum.apptainer or backend == SoftwareBackendEnum.docker) else None
         params:
             repository_url = repository_url,
             commit_hash = commit_hash,
@@ -51,6 +62,9 @@ def _create_intermediate_node(benchmark, node):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
+    backend = benchmark.get_benchmark_software_backend()
+    software_environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
+
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
 
     rule:
@@ -63,6 +77,12 @@ def _create_intermediate_node(benchmark, node):
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         output:
             formatter.format_output_templates_to_be_expanded(node)
+        conda:
+            software_environment.conda if backend == SoftwareBackendEnum.conda else None
+        envmodules:
+            software_environment.envmodule if backend == SoftwareBackendEnum.envmodules else None
+        container:
+            software_environment.apptainer if (backend == SoftwareBackendEnum.apptainer or backend == SoftwareBackendEnum.docker) else None
         params:
             inputs_map = inputs_map,
             repository_url = repository_url,

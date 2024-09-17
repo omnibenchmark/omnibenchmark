@@ -28,6 +28,12 @@ class Benchmark:
     def get_benchmark_author(self):
         return self.converter.get_author()
 
+    def get_benchmark_software_backend(self):
+        return self.converter.get_software_backend()
+
+    def get_benchmark_software_environments(self):
+        return self.converter.get_software_environments()
+
     def get_definition(self):
         return self.converter.get_definition()
 

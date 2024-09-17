@@ -1,6 +1,8 @@
 from collections import Counter
 from typing import Union
 
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
 
@@ -52,6 +54,41 @@ class Validator:
                                 f"Input with id '{stage_input_id}' in stage '{stage_id}' is not valid"
                             )
                         )
+
+        # Validate software environments
+        software_environments = converter.get_software_environments()
+        for module_id, module in converter.get_modules().items():
+            environment_id = module.software_environment
+            if software_environments.get(environment_id) is None:
+                self.errors.append(
+                    ValidationError(
+                        f"Software environment with id '{environment_id}' is not defined."
+                    )
+                )
+
+        software_backend = converter.get_software_backend()
+        for environment in software_environments.values():
+            environment_exists = True
+            if (
+                software_backend == SoftwareBackendEnum.apptainer
+                or software_backend == SoftwareBackendEnum.docker
+            ):
+                if environment.apptainer is None:
+                    environment_exists = False
+            if software_backend == SoftwareBackendEnum.envmodules:
+                if environment.envmodule is None:
+                    environment_exists = False
+            if software_backend == SoftwareBackendEnum.conda:
+                if environment.conda is None:
+                    environment_exists = False
+
+            # TODO Check if actual environment files exist
+            if not environment_exists:
+                self.errors.append(
+                    ValidationError(
+                        f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend}'"
+                    )
+                )
 
         # Raise ValidationError if there are errors
         if self.errors:
