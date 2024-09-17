@@ -10,8 +10,8 @@ software_backend: conda
 software_environments:
   python:
     description: "Ppython3.12.0 with gfbf-2023 toolchain"
-    easyconfig: python_vX-gfbf-2023b.eb
-    envmodule: python/vX-gfbf-2023b
+    easyconfig: envs/python_vX-gfbf-2023b.eb
+    envmodule: envs/vX-gfbf-2023b
     apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 stages:
   - id: data

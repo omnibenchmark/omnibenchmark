@@ -10,15 +10,15 @@ software_backend: envmodules
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
-    easyconfig: R-4.3.3-gfbf-2023b.eb
-    envmodule: R/4.3.3-gfbf-2023b
-    conda: R_4.3.3_try.yaml # or perhaps not
+    easyconfig: envs/R-4.3.3-gfbf-2023b.eb
+    envmodule: envs/4.3.3-gfbf-2023b
+    conda: envs/R_4.3.3_try.yaml # or perhaps not
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
   python:
     description: "Ppython3.12.0 with gfbf-2023 toolchain"
-    easyconfig: Python-3.9.6-GCCcore-11.2.0.eb
-    envmodule: python/3.9.6-GCCcore-11.2.0
-    conda: python_vX_test.yaml
+    easyconfig: envs/Python-3.9.6-GCCcore-11.2.0.eb
+    envmodule: envs/3.9.6-GCCcore-11.2.0
+    conda: envs/python_vX_test.yaml
     apptainer: http://registry.ch/Python-3.9.6-GCCcore-11.2.0.eb.sif 
 stages:
   - id: data
