@@ -24,17 +24,18 @@ from . import templates
 
 HOME = op.expanduser("~")
 
-set_up_configuration(args=["--quiet"], silent=True)
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
 
 
 def generate_default_easybuild_config_arguments(
-    modulepath: str = op.join(HOME, ".local", "easybuild", "modules", "all"),
-    sourcepath: str = op.join(HOME, ".local", "easybuild", "sources"),
+    modulepath: str = op.join(HOME, ".local", "easybuild", "modules"),
+    sourcepath: str = op.join(HOME, ".local", "easybuild", "sources") + ':' + os.getcwd(),
 ) -> str:
-    args = "--installpath-modules=" + modulepath + " --sourcepath " + sourcepath
+    args = "--installpath-modules=" + modulepath + " --sourcepath " + sourcepath + ' --quiet'
     return args
+
+set_up_configuration(args=[generate_default_easybuild_config_arguments()], silent=True)
 
 
 def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) -> str:
@@ -49,7 +50,7 @@ def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) ->
     args = generate_default_easybuild_config_arguments()
     cmd = (
         """eb %(easyconfig)s --robot --parallel=%(threads)s %(args)s --detect-loaded-modules=unload --check-ebroot-env-vars=unset"""
-        % {"easyconfig": easyconfig, "threads": threads, "args": args}
+        % {"easyconfig": op.basename(easyconfig), "threads": threads, "args": args}
     )
 
     return cmd
@@ -67,7 +68,7 @@ def easybuild_easyconfig(
      - threads (int): number of threads to build the software
     """
 
-    cmd = construct_easybuild_easyconfig_command(easyconfig=easyconfig, threads=threads)
+    cmd = construct_easybuild_easyconfig_command(easyconfig=op.basename(easyconfig), threads=threads)
 
     # try:
     ret = subprocess.run(
@@ -110,7 +111,7 @@ def get_easyconfig_full_path(easyconfig: str) -> str:
     - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
     """
     try:
-        ec_path, ec = parse_easyconfig(easyconfig)
+        ec_path, ec = parse_easyconfig(op.basename(easyconfig))
         return ec_path
     except:
         raise FileNotFoundError("ERROR: easyconfig not found.\n")
@@ -122,7 +123,7 @@ def get_envmodule_name_from_easyconfig(easyconfig: str) -> str:
     Args:
     - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
     """
-    ec_path, ec = parse_easyconfig(easyconfig)
+    ec_path, ec = parse_easyconfig(op.basename(easyconfig))
     return os.path.join(ec["name"], det_full_ec_version(ec))
 
 
@@ -162,7 +163,7 @@ def create_definition_file(
     with open(template, "rt") as ubuntu, open(singularity_recipe, "w") as sing:
         for line in ubuntu.read().split("\n"):
             if "EASYCONFIG" in line:
-                line = line.replace("EASYCONFIG", easyconfig)
+                line = line.replace("EASYCONFIG", op.basename(easyconfig))
             if "ENVMODULENAME" in line:
                 line = line.replace("ENVMODULENAME", envmodule)
             if "EASYBUILDNTHREADSINT" in line:

@@ -140,8 +140,9 @@ def _get_environment_path(benchmark, node):
         environment_path = Validator.get_environment_path(benchmark_dir, environment.apptainer)
 
     elif software_backend == SoftwareBackendEnum.envmodules:
-        environment_path = Validator.get_environment_path(benchmark_dir,environment.envmodule)
-
+        ## it's not a path, just an env name
+        ## environment_path = Validator.get_environment_path(benchmark_dir,environment.envmodule)
+        environment_path = environment.envmodule
     elif software_backend == SoftwareBackendEnum.conda:
         environment_path = Validator.get_environment_path(benchmark_dir, environment.conda)
 
