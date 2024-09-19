@@ -1,4 +1,4 @@
-"""Cli implementation of omni-py via typer"""
+"""Cli implementation of omni-py via click"""
 
 import click
 
