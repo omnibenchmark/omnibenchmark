@@ -1,18 +1,16 @@
 """cli commands related to benchmark infos and stats"""
 
-import datetime
-import difflib
 from pathlib import Path
 
-import typer
+import click
 import yaml
 from packaging.version import Version
-from typing_extensions import Annotated
 
-from omni.benchmark import Benchmark
-from omni.io.utils import get_storage
 
-cli = typer.Typer(add_completion=False, no_args_is_help=True)
+@click.group()
+@click.pass_context
+def info(ctx):
+    ctx.ensure_object(dict)
 
 
 # @cli.command("archive")
@@ -43,37 +41,41 @@ cli = typer.Typer(add_completion=False, no_args_is_help=True)
 #     typer.echo(f"Citation for benchmark: {benchmark}")
 
 
-@cli.command("diff")
-def diff_benchmark(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-    version1: Annotated[
-        str,
-        typer.Option(
-            "--version1",
-            "-v1",
-            help="reference version",
-        ),
-    ],
-    version2: Annotated[
-        str,
-        typer.Option(
-            "--version2",
-            "-v2",
-            help="version to compare with.",
-        ),
-    ],
-):
+@info.command("diff")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "--version1",
+    "-v1",
+    required=True,
+    type=str,
+    help="Reference version.",
+)
+@click.option(
+    "--version2",
+    "-v2",
+    required=True,
+    type=str,
+    help="Version to compare with.",
+)
+@click.pass_context
+def diff_benchmark(ctx, benchmark, version1, version2):
     """Show differences between 2 benchmark versions."""
-    typer.echo(
+    click.echo(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
+    from datetime import datetime
+    from difflib import unified_diff
+
+    from omni.benchmark import Benchmark
+    from omni.io.utils import get_storage
+
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
@@ -81,7 +83,6 @@ def diff_benchmark(
     auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
     # setup storage
-    # TODO: add bucket_name to schema
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
@@ -92,11 +93,11 @@ def diff_benchmark(
     ss.set_version(version1)
     ss._get_objects()
     files_v1 = [
-        f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
         for f in ss.files.items()
     ]
     if f"versions/{version1}.csv" in ss.files.keys():
-        creation_time_v1 = datetime.datetime.fromisoformat(
+        creation_time_v1 = datetime.fromisoformat(
             ss.files[f"versions/{version1}.csv"]["last_modified"]
         ).strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -106,21 +107,21 @@ def diff_benchmark(
     ss.set_version(version2)
     ss._get_objects()
     files_v2 = [
-        f"{f[0]}   {f[1]['size']}   {datetime.datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
         for f in ss.files.items()
     ]
     if f"versions/{version2}.csv" in ss.files.keys():
-        creation_time_v2 = datetime.datetime.fromisoformat(
+        creation_time_v2 = datetime.fromisoformat(
             ss.files[f"versions/{version2}.csv"]["last_modified"]
         ).strftime("%Y-%m-%d %H:%M:%S")
     else:
         creation_time_v2 = ""
 
     # diff the two versions
-    typer.echo(
+    click.echo(
         "".join(
             list(
-                difflib.unified_diff(
+                unified_diff(
                     files_v1,
                     files_v2,
                     fromfile=f"version {version1}",
@@ -133,19 +134,21 @@ def diff_benchmark(
     )
 
 
-@cli.command("list-versions")
-def list_versions(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ]
-):
+@info.command("list-versions")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def list_versions(ctx, benchmark):
     """List all available benchmarks versions at a specific endpoint."""
-    typer.echo(f"Available versions of {benchmark}:")
+    click.echo(f"Available versions of {benchmark}:")
+    from omni.benchmark import Benchmark
+    from omni.io.utils import get_storage
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
@@ -154,7 +157,6 @@ def list_versions(
     auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
     # setup storage
-    # TODO: add bucket_name to schema
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
@@ -164,4 +166,4 @@ def list_versions(
     if len(ss.versions) > 0:
         ss.versions.sort(key=Version)
         for version in ss.versions:
-            typer.echo(f"{version:>8}")
+            click.echo(f"{version:>8}")

@@ -1,79 +1,23 @@
 """Cli implementation of omni-py via typer"""
 
-from pathlib import Path
+import click
 
-import typer
-from typing_extensions import Annotated
-
-from omni.cli import benchmark, io, run, soft
-
-# ## to disable rich
-# import typer.core
-# typer.core.rich = None
+from omni.cli.benchmark import info
+from omni.cli.io import storage
+from omni.cli.run import run
+from omni.cli.soft import software
 
 
-cli = typer.Typer(add_completion=False, no_args_is_help=True)
+@click.group()
+@click.option("--debug/--no-debug", default=False)
+@click.pass_context
+def cli(ctx, debug):
+    ctx.ensure_object(dict)
 
-cli.add_typer(benchmark.cli, name="info", help="Manage benchmarks and their versions.")
-
-cli.add_typer(
-    soft.cli,
-    name="software",
-    help="Manage and install benchmark-specific software environments",
-)
-
-cli.add_typer(
-    io.cli, name="storage", help="List, download and check input/output files."
-)
-
-cli.add_typer(run.cli, name="run", help="Execute benchmarks or modules.")
+    ctx.obj["DEBUG"] = debug
 
 
-# @cli.command("trigger checks")
-# def trigger_checks(
-#     benchmark: Annotated[
-#         str,
-#         typer.Option(
-#             "--benchmark",
-#             "-b",
-#             help="Path to benchmark yaml file or benchmark id.",
-#         ),
-#     ],
-#     repo: Annotated[
-#         str,
-#         typer.Option(
-#             "--repo",
-#             "-r",
-#             help="Repository url to check.",
-#         ),
-#     ],
-# ):
-#     """Trigger benchmark-specific checks in a certain repository."""
-#     typer.echo(f"Trigger {benchmark} checks in {repo}.", err=True)
-
-
-# @cli.command("start module")
-# def start_module(
-#     module_name: Annotated[Path, typer.Argument(...)],
-#     benchmark: Annotated[
-#         str,
-#         typer.Option(
-#             "--benchmark",
-#             "-b",
-#             help="Path to benchmark yaml file or benchmark id.",
-#         ),
-#     ],
-#     stage: Annotated[
-#         str,
-#         typer.Option(
-#             "--stage",
-#             "-s",
-#             help="Stage to associate the module with.",
-#         ),
-#     ],
-# ):
-#     """Start a new gitlab module at a certain stage."""
-#     typer.echo(
-#         f"Start module {module_name} as part of {benchmark} on stage {stage}.", err=True
-#     )
-#     # NOTE: We probably also need a gitlab url? Not sure about module_name?
+cli.add_command(storage)
+cli.add_command(software)
+cli.add_command(run)
+cli.add_command(info)
