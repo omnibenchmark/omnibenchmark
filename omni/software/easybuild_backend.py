@@ -30,10 +30,19 @@ HOME = op.expanduser("~")
 
 def generate_default_easybuild_config_arguments(
     modulepath: str = op.join(HOME, ".local", "easybuild", "modules"),
-    sourcepath: str = op.join(HOME, ".local", "easybuild", "sources") + ':' + os.getcwd(),
+    sourcepath: str = op.join(HOME, ".local", "easybuild", "sources")
+    + ":"
+    + os.getcwd(),
 ) -> str:
-    args = "--installpath-modules=" + modulepath + " --sourcepath " + sourcepath + ' --quiet'
+    args = (
+        "--installpath-modules="
+        + modulepath
+        + " --sourcepath "
+        + sourcepath
+        + " --quiet"
+    )
     return args
+
 
 set_up_configuration(args=[generate_default_easybuild_config_arguments()], silent=True)
 
@@ -68,7 +77,9 @@ def easybuild_easyconfig(
      - threads (int): number of threads to build the software
     """
 
-    cmd = construct_easybuild_easyconfig_command(easyconfig=op.basename(easyconfig), threads=threads)
+    cmd = construct_easybuild_easyconfig_command(
+        easyconfig=op.basename(easyconfig), threads=threads
+    )
 
     # try:
     ret = subprocess.run(

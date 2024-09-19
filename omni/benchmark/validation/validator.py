@@ -88,10 +88,10 @@ class Validator:
                 environment_path = Validator.get_environment_path(
                     benchmark_dir, environment.easyconfig
                 )
-                
+
                 if environment.envmodule is None:
                     environment_exists = False
-                    
+
             if software_backend == SoftwareBackendEnum.conda:
                 environment_path = Validator.get_environment_path(
                     benchmark_dir, environment.conda
