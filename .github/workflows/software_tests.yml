@@ -22,7 +22,7 @@ name: software
 
 on:
   pull_request:
-      
+
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -35,7 +35,7 @@ jobs:
         test_group: [1,2]
         py_ver: ["3.12"]
       fail-fast: false
-      
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -47,13 +47,13 @@ jobs:
         run: |
           cp test-environment.yml test-environment-${{ matrix.py_ver }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
-                 
+
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: test-environment-${{ matrix.py_ver }}.yml
           environment-name: omb
-          cache-environment: true
+          cache-environment: false
 
       - name: install OS & Python packages
         run: |
@@ -74,11 +74,11 @@ jobs:
           sudo apt-get install libopenmpi-dev openmpi-bin
           ## required for test_dep_graph
           pip install pep8 python-graph-core python-graph-dot
-        
+
       - name: Extra OS / apt (apptainer)
         run: |
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
-          
+
       - name: Test
         ## env:
         ##   CI: true
@@ -91,18 +91,18 @@ jobs:
           source "$LMOD_PKG"/init/profile
           module use "$HOME"/.local/easybuild/modules/all
           # module spider
-          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init   
+          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
           # export > mod.env
 
           ## poetry toml section ignored by pip during env creation
-          pip install pytest-cov pytest-split pytest-xdist        
+          pip install pytest-cov pytest-split pytest-xdist
 
           # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
               conda_tests.py singularity_tests.py envmodules_tests.py
-  
+
   software_testing_mac:
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
         test_group: [1, 2]
         py_ver: ["3.12"]
       fail-fast: false
-      
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +121,7 @@ jobs:
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
-        
+
       - name: Install Lmod using homebrew
         shell: bash -el {0}
         run: |
@@ -137,7 +137,7 @@ jobs:
           cp mac-test-environment.yml test-environment-${{ matrix.py_ver }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.py_ver }}.yml
-                     
+
 
       - name: Manually create env
         shell: bash -el {0}
@@ -159,31 +159,31 @@ jobs:
            if [ -f /usr/local/opt/lmod/init/bash ]; then
                 source /usr/local/opt/lmod/init/profile
            fi
-           eval "$(micromamba shell hook --shell bash)" 
+           eval "$(micromamba shell hook --shell bash)"
            EOF
-        
+
       - name: Test
         env:
           CI: true
         shell: bash -el {0}
         run: |
-          
+
           module --version
 
-          ## eval "$(micromamba shell hook --shell bash)"    
+          ## eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
-          
+
           cd tests/software
 
           mkdir -p "$HOME"/.local/easybuild/modules/all
           module use "$HOME"/.local/easybuild/modules/all
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:$MODULEPATH
-          
+
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          ## poetry toml section ignored by pip during env creation       
+          ## poetry toml section ignored by pip during env creation
           pip install pytest-cov pytest-split pytest-xdist
 
           # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
