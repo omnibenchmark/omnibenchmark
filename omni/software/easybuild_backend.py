@@ -23,23 +23,32 @@ from importlib import resources as impresources
 from . import templates
 
 HOME = op.expanduser("~")
+## careful, 'all' will be prepended unless exported, shell-wise, the MODULEPATH/all path as MODULEPATH
+##   when running omb
+# MODULEPATH=op.join(HOME, 'micromamba', 'envs', 'omnibenchmark', 'modulefiles', 'Core')
+MODULEPATH = op.join(HOME, ".local", "easybuild", "modules")
+ROBOTPATH = op.join(
+    HOME, "micromamba", "envs", "omnibenchmark", "easybuild", "easyconfigs"
+)
 
+os.makedirs(MODULEPATH, exist_ok=True)
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
 
 
 def generate_default_easybuild_config_arguments(
-    modulepath: str = op.join(HOME, ".local", "easybuild", "modules"),
-    sourcepath: str = op.join(HOME, ".local", "easybuild", "sources")
-    + ":"
-    + os.getcwd(),
+    modulepath: str = MODULEPATH,
+    sourcepath: str = ROBOTPATH + ":" + os.getcwd(),
 ) -> str:
     args = "--installpath-modules=" + modulepath + " --sourcepath=" + sourcepath
-    
+
     return args
 
 
-set_up_configuration(args=['--quiet', generate_default_easybuild_config_arguments()], silent=True)
+set_up_configuration(
+    args=["--info"] + generate_default_easybuild_config_arguments().split(" "),
+    silent=True,
+)
 
 
 def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) -> str:
