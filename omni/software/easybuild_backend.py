@@ -34,17 +34,12 @@ def generate_default_easybuild_config_arguments(
     + ":"
     + os.getcwd(),
 ) -> str:
-    args = (
-        "--installpath-modules="
-        + modulepath
-        + " --sourcepath "
-        + sourcepath
-        + " --quiet"
-    )
+    args = "--installpath-modules=" + modulepath + " --sourcepath=" + sourcepath
+    
     return args
 
 
-set_up_configuration(args=[generate_default_easybuild_config_arguments()], silent=True)
+set_up_configuration(args=['--quiet', generate_default_easybuild_config_arguments()], silent=True)
 
 
 def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) -> str:
