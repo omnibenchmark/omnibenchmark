@@ -101,10 +101,10 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     "-i",
     "--input_dir",
     help="Path to the folder with the appropriate input files.",
-    type=str,
+    type=click.Path(exists=True, writable=True),
     default=None,
 )
-@click.option("-d", "--dry", help="Dry run.")
+@click.option("-d", "--dry", help="Dry run.", is_flag=True, default=False)
 @click.option(
     "-u",
     "--update",
@@ -112,27 +112,27 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     is_flag=True,
     default=False,
 )
-def run_module(ctx, benchmark, module, input, dry, update):
+def run_module(ctx, benchmark, module, input_dir, dry, update):
     """
     Run a specific module on inputs present at a given folder.
     """
     example = False
     all = False
-    behaviours = {"input": input, "example": example, "all": all}
+    behaviours = {"input": input_dir, "example": None, "all": None}
 
     non_none_behaviours = {
         key: value for key, value in behaviours.items() if value is not None
     }
     if len(non_none_behaviours) == 0:
         click.echo(
-            "Error: At least one option must be specified. Use '--input', '--example', or '--all'.",
+            "Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.",
             err=True,
         )
         sys.exit(1)  # raise click.Exit(code=1)
 
     elif len(non_none_behaviours) >= 2:
         click.echo(
-            "Error: Only one of '--input', '--example', or '--all' should be set. Please choose only one option.",
+            "Error: Only one of '--input_dir', '--example', or '--all' should be set. Please choose only one option.",
             err=True,
         )
         sys.exit(1)  # raise click.Exit(code=1)
@@ -172,7 +172,7 @@ def run_module(ctx, benchmark, module, input, dry, update):
                 click.echo("Running module benchmark...")
 
                 # Check if input path exists and is a directory
-                if os.path.exists(input) and os.path.isdir(input):
+                if os.path.exists(input_dir) and os.path.isdir(input_dir):
                     benchmark_datasets = benchmark.get_benchmark_datasets()
 
                     # Check available files in input to figure out what dataset are we processing
@@ -182,7 +182,7 @@ def run_module(ctx, benchmark, module, input, dry, update):
 
                     # else we try to figure the dataset based on the files present in the input directory
                     else:
-                        files = os.listdir(input)
+                        files = os.listdir(input_dir)
                         base_names = [file.split(".")[0] for file in files]
                         dataset = next(
                             (d for d in benchmark_datasets if d in base_names), None
@@ -202,7 +202,7 @@ def run_module(ctx, benchmark, module, input, dry, update):
                             for file in required_input_files
                         ]
 
-                        input_files = os.listdir(input)
+                        input_files = os.listdir(input_dir)
                         missing_files = [
                             file
                             for file in required_input_files
@@ -218,7 +218,7 @@ def run_module(ctx, benchmark, module, input, dry, update):
                                 # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
                                 success = workflow.run_node_workflow(
                                     node=benchmark_node,
-                                    input_dir=Path(input),
+                                    input_dir=Path(input_dir),
                                     dataset=dataset,
                                     cores=1,
                                     update=update,
@@ -249,14 +249,14 @@ def run_module(ctx, benchmark, module, input, dry, update):
 
                     else:
                         click.echo(
-                            f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
+                            f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input_dir}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
                             err=True,
                         )
 
                         sys.exit(1)  # raise click.Exit(code=1)
                 else:
                     click.echo(
-                        f"Error: Input directory does not exist or is not a valid directory: `{input}`",
+                        f"Error: Input directory does not exist or is not a valid directory: `{input_dir}`",
                         err=True,
                     )
 

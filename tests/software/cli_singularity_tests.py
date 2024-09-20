@@ -1,8 +1,9 @@
-import pytest
-from typer.testing import CliRunner
 import shlex
-import omni.cli.main
 
+import pytest
+from click.testing import CliRunner
+
+import omni.cli.main
 from omni.cli.main import cli
 
 runner = CliRunner()
@@ -18,7 +19,7 @@ test_cases = [
 
 
 @pytest.mark.parametrize("command, expected_output", test_cases)
-def test_typer(command, expected_output):
+def test_click(command, expected_output):
     result = runner.invoke(cli, shlex.split(command))
     assert expected_output in result.stdout
     assert result.exit_code == 0

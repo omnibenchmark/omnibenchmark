@@ -2,7 +2,7 @@ import os
 import shutil
 from typing import List, Optional
 
-from typer.testing import CliRunner, Result
+from click.testing import CliRunner, Result
 
 from omni.cli.main import cli
 
