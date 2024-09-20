@@ -12,6 +12,7 @@ import yaml
 @click.group()
 @click.pass_context
 def software(ctx):
+    """Manage and install benchmark-specific software."""
     ctx.ensure_object(dict)
 
 
@@ -21,6 +22,7 @@ def software(ctx):
 @click.group
 @click.pass_context
 def singularity(ctx):
+    """Manage and install software using Singularity."""
     ctx.ensure_object(dict)
 
 
@@ -186,6 +188,7 @@ def singularity_push(docker_username, docker_password, sif, oras):
 @click.group
 @click.pass_context
 def module(ctx):
+    """Manage and install software using Easybuild"""
     ctx.ensure_object(dict)
 
 
@@ -283,6 +286,7 @@ def envmodules_prepare(benchmark, threads):
 @click.group
 @click.pass_context
 def conda(ctx):
+    """Manage and install software using conda."""
     ctx.ensure_object(dict)
 
 
@@ -291,7 +295,12 @@ software.add_command(conda)
 
 @conda.command(name="pin")
 @click.option(
-    "-e", "--env", help="Conda env YAML.", type=click.Path(writable=True), required=True
+    "-e",
+    "--env",
+    "conda_env",
+    help="Conda env YAML.",
+    type=click.Path(writable=True),
+    required=True,
 )
 def pin_conda_env(conda_env):
     """Pin all conda env-related dependencies versions using snakedeploy."""

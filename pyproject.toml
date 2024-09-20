@@ -61,7 +61,7 @@ boto3 = "*"
 botocore = "*"
 
 [tool.poetry.scripts]
-ob = 'omni.cli.click:cli'
+ob = 'omni.cli.main:cli'
 
 [build-system]
 requires = ["poetry-core"]
