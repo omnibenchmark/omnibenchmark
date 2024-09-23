@@ -61,7 +61,8 @@ for eb in easyconfigs:
         input:
             flag = op.join(WD, '{easyconfig}_flag')
         envmodules:
-            op.join('all', easy.get_envmodule_name_from_easyconfig(eb))
+            #op.join('all', easy.get_envmodule_name_from_easyconfig(eb))
+            easy.get_envmodule_name_from_easyconfig(eb)
         params:
             env = easy.get_envmodule_name_from_easyconfig(eb)
         output:

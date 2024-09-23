@@ -6,9 +6,11 @@ from omni.utils import *
 
 class Benchmark:
     def __init__(self, benchmark_yaml: Path, out_dir: str = "out"):
+        self.directory = benchmark_yaml.parent.absolute()
+
         converter = LinkMLConverter(benchmark_yaml)
         validator = Validator()
-        converter = validator.validate(converter)
+        converter = validator.validate(self.directory, converter)
 
         self.converter = converter
         self.out_dir = out_dir
@@ -27,6 +29,12 @@ class Benchmark:
 
     def get_benchmark_author(self):
         return self.converter.get_author()
+
+    def get_benchmark_software_backend(self):
+        return self.converter.get_software_backend()
+
+    def get_benchmark_software_environments(self):
+        return self.converter.get_software_environments()
 
     def get_definition(self):
         return self.converter.get_definition()

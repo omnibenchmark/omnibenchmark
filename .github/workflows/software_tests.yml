@@ -178,7 +178,9 @@ jobs:
 
           mkdir -p "$HOME"/.local/easybuild/modules/all
           module use "$HOME"/.local/easybuild/modules/all
+          #module use "$HOME"/micromamba/envs/omnibenchmark/modulefiles/all
 
+          export MODULEPATH="$HOME"/micromamba/envs/omnibenchmark/modulefiles/all:$MODULEPATH
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:$MODULEPATH
 
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
