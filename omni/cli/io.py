@@ -2,38 +2,32 @@
 
 import json
 from pathlib import Path
-from typing import List, Optional
 
-import typer
+import click
 import yaml
-from typing_extensions import Annotated
 
-import omni.io.files
-from omni.benchmark import Benchmark
-from omni.io.utils import get_storage, remote_storage_args
 
-cli = typer.Typer(
-    add_completion=False,
-    no_args_is_help=True,
-    pretty_exceptions_short=False,
-    rich_markup_mode=None,
-    pretty_exceptions_enable=False,
-    help="List, download and check input/output files.",
+@click.group(name="storage")
+@click.pass_context
+def storage(ctx):
+    ctx.ensure_object(dict)
+
+
+@storage.command(name="create-version")
+@click.option(
+    "-b",
+    "--benchmark",
+    help="Path to benchmark yaml file or benchmark id.",
+    type=click.Path(exists=True),
+    required=True,
+    envvar="OB_BENCHMARK",
 )
-
-
-@cli.command("create-version")
-def create_benchmark_version(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ]
-):
+def create_benchmark_version(benchmark: str):
     """Create a new benchmark version."""
+
+    from omni.benchmark import Benchmark
+    from omni.io.utils import get_storage, remote_storage_args
+
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
@@ -42,7 +36,6 @@ def create_benchmark_version(
     # auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
     # setup storage
-    # TODO: add bucket_name to schema
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
@@ -50,127 +43,97 @@ def create_benchmark_version(
     )
     ss.set_version(benchmark.get_benchmark_version())
     if ss.version in ss.versions:
-        typer.echo(
+        click.echo(
             "Error: version already exists. Cannot overwrite.",
             err=True,
         )
-        raise typer.Exit(code=1)
+        raise click.Exit(code=1)
     else:
-        typer.echo("Create a new benchmark version")
+        click.echo("Create a new benchmark version")
         ss.create_new_version()
 
 
-@cli.command("list")
+@storage.command(name="list")
+@click.option(
+    "-b",
+    "--benchmark",
+    help="Path to benchmark yaml file or benchmark id.",
+    type=click.Path(exists=True),
+    required=True,
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "-t",
+    "--type",
+    help="File types. Options: all, code, inputs, outputs, logs, performance.",
+    type=str,
+    default="all",
+)
+@click.option("-s", "--stage", help="Stage to list files for.", type=str, default=None)
+@click.option("-i", "--id", help="File id/type to list.", type=str, default=None)
 def list_files(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-    type: Annotated[
-        str,
-        typer.Option(
-            "--type",
-            "-t",
-            help="File types. Options: all, code, inputs, outputs, logs, performance.",
-        ),
-    ] = "all",
-    stage: Annotated[
-        str,
-        typer.Option(
-            "--stage",
-            "-s",
-            help="Stage to list files for.",
-        ),
-    ] = None,
-    module: Annotated[
-        str,
-        typer.Option(
-            "--module",
-            "-m",
-            help="Module to list files for.",
-        ),
-    ] = None,
-    file_id: Annotated[
-        str,
-        typer.Option(
-            "--id",
-            "-i",
-            help="File id/type to list.",
-        ),
-    ] = None,
+    benchmark: str,
+    type: str = "all",
+    stage: str = None,
+    module: str = None,
+    file_id: str = None,
 ):
     """List all or specific files for a benchmark."""
     if file_id is not None:
-        typer.echo("--file_id is not implemented")
-        raise typer.Exit(code=1)
+        click.echo("--file_id is not implemented")
+        raise click.Exit(code=1)
     if type != "all":
-        typer.echo("--type is not implemented")
-        raise typer.Exit(code=1)
+        click.echo("--type is not implemented")
+        raise click.Exit(code=1)
 
     objectnames, etags = omni.io.files.list_files(
         benchmark=benchmark, type=type, stage=stage, module=module, file_id=file_id
     )
     if len(objectnames) > 0:
         for objectname, etag in zip(objectnames, etags):
-            typer.echo(f"{etag} {objectname}")
+            click.echo(f"{etag} {objectname}")
 
 
-@cli.command("download")
+@storage.command(name="download")
+@click.option(
+    "-b",
+    "--benchmark",
+    help="Path to benchmark yaml file or benchmark id.",
+    type=click.Path(exists=True),
+    required=True,
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "-t",
+    "--type",
+    help="File types. Options: all, code, inputs, outputs, logs, performance.",
+    type=str,
+    default="all",
+)
+@click.option(
+    "-s", "--stage", help="Stage to download files from.", type=str, default=None
+)
+@click.option(
+    "-m", "--module", help="Module to download files from.", type=str, default=None
+)
+@click.option("-i", "--id", help="File id to download.", type=str, default=None)
 def download_files(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-    type: Annotated[
-        str,
-        typer.Option(
-            "--type",
-            "-t",
-            help="File types. Options: all, code, inputs, outputs, logs, performance.",
-        ),
-    ] = "all",
-    stage: Annotated[
-        str,
-        typer.Option(
-            "--stage",
-            "-s",
-            help="Stage to download files from.",
-        ),
-    ] = None,
-    module: Annotated[
-        Optional[str],
-        typer.Option(
-            "--module",
-            "-m",
-            help="Module to download files from.",
-        ),
-    ] = None,
-    file_id: Annotated[
-        Optional[List[str]],
-        typer.Option(
-            "--id",
-            "-i",
-            help="File id to download.",
-        ),
-    ] = None,
+    benchmark: str,
+    type: str = "all",
+    stage: str = None,
+    module: str = None,
+    file_id: str = None,
 ):
     """Download all or specific files for a benchmark."""
     if file_id is not None:
-        typer.echo("--file_id is not implemented")
-        raise typer.Exit(code=1)
+        click.echo("--file_id is not implemented")
+        raise click.Abort()
     if type != "all":
-        typer.echo("--type is not implemented")
-        raise typer.Exit(code=1)
+        click.echo("--type is not implemented")
+        raise click.Abort()
+    from omni.io.files import download_files
 
-    omni.io.files.download_files(
+    download_files(
         benchmark=benchmark,
         type=type,
         stage=stage,
@@ -180,42 +143,44 @@ def download_files(
     )
 
 
-@cli.command("checksum")
-def checksum_files(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-):
+@storage.command(name="checksum")
+@click.option(
+    "-b",
+    "--benchmark",
+    help="Path to benchmark yaml file or benchmark id.",
+    type=click.Path(exists=True),
+    required=True,
+    envvar="OB_BENCHMARK",
+)
+def checksum_files(benchmark: str):
     """Generate md5sums of all benchmark outputs"""
-    typer.echo(f"Checking MD5 checksums... ", nl=False)
-    failed_checks_filenames = omni.io.files.checksum_files(
-        benchmark=benchmark, verbose=True
-    )
+    from omni.io.files import checksum_files
+
+    click.echo(f"Checking MD5 checksums... ", nl=False)
+    failed_checks_filenames = checksum_files(benchmark=benchmark, verbose=True)
     if len(failed_checks_filenames) > 0:
-        typer.echo("Failed checksums:")
+        click.echo("Failed checksums:")
         for filename in failed_checks_filenames:
-            typer.echo(filename)
-        raise typer.Exit(code=1)
-    typer.echo("Done")
+            click.echo(filename)
+        raise click.Abort()
+    click.echo("Done")
 
 
-@cli.command("create-policy")
-def create_policy(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ]
-):
+@storage.command(name="create-policy")
+@click.option(
+    "-b",
+    "--benchmark",
+    help="Path to benchmark yaml file or benchmark id.",
+    type=click.Path(exists=True),
+    required=True,
+    envvar="OB_BENCHMARK",
+)
+def create_policy(benchmark: str):
     """Create a new policy for a benchmark."""
+
+    from omni.benchmark import Benchmark
+    from omni.io.S3config import benchmarker_access_token_policy
+
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
@@ -224,12 +189,12 @@ def create_policy(
         str(benchmark.converter.model.storage_api).upper() == "MINIO"
         or str(benchmark.converter.model.storage_api).upper() == "S3"
     ):
-        policy = omni.io.S3config.benchmarker_access_token_policy(
+        policy = benchmarker_access_token_policy(
             benchmark.converter.model.storage_bucket_name
         )
-        typer.echo(json.dumps(policy, indent=2))
+        click.echo(json.dumps(policy, indent=2))
     else:
-        typer.echo(
+        click.echo(
             "Error: Invalid storage type. Only MinIO/S3 storage is supported.", err=True
         )
-        raise typer.Exit(code=1)
+        raise click.Abort()

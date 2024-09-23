@@ -4,8 +4,8 @@ import warnings
 from pathlib import Path
 from typing import Union
 
+import click
 import tqdm
-import typer
 import yaml
 
 from omni.benchmark import Benchmark
@@ -96,7 +96,7 @@ def download_files(
         size = sum(
             [int(ss.files[objectname]["size"]) for objectname in ss.files.keys()]
         )
-        typer.echo(
+        click.echo(
             f"Downloading {len(ss.files)} files with a total size of {sizeof_fmt(size)} ... ",
             nl=False,
         )
@@ -105,10 +105,10 @@ def download_files(
     ):
         ss.download_object(objectname, filename)
     if verbose:
-        typer.echo("Done")
+        click.echo("Done")
 
     if verbose:
-        typer.echo("Checking MD5 checksums... ", nl=False)
+        click.echo("Checking MD5 checksums... ", nl=False)
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):
@@ -116,7 +116,7 @@ def download_files(
         if not etag.replace('"', "") == md5sum_val:
             warnings.warn(f"MD5 checksum failed for {filename}", Warning)
     if verbose:
-        typer.echo("Done")
+        click.echo("Done")
 
     return filenames
 

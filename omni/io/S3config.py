@@ -1,5 +1,8 @@
 import json
 import os
+import sys
+
+import click
 
 from omni.io.RemoteStorage import DEFAULT_STORAGE_OPTIONS
 
@@ -74,13 +77,17 @@ def S3_access_config_from_env() -> dict:
         if "access_key" in auth_options and "secret_key" in auth_options:
             return auth_options
         else:
-            raise ValueError(
-                f"Invalid S3 config, missing access_key or secret_key in config file ({os.environ['OB_STORAGE_S3_CONFIG']})"
+            click.echo(
+                f"Invalid S3 config, missing access_key or secret_key in config file ({os.environ['OB_STORAGE_S3_CONFIG']})",
+                err=True,
             )
+            sys.exit(1)  # raise click.Exit(code=1)
     else:
-        raise ValueError(
-            "Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG"
+        click.echo(
+            "Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG",
+            err=True,
         )
+        sys.exit(1)  # raise click.Exit(code=1)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,6 @@ from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
-
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
 
@@ -43,7 +42,7 @@ def test_remote():
 
 def test_benchmark_not_found():
     expected_output = """
-    Error: Benchmark YAML file not found.
+    Usage: cli run benchmark [OPTIONS]\nTry 'cli run benchmark --help' for help.\n\nError: Invalid value for '-b' / '--benchmark':
     """
     with OmniCLISetup() as omni:
         result = omni.call(
@@ -55,8 +54,8 @@ def test_benchmark_not_found():
                 "--local",
             ]
         )
-        assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+        assert result.exit_code == 2
+        assert clean(result.output).startswith(clean(expected_output))
 
 
 def test_benchmark_format_incorrect():
