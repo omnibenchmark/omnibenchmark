@@ -202,7 +202,7 @@ def singularity_build(
     #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
     # )
     output = subprocess.run(
-        cmd.split(" "), shell=False, text=True, capture_output=True, check=False
+        cmd, shell=True, text=True, capture_output=True, check=False
     )
     return output
 

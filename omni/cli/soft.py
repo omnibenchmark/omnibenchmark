@@ -34,7 +34,6 @@ software.add_command(singularity)
     "-e",
     "--easyconfig",
     help="Easyconfig.",
-    type=click.Path(exists=True),
     required=True,
 )
 def singularity_build(easyconfig):
@@ -135,6 +134,10 @@ def singularity_prepare(benchmark):
             + "\nDOING: building the image"
         )
 
+        if os.path.isfile(op.basename(easyconfig) + ".sif"):
+            click.echo("ERROR: singularity SIF image already exists")
+            sys.exit(1)
+
         sb = eb.singularity_build(
             singularity_recipe=singularity_recipe, easyconfig=easyconfig
         )
@@ -200,7 +203,6 @@ software.add_command(module)
     "-e",
     "--easyconfig",
     help="Easyconfig.",
-    type=click.Path(exists=True),
     required=True,
 )
 @click.option("-p", "--threads", type=int, default=2, help="Number of threads.")
