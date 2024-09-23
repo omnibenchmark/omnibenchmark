@@ -86,7 +86,7 @@ class Validator:
 
             if software_backend == SoftwareBackendEnum.envmodules:
                 environment_path = Validator.get_environment_path(
-                    benchmark_dir, environment.envmodule
+                    benchmark_dir, environment.easyconfig
                 )
 
                 if environment.envmodule is None:
