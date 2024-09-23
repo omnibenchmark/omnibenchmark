@@ -11,6 +11,7 @@ import click
 @click.group(name="run")
 @click.pass_context
 def run(ctx):
+    """Run benchmarks or benchmark modules."""
     ctx.ensure_object(dict)
 
 

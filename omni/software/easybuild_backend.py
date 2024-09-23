@@ -197,7 +197,9 @@ def singularity_build(
     """
     image_name = op.basename(easyconfig) + ".sif"
 
-    cmd = "singularity build --fakeroot " + image_name + " " + singularity_recipe
+    cmd = (
+        "singularity build --force --fakeroot " + image_name + " " + singularity_recipe
+    )
     # output = subprocess.check_output(
     #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
     # )

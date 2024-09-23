@@ -134,10 +134,6 @@ def singularity_prepare(benchmark):
             + "\nDOING: building the image"
         )
 
-        if os.path.isfile(op.basename(easyconfig) + ".sif"):
-            click.echo("ERROR: singularity SIF image already exists")
-            sys.exit(1)
-
         sb = eb.singularity_build(
             singularity_recipe=singularity_recipe, easyconfig=easyconfig
         )

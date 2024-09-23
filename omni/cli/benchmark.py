@@ -10,6 +10,7 @@ from packaging.version import Version
 @click.group()
 @click.pass_context
 def info(ctx):
+    """List benchmarks and/or information about them."""
     ctx.ensure_object(dict)
 
 

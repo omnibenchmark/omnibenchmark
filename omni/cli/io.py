@@ -10,6 +10,7 @@ import yaml
 @click.group(name="storage")
 @click.pass_context
 def storage(ctx):
+    """Manage remote storage."""
     ctx.ensure_object(dict)
 
 
