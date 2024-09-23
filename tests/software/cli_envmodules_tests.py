@@ -12,7 +12,7 @@ runner = CliRunner()
 test_cases = [
     (
         "software module build -e zlib-1.2.10.eb",
-        "Usage: cli software module build [OPTIONS]\nTry 'cli software module build --help' for help.\n\nError: Invalid value for '-e' / '--easyconfig': Path 'zlib-1.2.10.eb' does not exist.\n",
+        "Installing software for zlib-1.2.10.eb using easybuild. It will take some time",
     ),
 ]
 
@@ -21,4 +21,4 @@ test_cases = [
 def test_click(command, expected_output):
     result = runner.invoke(cli, shlex.split(command))
     assert expected_output in result.stdout
-    assert result.exit_code == 2
+    assert result.exit_code == 0

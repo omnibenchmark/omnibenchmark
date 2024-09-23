@@ -205,7 +205,7 @@ software.add_command(module)
 def envmodules_build(easyconfig, threads):
     """Build a given easyconfig (and generates the relevant envmodules)."""
     click.echo(
-        f"Installing software for {easyconfig} using easybuild. It will take some time."
+        f"\nInstalling software for {easyconfig} using easybuild. It will take some time.\n"
     )
 
     from omni.software import common

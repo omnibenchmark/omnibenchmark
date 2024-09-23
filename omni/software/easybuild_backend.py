@@ -129,7 +129,7 @@ def get_easyconfig_full_path(easyconfig: str) -> str:
         ec_path, ec = parse_easyconfig(op.basename(easyconfig))
         return ec_path
     except:
-        raise FileNotFoundError("ERROR: easyconfig not found.\n")
+        raise FileNotFoundError("\nERROR: easyconfig not found.\n")
 
 
 def get_envmodule_name_from_easyconfig(easyconfig: str) -> str:
