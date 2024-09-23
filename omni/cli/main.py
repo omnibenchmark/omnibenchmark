@@ -21,3 +21,6 @@ cli.add_command(storage)
 cli.add_command(software)
 cli.add_command(run)
 cli.add_command(info)
+
+if __name__ == "__main__":
+    cli(obj={})

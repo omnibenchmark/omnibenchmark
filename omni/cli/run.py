@@ -54,11 +54,9 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     from omni.workflow.snakemake import SnakemakeEngine
     from omni.workflow.workflow import WorkflowEngine
 
-    # Validate benchmark YAML
     benchmark = validate_benchmark(benchmark)
     workflow: WorkflowEngine = SnakemakeEngine()
 
-    # Confirm workflow re-run
     if update and not dry:
         update_prompt = click.confirm(
             "Are you sure you want to re-run the entire workflow?", abort=True
@@ -66,14 +64,10 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
         if not update_prompt:
             raise click.Abort()
 
-    # Construct storage options
     if not local:
         storage_options = remote_storage_snakemake_args(benchmark)
     else:
         storage_options = {}
-
-    # Retrieve software backend
-    software_backend = benchmark.get_benchmark_software_backend()
 
     # Controlling resource allocation with Snakemake is tricky
     # -c only controls the number of parallelism for the Snakemake scheduler
@@ -81,12 +75,7 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     # Future: Create yaml for communicating resources for individual methods
     click.echo("Running benchmark...")
     success = workflow.run_workflow(
-        benchmark,
-        cores=threads,
-        update=update,
-        dryrun=dry,
-        backend=software_backend,
-        **storage_options,
+        benchmark, cores=threads, update=update, dryrun=dry, **storage_options
     )
 
     if success:
@@ -175,9 +164,6 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
             #     if not update_prompt:
             #         raise click.Abort()
 
-            # Retrieve software backend
-            software_backend = benchmark.get_benchmark_software_backend()
-
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
             if len(benchmark_nodes) > 0:
                 click.echo(
@@ -237,7 +223,6 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
-                                    backend=software_backend,
                                 )
 
                                 if success:
@@ -298,28 +283,6 @@ def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     click.echo("Validating a benchmark yaml.")
     benchmark = validate_benchmark(benchmark)
-
-
-@cli.command("validate")
-def validate_yaml(
-    benchmark: Annotated[
-        str,
-        typer.Option(
-            "--benchmark",
-            "-b",
-            help="Path to benchmark yaml file or benchmark id.",
-        ),
-    ],
-):
-    """Validate a benchmark yaml."""
-    typer.echo("Validating a benchmark yaml.")
-    _ = validate_benchmark(benchmark)
-
-    typer.echo(
-        "Benchmark yaml has been successfully validated.",
-        color=typer.colors.GREEN,
-    )
-    raise typer.Exit(code=0)
 
 
 ## to validate the YAML
