@@ -21,7 +21,7 @@ def list_files(
 ):
     """List all available files for a certain benchmark, version and stage"""
 
-    benchmark = "tests/data/Benchmark_003.yaml"
+    # benchmark = "tests/data/Benchmark_003.yaml"
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
