@@ -1,32 +1,48 @@
+import os
 import re
+import sys
 from pathlib import Path
 
+import pytest
+
 from tests.cli.cli_setup import OmniCLISetup
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
+minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
 
-def test_default():
+def test_remote():
     expected_output = """
-    Error: Remote execution is not supported yet. Workflows can only be run in local mode.
+    Benchmark YAML file integrity check passed.
+    Running benchmark...
     """
-    with OmniCLISetup() as omni:
-        result = omni.call(
-            [
-                "run",
-                "benchmark",
-                "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
-            ]
+    if not sys.platform == "linux":
+        pytest.skip(
+            "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+            allow_module_level=True,
         )
-        assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+
+    with TmpMinIOStorage(minio_testcontainer) as tmp:
+        os.environ["OB_STORAGE_S3_ACCESS_KEY"] = tmp.auth_options["access_key"]
+        os.environ["OB_STORAGE_S3_SECRET_KEY"] = tmp.auth_options["secret_key"]
+        with OmniCLISetup() as omni:
+            result = omni.call(
+                [
+                    "run",
+                    "benchmark",
+                    "--benchmark",
+                    str(benchmark_data_path / "mock_benchmark.yaml"),
+                ]
+            )
+            assert result.exit_code == 0
+            assert clean(result.output).startswith(clean(expected_output))
 
 
 def test_benchmark_not_found():
     expected_output = """
-    Error: Benchmark YAML file not found.
+    Usage: cli run benchmark [OPTIONS]\nTry 'cli run benchmark --help' for help.\n\nError: Invalid value for '-b' / '--benchmark':
     """
     with OmniCLISetup() as omni:
         result = omni.call(
@@ -38,8 +54,8 @@ def test_benchmark_not_found():
                 "--local",
             ]
         )
-        assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+        assert result.exit_code == 2
+        assert clean(result.output).startswith(clean(expected_output))
 
 
 def test_benchmark_format_incorrect():
@@ -53,6 +69,24 @@ def test_benchmark_format_incorrect():
                 "benchmark",
                 "--benchmark",
                 str(benchmark_data_path / "benchmark_format_incorrect.yaml"),
+                "--local",
+            ]
+        )
+        assert result.exit_code == 1
+        assert clean(result.output) == clean(expected_output)
+
+
+def test_benchmark_software_does_not_exist():
+    expected_output = """
+    Error: An unexpected error occurred: Software environment with id 'python' does not define the following backend: 'conda'.
+    """
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(benchmark_data_path / "benchmark_software_does_not_exist.yaml"),
                 "--local",
             ]
         )
@@ -175,3 +209,14 @@ def clean(output: str) -> str:
     normalized_output = re.sub(r"[ \t]+", " ", normalized_output)
 
     return normalized_output
+
+
+def cleanup_buckets_on_exit():
+    """Cleanup a testing directory once we are finished."""
+    TmpMinIOStorage(minio_testcontainer).cleanup_buckets()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup(request):
+    """Cleanup a testing directory once we are finished."""
+    request.addfinalizer(cleanup_buckets_on_exit)

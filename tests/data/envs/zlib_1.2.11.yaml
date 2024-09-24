@@ -1,0 +1,6 @@
+name: zlib_1.2.11
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - conda-forge::zlib=1.2.11

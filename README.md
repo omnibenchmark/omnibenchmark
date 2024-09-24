@@ -9,4 +9,22 @@
 </p>
 
 
-[Omnibenchmark](https://omnibenchmark.org), a continuous benchmarking tool
+[Omnibenchmark](https://omnibenchmark.org), a continuous benchmarking tool.
+
+## Install
+
+With poetry or pip. With micromamba if handling software with conda. See [the tutorial](https://omnibenchmark.org/tutorial/).
+
+## Developer notes
+
+Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) dependency. Benchmark YAML schemas are updated by:
+
+```
+- Update src/omni_schema/schema/omni_schema.yaml manually
+- `make all`
+- Consider `make deploy`
+```
+
+## Acknowledgements
+
+Omnibenchmark incorporates great FOSS components, including but not limited to: Snakemake, easybuild, apptainer, lmod, LinkML, git. Thank you!

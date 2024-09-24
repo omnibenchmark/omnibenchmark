@@ -39,16 +39,20 @@ for eb in easyconfigs:
         output:
             flag = op.join(WD, '{easyconfig}_flag')
         log:
-            op.join(WD, 'install_{easyconfig}.log')
+            log = op.join(WD, 'install_{easyconfig}.log')
         params:
             workdir = WD
         run:
-            print(module('list'))
-            common.check_easybuild_status()
-            easy.easybuild_easyconfig(easyconfig = eb,
-                                      threads = 2)
-            with open(output.flag, 'a'):
-                os.utime(output.flag, None)
+            with open(log.log, 'w') as logtxt: 
+                print(module('list'))
+                common.check_easybuild_status()
+                ret = easy.easybuild_easyconfig(easyconfig = eb,
+                                                threads = 2)
+                if (ret.returncode == 0):
+                    logtxt.write(ret.stdout)
+                    logtxt.write(ret.stderr)
+                    with open(output.flag, 'a'):
+                        os.utime(output.flag, None)
             
     rule:
         name: f"{{easyconfig}}_test".format(easyconfig=eb)
@@ -57,22 +61,15 @@ for eb in easyconfigs:
         input:
             flag = op.join(WD, '{easyconfig}_flag')
         envmodules:
-            op.join('all', easy.get_envmodule_name_from_easyconfig(eb))
+            #op.join('all', easy.get_envmodule_name_from_easyconfig(eb))
+            easy.get_envmodule_name_from_easyconfig(eb)
         params:
             env = easy.get_envmodule_name_from_easyconfig(eb)
         output:
             op.join('{easyconfig}_ld.txt')
         shell:
             """
-            # cat $LMOD_PKG/init/bash
-            # source ~/.bashrc
-            # source $LMOD_PKG/init/bash
-            # module use ~/.local/easybuild/modules/all
-            # export | grep -i module
-            # # export
-            # # module load {params.env}
-            # # export > {output}
-            # module list
+            module spider
             ld --version > {output}
             """
             

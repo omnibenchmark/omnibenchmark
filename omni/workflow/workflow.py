@@ -1,6 +1,9 @@
 import os.path
 from pathlib import Path
 from abc import ABCMeta, abstractmethod
+
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from omni.benchmark import Benchmark, BenchmarkNode
 
 
@@ -14,6 +17,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         work_dir: Path = Path(os.getcwd()),
         **kwargs
     ) -> bool:
@@ -25,6 +29,7 @@ class WorkflowEngine(metaclass=ABCMeta):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             work_dir (str): working directory. Default: current work directory
             **kwargs: keyword arguments to pass to the workflow engine
 
@@ -58,6 +63,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         work_dir: Path = Path(os.getcwd()),
         **kwargs
     ) -> bool:
@@ -71,6 +77,7 @@ class WorkflowEngine(metaclass=ABCMeta):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             work_dir (str): working directory. Default: current work directory
             **kwargs: keyword arguments to pass to the workflow engine
 

@@ -27,10 +27,40 @@ class LinkMLConverter:
 
         return self.model.benchmarker
 
+    def get_software_backend(self) -> omni_schema.SoftwareBackendEnum:
+        """Get software backend of the benchmark"""
+
+        return self.model.software_backend.code
+
+    def get_software_environments(
+        self,
+    ) -> Dict[omni_schema.SoftwareEnvironmentId, omni_schema.SoftwareEnvironment]:
+        """Get software environments"""
+
+        environments = {}
+        for env in self.model.software_environments:
+            environments[env.id] = env
+
+        return environments
+
     def get_definition(self) -> omni_schema.Benchmark:
         """Get underlying benchmark"""
 
         return self.model
+
+    def get_easyconfigs(self):
+        """Get easyconfigs"""
+        easyconfigs = []
+        for se in self.model.software_environments:
+            easyconfigs.append(se["easyconfig"])
+        return easyconfigs
+
+    def get_conda_envs(self):
+        """Get conda envs"""
+        envs = []
+        for se in self.model.software_environments:
+            envs.append(se["conda"])
+        return envs
 
     def get_stages(self) -> Dict[str, omni_schema.Stage]:
         """Get benchmark stages"""
@@ -148,6 +178,16 @@ class LinkMLConverter:
             module = self.get_modules()[module]
 
         return module.repository
+
+    def get_module_environment(
+        self, module: Union[str, omni_schema.Module]
+    ) -> omni_schema.SoftwareEnvironmentId:
+        """Get module software environment by module/module_id"""
+
+        if isinstance(module, str):
+            module = self.get_modules()[module]
+
+        return module.software_environment
 
     def is_initial(self, stage: omni_schema.Stage) -> bool:
         """Check if stage is initial"""

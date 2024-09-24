@@ -1,0 +1,110 @@
+FROM ubuntu:jammy
+
+LABEL org.label-schema.license="GPL-2.0" \
+      org.label-schema.vcs-url="https://github.com/rocker-org/r-ubuntu" \
+      org.label-schema.vendor="Rocker Project" \
+      maintainer="Dirk Eddelbuettel <edd@debian.org>"
+
+ENV TERM=xterm-256color
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+RUN apt-get update \
+	&& TERM=xterm-256color DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
+		software-properties-common \
+		ca-certificates \
+                python3 python3-setuptools \
+                python3-pip \
+                bzip2 gzip tar zip unzip xz-utils tcl-dev \
+                curl wget rsync cpio locales \
+                patch make  \
+                file git debianutils \
+                gcc build-essential \
+                libibverbs-dev \
+                libssl-dev \
+                binutils libthread-queue-any-perl \
+                procps \
+                man libdb-dev \
+                tzdata \
+         && apt clean
+
+## Configure default locale
+RUN echo "C.UTF-8 UTF-8" >> /etc/locale.gen \
+	&& locale-gen C.utf8 \
+	&& /usr/sbin/update-locale LANG=C.UTF-8
+
+ENV LC_ALL C.UTF-8
+ENV LANG C.UTF-8
+
+# install lmod start
+RUN export LUA_VERS=5.1.4.8 \
+      && mkdir -p /opt/apps/lua && cd /opt/apps/lua \
+      && wget --quiet https://sourceforge.net/projects/lmod/files/lua-"$LUA_VERS".tar.gz/download \
+      && tar xzf download \
+      && cd lua*8 \
+      && ./configure --prefix=/opt/apps/lua/"$LUA_VERS" \
+      && make; make install \
+      && cd /opt/apps/lua; ln -s "$LUA_VERS" lua \
+      && mkdir -p /usr/local/bin; ln -s /opt/apps/lua/lua/bin/lua /usr/local/bin \
+      && ln -s /opt/apps/lua/lua/bin/luac /usr/local/bin \
+      && export LMOD_VERS=8.7 \
+      && mkdir -p /usr/share/lmod/ && cd /usr/share/lmod \
+      && wget --quiet https://sourceforge.net/projects/lmod/files/Lmod-"$LMOD_VERS".tar.bz2/download \
+      && tar xfj download && cd Lmod-"$LMOD_VERS" \
+      && ./configure --prefix=/usr/share/ && make install \
+      && export PATH=/usr/share/lmod/lmod/libexec/:"$PATH" \
+      && . /usr/share/lmod/lmod/init/bash \
+      && export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod \
+      && ln -s /usr/share/lmod/lmod/libexec/lmod /usr/local/bin \
+      && ln -s /usr/share/lmod/lmod/init/profile /etc/profile.d/z00_lmod.sh \
+      && ln -s /usr/share/lmod/lmod/init/cshrc /etc/profile.d/z00_lmod.csh \
+      && python3 -m pip install -U pip \
+      && python3 -m pip install wheel \
+      && python3 -m pip install -U setuptools==70.1.1 \
+      && python3 -m pip install easybuild==4.9.2 \
+      && python3 -m pip install rich \
+      && useradd -s /bin/bash -m easybuild \
+      && if [ ! -d /app ]; then mkdir -p /app; chown easybuild:easybuild -R /app; fi \
+      && if [ ! -d /scratch ]; then mkdir -p /scratch; chown easybuild:easybuild -R /scratch; fi \
+      && if [ ! -d /home/easybuild ]; then mkdir -p /home/easybuild; chown easybuild:easybuild -R /home/easybuild;fi \
+      && chown -R easybuild:easybuild /app/ \
+      && chown -R easybuild:easybuild /home/easybuild/ \
+      && chown -R easybuild:easybuild /scratch/ \
+      && cat <<EOD >> /etc/lmodrc.lua
+scDescriptT = {
+  {
+    ["dir"]       = "/app/lmodcache",
+    ["timestamp"] = "/app/lmodcache/timestamp",
+  },
+}
+EOD
+
+
+USER easybuild
+WORKDIR /home/easybuild
+
+RUN . /home/easybuild/.bashrc \
+    && export LC_ALL=C \
+    && export EASYBUILD_PREFIX=/scratch \
+    && export EASYBUILD_TMPDIR=/scratch/tmp \
+    && export EASYBUILD_SOURCEPATH=/scratch/sources:/tmp/easybuild/sources \
+    && export EASYBUILD_INSTALLPATH=/app \
+    && export EASYBUILD_PARALLEL=EASYBUILDNTHREADSINT \
+    && export EB_PYTHON=python3 \
+    && export MODULEPATH=/app/modules/all \
+    && export PYTHONIOENCODING="utf-8" \
+    && export PATH=/usr/share/lmod/lmod/libexec/:"$PATH" \
+    &&. /usr/share/lmod/lmod/init/bash \
+    && export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod \
+    && eb --fetch --robot --download-timeout=1000 EASYCONFIG \
+    && eb --robot --download-timeout=1000 EASYCONFIG \
+    && mkdir -p /app/lmodcache  \
+    &&  "$LMOD_DIR"/update_lmod_system_cache_files -d /app/lmodcache -t /app/lmodcache/timestamp /app/modules/all \
+    && rm -rf /scratch/* \
+    && export LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod \
+    && export LMOD_SHORT_TIME=86400 \
+    && module --force purge \
+    && module unuse $MODULEPATH ; export MODULEPATH="/app/modules/all" \
+    && module load ENVMODULENAME
+
+CMD ["bash"]

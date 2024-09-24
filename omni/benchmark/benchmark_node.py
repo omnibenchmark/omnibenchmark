@@ -40,6 +40,12 @@ class BenchmarkNode:
     def get_benchmark_author(self):
         return self.converter.get_author()
 
+    def get_benchmark_software_backend(self):
+        return self.converter.get_software_backend()
+
+    def get_benchmark_software_environments(self):
+        return self.converter.get_software_environments()
+
     def get_definition(self):
         return self.converter.get_definition()
 
@@ -102,6 +108,9 @@ class BenchmarkNode:
 
     def get_repository(self):
         return self.converter.get_module_repository(module=self.module)
+
+    def get_software_environment(self):
+        return self.converter.get_module_environment(module=self.module)
 
     def is_initial(self):
         return self.converter.is_initial(self.stage)

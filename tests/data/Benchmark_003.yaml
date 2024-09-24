@@ -1,37 +1,37 @@
-id: Benchmark_001
+id: benchmark003
 description: simple benchmark, somewhat explicit, simple params
 version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-storage: https://storage.github.com/
-benchmark_yaml_spec: 0.01
+storage:  http://omnibenchmark.mls.uzh.ch:9000
 storage_api: S3
-storage_bucket_name: benchmark001
+storage_bucket_name: benchmark003
+benchmark_yaml_spec: 0.01
 software_backend: envmodules
 software_environments:
-  zlib_old:
-    description: "zlib-1.2.11"
-    easyconfig: envs/zlib-1.2.11.eb
-    envmodule: "zlib/1.2.11"
-    conda: envs/zlib_1.2.11.yaml
-    apptainer: http://registry.ch/notavailable.sif
-  zlib_new:
-    description: "zlib-1.3.1"
-    easyconfig: envs/zlib-1.3.1.eb
-    envmodule: "zlib/1.3.1"
-    conda: envs/zlib_1.3.1.yaml
-    apptainer: http://registry.ch/notavailable.sif
+  R:
+    description: "R 4.3.3 with gfbf-2023 toolchain"
+    easyconfig: R_4.3.3-gfbf-2023b.eb
+    envmodule: R/4.3.3-gfbf-2023b
+    conda: R_4.3.3_try.yaml # or perhaps not
+    apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
+  python:
+    description: "Ppython3.12.0 with gfbf-2023 toolchain"
+    easyconfig: python_vX-gfbf-2023b.eb
+    envmodule: python/vX-gfbf-2023b
+    conda: python_vX_test.yaml
+    apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 stages:
   - id: data
     modules:
       - id: D1
         name: "Dataset 1"
-        software_environment: "zlib_old"
+        software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
           commit: 63b7b36
       - id: D2
         name: "Dataset 2"
-        software_environment: "zlib_new"
+        software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
           commit: 63b7b36
@@ -46,7 +46,7 @@ stages:
   - id: process
     modules:
       - id: P1
-        software_environment: "zlib_old"
+        software_environment: "R"
         parameters:
           - values: ["-a 0", "-b 0.1"]
           - values: ["-a 1", "-b 0.1"]
@@ -54,7 +54,7 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: aeec1db
       - id: P2
-        software_environment: "zlib_new"
+        software_environment: "R"
         parameters:
           - values: ["-a 0", "-b 0"]
           - values: ["-a 1", "-b 0.1"]
@@ -72,13 +72,13 @@ stages:
   - id: methods
     modules:
       - id: M1
-        software_environment: "zlib_old"
+        software_environment: "python"
         exclude: [ D2 ]
         repository:
           url: https://github.com/omnibenchmark-example/method.git
           commit: 8f2f835
       - id: M2
-        software_environment: "zlib_new"
+        software_environment: "python"
         parameters:
           - values: ["-d1", "-e 1"]
           - values: ["-d1", "-e 2"]
@@ -103,17 +103,17 @@ stages:
   - id: metrics
     modules:
       - id: m1
-        software_environment: "zlib_old"
+        software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
           commit: 579c643
       - id: m2
-        software_environment: "zlib_old"
+        software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
           commit: 579c643
       - id: m3
-        software_environment: "zlib_new"
+        software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
           commit: 579c643

@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from typing import TextIO, List, Optional
 
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from omni.benchmark import Benchmark, BenchmarkNode
 from omni.workflow.workflow import WorkflowEngine
 from omni.workflow.snakemake import rules
@@ -28,6 +30,7 @@ class SnakemakeEngine(WorkflowEngine):
         update: bool = True,
         dryrun: bool = False,
         work_dir: Path = Path(os.getcwd()),
+        backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -38,6 +41,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
@@ -50,7 +54,7 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile, cores, update, dryrun, work_dir, **snakemake_kwargs
+            snakefile, cores, update, dryrun, backend, work_dir, **snakemake_kwargs
         )
 
         # Execute snakemake script
@@ -107,6 +111,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         work_dir: Path = Path(os.getcwd()),
         **snakemake_kwargs,
     ) -> bool:
@@ -120,6 +125,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
@@ -138,6 +144,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores,
             update,
             dryrun,
+            backend,
             work_dir,
             input_dir,
             dataset,
@@ -234,6 +241,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int,
         update: bool,
         dryrun: bool,
+        backend: SoftwareBackendEnum,
         work_dir: Path,
         input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
@@ -258,6 +266,16 @@ class SnakemakeEngine(WorkflowEngine):
 
         if dryrun:
             argv.append("--dryrun")
+
+        if (
+            backend == SoftwareBackendEnum.docker
+            or backend == SoftwareBackendEnum.apptainer
+        ):
+            argv.append("--use-singularity")
+        elif backend == SoftwareBackendEnum.envmodules:
+            argv.append("--use-envmodules")
+        elif backend == SoftwareBackendEnum.conda:
+            argv.append("--use-conda")
 
         for key, value in snakemake_kwargs.items():
             if isinstance(value, bool):

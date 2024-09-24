@@ -23,17 +23,32 @@ from importlib import resources as impresources
 from . import templates
 
 HOME = op.expanduser("~")
+## careful, 'all' will be prepended unless exported, shell-wise, the MODULEPATH/all path as MODULEPATH
+##   when running omb
+# MODULEPATH=op.join(HOME, 'micromamba', 'envs', 'omnibenchmark', 'modulefiles', 'Core')
+MODULEPATH = op.join(HOME, ".local", "easybuild", "modules")
+ROBOTPATH = op.join(
+    HOME, "micromamba", "envs", "omnibenchmark", "easybuild", "easyconfigs"
+)
 
-set_up_configuration(args=["--quiet"], silent=True)
+os.makedirs(MODULEPATH, exist_ok=True)
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
 
 
 def generate_default_easybuild_config_arguments(
-    modulepath: str = op.join(HOME, ".local", "easybuild", "modules", "all")
+    modulepath: str = MODULEPATH,
+    sourcepath: str = ROBOTPATH + ":" + os.getcwd(),
 ) -> str:
-    args = "--installpath-modules=" + modulepath
+    args = "--installpath-modules=" + modulepath + " --sourcepath=" + sourcepath
+
     return args
+
+
+set_up_configuration(
+    args=["--info"] + generate_default_easybuild_config_arguments().split(" "),
+    silent=True,
+)
 
 
 def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) -> str:
@@ -48,7 +63,7 @@ def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) ->
     args = generate_default_easybuild_config_arguments()
     cmd = (
         """eb %(easyconfig)s --robot --parallel=%(threads)s %(args)s --detect-loaded-modules=unload --check-ebroot-env-vars=unset"""
-        % {"easyconfig": easyconfig, "threads": threads, "args": args}
+        % {"easyconfig": op.basename(easyconfig), "threads": threads, "args": args}
     )
 
     return cmd
@@ -57,7 +72,7 @@ def construct_easybuild_easyconfig_command(easyconfig: str, threads: int = 2) ->
 def easybuild_easyconfig(
     easyconfig: str,
     threads: int = 2,
-) -> int:
+) -> subprocess.CompletedProcess:
     """
     Easybuilds an easyconfig
 
@@ -66,10 +81,17 @@ def easybuild_easyconfig(
      - threads (int): number of threads to build the software
     """
 
-    cmd = construct_easybuild_easyconfig_command(easyconfig=easyconfig, threads=threads)
+    cmd = construct_easybuild_easyconfig_command(
+        easyconfig=op.basename(easyconfig), threads=threads
+    )
 
     # try:
-    output = subprocess.call(cmd, shell=True)
+    ret = subprocess.run(
+        cmd.split(" "), shell=False, capture_output=True, check=False, text=True
+    )
+    # print(ret.stdout)
+    # print(ret.stderr)
+    return ret
     # except subprocess.CalledProcessError as exc:
     #     return ("ERROR easybuild failed:", exc.returncode, exc.output)
 
@@ -104,10 +126,10 @@ def get_easyconfig_full_path(easyconfig: str) -> str:
     - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
     """
     try:
-        ec_path, ec = parse_easyconfig(easyconfig)
+        ec_path, ec = parse_easyconfig(op.basename(easyconfig))
         return ec_path
     except:
-        raise FileNotFoundError("ERROR: easyconfig not found.\n")
+        raise FileNotFoundError("\nERROR: easyconfig not found.\n")
 
 
 def get_envmodule_name_from_easyconfig(easyconfig: str) -> str:
@@ -116,7 +138,7 @@ def get_envmodule_name_from_easyconfig(easyconfig: str) -> str:
     Args:
     - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
     """
-    ec_path, ec = parse_easyconfig(easyconfig)
+    ec_path, ec = parse_easyconfig(op.basename(easyconfig))
     return os.path.join(ec["name"], det_full_ec_version(ec))
 
 
@@ -156,7 +178,7 @@ def create_definition_file(
     with open(template, "rt") as ubuntu, open(singularity_recipe, "w") as sing:
         for line in ubuntu.read().split("\n"):
             if "EASYCONFIG" in line:
-                line = line.replace("EASYCONFIG", easyconfig)
+                line = line.replace("EASYCONFIG", op.basename(easyconfig))
             if "ENVMODULENAME" in line:
                 line = line.replace("ENVMODULENAME", envmodule)
             if "EASYBUILDNTHREADSINT" in line:
@@ -174,16 +196,17 @@ def singularity_build(
     - singularity_recipe (str): path to a Singularity template
     """
     image_name = op.basename(easyconfig) + ".sif"
-    try:
-        cmd = "singularity build --fakeroot " + image_name + " " + singularity_recipe
-        # output = subprocess.check_output(
-        #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
-        # )
-        output = subprocess.run(
-            cmd.split(" "), shell=False, text=True, capture_output=True, check=True
-        )
-    except subprocess.CalledProcessError as exc:
-        return ("ERROR singularity build failed:", exc.returncode, exc.output)
+
+    cmd = (
+        "singularity build --force --fakeroot " + image_name + " " + singularity_recipe
+    )
+    # output = subprocess.check_output(
+    #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
+    # )
+    output = subprocess.run(
+        cmd, shell=True, text=True, capture_output=True, check=False
+    )
+    return output
 
 
 ## untested,drafted 06 Aug 2024

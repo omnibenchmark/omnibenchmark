@@ -4,15 +4,16 @@ version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
 storage: https://storage.github.com/
 storage_api: S3
+storage_bucket_name: mock_benchmark
 benchmark_yaml_spec: 0.01
 software_backend: conda
 software_environments:
   python:
     description: "Ppython3.12.0 with gfbf-2023 toolchain"
-    easyconfig: python_vX-gfbf-2023b.eb
-    envmodule: python/vX-gfbf-2023b
-    conda: python_vX_test.yaml
-    apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
+    easyconfig: envs/Python-3.9.6-GCCcore-11.2.0.eb
+    envmodule: envs/3.9.6-GCCcore-11.2.0
+    conda: envs/python_vX_test.yaml
+    apptainer: http://registry.ch/Python-3.9.6-GCCcore-11.2.0.eb.sif
 stages:
   - id: data
     modules:
