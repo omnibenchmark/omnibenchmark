@@ -168,3 +168,47 @@ def list_versions(ctx, benchmark):
         ss.versions.sort(key=Version)
         for version in ss.versions:
             click.echo(f"{version:>8}")
+
+
+@info.command("plot")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def plot(ctx, benchmark: Path):
+    """Plot computational graph for benchmark."""
+    click.echo(f"Plotting computational graph for {benchmark} ...")
+    from omni.benchmark import Benchmark
+    from omni.io.utils import get_storage
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+        benchmark.plot_computational_graph(f"{benchmark.get_benchmark_name()}.png")
+
+
+@info.command("topology")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def plot(ctx, benchmark: Path):
+    """Export benchmark topology to mermaid diagram format."""
+    from omni.benchmark import Benchmark
+    from omni.io.utils import get_storage
+
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
+        mermaid = benchmark.export_to_mermaid()
+        click.echo(mermaid)

@@ -150,22 +150,30 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
     return topological_order
 
 
-def plot_graph(
-    g, output_file, scale_factor=1.0, node_spacing=0.1, figure_size=(12, 12)
+def export_to_figure(
+    g, scale_factor=1.0, node_spacing=0.1, figure_size=(12, 12), title=None
 ):
     layout = nx.circular_layout(g, scale=scale_factor)
 
-    plt.figure(figsize=figure_size)
+    # Create a new figure and set the size
+    fig = plt.figure(figsize=figure_size)
 
+    # Draw the edges and nodes
     nx.draw_networkx_edges(g, layout, edge_color="#AAAAAA")
     nx.draw_networkx_nodes(
         g, layout, nodelist=g.nodes(), node_size=100, node_color="#fc8d62"
     )
+
+    # Adjust node positions for labels
     nodes = [node for node in g.nodes]
     for l in layout:
         layout[l][1] -= node_spacing
 
+    # Draw the labels
     nx.draw_networkx_labels(g, layout, labels=dict(zip(nodes, nodes)), font_size=10)
 
-    # Save the figure to an image file
-    plt.savefig(output_file)
+    # Set the title if provided
+    if title:
+        plt.title(title, fontsize=14)
+
+    return fig
