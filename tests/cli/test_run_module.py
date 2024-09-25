@@ -7,8 +7,33 @@ benchmark_path = Path(__file__).parent / ".."
 benchmark_data_path = benchmark_path / "data"
 
 
-def test_default():
+def test_default_entry_module():
     expected_output = """
+        Running module on a dataset provided in a custom directory.
+        Benchmark YAML file integrity check passed.
+        Found 1 workflow nodes for module D1.
+        Running module benchmark...
+        """
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "module",
+                "--benchmark",
+                str(benchmark_data_path / "mock_benchmark.yaml"),
+                "--module",
+                "D1",
+            ]
+        )
+        assert result.exit_code == 0
+        assert clean(result.output).startswith(clean(expected_output))
+
+
+def test_default_nonentry_module():
+    expected_output = """
+    Running module on a dataset provided in a custom directory.
+    Benchmark YAML file integrity check passed.
+    Found 2 workflow nodes for module P1.
     Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.
     """
     with OmniCLISetup() as omni:
@@ -19,7 +44,7 @@ def test_default():
                 "--benchmark",
                 str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
-                "D1",
+                "P1",
             ]
         )
         assert result.exit_code == 1
@@ -102,8 +127,6 @@ def test_benchmark_not_found():
                 str(benchmark_data_path / "does_not_exist.yaml"),
                 "--module",
                 "D1",
-                "--input_dir",
-                str(benchmark_path),
             ]
         )
         assert result.exit_code == 2
@@ -124,8 +147,6 @@ def test_benchmark_format_incorrect():
                 str(benchmark_data_path / "benchmark_format_incorrect.yaml"),
                 "--module",
                 "D1",
-                "--input_dir",
-                str(benchmark_path),
             ]
         )
         assert result.exit_code == 1
@@ -171,8 +192,6 @@ def test_behaviour_input():
                 str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
-                "--input_dir",
-                str(benchmark_path),
             ]
         )
         assert result.exit_code == 0
@@ -195,8 +214,6 @@ def test_behaviour_input_dry():
                 str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
-                "--input_dir",
-                str(benchmark_path),
                 "--dry",
             ]
         )
@@ -220,8 +237,6 @@ def test_behaviour_input_update_true():
                 str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
-                "--input_dir",
-                str(benchmark_path),
                 "--update",
             ],
             input="y",
@@ -244,8 +259,6 @@ def test_behaviour_input_update_true():
 #                 str(benchmark_data_path / "mock_benchmark.yaml"),
 #                 "--module",
 #                 "D1",
-#                 "--input_dir",
-#                 str(benchmark_path),
 #                 "--update",
 #             ],
 #             input="N",
@@ -270,8 +283,6 @@ def test_behaviour_input_update_dry():
                 str(benchmark_data_path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
-                "--input_dir",
-                str(benchmark_path),
                 "--update",
                 "--dry",
             ],
