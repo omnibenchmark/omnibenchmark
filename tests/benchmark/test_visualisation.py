@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 
 import pytest
-import yaml
 
 from omni.benchmark import Benchmark
 
@@ -15,8 +14,7 @@ def test_plot_computational_graph():
 
     try:
         with open(benchmark_file_path, "r") as file:
-            yaml.safe_load(file)
-            benchmark = Benchmark(Path(benchmark_file))
+            benchmark = Benchmark(benchmark_file_path)
             benchmark.plot_computational_graph(output_file=output_file)
             assert (
                 output_file_path.exists()
@@ -75,8 +73,7 @@ def test_export_to_mermaid():
 
     try:
         with open(benchmark_file_path, "r") as file:
-            yaml.safe_load(file)
-            benchmark = Benchmark(Path(benchmark_file))
+            benchmark = Benchmark(benchmark_file_path)
             mermaid = benchmark.export_to_mermaid()
             assert clean(mermaid).startswith(clean(expected_mermaid))
     except Exception as e:
