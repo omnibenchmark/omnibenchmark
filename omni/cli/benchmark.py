@@ -6,6 +6,8 @@ import click
 import yaml
 from packaging.version import Version
 
+from omni.cli.validate import validate_benchmark
+
 
 @click.group()
 @click.pass_context
@@ -180,16 +182,12 @@ def list_versions(ctx, benchmark):
     envvar="OB_BENCHMARK",
 )
 @click.pass_context
-def plot(ctx, benchmark: Path):
+def plot(ctx, benchmark: str):
     """Plot computational graph for benchmark."""
     click.echo(f"Plotting computational graph for {benchmark} ...")
-    from omni.benchmark import Benchmark
-    from omni.io.utils import get_storage
 
-    with open(benchmark, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
-        benchmark.plot_computational_graph(f"{benchmark.get_benchmark_name()}.png")
+    benchmark = validate_benchmark(benchmark, echo=False)
+    benchmark.plot_computational_graph(f"{benchmark.get_benchmark_name()}.png")
 
 
 @info.command("topology")
@@ -202,13 +200,9 @@ def plot(ctx, benchmark: Path):
     envvar="OB_BENCHMARK",
 )
 @click.pass_context
-def plot(ctx, benchmark: Path):
+def plot(ctx, benchmark: str):
     """Export benchmark topology to mermaid diagram format."""
-    from omni.benchmark import Benchmark
-    from omni.io.utils import get_storage
 
-    with open(benchmark, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
-        mermaid = benchmark.export_to_mermaid()
-        click.echo(mermaid)
+    benchmark = validate_benchmark(benchmark, echo=False)
+    mermaid = benchmark.export_to_mermaid()
+    click.echo(mermaid)
