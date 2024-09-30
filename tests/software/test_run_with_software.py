@@ -1,6 +1,10 @@
+import sys
 from pathlib import Path
+import os.path as op
 
 from tests.workflow.Snakemake_setup import SnakemakeSetup
+
+sys.path.insert(0, op.dirname(__file__))
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
