@@ -118,8 +118,13 @@ class BenchmarkNode:
     def get_stage(self):
         return self.stage
 
+    def display_name(self):
+        return BenchmarkNode.to_id(
+            self.stage_id, self.module_id, self.param_id, self.after
+        )
+
     def __str__(self):
-        return f"BenchmarkNode({self.get_id()})"
+        return self.display_name()
 
     def __repr__(self):
         return str(self)

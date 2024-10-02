@@ -119,8 +119,6 @@ class Benchmark:
         fig = dag.export_to_figure(
             self.G,
             title=self.get_benchmark_name(),
-            scale_factor=1.5,
-            node_spacing=0.2,
         )
         fig.savefig(output_file)
 

@@ -1,6 +1,9 @@
+import math
+import random
 from typing import List, Tuple
 
 import networkx as nx
+from networkx.drawing.nx_agraph import graphviz_layout
 import matplotlib.pyplot as plt
 import omni_schema.datamodel.omni_schema
 
@@ -77,7 +80,8 @@ def build_benchmark_dag(converter: LinkMLConverter, out_dir: str) -> nx.DiGraph:
     stage_nodes_map = {}
     for stage_id, stage in converter.get_stages().items():
         nodes = expend_stage_nodes(converter, stage, out_dir, stage_ordering)
-        g.add_nodes_from(nodes)
+        nodes_with_stage = [(node, {"stage": stage_id}) for node in nodes]
+        g.add_nodes_from(nodes_with_stage)
         stage_nodes_map[stage_id] = nodes
 
     for current_node in g.nodes:
@@ -150,27 +154,65 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
     return topological_order
 
 
-def export_to_figure(
-    g, scale_factor=1.0, node_spacing=0.1, figure_size=(12, 12), title=None
-):
-    layout = nx.circular_layout(g, scale=scale_factor)
+def export_to_figure(G, title=None):
+    # Dynamically scale the figure size based on node count
+    nodes_count = len(G.nodes)
+    figure_size = (max(15,  nodes_count // 4), max(15, nodes_count // 4))
+
+    # Use hierarchical layout
+    layout = graphviz_layout(G, prog="dot")
 
     # Create a new figure and set the size
     fig = plt.figure(figsize=figure_size)
+    plt.gca().set_facecolor("white")
 
-    # Draw the edges and nodes
-    nx.draw_networkx_edges(g, layout, edge_color="#AAAAAA")
-    nx.draw_networkx_nodes(
-        g, layout, nodelist=g.nodes(), node_size=100, node_color="#fc8d62"
+    # Draw edges with arrows to show flow direction
+    arrow_size = (20 / math.log10(nodes_count))
+    nx.draw_networkx_edges(
+        G,
+        layout,
+        arrowstyle="-|>",
+        arrowsize=arrow_size,
+        edge_color="#AAAAAA",
+        alpha=0.6,
+        width=0.5,
     )
 
-    # Adjust node positions for labels
-    nodes = [node for node in g.nodes]
-    for l in layout:
-        layout[l][1] -= node_spacing
+    # Color nodes by stage (assuming 'stage' is a node attribute)
+    stages = nx.get_node_attributes(
+        G, "stage", default="none"
+    )  # Node attribute 'stage'
+    unique_stages = list(set(stages.values()))  # Get unique stages
 
-    # Draw the labels
-    nx.draw_networkx_labels(g, layout, labels=dict(zip(nodes, nodes)), font_size=10)
+    # Define a colormap with different shades for the stages
+    stage_colors = plt.cm.get_cmap(
+        "inferno", max(len(unique_stages), 5)
+    )  # Use Set3 colormap for distinct stage colors
+    node_colors = [stage_colors(unique_stages.index(stages[n])) for n in G.nodes()]
+
+    node_size = (500 / math.log10(nodes_count))
+    node_sizes = [node_size] * nodes_count
+    nx.draw_networkx_nodes(
+        G,
+        layout,
+        nodelist=G.nodes(),
+        node_size=node_sizes,
+        node_color=node_colors,
+    )
+
+    # Create adjusted label positions
+    label_offset_y = -node_size / 100  # Vertical offset to position below the node
+    label_pos = {}
+
+    for n in layout:
+        y_offset = label_offset_y - random.uniform(0, 5)  # Add some random vertical variation
+        label_pos[n] = (layout[n][0], layout[n][1] + y_offset)
+
+    # Draw the labels with adjusted positions
+    nx.draw_networkx_labels(
+        G, label_pos, labels={n: n for n in G.nodes()}, font_size=8, font_color="black",
+        bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.2")
+    )
 
     # Set the title if provided
     if title:
