@@ -17,5 +17,6 @@ test_cases = [
 @pytest.mark.parametrize("command, expected_output", test_cases)
 def test_click(command, expected_output):
     result = runner.invoke(cli, shlex.split(command))
+    print(result.stdout)
     assert expected_output in result.stdout
     assert result.exit_code == 0
