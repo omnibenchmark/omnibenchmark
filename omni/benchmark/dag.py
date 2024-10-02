@@ -3,7 +3,6 @@ import random
 from typing import List, Tuple
 
 import networkx as nx
-from networkx.drawing.nx_agraph import graphviz_layout
 import matplotlib.pyplot as plt
 import omni_schema.datamodel.omni_schema
 
@@ -154,13 +153,21 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
     return topological_order
 
 
-def export_to_figure(G, title=None):
+def export_to_figure(G, layout_design="hierarchical", title=None):
+    if layout_design == "spring":
+        layout = nx.circular_layout(G)
+    elif layout_design == "hierarchical":
+        from networkx.drawing.nx_agraph import pygraphviz_layout
+
+        layout = pygraphviz_layout(G, prog="neato")
+    else:
+        raise ValueError(
+            "Graph can only be exported using the `spring` or `hierarchical` layouts."
+        )
+
     # Dynamically scale the figure size based on node count
     nodes_count = len(G.nodes)
     figure_size = (max(15, nodes_count // 4), max(15, nodes_count // 4))
-
-    # Use hierarchical layout
-    layout = graphviz_layout(G, prog="dot")
 
     # Create a new figure and set the size
     fig = plt.figure(figsize=figure_size)
@@ -201,19 +208,24 @@ def export_to_figure(G, title=None):
     )
 
     # Create adjusted label positions
-    label_offset_y = -node_size / 100  # Vertical offset to position below the node
-    label_pos = {}
+    # Vertical offset to position below the node
+    labels_pos = {}
 
     for n in layout:
-        y_offset = label_offset_y - random.uniform(
-            0, 5
-        )  # Add some random vertical variation
-        label_pos[n] = (layout[n][0], layout[n][1] + y_offset)
+        # Add some random vertical variation
+        if layout_design == "hierarchical":
+            label_offset_y = -node_size / 100
+            y_offset = label_offset_y - random.uniform(0, 5)
+        else:
+            label_offset_y = -node_size / 5000
+            y_offset = label_offset_y
+
+        labels_pos[n] = (layout[n][0], layout[n][1] + y_offset)
 
     # Draw the labels with adjusted positions
     nx.draw_networkx_labels(
         G,
-        label_pos,
+        labels_pos,
         labels={n: n for n in G.nodes()},
         font_size=8,
         font_color="black",

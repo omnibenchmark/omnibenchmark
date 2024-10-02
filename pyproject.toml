@@ -42,7 +42,7 @@ easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
 snakedeploy="^0.10.0"
 snakemake-storage-plugin-s3 = "^0.2.12"
-pygraphviz = "^1.14"
+pygraphviz = {version = "^1.14", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
@@ -72,3 +72,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"
+
+[tool.poetry.extras]
+graph = ["pygraphviz"]

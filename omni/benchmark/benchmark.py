@@ -118,6 +118,7 @@ class Benchmark:
     def plot_computational_graph(self, output_file: str):
         fig = dag.export_to_figure(
             self.G,
+            layout_design="hierarchical",
             title=self.get_benchmark_name(),
         )
         fig.savefig(output_file)
