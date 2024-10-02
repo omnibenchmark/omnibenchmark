@@ -185,7 +185,7 @@ def export_to_figure(G, title=None):
     unique_stages = list(set(stages.values()))  # Get unique stages
 
     # Define a colormap with different shades for the stages
-    stage_colors = plt.cm.get_cmap(
+    stage_colors = plt.get_cmap(
         "inferno", max(len(unique_stages), 5)
     )  # Use Set3 colormap for distinct stage colors
     node_colors = [stage_colors(unique_stages.index(stages[n])) for n in G.nodes()]

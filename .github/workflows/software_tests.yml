@@ -134,10 +134,6 @@ jobs:
              brew install coreutils
              brew install lmod
              brew install micromamba
-             brew install graphviz
-             export PATH=$(brew --prefix graphviz):$PATH
-             export CFLAGS="-I $(brew --prefix graphviz)/include"
-             export LDFLAGS="-L $(brew --prefix graphviz)/lib"
 
       - name: Modify python version in test env
         shell: bash -el {0}
