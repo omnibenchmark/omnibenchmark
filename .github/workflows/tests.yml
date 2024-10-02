@@ -49,6 +49,7 @@ jobs:
       - name: Extra OS dependencies (macos)
         run: |
           brew install graphviz
+          brew link --overwrite graphviz
         if: matrix.os == 'macos-latest'
       #----------------------------------------------
       #  -----  install & configure poetry  -----
@@ -74,7 +75,19 @@ jobs:
       #----------------------------------------------
       - name: Install Poetry dependencies
         if: steps.cached-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --all-extras --no-interaction --no-root
+        run: |
+          # Ensure Graphviz paths are properly set
+          export PKG_CONFIG_PATH=$(brew --prefix graphviz)/lib/pkgconfig
+          export CFLAGS="-I$(brew --prefix graphviz)/include"
+          export LDFLAGS="-L$(brew --prefix graphviz)/lib"
+          
+          # Install pygraphviz with custom options via pip to ensure correct paths
+          poetry run pip install --global-option=build_ext \
+              --global-option="-I$(brew --prefix graphviz)/include/" \
+              --global-option="-L$(brew --prefix graphviz)/lib/" pygraphviz
+          
+          # Continue with the poetry installation for all other dependencies
+          poetry install --all-extras --no-interaction --no-root
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
