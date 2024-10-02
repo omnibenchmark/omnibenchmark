@@ -9,6 +9,7 @@ on:
 jobs:
   run-tests:
     permissions: write-all
+
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       #----------------------------------------------
-      #       check-out repo and set-up python, R
+      #       check-out repo and set-up python, R, OS dependencies
       #----------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v4
@@ -39,6 +40,16 @@ jobs:
           r-version: ${{ matrix.r-version }}
           # Enable RStudio Package Manager to speed up package installation
           use-public-rspm: true
+
+      - name: Extra OS dependencies (linux)
+        run: |
+          sudo apt install -y graphviz graphviz-dev
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Extra OS dependencies (macos)
+        run: |
+          brew install graphviz
+        if: matrix.os == 'macos-latest'
       #----------------------------------------------
       #  -----  install & configure poetry  -----
       #----------------------------------------------

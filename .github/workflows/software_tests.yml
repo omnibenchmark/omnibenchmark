@@ -48,6 +48,10 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.py_ver }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
 
+      - name: Install graphviz dependency
+        run: |
+           sudo apt install -y graphviz graphviz-dev
+
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
@@ -122,7 +126,7 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
-      - name: Install Lmod using homebrew
+      - name: Install packages using homebrew
         shell: bash -el {0}
         run: |
              bash
@@ -130,6 +134,10 @@ jobs:
              brew install coreutils
              brew install lmod
              brew install micromamba
+             brew install graphviz
+             export PATH=$(brew --prefix graphviz):$PATH
+             export CFLAGS="-I $(brew --prefix graphviz)/include"
+             export LDFLAGS="-L $(brew --prefix graphviz)/lib"
 
       - name: Modify python version in test env
         shell: bash -el {0}

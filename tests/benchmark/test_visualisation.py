@@ -35,21 +35,21 @@ def test_plot_computational_graph_scaling():
         Glarge,
         title="Large Graph (100 nodes)",
     )
-    fig.savefig('large_graph.png')
+    fig.savefig("large_graph.png")
 
     Gmedium = generate_graph(50)
     fig = dag.export_to_figure(
         Gmedium,
         title="Medium Graph (50 nodes)",
     )
-    fig.savefig('medium_graph.png')
+    fig.savefig("medium_graph.png")
 
     Gsmall = generate_graph(10)
     fig = dag.export_to_figure(
         Gsmall,
         title="Small Graph (10 nodes)",
     )
-    fig.savefig('small_graph.png')
+    fig.savefig("small_graph.png")
 
 
 def test_export_to_mermaid():
@@ -125,16 +125,16 @@ def generate_graph(n_nodes, stage_proportions=None):
     # Calculate the number of nodes for each stage
     if stage_proportions is None:
         stage_proportions = {
-            'datasets': 0.2,  # 20% of the nodes for datasets
-            'preprocess': 0.3,  # 30% of the nodes for preprocessing
-            'methods': 0.4,  # 40% of the nodes for methods
-            'metrics': 0.1  # 10% of the nodes for metrics
+            "datasets": 0.2,  # 20% of the nodes for datasets
+            "preprocess": 0.3,  # 30% of the nodes for preprocessing
+            "methods": 0.4,  # 40% of the nodes for methods
+            "metrics": 0.1,  # 10% of the nodes for metrics
         }
 
-    n_datasets = int(n_nodes * stage_proportions['datasets'])
-    n_preprocess = int(n_nodes * stage_proportions['preprocess'])
-    n_methods = int(n_nodes * stage_proportions['methods'])
-    n_metrics = int(n_nodes * stage_proportions['metrics'])
+    n_datasets = int(n_nodes * stage_proportions["datasets"])
+    n_preprocess = int(n_nodes * stage_proportions["preprocess"])
+    n_methods = int(n_nodes * stage_proportions["methods"])
+    n_metrics = int(n_nodes * stage_proportions["metrics"])
 
     # Create a directed graph
     G = nx.DiGraph()
@@ -176,13 +176,17 @@ def generate_graph(n_nodes, stage_proportions=None):
 
     # Generate random connections between stages
     # Randomly connect datasets to methods
-    for _ in range(n_datasets * n_methods // 2):  # Random connections between datasets and methods
+    for _ in range(
+        n_datasets * n_methods // 2
+    ):  # Random connections between datasets and methods
         dataset = random.choice(datasets)
         method = random.choice(methods)
         G.add_edge(dataset, method)
 
     # Randomly connect preprocess steps to metrics
-    for _ in range(n_preprocess * n_metrics // 2):  # Random connections between preprocess and metrics
+    for _ in range(
+        n_preprocess * n_metrics // 2
+    ):  # Random connections between preprocess and metrics
         preprocess = random.choice(preprocesses)
         metric = random.choice(metrics)
         G.add_edge(preprocess, metric)

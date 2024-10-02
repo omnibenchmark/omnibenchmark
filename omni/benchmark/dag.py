@@ -157,7 +157,7 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
 def export_to_figure(G, title=None):
     # Dynamically scale the figure size based on node count
     nodes_count = len(G.nodes)
-    figure_size = (max(15,  nodes_count // 4), max(15, nodes_count // 4))
+    figure_size = (max(15, nodes_count // 4), max(15, nodes_count // 4))
 
     # Use hierarchical layout
     layout = graphviz_layout(G, prog="dot")
@@ -167,7 +167,7 @@ def export_to_figure(G, title=None):
     plt.gca().set_facecolor("white")
 
     # Draw edges with arrows to show flow direction
-    arrow_size = (20 / math.log10(nodes_count))
+    arrow_size = 20 / math.log10(nodes_count)
     nx.draw_networkx_edges(
         G,
         layout,
@@ -190,7 +190,7 @@ def export_to_figure(G, title=None):
     )  # Use Set3 colormap for distinct stage colors
     node_colors = [stage_colors(unique_stages.index(stages[n])) for n in G.nodes()]
 
-    node_size = (500 / math.log10(nodes_count))
+    node_size = 500 / math.log10(nodes_count)
     node_sizes = [node_size] * nodes_count
     nx.draw_networkx_nodes(
         G,
@@ -205,13 +205,19 @@ def export_to_figure(G, title=None):
     label_pos = {}
 
     for n in layout:
-        y_offset = label_offset_y - random.uniform(0, 5)  # Add some random vertical variation
+        y_offset = label_offset_y - random.uniform(
+            0, 5
+        )  # Add some random vertical variation
         label_pos[n] = (layout[n][0], layout[n][1] + y_offset)
 
     # Draw the labels with adjusted positions
     nx.draw_networkx_labels(
-        G, label_pos, labels={n: n for n in G.nodes()}, font_size=8, font_color="black",
-        bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.2")
+        G,
+        label_pos,
+        labels={n: n for n in G.nodes()},
+        font_size=8,
+        font_color="black",
+        bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.2"),
     )
 
     # Set the title if provided
