@@ -115,7 +115,7 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
 )
 def run_module(ctx, benchmark, module, input_dir, dry, update):
     """
-    Run a specific module on inputs present at a given folder.
+    Run a specific module that is part of the benchmark.
     """
     behaviours = {"input": input_dir, "example": None, "all": None}
 
@@ -146,7 +146,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
             )
             sys.exit(1)  # raise click.Exit(code=1)
         else:
-            click.echo(f"Running module on a dataset provided in a custom directory.")
+            click.echo(f"Running module on a local dataset.")
             benchmark = validate_benchmark(benchmark)
 
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
