@@ -2,10 +2,14 @@
 ##
 ## Izaskun Mallona
 ## 22th July 2024
+from pathlib import Path
 
 import pytest
 import subprocess
 import os
+
+from omni.benchmark import Benchmark
+from omni.workflow.snakemake import SnakemakeEngine
 
 
 def check_cmd_zero_exit(cmd_string):
