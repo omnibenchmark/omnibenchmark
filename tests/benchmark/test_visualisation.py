@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from omni.benchmark import Benchmark, dag
+from omni.constants import LayoutDesign
 
 
 def test_plot_computational_graph():
@@ -33,7 +34,7 @@ def test_plot_computational_graph_scaling():
     Glarge = generate_graph(100)
     fig = dag.export_to_figure(
         Glarge,
-        layout_design="hierarchical",
+        layout_design=LayoutDesign.Hierarchical,
         title="Large Graph (100 nodes)",
     )
     fig.savefig("large_graph.png")
@@ -41,7 +42,7 @@ def test_plot_computational_graph_scaling():
     Gmedium = generate_graph(50)
     fig = dag.export_to_figure(
         Gmedium,
-        layout_design="hierarchical",
+        layout_design=LayoutDesign.Hierarchical,
         title="Medium Graph (50 nodes)",
     )
     fig.savefig("medium_graph.png")
@@ -49,7 +50,7 @@ def test_plot_computational_graph_scaling():
     Gsmall = generate_graph(10)
     fig = dag.export_to_figure(
         Gsmall,
-        layout_design="hierarchical",
+        layout_design=LayoutDesign.Hierarchical,
         title="Small Graph (10 nodes)",
     )
     fig.savefig("small_graph.png")

@@ -5,10 +5,12 @@ from typing import List, Tuple
 import networkx as nx
 import matplotlib.pyplot as plt
 import omni_schema.datamodel.omni_schema
+from matplotlib.figure import Figure
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.benchmark_node import BenchmarkNode
 from omni.benchmark.validation import ValidationError
+from omni.constants import LayoutDesign
 
 
 def expend_stage_nodes(
@@ -153,16 +155,20 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
     return topological_order
 
 
-def export_to_figure(G, layout_design="hierarchical", title=None):
-    if layout_design == "spring":
+def export_to_figure(
+    G: nx.DiGraph,
+    layout_design: LayoutDesign = LayoutDesign.Hierarchical,
+    title: str = None,
+) -> Figure:
+    if layout_design == LayoutDesign.Spring:
         layout = nx.circular_layout(G)
-    elif layout_design == "hierarchical":
+    elif layout_design == LayoutDesign.Hierarchical:
         from networkx.drawing.nx_agraph import pygraphviz_layout
 
         layout = pygraphviz_layout(G, prog="neato")
     else:
         raise ValueError(
-            "Graph can only be exported using the `spring` or `hierarchical` layouts."
+            f"Graph can only be exported using the ${LayoutDesign.value} layouts."
         )
 
     # Dynamically scale the figure size based on node count
@@ -213,7 +219,7 @@ def export_to_figure(G, layout_design="hierarchical", title=None):
 
     for n in layout:
         # Add some random vertical variation
-        if layout_design == "hierarchical":
+        if layout_design == LayoutDesign.Hierarchical:
             label_offset_y = -node_size / 100
             y_offset = label_offset_y - random.uniform(0, 5)
         else:

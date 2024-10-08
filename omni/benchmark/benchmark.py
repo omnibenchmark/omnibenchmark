@@ -1,6 +1,7 @@
 from omni.benchmark import dag
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation import Validator
+from omni.constants import LayoutDesign
 from omni.utils import *
 import uuid
 
@@ -118,7 +119,7 @@ class Benchmark:
     def plot_computational_graph(self, output_file: str):
         fig = dag.export_to_figure(
             self.G,
-            layout_design="hierarchical",
+            layout_design=LayoutDesign.Hierarchical,
             title=self.get_benchmark_name(),
         )
         fig.savefig(output_file)
