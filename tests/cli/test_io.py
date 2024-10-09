@@ -139,6 +139,7 @@ class TestCLIMinIOStorage:
                 ["ob", "storage", "create-version", "--benchmark", benchmark_path]
             )
             with OmniCLISetup() as omni:
+                omni.runner.isolated_filesystem(tempdir)
                 result = omni.call(
                     [
                         "storage",
