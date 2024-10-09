@@ -171,13 +171,23 @@ jobs:
           CI: true
         shell: bash -el {0}
         run: |
+          export
+          echo "--------------"
 
+          cat ~/.bashrc
+
+          echo "------------"
+          
           module --version
 
-          ## eval "$(micromamba shell hook --shell bash)"
+          # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
 
+          conda --version
+          export
+          echo "-------------------------"
+          
           cd tests/software
 
           mkdir -p "$HOME"/.local/easybuild/modules/all
