@@ -15,6 +15,10 @@
 
 With poetry or pip. With micromamba if handling software with conda. See [the tutorial](https://omnibenchmark.org/tutorial/).
 
+### Releases
+
+See [our tags](https://github.com/omnibenchmark/omnibenchmark/tags).
+
 ## Developer notes
 
 Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) dependency. Benchmark YAML schemas are updated by:
@@ -28,3 +32,9 @@ Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) depe
 ## Acknowledgements
 
 Omnibenchmark incorporates great FOSS components, including but not limited to: Snakemake, easybuild, apptainer, lmod, LinkML, git. Thank you!
+
+## Preprints
+
+- [Omnibenchmark (alpha) for continuous and open benchmarking in bioinformatics](https://arxiv.org/abs/2409.17038) (2024)
+- [Building a continuous benchmarking ecosystem in bioinformatics](https://arxiv.org/abs/2409.15472) (2024)
+  
