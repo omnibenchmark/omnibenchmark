@@ -165,6 +165,10 @@ jobs:
            fi
            eval "$(micromamba shell hook --shell bash)"
            EOF
+           
+           cat <<'EOF' >>~/.bash_profile
+           source ~/.bashrc
+           EOF
 
       - name: Test
         env:
@@ -172,12 +176,10 @@ jobs:
         shell: bash -el {0}
         run: |
 
-          module --version
-
-          ## eval "$(micromamba shell hook --shell bash)"
+          # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
-
+          
           cd tests/software
 
           mkdir -p "$HOME"/.local/easybuild/modules/all

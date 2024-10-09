@@ -1,10 +1,12 @@
 channels:
   - conda-forge
   - bioconda
+  - nodefaults
 dependencies:
   - conda-forge::python >=3.12
   - conda-forge::mamba >=1.5.8
   - conda-forge::pip >= 24.1.2
   - conda-forge::graphviz >= 0.20.3
+  - conda-forge::conda >= 24.9.1 # this is not a typo, we install conda with micromamba
   - pip:
      - "."
