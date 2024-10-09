@@ -16,12 +16,18 @@ from omni.io.MinIOStorage import MinIOStorage
 from tests.cli.cli_setup import OmniCLISetup
 from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
+if not sys.platform == "linux":
+    pytest.skip(
+        "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+        allow_module_level=True,
+    )
+
 tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
 if not os.path.exists(tempdir):
     os.mkdir(tempdir)
 
-# benchmark_data_path = Path("tests/data")
-# benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
+benchmark_data_path = Path("tests/data")
+benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 benchmark_path = str(benchmark_data_path / "Benchmark_004.yaml")
@@ -130,6 +136,7 @@ class TestCLIMinIOStorage:
             )
 
         with TmpMinIOStorage(minio_testcontainer) as tmp:
+            tmp = TmpMinIOStorage(minio_testcontainer)
             time.sleep(2)
             # TODO: to setup bucket
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
@@ -139,25 +146,27 @@ class TestCLIMinIOStorage:
                 ["ob", "storage", "create-version", "--benchmark", benchmark_path]
             )
             with OmniCLISetup() as omni:
-                omni.runner.isolated_filesystem(tempdir)
-                result = omni.call(
-                    [
-                        "storage",
-                        "download",
-                        "--benchmark",
-                        str(benchmark_path),
-                    ]
-                )
+                omni = OmniCLISetup()
+                with omni.runner.isolated_filesystem(tempdir):
+                    result = omni.call(
+                        [
+                            "storage",
+                            "download",
+                            "--benchmark",
+                            str(benchmark_path),
+                        ]
+                    )
+                    curtempdir = os.getcwd()
                 assert result.exit_code == 0
             assert clean(result.output).startswith(clean(expected_output))
-            os.listdir(
-                tempdir,
-            )
             ss.set_version("1.0")
             ss._get_objects()
             files = list(ss.files.keys())
             files = [f for f in files if Path(f).parents[-2].name == "out"]
-            assert all([tempdir / f in list(tempdir.rglob("*")) for f in files])
+            assert all(
+                [Path(curtempdir) / f in list(tempdir.rglob("*")) for f in files]
+            )
+            shutil.rmtree(curtempdir)
 
 
 def clean(output: str) -> str:
