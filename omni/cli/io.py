@@ -1,6 +1,7 @@
 """cli commands related to input/output files"""
 
 import json
+import sys
 from pathlib import Path
 
 import click
@@ -48,10 +49,10 @@ def create_benchmark_version(benchmark: str):
             "Error: version already exists. Cannot overwrite.",
             err=True,
         )
-        raise click.Exit(code=1)
+        sys.exit(1)
     else:
         click.echo("Create a new benchmark version")
-        ss.create_new_version()
+        ss.create_new_version(benchmark)
 
 
 @storage.command(name="list")
@@ -71,7 +72,9 @@ def create_benchmark_version(benchmark: str):
     default="all",
 )
 @click.option("-s", "--stage", help="Stage to list files for.", type=str, default=None)
-@click.option("-i", "--id", help="File id/type to list.", type=str, default=None)
+@click.option(
+    "-i", "--id", "file_id", help="File id/type to list.", type=str, default=None
+)
 def list_files(
     benchmark: str,
     type: str = "all",
@@ -82,12 +85,13 @@ def list_files(
     """List all or specific files for a benchmark."""
     if file_id is not None:
         click.echo("--file_id is not implemented")
-        raise click.Exit(code=1)
+        sys.exit(1)
     if type != "all":
         click.echo("--type is not implemented")
-        raise click.Exit(code=1)
+        sys.exit(1)
+    from omni.io.files import list_files
 
-    objectnames, etags = omni.io.files.list_files(
+    objectnames, etags = list_files(
         benchmark=benchmark, type=type, stage=stage, module=module, file_id=file_id
     )
     if len(objectnames) > 0:
