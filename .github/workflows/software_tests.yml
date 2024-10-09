@@ -171,12 +171,7 @@ jobs:
           CI: true
         shell: bash -el {0}
         run: |
-          export
-          echo "--------------"
-
-          cat ~/.bashrc
-
-          echo "------------"
+          source ~/.bashrc
           
           module --version
 
@@ -184,9 +179,9 @@ jobs:
           micromamba activate
           micromamba activate omnibenchmark
 
-          conda --version
           export
-          echo "-------------------------"
+          conda --version
+
           
           cd tests/software
 
