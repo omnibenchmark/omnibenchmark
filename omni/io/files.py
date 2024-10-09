@@ -21,14 +21,12 @@ def list_files(
 ):
     """List all available files for a certain benchmark, version and stage"""
 
-    # benchmark = "tests/data/Benchmark_003.yaml"
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
     auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
-    # TODO: add bucket_name to schema
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,
@@ -83,7 +81,6 @@ def download_files(
 
     auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
-    # TODO: add bucket_name to schema
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
         auth_options,

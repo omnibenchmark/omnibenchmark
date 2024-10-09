@@ -1,0 +1,38 @@
+id: benchmark004
+description: simple benchmark, somewhat explicit, simple params
+version: 1.0
+benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
+storage:  http://omnibenchmark.mls.uzh.ch:9000
+storage_api: S3
+storage_bucket_name: benchmark004
+benchmark_yaml_spec: 0.01
+software_backend: conda
+software_environments:
+  python:
+    description: "Ppython3.12.0 with gfbf-2023 toolchain"
+    easyconfig: python_vX-gfbf-2023b.eb
+    envmodule: python/vX-gfbf-2023b
+    conda: envs/python_vX_test.yaml
+    apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+      - id: D2
+        name: "Dataset 2"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+      - id: data.meta
+        path: "{input}/{stage}/{module}/{params}/{dataset}.meta.json"
+      - id: data.data_specific_params
+        path: "{input}/{stage}/{module}/{params}/{dataset}_params.txt"

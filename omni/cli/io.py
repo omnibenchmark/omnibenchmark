@@ -121,7 +121,9 @@ def list_files(
 @click.option(
     "-m", "--module", help="Module to download files from.", type=str, default=None
 )
-@click.option("-i", "--id", help="File id to download.", type=str, default=None)
+@click.option(
+    "-i", "--id", "file_id", help="File id to download.", type=str, default=None
+)
 def download_files(
     benchmark: str,
     type: str = "all",

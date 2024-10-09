@@ -392,7 +392,7 @@ class MinIOStorage(RemoteStorage):
         # set retention policy of objects
         retention_config = minio.retention.Retention(
             minio.commonconfig.GOVERNANCE,
-            datetime.datetime.utcnow() + datetime.timedelta(weeks=1000),
+            datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
         )
         for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
             self.client.set_object_retention(
@@ -445,7 +445,7 @@ class MinIOStorage(RemoteStorage):
                     objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
 
             # add overview file to files
-            response_headers = response.getheaders()
+            response_headers = response.headers
             objdict[f"versions/{self.version}.csv"] = {
                 "version_id": response_headers.get("x-amz-version-id"),
                 # some parsing of date to get to consistent format
