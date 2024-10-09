@@ -167,11 +167,8 @@ jobs:
            EOF
            
            cat <<'EOF' >>~/.bash_profile
-           [ -r ~/.bashrc ] && source ~/.bashrc
+           source ~/.bashrc
            EOF
-
-           tail "$HOME"/.bashrc
-           tail "$HOME"/.bash_profile
 
       - name: Test
         env:
@@ -186,9 +183,7 @@ jobs:
           micromamba activate
           micromamba activate omnibenchmark
 
-          export
-          conda --version
-
+          ls -la /Users/runner/micromamba/envs/omnibenchmark/bin
           
           cd tests/software
 
