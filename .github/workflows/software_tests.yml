@@ -182,9 +182,7 @@ jobs:
           # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
-
-          ls -la /Users/runner/micromamba/envs/omnibenchmark/bin
-          
+                    
           cd tests/software
 
           mkdir -p "$HOME"/.local/easybuild/modules/all
