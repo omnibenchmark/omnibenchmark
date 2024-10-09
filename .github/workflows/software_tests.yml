@@ -156,7 +156,7 @@ jobs:
           CI: true
         shell: bash -el {0}
         run: |
-           cat <<'EOF' >>"$HOME"/.bashrc
+           cat <<'EOF' >>~/.bashrc
            if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
                 source /opt/homebrew/opt/lmod/init/profile
            fi
@@ -165,14 +165,19 @@ jobs:
            fi
            eval "$(micromamba shell hook --shell bash)"
            EOF
+           
+           cat <<'EOF' >>~/.bash_profile
+           [ -r ~/.bashrc ] && source ~/.bashrc
+           EOF
+
+           tail "$HOME"/.bashrc
+           tail "$HOME"/.bash_profile
 
       - name: Test
         env:
           CI: true
         shell: bash -el {0}
         run: |
-          source "$HOME"/.bashrc
-
           export
           
           module --version
