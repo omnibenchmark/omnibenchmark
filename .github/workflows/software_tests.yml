@@ -48,10 +48,6 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.py_ver }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
 
-      - name: Install graphviz dependency
-        run: |
-           sudo apt install -y graphviz graphviz-dev
-
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
