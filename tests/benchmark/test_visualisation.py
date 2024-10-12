@@ -6,19 +6,19 @@ from pathlib import Path
 import pytest
 
 from omni.benchmark import Benchmark, dag
-from omni.constants import LayoutDesign
 
 
-def test_plot_computational_graph():
+def test_export_computational_to_dot():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
-    output_file = "test_plot_computational_graph.png"
+    output_file = "computational_graph.dot"
     output_file_path = Path(output_file)
 
     try:
         with open(benchmark_file_path, "r") as file:
             benchmark = Benchmark(benchmark_file_path)
-            benchmark.plot_computational_graph(output_file=output_file)
+            dot = benchmark.export_to_dot()
+            dot.write(output_file)
             assert (
                 output_file_path.exists()
             ), f"Output file {output_file} was not created."
@@ -30,33 +30,30 @@ def test_plot_computational_graph():
 
 
 @pytest.mark.timeout(60)
-def test_plot_computational_graph_scaling():
+def test_export_computational_to_dot_scaling():
     Glarge = generate_graph(100)
-    fig = dag.export_to_figure(
+    dot = dag.export_to_dot(
         Glarge,
-        layout_design=LayoutDesign.Hierarchical,
         title="Large Graph (100 nodes)",
     )
-    fig.savefig("large_graph.png")
+    dot.write("large_graph.dot")
 
     Gmedium = generate_graph(50)
-    fig = dag.export_to_figure(
+    dot = dag.export_to_dot(
         Gmedium,
-        layout_design=LayoutDesign.Hierarchical,
         title="Medium Graph (50 nodes)",
     )
-    fig.savefig("medium_graph.png")
+    dot.write("medium_graph.dot")
 
     Gsmall = generate_graph(10)
-    fig = dag.export_to_figure(
+    dot = dag.export_to_dot(
         Gsmall,
-        layout_design=LayoutDesign.Hierarchical,
         title="Small Graph (10 nodes)",
     )
-    fig.savefig("small_graph.png")
+    dot.write("small_graph.dot")
 
 
-def test_export_to_mermaid():
+def test_export_topology_to_mermaid():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
     expected_mermaid = """---
