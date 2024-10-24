@@ -1,10 +1,12 @@
 """cli commands related to benchmark infos and stats"""
-
+import subprocess
 from pathlib import Path
 
 import click
 import yaml
 from packaging.version import Version
+
+from omni.cli.validate import validate_benchmark
 
 
 @click.group()
@@ -168,3 +170,63 @@ def list_versions(ctx, benchmark):
         ss.versions.sort(key=Version)
         for version in ss.versions:
             click.echo(f"{version:>8}")
+
+
+@info.command("plot")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def plot(ctx, benchmark: str):
+    """Plot computational graph for benchmark."""
+    click.echo(f"Plotting computational graph for {benchmark} ...")
+
+    # First, check if Graphviz is installed
+    try:
+        result = subprocess.run(
+            ["dot", "-V"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        click.echo(f"Found Graphviz installation: {result.stderr.decode().strip()}")
+    except FileNotFoundError:
+        click.echo(
+            "Graphviz is not installed or not found in the PATH. Please install it."
+        )
+        return
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Error running Graphviz: {e.stderr.decode().strip()}")
+        return
+
+    # If Graphviz is found, then try to import pygraphviz
+    try:
+        import pygraphviz
+    except ImportError:
+        click.echo(
+            "pygraphviz is not installed. Install it using 'poetry install --extras \"graph\"'."
+        )
+        return
+
+    benchmark = validate_benchmark(benchmark, echo=False)
+    benchmark.plot_computational_graph(f"{benchmark.get_benchmark_name()}.png")
+
+
+@info.command("topology")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def plot(ctx, benchmark: str):
+    """Export benchmark topology to mermaid diagram format."""
+
+    benchmark = validate_benchmark(benchmark, echo=False)
+    mermaid = benchmark.export_to_mermaid()
+    click.echo(mermaid)
