@@ -26,6 +26,9 @@ class BenchmarkNode:
         self.module_id = module.id
         self.param_id = f"param_{param_id}" if parameters else "default"
 
+    def is_entrypoint(self):
+        return not self.inputs or len(self.inputs) == 0
+
     def get_id(self):
         return BenchmarkNode.to_id(
             self.stage_id, self.module_id, self.param_id, self.after

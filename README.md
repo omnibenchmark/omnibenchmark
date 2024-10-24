@@ -14,6 +14,10 @@
 
 With poetry or pip. With micromamba if handling software with conda. See [the tutorial](https://omnibenchmark.org/tutorial/).
 
+### Releases
+
+See [our tags](https://github.com/omnibenchmark/omnibenchmark/tags).
+
 ## Developer notes
 
 ### omni-schema
