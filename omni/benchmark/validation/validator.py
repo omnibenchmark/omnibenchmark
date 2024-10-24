@@ -4,10 +4,13 @@ from pathlib import Path
 from typing import Union, Optional
 from urllib.parse import urlparse
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
+from easybuild.tools.options import set_up_configuration
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvironment
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
+from omni.software.easybuild_backend import generate_default_easybuild_config_arguments
 
 
 class Validator:
@@ -71,49 +74,27 @@ class Validator:
 
         software_backend = converter.get_software_backend()
         for environment in software_environments.values():
-            environment_exists = True
-            environment_path = None
-            if (
-                software_backend == SoftwareBackendEnum.apptainer
-                or software_backend == SoftwareBackendEnum.docker
-            ):
+            if software_backend != SoftwareBackendEnum.host:
                 environment_path = Validator.get_environment_path(
-                    benchmark_dir, environment.apptainer
+                    software_backend, environment, benchmark_dir
                 )
 
-                if environment.apptainer is None:
-                    environment_exists = False
-
-            if software_backend == SoftwareBackendEnum.envmodules:
-                environment_path = Validator.get_environment_path(
-                    benchmark_dir, environment.easyconfig
-                )
-
-                if environment.envmodule is None:
-                    environment_exists = False
-
-            if software_backend == SoftwareBackendEnum.conda:
-                environment_path = Validator.get_environment_path(
-                    benchmark_dir, environment.conda
-                )
-
-                if environment.conda is None:
-                    environment_exists = False
-
-            if not environment_exists:
-                self.errors.append(
-                    ValidationError(
-                        f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
+                if not environment_path:
+                    self.errors.append(
+                        ValidationError(
+                            f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
+                        )
                     )
-                )
-            elif not Validator.is_url(environment_path) and not os.path.exists(
-                environment_path
-            ):
-                self.errors.append(
-                    ValidationError(
-                        f"Software environment path for '{software_backend.text}' does not exist: '{environment_path}'."
+                elif (
+                    not Validator.is_url(environment_path)
+                    and not os.path.exists(environment_path)
+                    and not software_backend == SoftwareBackendEnum.envmodules
+                ):
+                    self.errors.append(
+                        ValidationError(
+                            f"Software environment path for '{software_backend.text}' does not exist: '{environment_path}'."
+                        )
                     )
-                )
 
         # Raise ValidationError if there are errors
         if self.errors:
@@ -130,15 +111,36 @@ class Validator:
 
     @staticmethod
     def get_environment_path(
-        benchmark_dir: Path, environment: Optional[str]
+        software_backend: SoftwareBackendEnum,
+        software: SoftwareEnvironment,
+        benchmark_dir: Path,
     ) -> Optional[str]:
+        environment = None
+        if (
+            software_backend == SoftwareBackendEnum.apptainer
+            or software_backend == SoftwareBackendEnum.docker
+        ):
+            environment = software.apptainer
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment = software.envmodule
+        elif software_backend == SoftwareBackendEnum.conda:
+            environment = software.conda
+
         if not environment:
             return None
 
-        if Validator.is_url(environment) or Validator.is_absolute_path(environment):
+        if software_backend == SoftwareBackendEnum.envmodules:
             environment_path = environment
+            # TODO Validate that easyconfig exists and is parsable
+            # paths = generate_default_easybuild_config_arguments()
+            # opts, _ = set_up_configuration(args=[], silent=True)
+            # environment_path = det_easyconfig_paths([environment])[0]
+            # ec_dicts, _ = parse_easyconfigs([(environment_path, False)])
         else:
-            environment_path = os.path.join(benchmark_dir, environment)
+            if Validator.is_url(environment) or Validator.is_absolute_path(environment):
+                environment_path = environment
+            else:
+                environment_path = os.path.join(benchmark_dir, environment)
 
         return environment_path
 

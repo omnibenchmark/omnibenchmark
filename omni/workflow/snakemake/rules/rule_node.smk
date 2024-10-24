@@ -134,16 +134,6 @@ def _get_environment_path(benchmark, node):
     benchmark_dir = benchmark.directory
     software_backend = benchmark.get_benchmark_software_backend()
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
-
-    environment_path = None
-    if (software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker):
-        environment_path = Validator.get_environment_path(benchmark_dir, environment.apptainer)
-
-    elif software_backend == SoftwareBackendEnum.envmodules:
-        ## it's not a path, just an env name
-        ## environment_path = Validator.get_environment_path(benchmark_dir,environment.envmodule)
-        environment_path = environment.envmodule
-    elif software_backend == SoftwareBackendEnum.conda:
-        environment_path = Validator.get_environment_path(benchmark_dir, environment.conda)
+    environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
 
     return environment_path
