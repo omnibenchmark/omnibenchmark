@@ -1,10 +1,13 @@
 import datetime
 import io
 import sys
+from pathlib import Path
 
 import pytest
+import yaml
 from packaging.version import Version
 
+from omni.benchmark import Benchmark
 from omni.io.exception import RemoteStorageInvalidInputException
 from omni.io.MinIOStorage import MinIOStorage
 from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
@@ -17,6 +20,10 @@ if not sys.platform == "linux":
 
 # setup and start minio container
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
+
+
+benchmark_data = Path("..") / "data"
+benchmark_data_path = Path(__file__).parent / benchmark_data
 
 
 class TestMinIOStorage:
@@ -203,6 +210,32 @@ class TestMinIOStorage:
                 "last_modified",
                 "size",
             }
+
+    def test_filter_with_benchmark(self):
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            tmp = TmpMinIOStorage(minio_testcontainer)
+            ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_base)
+            result = ss.client.put_object(
+                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            )
+            result = ss.client.put_object(
+                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            )
+            ss.set_version("0.2")
+            ss.create_new_version()
+            ss._get_objects()
+            ss.files
+            benchmark = str(benchmark_data_path / "mock_benchmark.yaml")
+            print(benchmark)
+            with open(benchmark, "r") as fh:
+                yaml.safe_load(fh)
+                benchmark = Benchmark(Path(benchmark))
+            ss.set_version("0.3")
+            ss.create_new_version(benchmark)
+            ss._get_objects()
+            assert all(
+                [f not in ss.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
+            )
 
 
 def cleanup_buckets_on_exit():
