@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from itertools import groupby
+from pathlib import Path
 from typing import Dict, List, Tuple, Union
 from urllib.parse import urlparse
 
@@ -16,6 +17,7 @@ import minio.commonconfig
 import minio.retention
 from packaging.version import Version
 
+from omni.benchmark import Benchmark
 from omni.io.exception import (
     MinIOStorageBucketManipulationException,
     MinIOStorageConnectionException,
@@ -130,15 +132,24 @@ def get_s3_objects_to_tag(
     return object_names_to_tag, versionid_of_objects_to_tag
 
 
-# TODO: filter objects based on workflow. Currently removing objects from a
-# benchmark is not possible.
+# filter objects based on workflow.
 def filter_s3_objects_to_tag(
     object_names_to_tag: List,
     versionid_of_objects_to_tag: List,
-    filter_options: Union[Dict, None] = None,
-    object_name_list: Union[List, None] = None,
+    benchmark: Union[None, Benchmark] = None,
 ) -> Tuple[List, List]:
-    return object_names_to_tag, versionid_of_objects_to_tag
+    if benchmark is None:
+        return object_names_to_tag, versionid_of_objects_to_tag
+    else:
+        object_names_to_keep = benchmark.get_output_paths()
+        rootdirs = [Path(obj).parents[-2].name for obj in object_names_to_tag]
+        return zip(
+            *[
+                (obj, versionid_of_objects_to_tag[i])
+                for i, obj in enumerate(object_names_to_tag)
+                if obj in object_names_to_keep or rootdirs[i] in ["config", "versions"]
+            ]
+        )
 
 
 def get_single_s3version_from_bmversion(
@@ -326,7 +337,7 @@ class MinIOStorage(RemoteStorage):
                 versions.append(Version(version))
         self.versions = versions
 
-    def create_new_version(self) -> None:
+    def create_new_version(self, benchmark: Union[None, Benchmark] = None) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
                 "No version provided, set version first with method 'set_version'"
@@ -344,6 +355,21 @@ class MinIOStorage(RemoteStorage):
                 "Version already exists, set new version with method 'set_version'"
             )
 
+        # upload benchmark definition file
+        if benchmark is not None:
+            # read file
+            bmfile = Path(benchmark.get_definition_file())
+            with open(bmfile, "r") as fh:
+                bmstr = fh.read()
+
+            # upload file
+            _ = self.client.put_object(
+                self.benchmark,
+                "config/benchmark.yaml",
+                io.BytesIO(bmstr.encode()),
+                len(bmstr),
+            )
+
         # get all objects
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
 
@@ -353,9 +379,8 @@ class MinIOStorage(RemoteStorage):
         )
 
         # filter objects based on workflow
-        # TODO: implement
         object_names_to_tag, versionid_of_objects_to_tag = filter_s3_objects_to_tag(
-            object_names_to_tag, versionid_of_objects_to_tag
+            object_names_to_tag, versionid_of_objects_to_tag, benchmark
         )
 
         # Tag all objects with current version
@@ -367,7 +392,7 @@ class MinIOStorage(RemoteStorage):
         # set retention policy of objects
         retention_config = minio.retention.Retention(
             minio.commonconfig.GOVERNANCE,
-            datetime.datetime.utcnow() + datetime.timedelta(weeks=1000),
+            datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
         )
         for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
             self.client.set_object_retention(
@@ -420,7 +445,7 @@ class MinIOStorage(RemoteStorage):
                     objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
 
             # add overview file to files
-            response_headers = response.getheaders()
+            response_headers = response.headers
             objdict[f"versions/{self.version}.csv"] = {
                 "version_id": response_headers.get("x-amz-version-id"),
                 # some parsing of date to get to consistent format

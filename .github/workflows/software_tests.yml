@@ -29,6 +29,7 @@ concurrency:
 
 jobs:
   software_testing_linux:
+    permissions: write-all
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-20.04]
@@ -108,6 +109,7 @@ jobs:
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
   software_testing_mac:
+    permissions: write-all
     strategy:
       matrix:
         os: [macos-14] # [macos-14, macos-13]

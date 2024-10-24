@@ -130,7 +130,7 @@ jobs:
       #----------------------------------------------
       # Report coverage
       #----------------------------------------------
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' &&  matrix.poetry-version == '1.8.0' }}
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
         name: Comment coverage result
         uses: MishaKav/pytest-coverage-comment@main
         with:

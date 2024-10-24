@@ -117,23 +117,14 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
 )
 def run_module(ctx, benchmark, module, input_dir, dry, update):
     """
-    Run a specific module on inputs present at a given folder.
+    Run a specific module that is part of the benchmark.
     """
-    example = False
-    all = False
     behaviours = {"input": input_dir, "example": None, "all": None}
 
     non_none_behaviours = {
         key: value for key, value in behaviours.items() if value is not None
     }
-    if len(non_none_behaviours) == 0:
-        click.echo(
-            "Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.",
-            err=True,
-        )
-        sys.exit(1)  # raise click.Exit(code=1)
-
-    elif len(non_none_behaviours) >= 2:
+    if len(non_none_behaviours) >= 2:
         click.echo(
             "Error: Only one of '--input_dir', '--example', or '--all' should be set. Please choose only one option.",
             err=True,
@@ -141,7 +132,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
         sys.exit(1)  # raise click.Exit(code=1)
     else:
         # Construct a message specifying which option is set
-        behaviour = list(non_none_behaviours)[0]
+        behaviour = list(non_none_behaviours)[0] if non_none_behaviours else None
 
         if behaviour == "example" or behaviour == "all":
             if behaviour == "example":
@@ -157,21 +148,27 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
             )
             sys.exit(1)  # raise click.Exit(code=1)
         else:
-            click.echo(f"Running module on a dataset provided in a custom directory.")
+            click.echo(f"Running module on a local dataset.")
             benchmark = validate_benchmark(benchmark)
 
-            # if update and not dry:
-            #     update_prompt = click.confirm(
-            #         "Are you sure you want to re-run the entire workflow?", abort=True
-            #     )
-            #     if not update_prompt:
-            #         raise click.Abort()
-
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
+            is_entrypoint_module = all(
+                [node.is_entrypoint() for node in benchmark_nodes]
+            )
             if len(benchmark_nodes) > 0:
                 click.echo(
                     f"Found {len(benchmark_nodes)} workflow nodes for module {module}."
                 )
+
+                if not is_entrypoint_module and len(non_none_behaviours) == 0:
+                    click.echo(
+                        "Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.",
+                        err=True,
+                    )
+                    sys.exit(1)  # raise click.Exit(code=1)
+                elif input_dir is None:
+                    input_dir = os.getcwd()
+
                 click.echo("Running module benchmark...")
 
                 # Check if input path exists and is a directory
