@@ -1,16 +1,18 @@
+import io
 import os.path
 from collections import Counter
+from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 from typing import Union, Optional
 from urllib.parse import urlparse
 
-from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
-from easybuild.tools.options import set_up_configuration
+from easybuild.framework.easyconfig.tools import det_easyconfig_paths
+from easybuild.tools.build_log import EasyBuildError
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvironment
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
-from omni.software.easybuild_backend import generate_default_easybuild_config_arguments
+from omni.software.easybuild_backend import initialize_easybuild_config
 
 
 class Validator:
@@ -85,10 +87,8 @@ class Validator:
                             f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
                         )
                     )
-                elif (
-                    not Validator.is_url(environment_path)
-                    and not os.path.exists(environment_path)
-                    and not software_backend == SoftwareBackendEnum.envmodules
+                elif not Validator.is_url(environment_path) and not os.path.exists(
+                    environment_path
                 ):
                     self.errors.append(
                         ValidationError(
@@ -130,12 +130,13 @@ class Validator:
             return None
 
         if software_backend == SoftwareBackendEnum.envmodules:
-            environment_path = environment
-            # TODO Validate that easyconfig exists and is parsable
-            # paths = generate_default_easybuild_config_arguments()
-            # opts, _ = set_up_configuration(args=[], silent=True)
-            # environment_path = det_easyconfig_paths([environment])[0]
-            # ec_dicts, _ = parse_easyconfigs([(environment_path, False)])
+            try:
+                with io.StringIO() as buf, redirect_stdout(buf), redirect_stderr(buf):
+                    initialize_easybuild_config()
+                    environment_path = det_easyconfig_paths([software.easyconfig])[0]
+            except EasyBuildError as e:
+                print(e)
+                environment_path = None
         else:
             if Validator.is_url(environment) or Validator.is_absolute_path(environment):
                 environment_path = environment
