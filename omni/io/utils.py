@@ -27,6 +27,25 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str):
         raise ValueError("Invalid storage type")
 
 
+def get_storage_from_benchmark(benchmark: Benchmark):
+    """
+    Selects a remote storage type from a benchmark object.
+
+    Args:
+    - benchmark (Benchmark): The benchmark object.
+
+    Returns:
+    - RemoteStorage: The remote storage object.
+    """
+    auth_options = remote_storage_args(benchmark)
+    # setup storage
+    return get_storage(
+        str(benchmark.converter.model.storage_api),
+        auth_options,
+        str(benchmark.converter.model.storage_bucket_name),
+    )
+
+
 # https://stackoverflow.com/a/3431838
 def md5(fname: str):
     hash_md5 = hashlib.md5()

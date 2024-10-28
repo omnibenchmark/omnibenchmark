@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -167,6 +168,103 @@ class TestCLIMinIOStorage:
                 [Path(curtempdir) / f in list(tempdir.rglob("*")) for f in files]
             )
             shutil.rmtree(curtempdir)
+
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            tmp = TmpMinIOStorage(minio_testcontainer)
+            time.sleep(2)
+            # TODO: to setup bucket
+            ss = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+
+    def test_missing_S3_storage_credentials_1(self):
+        expected_output = """Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG"""
+        if not sys.platform == "linux":
+            pytest.skip(
+                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+                allow_module_level=True,
+            )
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            # os.environ["OB_STORAGE_S3_ACCESS_KEY"] = ""
+            os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
+            os.environ["OB_STORAGE_S3_SECRET_KEY"] = tmp.auth_options["secret_key"]
+            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+
+            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            with OmniCLISetup() as omni:
+                result = omni.call(
+                    [
+                        "storage",
+                        "create-version",
+                        "--benchmark",
+                        str(benchmark_path),
+                    ]
+                )
+                assert result.exit_code == 1
+                assert clean(result.output).startswith(clean(expected_output))
+
+    def test_S3_storage_credentials_from_file(self):
+        expected_output = """Create a new benchmark version"""
+        if not sys.platform == "linux":
+            pytest.skip(
+                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+                allow_module_level=True,
+            )
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            storage_s3_json = benchmark_data_path / "storage_s3.json"
+            json.dump(tmp.auth_options, storage_s3_json.open("w"))
+
+            os.environ["OB_STORAGE_S3_CONFIG"] = str(storage_s3_json)
+            os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
+            os.environ.pop("OB_STORAGE_S3_SECRET_KEY", None)
+
+            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+
+            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            with OmniCLISetup() as omni:
+                result = omni.call(
+                    [
+                        "storage",
+                        "create-version",
+                        "--benchmark",
+                        str(benchmark_path),
+                    ]
+                )
+                assert result.exit_code == 0
+                assert clean(result.output).startswith(clean(expected_output))
+
+    def test_missing_S3_storage_credentials_2(self):
+        expected_output = (
+            """Invalid S3 config, missing access_key or secret_key in config file"""
+        )
+        if not sys.platform == "linux":
+            pytest.skip(
+                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+                allow_module_level=True,
+            )
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            storage_s3_json = benchmark_data_path / "storage_s3.json"
+            auth_options = tmp.auth_options.copy()
+            del auth_options["access_key"]
+            print(auth_options)
+            json.dump(auth_options, storage_s3_json.open("w"))
+
+            os.environ["OB_STORAGE_S3_CONFIG"] = str(storage_s3_json)
+            os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
+            os.environ.pop("OB_STORAGE_S3_SECRET_KEY", None)
+
+            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+
+            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            with OmniCLISetup() as omni:
+                result = omni.call(
+                    [
+                        "storage",
+                        "create-version",
+                        "--benchmark",
+                        str(benchmark_path),
+                    ]
+                )
+                assert result.exit_code == 1
+                assert clean(result.output).startswith(clean(expected_output))
 
 
 def clean(output: str) -> str:

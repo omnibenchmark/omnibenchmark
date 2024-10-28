@@ -17,6 +17,8 @@ def is_valid_version(version: str):
         return True
     except packaging.version.InvalidVersion:
         return False
+    except TypeError:
+        return False
 
 
 class RemoteStorage(metaclass=ABCMeta):
