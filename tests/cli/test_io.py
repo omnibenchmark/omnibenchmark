@@ -73,6 +73,8 @@ class TestCLIMinIOStorage:
                 )
                 ss.set_version("1.0")
                 ss._get_objects()
+                print(f"versions: {ss.versions}")
+                print(f"files: {ss.files}")
                 assert "versions/1.0.csv" in ss.files.keys()
 
     def test_list_files(self):
@@ -188,7 +190,10 @@ class TestCLIMinIOStorage:
             )
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             storage_s3_json = benchmark_data_path / "storage_s3.json"
+            print(storage_s3_json)
             json.dump(tmp.auth_options, storage_s3_json.open("w"))
+            with open(storage_s3_json, "r") as fh:
+                print(json.load(fh))
 
             os.environ["OB_STORAGE_S3_CONFIG"] = str(storage_s3_json)
             os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
@@ -206,6 +211,8 @@ class TestCLIMinIOStorage:
                         str(benchmark_path),
                     ]
                 )
+                print(f"exit code: {result.exit_code}")
+                print(f"result output: {result.output}")
                 assert result.exit_code == 0
                 assert clean(result.output).startswith(clean(expected_output))
 
