@@ -11,8 +11,8 @@ from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage, create_remo
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 
-if not sys.platform == "linux":
-    minio_testcontainer = MinIOSetup(sys.platform == "linux")
+minio_testcontainer = MinIOSetup(sys.platform == "linux")
+if sys.platform == "linux":
     benchmark_path = create_remote_test(minio_testcontainer, in_dir=benchmark_data_path)
 
 
