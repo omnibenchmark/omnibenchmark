@@ -10,12 +10,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-from linkml_runtime.dumpers import yaml_dumper
 
 from omni.benchmark import Benchmark
 from omni.io.MinIOStorage import MinIOStorage
 from tests.cli.cli_setup import OmniCLISetup
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage, create_remote_test
 
 if not sys.platform == "linux":
     pytest.skip(
@@ -24,11 +23,8 @@ if not sys.platform == "linux":
     )
 
 tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
-if not os.path.exists(tempdir):
-    os.mkdir(tempdir)
-
-benchmark_data_path = Path("tests/data")
-benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
+# benchmark_data_path = Path("tests/data")
+# benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 benchmark_path = str(benchmark_data_path / "Benchmark_004.yaml")
@@ -39,27 +35,9 @@ with open(benchmark_path, "r") as fh:
 
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
-# need to create new benchmark yaml file with correct endpoint from test container
-with TmpMinIOStorage(minio_testcontainer) as tmp:
-    time.sleep(2)
-    os.environ["OB_STORAGE_S3_ACCESS_KEY"] = tmp.auth_options["access_key"]
-    os.environ["OB_STORAGE_S3_SECRET_KEY"] = tmp.auth_options["secret_key"]
-    benchmark_obj.converter.model.storage = tmp.auth_options["endpoint"]
-    benchmark_path = tempdir / "Benchmark_004.yaml"
-    yaml_dumper.dump(benchmark_obj.converter.model, benchmark_path)
-
-    if not os.path.exists(tempdir / "envs"):
-        os.mkdir(tempdir / "envs")
-    env_path = benchmark_data_path / "envs" / "python_vX_test.yaml"
-    env_path_after = tempdir / "envs" / "python_vX_test.yaml"
-
-    shutil.copyfile(env_path, env_path_after)
-
-
-with open(benchmark_path, "r") as fh:
-    yaml.safe_load(fh)
-    benchmark_obj = Benchmark(Path(benchmark_path))
-# storage_options = remote_storage_snakemake_args(benchmark_obj)
+benchmark_path = create_remote_test(
+    minio_testcontainer, in_dir=benchmark_data_path, out_dir=tempdir
+)
 
 
 class TestCLIMinIOStorage:

@@ -6,11 +6,12 @@ from pathlib import Path
 import pytest
 
 from tests.cli.cli_setup import OmniCLISetup
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage, create_remote_test
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
+benchmark_path = create_remote_test(minio_testcontainer, in_dir=benchmark_data_path)
 
 
 def test_remote():
@@ -33,7 +34,7 @@ def test_remote():
                     "run",
                     "benchmark",
                     "--benchmark",
-                    str(benchmark_data_path / "mock_benchmark.yaml"),
+                    str(benchmark_path),
                 ]
             )
             assert result.exit_code == 0
