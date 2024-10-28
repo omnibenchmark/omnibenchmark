@@ -1,9 +1,9 @@
+import pydot
+
 from omni.benchmark import dag
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation import Validator
-from omni.constants import LayoutDesign
 from omni.utils import *
-import uuid
 
 
 class Benchmark:
@@ -116,13 +116,13 @@ class Benchmark:
         node = next(node for node in self.G.nodes if node.module_id == module_id)
         return node.get_parameters()
 
-    def plot_computational_graph(self, output_file: str):
-        fig = dag.export_to_figure(
+    def export_to_dot(self) -> pydot.Dot:
+        pydot_graph = dag.export_to_dot(
             self.G,
-            layout_design=LayoutDesign.Hierarchical,
             title=self.get_benchmark_name(),
         )
-        fig.savefig(output_file)
+
+        return pydot_graph
 
     def export_to_mermaid(self, show_params: bool = True) -> str:
         # Initialize the mermaid diagram syntax
@@ -165,7 +165,7 @@ class Benchmark:
             for module_id, params in module_id_params_dict.items():
                 mermaid_diagram += f"\tsubgraph params_{module_id}\n"
                 for param in params:
-                    mermaid_diagram += f"\t\t{str(uuid.uuid4())}{str(param)}\n"
+                    mermaid_diagram += f"\t\t{hash(tuple(param))}{str(param)}\n"
 
                 mermaid_diagram += "\tend\n"
                 mermaid_diagram += f"\tparams_{module_id}:::param --o {module_id}\n"

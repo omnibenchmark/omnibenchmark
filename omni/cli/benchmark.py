@@ -1,5 +1,4 @@
 """cli commands related to benchmark infos and stats"""
-import subprocess
 from pathlib import Path
 
 import click
@@ -172,7 +171,7 @@ def list_versions(ctx, benchmark):
             click.echo(f"{version:>8}")
 
 
-@info.command("plot")
+@info.command("computational")
 @click.option(
     "--benchmark",
     "-b",
@@ -183,35 +182,11 @@ def list_versions(ctx, benchmark):
 )
 @click.pass_context
 def plot(ctx, benchmark: str):
-    """Plot computational graph for benchmark."""
-    click.echo(f"Plotting computational graph for {benchmark} ...")
-
-    # First, check if Graphviz is installed
-    try:
-        result = subprocess.run(
-            ["dot", "-V"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        click.echo(f"Found Graphviz installation: {result.stderr.decode().strip()}")
-    except FileNotFoundError:
-        click.echo(
-            "Graphviz is not installed or not found in the PATH. Please install it."
-        )
-        return
-    except subprocess.CalledProcessError as e:
-        click.echo(f"Error running Graphviz: {e.stderr.decode().strip()}")
-        return
-
-    # If Graphviz is found, then try to import pygraphviz
-    try:
-        import pygraphviz
-    except ImportError:
-        click.echo(
-            "pygraphviz is not installed. Install it using 'poetry install --extras \"graph\"'."
-        )
-        return
+    """Export computational graph to dot format."""
 
     benchmark = validate_benchmark(benchmark, echo=False)
-    benchmark.plot_computational_graph(f"{benchmark.get_benchmark_name()}.png")
+    dot = benchmark.export_to_dot()
+    click.echo(dot.to_string())
 
 
 @info.command("topology")
