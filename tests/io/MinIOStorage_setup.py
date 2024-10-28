@@ -119,6 +119,8 @@ class TmpMinIOStorage:
 def create_remote_test(minio_testcontainer, in_dir, out_dir: Union[Path, None] = None):
     if out_dir is None:
         out_dir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
     # need to create new benchmark yaml file with correct endpoint from test container
     with TmpMinIOStorage(minio_testcontainer) as tmp:
         time.sleep(2)
