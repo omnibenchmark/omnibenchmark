@@ -21,23 +21,23 @@ if not sys.platform == "linux":
         "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
         allow_module_level=True,
     )
+else:
+    tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
+    # benchmark_data_path = Path("tests/data")
+    # benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
+    benchmark_data = Path("..") / "data"
+    benchmark_data_path = Path(__file__).parent / benchmark_data
+    benchmark_path = str(benchmark_data_path / "Benchmark_004.yaml")
 
-tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
-# benchmark_data_path = Path("tests/data")
-# benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
-benchmark_data = Path("..") / "data"
-benchmark_data_path = Path(__file__).parent / benchmark_data
-benchmark_path = str(benchmark_data_path / "Benchmark_004.yaml")
+    with open(benchmark_path, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark_obj = Benchmark(Path(benchmark_path))
 
-with open(benchmark_path, "r") as fh:
-    yaml.safe_load(fh)
-    benchmark_obj = Benchmark(Path(benchmark_path))
+    minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
-minio_testcontainer = MinIOSetup(sys.platform == "linux")
-
-benchmark_path = create_remote_test(
-    minio_testcontainer, in_dir=benchmark_data_path, out_dir=tempdir
-)
+    benchmark_path = create_remote_test(
+        minio_testcontainer, in_dir=benchmark_data_path, out_dir=tempdir
+    )
 
 
 class TestCLIMinIOStorage:

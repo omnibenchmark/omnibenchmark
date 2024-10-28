@@ -24,6 +24,8 @@ class MinIOSetup:
             )
             self.minio.start()
 
+            time.sleep(2)
+
     def __enter__(self):
         return self
 
