@@ -124,7 +124,7 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
-      - name: Install Lmod using homebrew
+      - name: Install packages using homebrew
         shell: bash -el {0}
         run: |
              bash
@@ -163,6 +163,10 @@ jobs:
            fi
            eval "$(micromamba shell hook --shell bash)"
            EOF
+           
+           cat <<'EOF' >>~/.bash_profile
+           source ~/.bashrc
+           EOF
 
       - name: Test
         env:
@@ -170,12 +174,10 @@ jobs:
         shell: bash -el {0}
         run: |
 
-          module --version
-
-          ## eval "$(micromamba shell hook --shell bash)"
+          # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
-
+          
           cd tests/software
 
           mkdir -p "$HOME"/.local/easybuild/modules/all

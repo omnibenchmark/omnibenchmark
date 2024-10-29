@@ -1,10 +1,11 @@
 """cli commands related to benchmark infos and stats"""
-
 from pathlib import Path
 
 import click
 import yaml
 from packaging.version import Version
+
+from omni.cli.validate import validate_benchmark
 
 
 @click.group()
@@ -168,3 +169,39 @@ def list_versions(ctx, benchmark):
         ss.versions.sort(key=Version)
         for version in ss.versions:
             click.echo(f"{version:>8}")
+
+
+@info.command("computational")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def plot(ctx, benchmark: str):
+    """Export computational graph to dot format."""
+
+    benchmark = validate_benchmark(benchmark, echo=False)
+    dot = benchmark.export_to_dot()
+    click.echo(dot.to_string())
+
+
+@info.command("topology")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def plot(ctx, benchmark: str):
+    """Export benchmark topology to mermaid diagram format."""
+
+    benchmark = validate_benchmark(benchmark, echo=False)
+    mermaid = benchmark.export_to_mermaid()
+    click.echo(mermaid)
