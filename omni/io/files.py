@@ -9,7 +9,7 @@ import tqdm
 import yaml
 
 from omni.benchmark import Benchmark
-from omni.io.utils import get_storage, md5, sizeof_fmt
+from omni.io.utils import get_storage, md5, remote_storage_args, sizeof_fmt
 
 
 def list_files(
@@ -25,7 +25,7 @@ def list_files(
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
-    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
+    auth_options = remote_storage_args(benchmark)
 
     ss = get_storage(
         str(benchmark.converter.model.storage_api),
@@ -79,7 +79,7 @@ def download_files(
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
-    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
+    auth_options = remote_storage_args(benchmark)
 
     ss = get_storage(
         str(benchmark.converter.model.storage_api),

@@ -72,12 +72,21 @@ def remote_storage_args(benchmark: Benchmark) -> dict:
         or str(benchmark.converter.model.storage_api).upper() == "S3"
     ):
         auth_options = S3_access_config_from_env()
-        return {
+        base_dic = {
             "endpoint": benchmark.converter.model.storage,
-            "secure": False,
-            "access_key": auth_options["access_key"],
-            "secret_key": auth_options["secret_key"],
+            "secure": True
+            if benchmark.converter.model.storage.startswith("https")
+            else False,
         }
+        if "access_key" in auth_options and "secret_key" in auth_options:
+            auth_dic = {
+                "access_key": auth_options["access_key"],
+                "secret_key": auth_options["secret_key"],
+            }
+        else:
+            auth_dic = {}
+
+        return {**base_dic, **auth_dic}
     else:
         raise ValueError("Invalid storage api")
 
