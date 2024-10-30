@@ -7,7 +7,9 @@ from pathlib import Path
 
 import click
 
+
 from omni.io.utils import get_storage_from_benchmark
+from omni.cli.validate import validate_benchmark
 
 
 @click.group(name="run")
@@ -285,53 +287,3 @@ def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     click.echo("Validating a benchmark yaml.")
     benchmark = validate_benchmark(benchmark)
-
-
-## to validate the YAML
-def validate_benchmark(benchmark_file: str):
-    from pathlib import Path
-
-    import yaml
-
-    from omni.benchmark import Benchmark
-
-    if benchmark_file.endswith(".yaml") or benchmark_file.endswith(".yml"):
-        try:
-            with open(benchmark_file, "r") as file:
-                yaml.safe_load(file)
-                benchmark = Benchmark(Path(benchmark_file))
-                click.echo("Benchmark YAML file integrity check passed.")
-
-                return benchmark
-
-        except ValueError as e:
-            click.echo(
-                f"Error: Failed to parse YAML as a valid OmniBenchmark: {str(e)}.",
-                err=True,
-            )
-            sys.exit(1)  # raise click.Exit(code=1)
-
-        except yaml.YAMLError as e:
-            click.echo(f"Error: YAML file format error: {e}.", err=True)
-            sys.exit(1)  # raise click.Exit(code=1)
-
-        except FileNotFoundError:
-            click.echo(
-                "Error: Benchmark YAML file not found.",
-                err=True,
-            )
-            sys.exit(1)  # raise click.Exit(code=1)
-
-        except Exception as e:
-            click.echo(
-                f"Error: An unexpected error occurred: {e}",
-                err=True,
-            )
-            sys.exit(1)  # raise click.Exit(code=1)
-
-    else:
-        click.echo(
-            "Error: Invalid benchmark input. Please provide a valid YAML file path.",
-            err=True,
-        )
-        sys.exit(1)  # raise click.Exit(code=1)
