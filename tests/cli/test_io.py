@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -35,13 +36,9 @@ else:
 
     minio_testcontainer = MinIOSetup(sys.platform == "linux")
 
-    benchmark_path = create_remote_test(
-        minio_testcontainer, in_dir=benchmark_data_path, out_dir=tempdir
-    )
-
 
 class TestCLIMinIOStorage:
-    def test_create_version(self):
+    def test_create_version(self, monkeypatch: pytest.MonkeyPatch):
         expected_output = """
         Create a new benchmark version
         """
@@ -52,35 +49,31 @@ class TestCLIMinIOStorage:
             )
 
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            time.sleep(2)
-            # TODO: to setup bucket
-            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
-
-            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
+            subprocess.run(
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
             with OmniCLISetup() as omni:
                 result = omni.call(
                     [
                         "storage",
                         "create-version",
                         "--benchmark",
-                        str(benchmark_path),
+                        str(tmp.benchmark_file),
                     ]
                 )
                 assert result.exit_code == 0
                 assert clean(result.output).startswith(clean(expected_output))
                 ss = MinIOStorage(
-                    auth_options=tmp.auth_options, benchmark="benchmark004"
+                    auth_options=tmp.auth_options, benchmark=tmp.bucket_name
                 )
                 ss.set_version("1.0")
                 ss._get_objects()
-                print(f"versions: {ss.versions}")
-                print(f"files: {ss.files}")
                 assert "versions/1.0.csv" in ss.files.keys()
 
-    def test_list_files(self):
-        expected_output = (
-            """1a92ffdf9b074c131af83cd288b65e5f out/data/D1/default/D1.meta.json"""
-        )
+    def test_list_files(self, monkeypatch: pytest.MonkeyPatch):
         if not sys.platform == "linux":
             pytest.skip(
                 "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
@@ -88,13 +81,23 @@ class TestCLIMinIOStorage:
             )
 
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            time.sleep(2)
-            # TODO: to setup bucket
-            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
 
-            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            # file content depends on the full file name, thus create a file with known content
+            file_content = f"1. Created dataset file .snakemake/storage/s3/{tmp.bucket_name}/out/data/D1/default/D1.meta.json.\n"
+            hash_md5 = hashlib.md5()
+            hash_md5.update(file_content.encode())
+            hash_md5 = hash_md5.hexdigest()
+            expected_output = f"{hash_md5} out/data/D1/default/D1.meta.json"
+
             subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", benchmark_path]
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
+            subprocess.run(
+                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
             )
             with OmniCLISetup() as omni:
                 result = omni.call(
@@ -102,13 +105,13 @@ class TestCLIMinIOStorage:
                         "storage",
                         "list",
                         "--benchmark",
-                        str(benchmark_path),
+                        str(tmp.benchmark_file),
                     ]
                 )
                 assert result.exit_code == 0
-            assert clean(result.output).startswith(clean(expected_output))
+                assert clean(result.output).startswith(clean(expected_output))
 
-    def test_download_files(self):
+    def test_download_files(self, monkeypatch: pytest.MonkeyPatch):
         expected_output = """Downloading 8 files with a total size of 2.7KiB"""
         if not sys.platform == "linux":
             pytest.skip(
@@ -117,45 +120,49 @@ class TestCLIMinIOStorage:
             )
 
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp = TmpMinIOStorage(minio_testcontainer)
-            time.sleep(2)
-            # TODO: to setup bucket
-            ss = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
 
-            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
             subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", benchmark_path]
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
+            subprocess.run(
+                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
             )
             with OmniCLISetup() as omni:
-                omni = OmniCLISetup()
-                with omni.runner.isolated_filesystem(tempdir):
+                with omni.runner.isolated_filesystem(tmp.out_dir):
                     result = omni.call(
                         [
                             "storage",
                             "download",
                             "--benchmark",
-                            str(benchmark_path),
+                            str(tmp.benchmark_file),
                         ]
                     )
                     curtempdir = os.getcwd()
-                assert result.exit_code == 0
-            assert clean(result.output).startswith(clean(expected_output))
-            ss.set_version("1.0")
-            ss._get_objects()
-            files = list(ss.files.keys())
-            files = [f for f in files if Path(f).parents[-2].name == "out"]
-            assert all(
-                [Path(curtempdir) / f in list(tempdir.rglob("*")) for f in files]
-            )
-            shutil.rmtree(curtempdir)
+                    assert result.exit_code == 0
+                    assert clean(result.output).startswith(clean(expected_output))
 
-        with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp = TmpMinIOStorage(minio_testcontainer)
-            time.sleep(2)
-            # TODO: to setup bucket
-            ss = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
+                    # get remote files
+                    ss = MinIOStorage(
+                        auth_options=tmp.auth_options, benchmark=tmp.bucket_name
+                    )
+                    ss.set_version("1.0")
+                    ss._get_objects()
+                    files = list(ss.files.keys())
+                    # only compare files from out directory
+                    files = [f for f in files if Path(f).parents[-2].name == "out"]
+                    # compare to local files
+                    assert all(
+                        [
+                            Path(curtempdir) / f in list(tempdir.rglob("*"))
+                            for f in files
+                        ]
+                    )
 
-    def test_missing_S3_storage_credentials_1(self):
+    def test_missing_S3_storage_credentials_1(self, monkeypatch: pytest.MonkeyPatch):
         expected_output = """Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG"""
         if not sys.platform == "linux":
             pytest.skip(
@@ -163,25 +170,27 @@ class TestCLIMinIOStorage:
                 allow_module_level=True,
             )
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            # os.environ["OB_STORAGE_S3_ACCESS_KEY"] = ""
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
             os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
             os.environ["OB_STORAGE_S3_SECRET_KEY"] = tmp.auth_options["secret_key"]
-            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
-
-            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            subprocess.run(
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
             with OmniCLISetup() as omni:
                 result = omni.call(
                     [
                         "storage",
                         "create-version",
                         "--benchmark",
-                        str(benchmark_path),
+                        str(tmp.benchmark_file),
                     ]
                 )
                 assert result.exit_code == 1
                 assert clean(result.output).startswith(clean(expected_output))
 
-    def test_S3_storage_credentials_from_file(self):
+    def test_S3_storage_credentials_from_file(self, monkeypatch: pytest.MonkeyPatch):
         expected_output = """Create a new benchmark version"""
         if not sys.platform == "linux":
             pytest.skip(
@@ -189,6 +198,8 @@ class TestCLIMinIOStorage:
                 allow_module_level=True,
             )
         with TmpMinIOStorage(minio_testcontainer) as tmp:
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
             storage_s3_json = benchmark_data_path / "storage_s3.json"
             print(storage_s3_json)
             json.dump(tmp.auth_options, storage_s3_json.open("w"))
@@ -199,24 +210,23 @@ class TestCLIMinIOStorage:
             os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
             os.environ.pop("OB_STORAGE_S3_SECRET_KEY", None)
 
-            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
-
-            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            subprocess.run(
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
             with OmniCLISetup() as omni:
                 result = omni.call(
                     [
                         "storage",
                         "create-version",
                         "--benchmark",
-                        str(benchmark_path),
+                        str(tmp.benchmark_file),
                     ]
                 )
-                print(f"exit code: {result.exit_code}")
-                print(f"result output: {result.output}")
                 assert result.exit_code == 0
                 assert clean(result.output).startswith(clean(expected_output))
 
-    def test_missing_S3_storage_credentials_2(self):
+    def test_missing_S3_storage_credentials_2(self, monkeypatch: pytest.MonkeyPatch):
         expected_output = (
             """Invalid S3 config, missing access_key or secret_key in config file"""
         )
@@ -226,26 +236,30 @@ class TestCLIMinIOStorage:
                 allow_module_level=True,
             )
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            storage_s3_json = benchmark_data_path / "storage_s3.json"
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
+
+            # create out option file
+            storage_s3_json = tmp.out_dir / "storage_s3.json"
             auth_options = tmp.auth_options.copy()
             del auth_options["access_key"]
-            print(auth_options)
             json.dump(auth_options, storage_s3_json.open("w"))
 
             os.environ["OB_STORAGE_S3_CONFIG"] = str(storage_s3_json)
             os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
             os.environ.pop("OB_STORAGE_S3_SECRET_KEY", None)
 
-            _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="benchmark004")
-
-            subprocess.run(["ob", "run", "benchmark", "--benchmark", benchmark_path])
+            subprocess.run(
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
             with OmniCLISetup() as omni:
                 result = omni.call(
                     [
                         "storage",
                         "create-version",
                         "--benchmark",
-                        str(benchmark_path),
+                        str(tmp.benchmark_file),
                     ]
                 )
                 assert result.exit_code == 1
