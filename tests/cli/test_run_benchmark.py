@@ -1,19 +1,20 @@
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from tests.cli.cli_setup import OmniCLISetup
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage, create_remote_test
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
 if sys.platform == "linux":
-    benchmark_path = create_remote_test(minio_testcontainer, in_dir=benchmark_data_path)
+    tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
 
 
 def test_remote():
@@ -28,15 +29,14 @@ def test_remote():
         )
 
     with TmpMinIOStorage(minio_testcontainer) as tmp:
-        os.environ["OB_STORAGE_S3_ACCESS_KEY"] = tmp.auth_options["access_key"]
-        os.environ["OB_STORAGE_S3_SECRET_KEY"] = tmp.auth_options["secret_key"]
+        tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
         with OmniCLISetup() as omni:
             result = omni.call(
                 [
                     "run",
                     "benchmark",
                     "--benchmark",
-                    str(benchmark_path),
+                    str(tmp.benchmark_file),
                 ]
             )
             assert result.exit_code == 0
