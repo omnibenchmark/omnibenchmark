@@ -2,11 +2,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 import pytest
@@ -15,7 +13,7 @@ import yaml
 from omni.benchmark import Benchmark
 from omni.io.MinIOStorage import MinIOStorage
 from tests.cli.cli_setup import OmniCLISetup
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage, create_remote_test
+from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 if not sys.platform == "linux":
     pytest.skip(
