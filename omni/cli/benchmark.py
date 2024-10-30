@@ -172,7 +172,6 @@ def list_versions(ctx, benchmark):
             click.echo(f"{str(version):>8}")
 
 
-
 @info.command("computational")
 @click.option(
     "--benchmark",
