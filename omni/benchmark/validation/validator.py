@@ -81,14 +81,17 @@ class Validator:
                     software_backend, environment, benchmark_dir
                 )
 
-                if not environment_path:
+                if not environment_path and software_backends:
                     self.errors.append(
                         ValidationError(
                             f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
                         )
                     )
-                elif not Validator.is_url(environment_path) and not os.path.exists(
-                    environment_path
+                ## envmodules need another validation, i.e. a load attempt instead (not implemented, to do)
+                elif (
+                    not Validator.is_url(environment_path)
+                    and not os.path.exists(environment_path)
+                    and not software_backend == SoftwareBackendEnum.envmodules
                 ):
                     self.errors.append(
                         ValidationError(
@@ -130,13 +133,17 @@ class Validator:
             return None
 
         if software_backend == SoftwareBackendEnum.envmodules:
-            try:
-                with io.StringIO() as buf, redirect_stdout(buf), redirect_stderr(buf):
-                    initialize_easybuild_config()
-                    environment_path = det_easyconfig_paths([software.easyconfig])[0]
-            except EasyBuildError as e:
-                print(e)
-                environment_path = None
+            # try:
+            #     with io.StringIO() as buf, redirect_stdout(buf), redirect_stderr(buf):
+            #         initialize_easybuild_config()
+            #         environment_path = det_easyconfig_paths([software.easyconfig])[0]
+            # except EasyBuildError as e:
+            #     print(e)
+            #     environment_path = None
+
+            ## this is not a path!
+            if not isinstance(software.envmodule, list) or len(software.envmodule) == 1:
+                environment_path = software.envmodule
         else:
             if Validator.is_url(environment) or Validator.is_absolute_path(environment):
                 environment_path = environment
