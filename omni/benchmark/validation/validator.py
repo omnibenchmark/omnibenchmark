@@ -1,18 +1,13 @@
-import io
 import os.path
 from collections import Counter
-from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 from typing import Union, Optional
 from urllib.parse import urlparse
 
-from easybuild.framework.easyconfig.tools import det_easyconfig_paths
-from easybuild.tools.build_log import EasyBuildError
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvironment
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
-from omni.software.easybuild_backend import initialize_easybuild_config
 
 
 class Validator:
@@ -81,13 +76,13 @@ class Validator:
                     software_backend, environment, benchmark_dir
                 )
 
-                if not environment_path and software_backends:
+                if not environment_path and software_backend:
                     self.errors.append(
                         ValidationError(
                             f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
                         )
                     )
-                ## envmodules need another validation, i.e. a load attempt instead (not implemented, to do)
+                # TODO envmodules need another validation, i.e. a load attempt instead (not implemented, to do)
                 elif (
                     not Validator.is_url(environment_path)
                     and not os.path.exists(environment_path)
@@ -141,7 +136,7 @@ class Validator:
             #     print(e)
             #     environment_path = None
 
-            ## this is not a path!
+            # FIXME this is not a path!
             if not isinstance(software.envmodule, list) or len(software.envmodule) == 1:
                 environment_path = software.envmodule
         else:
