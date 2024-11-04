@@ -7,6 +7,8 @@ from pathlib import Path
 
 import click
 
+
+from omni.io.utils import get_storage_from_benchmark
 from omni.cli.validate import validate_benchmark
 
 
@@ -69,6 +71,8 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
 
     if not local:
         storage_options = remote_storage_snakemake_args(benchmark)
+        # creates bucket if it doesn't exist
+        _ = get_storage_from_benchmark(benchmark)
     else:
         storage_options = {}
 

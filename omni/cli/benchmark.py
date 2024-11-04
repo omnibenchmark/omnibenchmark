@@ -76,13 +76,13 @@ def diff_benchmark(ctx, benchmark, version1, version2):
     from difflib import unified_diff
 
     from omni.benchmark import Benchmark
-    from omni.io.utils import get_storage
+    from omni.io.utils import get_storage, remote_storage_args
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
-    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
+    auth_options = remote_storage_args(benchmark)
 
     # setup storage
     ss = get_storage(
@@ -150,13 +150,13 @@ def list_versions(ctx, benchmark):
     """List all available benchmarks versions at a specific endpoint."""
     click.echo(f"Available versions of {benchmark}:")
     from omni.benchmark import Benchmark
-    from omni.io.utils import get_storage
+    from omni.io.utils import get_storage, remote_storage_args
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
-    auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
+    auth_options = remote_storage_args(benchmark)
 
     # setup storage
     ss = get_storage(
@@ -166,9 +166,10 @@ def list_versions(ctx, benchmark):
     )
 
     if len(ss.versions) > 0:
-        ss.versions.sort(key=Version)
+        if len(ss.versions) > 1:
+            ss.versions.sort(key=Version)
         for version in ss.versions:
-            click.echo(f"{version:>8}")
+            click.echo(f"{str(version):>8}")
 
 
 @info.command("computational")
