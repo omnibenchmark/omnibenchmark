@@ -146,9 +146,12 @@ class Validator:
         environment_path = None
         if software_backend == SoftwareBackendEnum.envmodules:
             available_modules = get_available_modules(software.envmodule)
-            environment_path = software.envmodule
-            if not environment_path in available_modules:
-                logging.error(f"ERROR: Envmodule {software.envmodule} not available.")
+            if len(available_modules) == 1:
+                environment_path = software.envmodule
+            elif len(available_modules) > 1:
+                logging.warning(
+                    f"WARNING: Ambiguous envmodule name. Found the following modules matching the name: {available_modules}."
+                )
         else:
             if Validator.is_url(environment) or Validator.is_absolute_path(environment):
                 environment_path = environment
