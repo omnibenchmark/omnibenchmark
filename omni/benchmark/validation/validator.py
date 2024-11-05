@@ -1,3 +1,4 @@
+import logging
 import os.path
 from collections import Counter
 from pathlib import Path
@@ -8,6 +9,7 @@ from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvir
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
+from omni.utils import get_available_modules, try_load_envmodule
 
 
 class Validator:
@@ -79,14 +81,24 @@ class Validator:
                 if not environment_path and software_backend:
                     self.errors.append(
                         ValidationError(
-                            f"Software environment with id '{environment.id}' does not define the following backend: '{software_backend.text}'."
+                            f"Software environment with id '{environment.id}' does not a valid backend definition for: '{software_backend.text}'."
                         )
                     )
-                # TODO envmodules need another validation, i.e. a load attempt instead (not implemented, to do)
+
+                # envmodules need another validation, i.e. a load attempt instead (not implemented, to do)
                 elif (
-                    not Validator.is_url(environment_path)
-                    and not os.path.exists(environment_path)
-                    and not software_backend == SoftwareBackendEnum.envmodules
+                    software_backend == SoftwareBackendEnum.envmodules
+                    and not try_load_envmodule(environment_path)
+                ):
+                    self.errors.append(
+                        ValidationError(
+                            f"Could not load '{environment_path}' for `envmodules` backend."
+                        )
+                    )
+
+                # else for other backends, attempt to find path on disk
+                elif not Validator.is_url(environment_path) and not os.path.exists(
+                    environment_path
                 ):
                     self.errors.append(
                         ValidationError(
@@ -127,18 +139,15 @@ class Validator:
         if not environment:
             return None
 
+        environment_path = None
         if software_backend == SoftwareBackendEnum.envmodules:
-            # try:
-            #     with io.StringIO() as buf, redirect_stdout(buf), redirect_stderr(buf):
-            #         initialize_easybuild_config()
-            #         environment_path = det_easyconfig_paths([software.easyconfig])[0]
-            # except EasyBuildError as e:
-            #     print(e)
-            #     environment_path = None
-
-            # FIXME this is not a path!
-            if not isinstance(software.envmodule, list) or len(software.envmodule) == 1:
+            available_modules = get_available_modules(software.envmodule)
+            if len(available_modules) == 1:
                 environment_path = software.envmodule
+            elif len(available_modules) > 1:
+                logging.warning(
+                    f"WARNING: Ambiguous envmodule name. Found the following modules matching the name: {available_modules}."
+                )
         else:
             if Validator.is_url(environment) or Validator.is_absolute_path(environment):
                 environment_path = environment

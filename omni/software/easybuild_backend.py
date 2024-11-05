@@ -6,7 +6,6 @@ Easybuild-powered software management, mostly by omniblock. Also includes singul
 Izaskun Mallona
 Started 5th June 2024
 """
-import logging
 import subprocess, os
 import os.path as op
 
@@ -30,23 +29,6 @@ ROBOTPATH = op.join(
 os.makedirs(MODULEPATH, exist_ok=True)
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
-
-
-# Set EasyBuild logging level to ERROR to suppress informational messages
-logging.getLogger("easybuild").setLevel(logging.ERROR)
-
-eb_config_initialized = False
-
-
-def initialize_easybuild_config(args=None):
-    """Initializes easybuild config if it hasn't been yet"""
-    if args is None:
-        args = []
-
-    global eb_config_initialized
-    if not eb_config_initialized:
-        set_up_configuration(args=args, silent=True, reconfigure=True)
-        eb_config_initialized = True
 
 
 def generate_default_easybuild_config_arguments(
