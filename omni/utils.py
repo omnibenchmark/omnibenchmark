@@ -34,52 +34,15 @@ def is_module_available() -> bool:
         return False
 
 
-def get_available_modules(module_name: Optional[str] = None) -> List[str]:
-    if not is_module_available():
-        return []
-
-    try:
-        # Run `module spider` to get the list of all available modules
-        # Combine all commands into a single shell execution
-        command = (
-            """
-            source "$LMOD_PKG"/init/profile
-            export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-            module spider 
-        """
-            + module_name
-        )
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-            text=True,
-        )
-
-        # Parse the output to get module names
-        # Each module is usually listed with "  <module_name>:" pattern
-        modules = set(re.findall(r"^\s{2}(\S+):", result.stdout, re.MULTILINE))
-        return list(sorted(modules))
-
-    except Exception as e:
-        logging.error(f"ERROR: Failed to retrieve available lmod modules: {e}")
-        return []
-
-
 def try_load_envmodule(module_name: str) -> bool:
     if not is_module_available():
         return False
 
     try:
-        command = (
-            """
+        command = f"""
             source "$LMOD_PKG"/init/profile
-            export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-            module load 
-        """
-            + module_name
-        )
+            export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
+            module load ${module_name}"""
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,

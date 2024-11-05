@@ -78,7 +78,7 @@ def test_benchmark_format_incorrect():
 
 def test_benchmark_software_does_not_exist():
     expected_output = """
-    Error: An unexpected error occurred: Software environment with id 'python' does not define the following backend: 'conda'.
+    Error: An unexpected error occurred: Software environment with id 'python' does not have a valid backend definition for: 'conda'.
     """
     with OmniCLISetup() as omni:
         result = omni.call(

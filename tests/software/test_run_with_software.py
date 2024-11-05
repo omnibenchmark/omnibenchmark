@@ -19,7 +19,7 @@ def test_run_benchmark_with_software():
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     if os.path.exists(benchmark_file):
-        benchmark = Benchmark(benchmark_file)
+        benchmark = Benchmark(benchmark_file_path)
         workflow = SnakemakeEngine()
 
         backend = benchmark.get_benchmark_software_backend()
