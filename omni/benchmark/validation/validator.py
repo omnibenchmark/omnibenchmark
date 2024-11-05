@@ -73,7 +73,10 @@ class Validator:
 
         software_backend = converter.get_software_backend()
         for environment in software_environments.values():
-            if software_backend != SoftwareBackendEnum.host and software_backend != SoftwareBackendEnum.envmodules:
+            if (
+                software_backend != SoftwareBackendEnum.host
+                and software_backend != SoftwareBackendEnum.envmodules
+            ):
                 environment_path = Validator.get_environment_path(
                     software_backend, environment, benchmark_dir
                 )
@@ -140,14 +143,12 @@ class Validator:
         if not environment:
             return None
 
-        environment_path = None 
+        environment_path = None
         if software_backend == SoftwareBackendEnum.envmodules:
             available_modules = get_available_modules(software.envmodule)
             environment_path = software.envmodule
             if not environment_path in available_modules:
-                logging.error(
-                     f"ERROR: Envmodule {software.envmodule} not available."
-                 )
+                logging.error(f"ERROR: Envmodule {software.envmodule} not available.")
         else:
             if Validator.is_url(environment) or Validator.is_absolute_path(environment):
                 environment_path = environment
