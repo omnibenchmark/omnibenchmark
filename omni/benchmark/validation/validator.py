@@ -73,12 +73,12 @@ class Validator:
 
         software_backend = converter.get_software_backend()
         for environment in software_environments.values():
-            if software_backend != SoftwareBackendEnum.host:
+            if software_backend != SoftwareBackendEnum.host and software_backend != SoftwareBackendEnum.envmodules:
                 environment_path = Validator.get_environment_path(
                     software_backend, environment, benchmark_dir
                 )
 
-                if not environment_path and software_backend:
+                if not environment_path:
                     self.errors.append(
                         ValidationError(
                             f"Software environment with id '{environment.id}' does not a valid backend definition for: '{software_backend.text}'."
@@ -133,21 +133,21 @@ class Validator:
             environment = software.apptainer
         elif software_backend == SoftwareBackendEnum.envmodules:
             environment = software.envmodule
+
         elif software_backend == SoftwareBackendEnum.conda:
             environment = software.conda
 
         if not environment:
             return None
 
-        environment_path = None
+        environment_path = None 
         if software_backend == SoftwareBackendEnum.envmodules:
             available_modules = get_available_modules(software.envmodule)
-            if len(available_modules) == 1:
-                environment_path = software.envmodule
-            elif len(available_modules) > 1:
-                logging.warning(
-                    f"WARNING: Ambiguous envmodule name. Found the following modules matching the name: {available_modules}."
-                )
+            environment_path = software.envmodule
+            if not environment_path in available_modules:
+                logging.error(
+                     f"ERROR: Envmodule {software.envmodule} not available."
+                 )
         else:
             if Validator.is_url(environment) or Validator.is_absolute_path(environment):
                 environment_path = environment
