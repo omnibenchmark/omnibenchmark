@@ -1,6 +1,7 @@
 """Base class for remote storage."""
 
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Dict, Union
 
 import packaging.version
@@ -186,7 +187,15 @@ class RemoteStorage(metaclass=ABCMeta):
         NotImplementedError
 
     @abstractmethod
-    def archive_version(self, version):
+    def archive_version(
+        self,
+        benchmark: str,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
         """
         Archives/Freezes a specific benchmark version.
 

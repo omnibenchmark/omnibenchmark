@@ -315,9 +315,23 @@ class MinIOStorage(RemoteStorage):
             version_id=self.files[object_name]["version_id"],
         )
 
-    def archive_version(self, version):
+    def archive_version(
+        self,
+        benchmark: Benchmark,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
         NotImplementedError
-        # self._update_overview(cleanup=True)
+
+        from omni.io.archive import archive_version
+
+        zip_archive = archive_version(
+            benchmark, outdir, config, code, software, results
+        )
+        # upload zip archive
 
     def delete_version(self, version):
         NotImplementedError
