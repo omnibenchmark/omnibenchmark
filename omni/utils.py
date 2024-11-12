@@ -55,12 +55,12 @@ def get_available_modules(module_name: Optional[str] = None) -> List[str]:
             text=True,
         )
 
-        print(f"\n==============================")
-        print(f"Command: {command}")
-        print(f"Stdout: {result.stdout.strip()}")
-        print(f"Stderr: {result.stderr.strip()}")
-        print(f"MODULEPATH: {os.environ['MODULEPATH']}")
-        print("==============================")
+        # print(f"\n==============================")
+        # print(f"Command: {command}")
+        # print(f"Stdout: {result.stdout.strip()}")
+        # print(f"Stderr: {result.stderr.strip()}")
+        # print(f"MODULEPATH: {os.environ['MODULEPATH']}")
+        # print("==============================")
 
         # Parse the output to get module names
         # Each module is usually listed with "  <module_name>:" pattern
