@@ -1,5 +1,6 @@
 """ General utils functions"""
 import logging
+import os
 
 from linkml_runtime.loaders import yaml_loader
 import subprocess
@@ -41,14 +42,11 @@ def get_available_modules(module_name: Optional[str] = None) -> List[str]:
     try:
         # Run `module spider` to get the list of all available modules
         # Combine all commands into a single shell execution
-        command = (
-            """
+        command = f"""
             source "$LMOD_PKG"/init/profile
-            export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-            module spider 
-        """
-            + module_name
-        )
+            export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
+            module spider {module_name}"""
+
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,
@@ -57,9 +55,18 @@ def get_available_modules(module_name: Optional[str] = None) -> List[str]:
             text=True,
         )
 
+        # print(f"\n==============================")
+        # print(f"Command: {command}")
+        # print(f"Stdout: {result.stdout.strip()}")
+        # print(f"Stderr: {result.stderr.strip()}")
+        # print(f"MODULEPATH: {os.environ['MODULEPATH']}")
+        # print("==============================")
+
         # Parse the output to get module names
         # Each module is usually listed with "  <module_name>:" pattern
-        modules = set(re.findall(r"^\s{2}(\S+):", result.stdout, re.MULTILINE))
+        modules = set(
+            re.findall(r"^\s{2}(\S+):", result.stdout + result.stderr, re.MULTILINE)
+        )
         return list(sorted(modules))
 
     except Exception as e:
@@ -75,7 +82,7 @@ def try_load_envmodule(module_name: str) -> bool:
         command = f"""
             source "$LMOD_PKG"/init/profile
             export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
-            module load ${module_name}"""
+            module load {module_name}"""
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,

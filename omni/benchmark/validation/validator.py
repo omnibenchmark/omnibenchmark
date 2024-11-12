@@ -157,6 +157,9 @@ class Validator:
         elif software_backend == SoftwareBackendEnum.conda:
             environment = software.conda
 
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment = software.envmodule
+
         if not environment:
             return None
 

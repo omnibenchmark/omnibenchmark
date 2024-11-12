@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
@@ -24,8 +23,6 @@ def _create_initial_node(benchmark, node):
     commit_hash = repository.commit if repository else None
 
     backend = benchmark.get_benchmark_software_backend()
-
-    print(_get_environment_path(benchmark, node))
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
