@@ -15,7 +15,7 @@ benchmark_data_path = Path(__file__).parent / benchmark_data
 
 
 def test_run_benchmark_with_software():
-    benchmark_file = benchmark_data_path / "mock_benchmark.yaml"
+    benchmark_file = benchmark_data_path / "mock_benchmark_with_software.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     if os.path.exists(benchmark_file):

@@ -6,7 +6,7 @@ storage: https://storage.github.com/
 benchmark_yaml_spec: 0.01
 storage_api: S3
 storage_bucket_name: benchmark001
-software_backend: envmodules
+software_backend: host
 software_environments:
   zlib_old:
     description: "zlib-1.2.11"
