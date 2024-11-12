@@ -87,6 +87,8 @@ jobs:
           CI: false
         shell: bash -el {0}
         run: |
+          export MODULEPATH=tests/data/envs:$MODULEPATH # so module lua files are read
+          
           cd tests/software
 
           source "$LMOD_PKG"/init/profile
@@ -177,6 +179,8 @@ jobs:
           # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
+          
+          export MODULEPATH=tests/data/envs:$MODULEPATH # so module lua files are read
           
           cd tests/software
 

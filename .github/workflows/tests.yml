@@ -84,7 +84,7 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          export MODULEPATH=tests/data/envs # so module lua files are read
+          export MODULEPATH=tests/data/envs:$MODULEPATH # so module lua files are read
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
