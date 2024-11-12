@@ -93,7 +93,8 @@ jobs:
 
           source "$LMOD_PKG"/init/profile
           module use "$HOME"/.local/easybuild/modules/all:../data/envs
-          export MODULEPATH="$HOME"/.local/easybuild/modules/all:../data/envs:$MODULEPATH
+          export MODULEPATH=../data/envs/:$MODULEPATH
+          export MODULEPATH="$HOME"/.local/easybuild/modules/all:$MODULEPATH
           
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
