@@ -9,7 +9,7 @@ from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvir
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
-from omni.utils import try_load_envmodule, get_available_modules
+from omni.utils import try_load_envmodule
 
 
 class Validator:
@@ -77,30 +77,30 @@ class Validator:
                 continue
 
             elif software_backend == SoftwareBackendEnum.envmodules:
-                available_modules = get_available_modules(environment.envmodule)
-                if len(available_modules) > 1:
-                    logging.warning(
-                        f"WARNING: Ambiguous envmodule name. Found the following modules matching the name: {available_modules}."
-                    )
+                # available_modules = get_available_modules(environment.envmodule)
+                # if len(available_modules) > 1:
+                #     logging.warning(
+                #         f"WARNING: Ambiguous envmodule name. Found the following modules matching the name: {available_modules}."
+                #     )
+                #     self.errors.append(
+                #         ValidationError(
+                #             f"Ambiguous envmodule name. Found the following modules for software environment with id '{environment.id}' matching the name: {available_modules}."
+                #         )
+                #     )
+                # elif len(available_modules) == 0:
+                #     self.errors.append(
+                #         ValidationError(
+                #             f"Modules with name `{environment.envmodule}` were not found for software environment with id '{environment.id}'."
+                #         )
+                #     )
+                # else:
+                load_result = try_load_envmodule(available_modules[0])
+                if not load_result:
                     self.errors.append(
                         ValidationError(
-                            f"Ambiguous envmodule name. Found the following modules for software environment with id '{environment.id}' matching the name: {available_modules}."
+                            f"Software environment with id '{environment.id}' could not be loaded as a valid `envmodule`."
                         )
                     )
-                elif len(available_modules) == 0:
-                    self.errors.append(
-                        ValidationError(
-                            f"Modules with name `{environment.envmodule}` were not found for software environment with id '{environment.id}'."
-                        )
-                    )
-                else:
-                    load_result = try_load_envmodule(available_modules[0])
-                    if not load_result:
-                        self.errors.append(
-                            ValidationError(
-                                f"Software environment with id '{environment.id}' could not be loaded as a valid `envmodule`."
-                            )
-                        )
 
             elif (
                 software_backend == SoftwareBackendEnum.conda

@@ -184,6 +184,8 @@ jobs:
           
           cd tests/software
 
+          source "$LMOD_PKG"/init/profile
+
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
           
