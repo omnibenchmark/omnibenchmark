@@ -93,6 +93,8 @@ jobs:
                     
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
+                    
+          module spider 3.9.6-GCCcore-11.2.0
 
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
