@@ -94,7 +94,7 @@ class Validator:
                 #         )
                 #     )
                 # else:
-                load_result = try_load_envmodule(available_modules[0])
+                load_result = try_load_envmodule(environment.envmodule)
                 if not load_result:
                     self.errors.append(
                         ValidationError(
