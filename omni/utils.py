@@ -31,7 +31,7 @@ def is_module_available() -> bool:
         # # If the command executes without an error, `module` is available
         # return result.returncode == 0
         
-        module('list')
+        module('list', '--redirect')
         return True
     
     except Exception as e:
@@ -102,8 +102,8 @@ def try_load_envmodule(module_name: str) -> bool:
 
         # # If the command executes without an error, `module` was loaded successfully
         # return result.returncode == 0
-        module('load', f"{module_name}")
-        return f"{module_name}" in module('list', f"{module_name}")
+        module('load', '--redirect', f"{module_name}")
+        return f"{module_name}" in module('list', '--redirect',  f"{module_name}")
 
     except Exception as e:
         logging.error(f"ERROR: Failed to load envmodule by name `{module_name}`: {e}")

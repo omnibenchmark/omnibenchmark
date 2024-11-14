@@ -84,8 +84,9 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          source "$LMOD_PKG"/init/profile 
-          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+          # I think lmod should be loadable/installed for tests to run?
+          # source "$LMOD_PKG"/init/profile 
+          # export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
           export MODULEPATH=tests/data/envs:$MODULEPATH # so module lua files are read
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io
