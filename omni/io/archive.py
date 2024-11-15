@@ -107,7 +107,23 @@ def prepare_archive_results(benchmark: Benchmark) -> List[Path]:
         List[Path]: The filenames of all results to archive.
     """
     # get all results, check if exist locally, otherwise download
-    return []
+    from omni.io.files import download_files, list_files
+
+    objectnames, etags = list_files(
+        benchmark=benchmark.get_definition_file(),
+        type="all",
+        stage=None,
+        module=None,
+        file_id=None,
+    )
+    download_files(
+        benchmark=benchmark.get_definition_file(),
+        type="all",
+        stage=None,
+        module=None,
+        file_id=None,
+    )
+    return objectnames
 
 
 def archive_version(
@@ -146,7 +162,6 @@ def archive_version(
     ## results (results files)
     ### check if results match remote, if not download
     if results:
-        raise NotImplementedError("Results archiving not implemented yet.")
         filenames += prepare_archive_results(benchmark)
 
     # save all files to zip archive
