@@ -4,6 +4,8 @@ from typing import List
 
 from omni.benchmark import Benchmark
 
+benchmark = Benchmark(Path("Clustering.yaml"))
+
 
 def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
     """
@@ -15,9 +17,19 @@ def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
     Returns:
         List[Path]: The filenames of all code to archive.
     """
-    # get all code repos (check local cache)
-    # return all files
-    return []
+    from omni.io.code import clone_module
+
+    nodes = benchmark.get_nodes()
+    repositories = set()
+    for node in nodes:
+        repositories.add((node.get_repository().url, node.get_repository().commit))
+
+    repositories_dir = Path(".snakemake") / "repos"
+    files = []
+    while repositories:
+        repo = repositories.pop()
+        files += list(clone_module(repositories_dir, repo[0], repo[1]).iterdir())
+    return files
 
 
 def prepare_archive_software(benchmark: Benchmark) -> List[Path]:
@@ -46,22 +58,6 @@ def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
         List[Path]: The filenames of all software easyconfig to archive.
     """
     # prepare easyconfigs software, get binaries, etc.
-    # how?
-    # return all files
-    return []
-
-
-def prepare_archive_software_envmodules(benchmark: Benchmark) -> List[Path]:
-    """
-    Prepare the envmodules to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all envmodules to archive.
-    """
-    # prepare envmodules software, get binaries, etc.
     # how?
     # return all files
     return []
@@ -135,11 +131,9 @@ def archive_version(
 
     ## software (software files)
     ### easyconfig
-    #### ?
-    ### envmodule
-    #### ?
+    #### save easyconfig files
     ### conda
-    #### reuse snakemake archive (https://github.com/snakemake/snakemake/blob/76d53290a003891c5ee41f81e8eb4821c406255d/snakemake/deployment/conda.py#L316)
+    #### save explicit packages list
     ### apptainer
     #### save .sif file
     if software:
