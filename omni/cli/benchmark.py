@@ -6,6 +6,7 @@ import yaml
 from packaging.version import Version
 
 from omni.cli.validate import validate_benchmark
+from omni.io.archive import archive_version
 
 
 @click.group()
@@ -15,17 +16,49 @@ def info(ctx):
     ctx.ensure_object(dict)
 
 
-# @cli.command("archive")
-# def archive_benchmark(
-#     benchmark: Annotated[
-#         str,
-#         typer.Option(
-#             "--benchmark", "-b", help="Path to benchmark yaml file or benchmark id."
-#         ),
-#     ],
-# ):
-#     """Archive a benchmark (changes to read-only permissions)"""
-#     typer.echo(f"Archiving benchmark with yaml {benchmark}", err=True)
+@info.command("archive")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "-c",
+    "--code",
+    help="Archive code files.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
+    "-s",
+    "--software",
+    help="Archive software files.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
+    "-r",
+    "--results",
+    help="Archive results files.",
+    is_flag=True,
+    default=False,
+)
+@click.pass_context
+def archive_benchmark(ctx, benchmark, code, software, results):
+    """Archive a benchmark"""
+    benchmark = validate_benchmark(benchmark, echo=False)
+    zipfile = archive_version(
+        benchmark,
+        outdir=Path("."),
+        config=True,
+        code=code,
+        software=software,
+        results=results,
+    )
+    click.echo(f"Created archive: {zipfile}")
 
 
 # @cli.command("cite")

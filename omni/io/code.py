@@ -53,6 +53,7 @@ def get_git_archive_from_github(
         os.remove(tarfilename)
 
 
+# https://docs.gitlab.com/ee/api/repositories.html#get-file-archive
 def get_git_archive_from_gitlab(
     output_dir: Path, repository_url: str, commit_hash: str
 ) -> Path:

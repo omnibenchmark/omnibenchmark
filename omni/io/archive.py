@@ -4,7 +4,7 @@ from typing import List
 
 from omni.benchmark import Benchmark
 
-benchmark = Benchmark(Path("Clustering.yaml"))
+# benchmark = Benchmark(Path("Clustering.yaml"))
 
 
 def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
@@ -75,6 +75,9 @@ def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
     """
     # prepare conda, as in snakemake archive (https://github.com/snakemake/snakemake/blob/76d53290a003891c5ee41f81e8eb4821c406255d/snakemake/deployment/conda.py#L316) maybe?
     # return all files
+    from omni.software.conda_backend import pin_conda_envs
+
+    pin_conda_envs(benchmark.get_definition_file())
     return []
 
 
@@ -137,16 +140,22 @@ def archive_version(
     ### apptainer
     #### save .sif file
     if software:
+        raise NotImplementedError("Software archiving not implemented yet.")
         filenames += prepare_archive_software(benchmark)
 
     ## results (results files)
     ### check if results match remote, if not download
     if results:
+        raise NotImplementedError("Results archiving not implemented yet.")
         filenames += prepare_archive_results(benchmark)
 
     # save all files to zip archive
-    with zipfile.ZipFile(outdir / f"{benchmark.id}.zip", "w") as archive:
+    outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
+    with zipfile.ZipFile(outdir / outfile, "w") as archive:
         for filename in filenames:
             archive.write(filename, filename)
 
-    return outdir / f"{benchmark.id}.zip"
+    return outdir / outfile
+
+
+# archive_version(benchmark, outdir=Path(), config=True, code=True, software=False, results=False)
