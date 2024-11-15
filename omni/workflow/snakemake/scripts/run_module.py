@@ -1,12 +1,14 @@
 #! /usr/bin/env python
+# WARNING: Custom dependencies might not be available here, since this is ran inside a specified environment.
 
 import hashlib
 import logging
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import List
 
-from git import Repo
 from snakemake.script import Snakemake
 
 from omni.workflow.snakemake.scripts.execution import execution
@@ -21,6 +23,15 @@ def generate_unique_repo_folder_name(repo_url, commit_hash):
 
 
 def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
+    try:
+        import git  # Check if gitpython is available
+    except ImportError:
+        print("gitpython is not installed. Installing now...")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "gitpython==3.1.43"]
+        )
+        import git  # Retry importing
+
     module_name = generate_unique_repo_folder_name(repository_url, commit_hash)
     module_dir = output_dir / module_name
 
@@ -28,10 +39,10 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
         logging.info(
             f"Cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
         )
-        repo = Repo.clone_from(repository_url, module_dir.as_posix())
+        repo = git.Repo.clone_from(repository_url, module_dir.as_posix())
         repo.git.checkout(commit_hash)
     else:
-        repo = Repo(module_dir.as_posix())
+        repo = git.Repo(module_dir.as_posix())
 
     if repo.head.commit.hexsha[:7] != commit_hash:
         logging.error(

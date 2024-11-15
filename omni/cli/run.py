@@ -78,7 +78,12 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     # Future: Create yaml for communicating resources for individual methods
     click.echo("Running benchmark...")
     success = workflow.run_workflow(
-        benchmark, cores=threads, update=update, dryrun=dry, **storage_options
+        benchmark,
+        cores=threads,
+        update=update,
+        dryrun=dry,
+        backend=benchmark.get_benchmark_software_backend(),
+        **storage_options,
     )
 
     if success:
@@ -223,6 +228,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
+                                    backend=benchmark.get_benchmark_software_backend(),
                                 )
 
                                 if success:

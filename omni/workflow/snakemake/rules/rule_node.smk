@@ -36,9 +36,9 @@ def _create_initial_node(benchmark, node):
         conda:
             _get_environment_path(benchmark, node) if backend == SoftwareBackendEnum.conda else None
         envmodules:
-            _get_environment_path(benchmark,node) if backend == SoftwareBackendEnum.envmodules else None
+            _get_environment_path(benchmark, node) if backend == SoftwareBackendEnum.envmodules else None
         container:
-            _get_environment_path(benchmark,node) if backend == (SoftwareBackendEnum.apptainer or SoftwareBackendEnum.docker) else None
+            _get_environment_path(benchmark, node) if backend == (SoftwareBackendEnum.apptainer or SoftwareBackendEnum.docker) else None
         params:
             repository_url = repository_url,
             commit_hash = commit_hash,
@@ -78,9 +78,9 @@ def _create_intermediate_node(benchmark, node):
         conda:
             _get_environment_path(benchmark, node) if backend == SoftwareBackendEnum.conda else None
         envmodules:
-            _get_environment_path(benchmark,node) if backend == SoftwareBackendEnum.envmodules else None
+            _get_environment_path(benchmark, node) if backend == SoftwareBackendEnum.envmodules else None
         container:
-            _get_environment_path(benchmark,node) if backend == (SoftwareBackendEnum.apptainer or SoftwareBackendEnum.docker) else None
+            _get_environment_path(benchmark, node) if backend == (SoftwareBackendEnum.apptainer or SoftwareBackendEnum.docker) else None
         params:
             inputs_map = inputs_map,
             repository_url = repository_url,

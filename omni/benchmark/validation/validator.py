@@ -165,6 +165,8 @@ class Validator:
 
         if Validator.is_url(environment) or Validator.is_absolute_path(environment):
             environment_path = environment
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment_path = environment
         else:
             environment_path = os.path.join(benchmark_dir, environment)
 

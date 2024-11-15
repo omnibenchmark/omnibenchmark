@@ -59,6 +59,8 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Execute snakemake script
         parser, args = parse_args(argv)
+        print(backend)
+        print(argv)
         success = snakemake_cli(args, parser)
 
         return success
