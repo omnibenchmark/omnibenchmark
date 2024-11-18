@@ -9,76 +9,31 @@ from typing import List, Union, Any, Optional
 import re
 import yaml
 import platform
+
 # from env_modules_python import module
 from subprocess import PIPE, Popen
-import sys 
-
-
-## stolen from https://github.com/TACC/Lmod/blob/main/init/env_modules_python.py.in
-def module(command, *arguments, **kwargs):
-    """
-    Execute a regular Lmod command and apply environment changes to
-    the current Python environment (i.e. os.environ).
-    
-    In case len(arguments) == 1 the string will be split on whitespace into 
-    separate arguments. Pass a list of strings to avoid this.
-    
-    Raises an exception in case Lmod execution returned a non-zero
-    exit code.
-    
-    Use with keyword argument show_environ_updates=True to show the actual
-    changes made to os.environ (mostly for debugging).
-    
-    Examples:
-    module('list')
-    module('load', 'gcc')
-    module('load', 'gcc cmake')
-    module('load', 'gcc cmake', show_environ_updates=True)
-    """
-    numArgs = len(arguments)
-    A = ['@PKG@/libexec/lmod', 'python', command]
-    if (numArgs == 1):
-        A += arguments[0].split()
-    else:
-        A += list(arguments)
-
-    proc           = Popen(A, stdout=PIPE, stderr=PIPE)
-    status         = proc.returncode 
-    stdout, stderr = proc.communicate()
-    err_out        = sys.stderr
-    if (os.environ.get('LMOD_REDIRECT','@redirect@') != 'no'):
-        err_out=sys.stdout
-
-    print(stderr.decode(),file=err_out)
-    
-    if ('show_environ_updates' in kwargs):
-        print(stdout.decode())
-    exec(stdout.decode())
-    return status, stderr.decode()
+import sys
 
 
 def is_module_available() -> bool:
     try:
-        # # Run `module --version` to check if `module` command is available
-        # command = """
-        #     source "$LMOD_PKG"/init/profile
-        #     export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-        #     module --version
-        # """
-        # result = subprocess.run(
-        #     command,
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE,
-        #     shell=True,
-        #     text=True,
-        # )
+        # Run `module --version` to check if `module` command is available
+        command = """
+            source "$LMOD_PKG"/init/profile
+            export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+            module --version
+        """
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+            text=True,
+        )
 
-        # # If the command executes without an error, `module` is available
-        # return result.returncode == 0
-        
-        status = module('list')
-        return status[1] == 'No modules loaded\n'
-    
+        # If the command executes without an error, `module` is available
+        return result.returncode == 0
+
     except Exception as e:
         logging.error(f"ERROR: Module command does not exist: {e}")
         return False
@@ -120,38 +75,36 @@ def is_module_available() -> bool:
 #         # return list(sorted(modules))
 #         module('spider', f"{module_name}")
 #         return f"{module_name}"
-    
+
 #     except Exception as e:
 #         logging.error(f"ERROR: Failed to retrieve available lmod modules: {e}")
 #         return []
 
 
 def try_load_envmodule(module_name: str) -> bool:
-    # if not is_module_available():
-    #     return False
+    if not is_module_available():
+        return False
 
     try:
-        # command = f"""
-        #     source "$LMOD_PKG"/init/profile
-        #     export MODULEPATH={modulepath}
-        #     # export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
+        command = f"""
+            source "$LMOD_PKG"/init/profile
+            export MODULEPATH={modulepath}
+            # export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
         
-        #     module load {module_name}"""
-        # result = subprocess.run(
-        #     command,
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE,
-        #     shell=True,
-        #     text=True,
-        # )
+            module load {module_name}"""
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+            text=True,
+        )
 
-        # # If the command executes without an error, `module` was loaded successfully
-        # return result.returncode == 0
-        status = module('load', f"{module_name}")
-        return True
+        # If the command executes without an error, `module` was loaded successfully
+        return result.returncode == 0
+
     except:
-        return not 'error' in status[1]
-    
+        return False
 
 
 def as_list(input: Union[List, Any]):
