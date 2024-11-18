@@ -9,7 +9,7 @@ from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvir
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation.error import ValidationError
-from omni.utils import try_load_envmodule
+from omni.utils import try_avail_envmodule
 
 
 class Validator:
@@ -77,11 +77,11 @@ class Validator:
                 continue
 
             elif software_backend == SoftwareBackendEnum.envmodules:
-                load_result = try_load_envmodule(environment.envmodule)
+                load_result = try_avail_envmodule(environment.envmodule)
                 if not load_result:
                     self.errors.append(
                         ValidationError(
-                            f"Software environment with id '{environment.id}' could not be loaded as a valid `envmodule`."
+                            f"Software environment with id '{environment.id}' and name '{environment.envmodule}' could not be loaded as a valid `envmodule`."
                         )
                     )
             elif (
