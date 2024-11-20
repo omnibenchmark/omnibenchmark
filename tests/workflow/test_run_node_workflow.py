@@ -43,20 +43,3 @@ def test_run_node_workflow_001():
         )
 
         assert success == 1
-
-
-@pytest.mark.skip(reason="Benchmark_002 is not working properly yet")
-def test_run_node_workflow_002():
-    benchmark_file = Path("..") / "data" / "Benchmark_002.yaml"
-    benchmark_file_path = Path(__file__).parent / benchmark_file
-
-    with SnakemakeSetup(benchmark_file_path) as setup:
-        benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == "peiying_with_easyconfigs"
-
-        benchmark_nodes = benchmark.get_nodes()
-        assert len(benchmark_nodes) == 8
-
-        benchmark_node_3 = benchmark_nodes[3]
-        success = setup.workflow.run_node_workflow(benchmark_node_3)
-        assert success == 1
