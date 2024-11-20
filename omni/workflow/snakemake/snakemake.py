@@ -58,7 +58,8 @@ class SnakemakeEngine(WorkflowEngine):
             snakefile, cores, update, dryrun, backend, work_dir, **snakemake_kwargs
         )
 
-        os.environ["MODULEPATH"] = modulepath
+        if modulepath:
+            os.environ["MODULEPATH"] = modulepath
 
         # Execute snakemake script
         parser, args = parse_args(argv)
@@ -155,7 +156,8 @@ class SnakemakeEngine(WorkflowEngine):
             **snakemake_kwargs,
         )
 
-        os.environ["MODULEPATH"] = modulepath
+        if modulepath:
+            os.environ["MODULEPATH"] = modulepath
 
         # Execute snakemake script
         parser, args = parse_args(argv)
