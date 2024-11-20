@@ -31,6 +31,7 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
+        modulepath=os.environ["MODULEPATH"],
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -56,6 +57,8 @@ class SnakemakeEngine(WorkflowEngine):
         argv = self._prepare_argv(
             snakefile, cores, update, dryrun, backend, work_dir, **snakemake_kwargs
         )
+
+        os.environ["MODULEPATH"] = modulepath
 
         # Execute snakemake script
         parser, args = parse_args(argv)

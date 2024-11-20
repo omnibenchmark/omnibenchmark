@@ -24,7 +24,13 @@ def test_run_benchmark_with_software():
 
         backend = benchmark.get_benchmark_software_backend()
 
-        success = workflow.run_workflow(benchmark, backend=backend)
+        success = workflow.run_workflow(
+            benchmark,
+            backend=backend,
+            modulepath=os.path.join(
+                os.environ["GITHUB_WORKSPACE"], "tests", "data", "envs"
+            ),
+        )
 
         assert success
 

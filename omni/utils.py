@@ -10,93 +10,28 @@ import re
 import yaml
 import platform
 
-
-def is_module_available() -> bool:
-    try:
-        # Run `module --version` to check if `module` command is available
-        command = """
-            source "$LMOD_PKG"/init/profile
-            export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-            module --version
-        """
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-            text=True,
-        )
-
-        # If the command executes without an error, `module` is available
-        return result.returncode == 0
-
-    except Exception as e:
-        logging.error(f"ERROR: Module command does not exist: {e}")
-        return False
+from subprocess import PIPE, Popen
+import sys
 
 
-def get_available_modules(module_name: Optional[str] = None) -> List[str]:
-    if not is_module_available():
-        return []
+def try_avail_envmodule(module_name: str) -> bool:
+    env = {}
+    env.update(os.environ)
 
-    try:
-        # Run `module spider` to get the list of all available modules
-        # Combine all commands into a single shell execution
-        command = f"""
-            source "$LMOD_PKG"/init/profile
-            export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
-            module spider {module_name}"""
+    command = f"""
+    . "$LMOD_PKG"/init/profile ;
+    module purge ;
+    module avail {module_name}"""
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        text=True,
+        env=env,
+    )
 
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-            text=True,
-        )
-
-        # print(f"\n==============================")
-        # print(f"Command: {command}")
-        # print(f"Stdout: {result.stdout.strip()}")
-        # print(f"Stderr: {result.stderr.strip()}")
-        # print(f"MODULEPATH: {os.environ['MODULEPATH']}")
-        # print("==============================")
-
-        # Parse the output to get module names
-        # Each module is usually listed with "  <module_name>:" pattern
-        modules = set(
-            re.findall(r"^\s{2}(\S+):", result.stdout + result.stderr, re.MULTILINE)
-        )
-        return list(sorted(modules))
-
-    except Exception as e:
-        logging.error(f"ERROR: Failed to retrieve available lmod modules: {e}")
-        return []
-
-
-def try_load_envmodule(module_name: str) -> bool:
-    if not is_module_available():
-        return False
-
-    try:
-        command = f"""
-            source "$LMOD_PKG"/init/profile
-            export PYTHONPATH=${{PYTHONPATH}}:$LMOD_DIR/../init
-            module load {module_name}"""
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-            text=True,
-        )
-
-        # If the command executes without an error, `module` was loaded successfully
-        return result.returncode == 0
-
-    except Exception as e:
-        logging.error(f"ERROR: Failed to load envmodule by name `{module_name}`: {e}")
-        return False
+    return not "No module(s) or extension(s) found!" in result.stderr
 
 
 def as_list(input: Union[List, Any]):
