@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# WARNING: Custom dependencies might not be available here, since this is ran inside a specified environment.
+# WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
 
 import hashlib
 import logging
