@@ -36,7 +36,7 @@ def _remove_readonly(func, path, _):
 
 
 def test_run_benchmark_with_software_envmodules():
-    benchmark_file = benchmark_data_path / "mock_benchmark_with_software.yaml"
+    benchmark_file = benchmark_data_path / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     if os.path.exists(benchmark_file):
@@ -59,7 +59,7 @@ def test_run_benchmark_with_software_envmodules():
 
 
 def test_run_benchmark_with_software_conda():
-    benchmark_file = benchmark_data_path / "mock_benchmark_with_software.yaml"
+    benchmark_file = benchmark_data_path / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     if os.path.exists(benchmark_file):
@@ -80,7 +80,7 @@ def test_run_benchmark_with_software_conda():
 
 @pytest.mark.skip(reason="Apptainer image is not available yet")
 def test_run_benchmark_with_software_apptainer():
-    benchmark_file = benchmark_data_path / "mock_benchmark_with_software.yaml"
+    benchmark_file = benchmark_data_path / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     if os.path.exists(benchmark_file):
