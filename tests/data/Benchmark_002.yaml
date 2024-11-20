@@ -7,7 +7,7 @@ storage: https://storage.github.com/
 storage_api: S3
 storage_bucket_name: benchmark002
 benchmark_yaml_spec: 0.01
-software_backend: apptainer
+software_backend: host
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"

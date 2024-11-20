@@ -6,7 +6,7 @@ storage: https://play.min.io
 benchmark_yaml_spec: 0.01
 storage_api: S3
 storage_bucket_name: clustering_benchmark
-software_backend: conda
+software_backend: host
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"

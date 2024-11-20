@@ -18,6 +18,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         update: bool = True,
         dryrun: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
+        modulepath: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
         **kwargs
     ) -> bool:
@@ -64,6 +65,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         update: bool = True,
         dryrun: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
+        modulepath: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
         **kwargs
     ) -> bool:

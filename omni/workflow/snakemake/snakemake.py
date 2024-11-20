@@ -31,7 +31,7 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        modulepath=os.environ["MODULEPATH"],
+        modulepath=os.environ.get("MODULEPATH", None),
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -62,8 +62,6 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Execute snakemake script
         parser, args = parse_args(argv)
-        print(backend)
-        print(argv)
         success = snakemake_cli(args, parser)
 
         return success
@@ -117,6 +115,7 @@ class SnakemakeEngine(WorkflowEngine):
         update: bool = True,
         dryrun: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
+        modulepath=os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
         **snakemake_kwargs,
     ) -> bool:
@@ -155,6 +154,8 @@ class SnakemakeEngine(WorkflowEngine):
             dataset,
             **snakemake_kwargs,
         )
+
+        os.environ["MODULEPATH"] = modulepath
 
         # Execute snakemake script
         parser, args = parse_args(argv)
