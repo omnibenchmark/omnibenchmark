@@ -2,8 +2,6 @@ import os.path
 import shutil
 from pathlib import Path
 
-import pytest
-
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 
