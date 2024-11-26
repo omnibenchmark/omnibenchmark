@@ -1,7 +1,0 @@
-ame: python
-channels:
-  - conda-forge
-  - nodefaults
-dependencies:
-  - conda-forge::scikit-learn=1.5.2
-  - conda-forge::pandas=2.2.3

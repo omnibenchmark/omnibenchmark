@@ -1,7 +1,6 @@
 from typing import List, Tuple
 
 import networkx as nx
-import matplotlib.pyplot as plt
 import omni_schema.datamodel.omni_schema
 import pydot
 
@@ -156,6 +155,8 @@ def export_to_dot(
     G: nx.DiGraph,
     title: str = None,
 ):
+    import matplotlib.pyplot as plt
+
     # Dynamically scale the node size based on node count
     nodes_count = len(G.nodes)
     div_nodes_count = max(1, nodes_count // 10)

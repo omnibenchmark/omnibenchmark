@@ -1,0 +1,12 @@
+name: R_4.4.1_Clustering
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - conda-forge::python=3.12.6
+  - conda-forge::r-base=4.4.1
+  - conda-forge::r-argparse
+  - conda-forge::r-readr
+  - conda-forge::r-dplyr
+  - conda-forge::r-mclust
+  - conda-forge::r-caret

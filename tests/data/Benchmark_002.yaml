@@ -11,9 +11,9 @@ software_backend: host
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
-    easyconfig: R_4.3.3-gfbf-2023b.eb
+    easyconfig: R-4.3.3-gfbf-2023b.eb
     envmodule: R/4.3.3-gfbf-2023b
-    conda: R_4.3.3_try.yaml # or perhaps not
+    conda: R_4.3.3_try.yaml
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
   scanpy:
     description: "Scanpy vX for python3.12.0 with gfbf-2023 toolchain"

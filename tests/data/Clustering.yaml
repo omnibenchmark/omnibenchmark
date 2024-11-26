@@ -12,13 +12,13 @@ software_environments:
     description: "R 4.3.3 with gfbf-2023 toolchain"
     easyconfig: R-4.3.3-gfbf-2023b.eb
     envmodule: 4.3.3-gfbf-2023b
-    conda: envs/R.yaml
+    conda: envs/R_4.4.1_Clustering.yaml
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
   python:
     description: "Python3.6.3"
     easyconfig: Python-3.6.3-foss-2017b.eb
     envmodule: 3.6.3-foss-2017b
-    conda: envs/python.yaml
+    conda: envs/Python_3.12.6_Clustering.yaml
     apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 stages:
   - id: data
