@@ -44,7 +44,12 @@ def test_run_benchmark_with_software_envmodules():
         workflow = SnakemakeEngine()
 
         if os.environ.get("GITHUB_WORKSPACE", None):
-            override_module_path = os.environ["GITHUB_WORKSPACE"], "tests", "data", "envs"
+            override_module_path = (
+                os.environ["GITHUB_WORKSPACE"],
+                "tests",
+                "data",
+                "envs",
+            )
         else:
             override_module_path = os.environ.get("MODULEPATH", None)
 
