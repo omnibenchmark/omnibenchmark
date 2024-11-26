@@ -31,7 +31,7 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        modulepath=os.environ.get("MODULEPATH", None),
+        module_path: str = os.environ.get("MODULEPATH", None),
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -43,6 +43,7 @@ class SnakemakeEngine(WorkflowEngine):
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
+            module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
@@ -58,8 +59,8 @@ class SnakemakeEngine(WorkflowEngine):
             snakefile, cores, update, dryrun, backend, work_dir, **snakemake_kwargs
         )
 
-        if modulepath:
-            os.environ["MODULEPATH"] = modulepath
+        if module_path:
+            os.environ["MODULEPATH"] = module_path
 
         # Execute snakemake script
         parser, args = parse_args(argv)
@@ -116,7 +117,7 @@ class SnakemakeEngine(WorkflowEngine):
         update: bool = True,
         dryrun: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        modulepath=os.environ.get("MODULEPATH", None),
+        module_path: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
         **snakemake_kwargs,
     ) -> bool:
@@ -131,6 +132,7 @@ class SnakemakeEngine(WorkflowEngine):
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
+            module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
@@ -156,8 +158,8 @@ class SnakemakeEngine(WorkflowEngine):
             **snakemake_kwargs,
         )
 
-        if modulepath:
-            os.environ["MODULEPATH"] = modulepath
+        if module_path:
+            os.environ["MODULEPATH"] = module_path
 
         # Execute snakemake script
         parser, args = parse_args(argv)
