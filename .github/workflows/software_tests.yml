@@ -178,7 +178,7 @@ jobs:
           eval "$(micromamba shell hook --shell bash)"
           micromamba create -n omnibenchmark
           micromamba activate omnibenchmark
-          micromamba install -f test-environment-${{ matrix.python-version }}.yml
+          micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
 
       - name: Modify bashrc
         env:
