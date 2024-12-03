@@ -9,15 +9,15 @@ storage_bucket_name: clustering_benchmark
 software_backend: host
 software_environments:
   R:
-    description: "R 4.3.3 with gfbf-2023 toolchain"
-    easyconfig: R-4.3.3-gfbf-2023b.eb
-    envmodule: 4.3.3-gfbf-2023b
+    description: "R 4.4.1 with gfbf-2023 toolchain"
+    easyconfig: R_4.4.1_Clustering.eb
+    envmodule: R_4.4.1_Clustering.lua
     conda: envs/R_4.4.1_Clustering.yaml
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
   python:
-    description: "Python3.6.3"
-    easyconfig: Python-3.6.3-foss-2017b.eb
-    envmodule: 3.6.3-foss-2017b
+    description: "Python 3.12.6"
+    easyconfig: Python_3.12.6_Clustering.eb
+    envmodule: Python_3.12.6_Clustering.lua
     conda: envs/Python_3.12.6_Clustering.yaml
     apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 stages:
