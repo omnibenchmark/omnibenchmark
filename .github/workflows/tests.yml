@@ -48,7 +48,7 @@ jobs:
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
-      #----------------------------------------------
+      #----------------R------------------------------
       #       load cached venv if cache exists
       #----------------------------------------------
       - name: Load cached venv
@@ -84,7 +84,9 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          ## skip software tests, they're done differently
+          # I think lmod should be loadable/installed for tests to run?
+          # source "$LMOD_PKG"/init/profile 
+          # export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
