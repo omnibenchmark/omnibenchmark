@@ -163,7 +163,7 @@ jobs:
       - name: Install R packages
         run: |
           mkdir -p ~/work/Rlib
-          export R_LIBS_USER=~/work/Rlib
+          export R_LIBS=~/work/Rlib
           Rscript -e "install.packages(c('argparse', 'readr', 'dplyr', 'mclust', 'caret'))"
 
       - name: Modify python version in test env
@@ -204,7 +204,7 @@ jobs:
 
            echo 'bashrc and bash_profile permissions:'
            head ~/.bash*
-           stat -c "%a %n" ~/.bash*
+           ls -la ~/.bash*
            echo $(whoami)
          
 
@@ -233,7 +233,7 @@ jobs:
           ## install required Python dependenices
           pip install numpy pandas scikit-learn scipy
 
-          export R_LIBS_USER=~/work/Rlib
+          export R_LIBS=~/work/Rlib
           # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
