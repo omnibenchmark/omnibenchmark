@@ -162,6 +162,8 @@ jobs:
 
       - name: Install R packages
         run: |
+          mkdir -p ~/work/Rlib
+          export R_LIBS=~/work/Rlib
           Rscript -e "install.packages(c('argparse', 'readr', 'dplyr', 'mclust', 'caret'))"
 
       - name: Modify python version in test env
@@ -193,11 +195,12 @@ jobs:
                 source /usr/local/opt/lmod/init/profile
            fi
            eval "$(micromamba shell hook --shell bash)"
+           export R_LIBS=~/work/Rlib
            EOF
            
            cat <<'EOF' >>~/.bash_profile
            source ~/.bashrc
-           EOF
+           EOF         
 
       - name: Test
         env:
