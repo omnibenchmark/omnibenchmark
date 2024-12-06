@@ -1,0 +1,10 @@
+name: Python_3.12.6_Clustering
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - conda-forge::python=3.12.6
+  - conda-forge::scikit-learn
+  - conda-forge::pandas
+  - conda-forge::scipy
+  - conda-forge::numpy

@@ -1,3 +1,5 @@
+import pydot
+
 from omni.benchmark import dag
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation import Validator
@@ -114,10 +116,61 @@ class Benchmark:
         node = next(node for node in self.G.nodes if node.module_id == module_id)
         return node.get_parameters()
 
-    def plot_benchmark_graph(self):
-        dag.plot_graph(
-            self.G, output_file="output_dag.png", scale_factor=1.5, node_spacing=0.2
+    def export_to_dot(self) -> pydot.Dot:
+        pydot_graph = dag.export_to_dot(
+            self.G,
+            title=self.get_benchmark_name(),
         )
+
+        return pydot_graph
+
+    def export_to_mermaid(self, show_params: bool = True) -> str:
+        # Initialize the mermaid diagram syntax
+        mermaid_diagram = f"---\n"
+        mermaid_diagram += f"title: {self.get_benchmark_name()}\n"
+        mermaid_diagram += "---\n"
+        mermaid_diagram += "flowchart LR\n"
+
+        # Graph customisation
+        mermaid_diagram += "\tclassDef param fill:#f96\n"
+
+        module_id_params_dict = {}
+        for stage_id, stage in self.converter.get_stages().items():
+            mermaid_diagram += f"\tsubgraph {stage_id}\n"
+
+            for module_id, module in self.converter.get_modules_by_stage(stage).items():
+                module_parameters = self.converter.get_module_parameters(module)
+                if module_parameters:
+                    module_id_params_dict[module_id] = module_parameters
+
+                mermaid_diagram += f"\t\t{module_id}\n"
+                module_nodes = self.get_nodes_by_module_id(module_id)
+                from_nodes = [list(self.G.predecessors(node)) for node in module_nodes]
+                from_node_module_ids = sorted(
+                    list(
+                        set(
+                            [
+                                node.module_id
+                                for flatten in from_nodes
+                                for node in flatten
+                            ]
+                        )
+                    )
+                )
+                for from_module_id in from_node_module_ids:
+                    mermaid_diagram += f"\t\t{from_module_id} --> {module_id}\n"
+            mermaid_diagram += "\tend\n"
+
+        if show_params:
+            for module_id, params in module_id_params_dict.items():
+                mermaid_diagram += f"\tsubgraph params_{module_id}\n"
+                for param in params:
+                    mermaid_diagram += f"\t\t{hash(tuple(param))}{str(param)}\n"
+
+                mermaid_diagram += "\tend\n"
+                mermaid_diagram += f"\tparams_{module_id}:::param --o {module_id}\n"
+
+        return mermaid_diagram
 
     def __str__(self):
         return f"Benchmark({self.get_definition})"

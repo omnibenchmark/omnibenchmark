@@ -1,24 +1,30 @@
-id: mock_benchmark
-description: simple benchmark, user for fast testing
+id: benchmark004
+description: simple benchmark, somewhat explicit, simple params
 version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-storage: https://storage.github.com/
+storage:  http://omnibenchmark.mls.uzh.ch:9000
 storage_api: S3
-storage_bucket_name: mock_benchmark
+storage_bucket_name: benchmark004
 benchmark_yaml_spec: 0.01
 software_backend: host
 software_environments:
   python:
     description: "Ppython3.12.0 with gfbf-2023 toolchain"
-    easyconfig: Python-3.9.6-GCCcore-11.2.0.eb
-    envmodule: "3.9.6-GCCcore-11.2.0"
+    easyconfig: python_vX-gfbf-2023b.eb
+    envmodule: python/vX-gfbf-2023b
     conda: envs/python_vX_test.yaml
-    apptainer: http://registry.ch/Python-3.9.6-GCCcore-11.2.0.eb.sif
+    apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 stages:
   - id: data
     modules:
       - id: D1
         name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+      - id: D2
+        name: "Dataset 2"
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
@@ -30,17 +36,3 @@ stages:
         path: "{input}/{stage}/{module}/{params}/{dataset}.meta.json"
       - id: data.data_specific_params
         path: "{input}/{stage}/{module}/{params}/{dataset}_params.txt"
-  - id: process
-    modules:
-      - id: P1
-        software_environment: "python"
-        parameters:
-          - values: [ "-a 0", "-b 0.1" ]
-          - values: [ "-a 1", "-b 0.1" ]
-        repository:
-          url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
-    inputs:
-      - entries:
-          - data.counts
-          - data.meta

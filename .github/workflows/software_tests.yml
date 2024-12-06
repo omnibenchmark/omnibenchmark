@@ -34,7 +34,8 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-20.04]
         test_group: [1,2]
-        py_ver: ["3.12"]
+        python-version: ["3.12"]
+        r-version: ["4.4.1"]
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -46,15 +47,26 @@ jobs:
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp test-environment.yml test-environment-${{ matrix.py_ver }}.yml
-          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
 
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
-          environment-file: test-environment-${{ matrix.py_ver }}.yml
+          environment-file: test-environment-${{ matrix.python-version }}.yml
           environment-name: omb
           cache-environment: false
+
+      - name: Setup R ${{ matrix.r-version }}
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.r-version }}
+          # Enable RStudio Package Manager to speed up package installation
+          use-public-rspm: true
+
+      - name: Install R packages
+        run: |
+          Rscript -e "install.packages(c('argparse', 'readr', 'dplyr', 'mclust', 'caret'))"
 
       - name: install OS & Python packages
         run: |
@@ -90,27 +102,35 @@ jobs:
           cd tests/software
 
           source "$LMOD_PKG"/init/profile
-          module use "$HOME"/.local/easybuild/modules/all
+                    
+          export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
+          module use $MODULEPATH
+                    
+          module spider 3.6.3-foss-2017b
+
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-          # export > mod.env
 
           ## poetry toml section ignored by pip during env creation
           pip install pytest-cov pytest-split pytest-xdist
-
+          
+          ## install required python dependencies
+          pip install numpy pandas scikit-learn scipy
+          
           # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
-
+              
   software_testing_mac:
     permissions: write-all
     strategy:
       matrix:
         os: [macos-14] # [macos-14, macos-13]
         test_group: [1, 2]
-        py_ver: ["3.12"]
+        python-version: ["3.12"]
+        r-version: ["4.4.1"]
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -124,7 +144,7 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
-      - name: Install Lmod using homebrew
+      - name: Install packages using homebrew
         shell: bash -el {0}
         run: |
              bash
@@ -132,13 +152,26 @@ jobs:
              brew install coreutils
              brew install lmod
              brew install micromamba
+          
+      - name: Setup R ${{ matrix.r-version }}
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.r-version }}
+          # Enable RStudio Package Manager to speed up package installation
+          use-public-rspm: true
+
+      - name: Install R packages
+        run: |
+          mkdir -p ~/work/Rlib
+          export R_LIBS=~/work/Rlib
+          Rscript -e "install.packages(c('argparse', 'readr', 'dplyr', 'mclust', 'caret'))"
 
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.py_ver }}.yml
-          sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.py_ver }}/' test-environment-${{ matrix.py_ver }}.yml > tmp.yml
-          mv tmp.yml test-environment-${{ matrix.py_ver }}.yml
+          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
+          mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
 
       - name: Manually create env
@@ -147,7 +180,7 @@ jobs:
           eval "$(micromamba shell hook --shell bash)"
           micromamba create -n omnibenchmark
           micromamba activate omnibenchmark
-          micromamba install -f test-environment-${{ matrix.py_ver }}.yml
+          micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
 
       - name: Modify bashrc
         env:
@@ -162,7 +195,12 @@ jobs:
                 source /usr/local/opt/lmod/init/profile
            fi
            eval "$(micromamba shell hook --shell bash)"
+           export R_LIBS=~/work/Rlib
            EOF
+           
+           cat <<'EOF' >>~/.bash_profile
+           source ~/.bashrc
+           EOF         
 
       - name: Test
         env:
@@ -170,26 +208,25 @@ jobs:
         shell: bash -el {0}
         run: |
 
-          module --version
-
-          ## eval "$(micromamba shell hook --shell bash)"
+          # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
-
+          
           cd tests/software
 
-          mkdir -p "$HOME"/.local/easybuild/modules/all
-          module use "$HOME"/.local/easybuild/modules/all
-          #module use "$HOME"/micromamba/envs/omnibenchmark/modulefiles/all
+          source "$LMOD_PKG"/init/profile
 
-          export MODULEPATH="$HOME"/micromamba/envs/omnibenchmark/modulefiles/all:$MODULEPATH
-          export MODULEPATH="$HOME"/.local/easybuild/modules/all:$MODULEPATH
-
+          export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
+          module use $MODULEPATH
+          
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
           ## poetry toml section ignored by pip during env creation
           pip install pytest-cov pytest-split pytest-xdist
-
+          
+          ## install required Python dependenices
+          pip install numpy pandas scikit-learn scipy
+          
           # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \

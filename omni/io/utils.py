@@ -27,6 +27,25 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str):
         raise ValueError("Invalid storage type")
 
 
+def get_storage_from_benchmark(benchmark: Benchmark):
+    """
+    Selects a remote storage type from a benchmark object.
+
+    Args:
+    - benchmark (Benchmark): The benchmark object.
+
+    Returns:
+    - RemoteStorage: The remote storage object.
+    """
+    auth_options = remote_storage_args(benchmark)
+    # setup storage
+    return get_storage(
+        str(benchmark.converter.model.storage_api),
+        auth_options,
+        str(benchmark.converter.model.storage_bucket_name),
+    )
+
+
 # https://stackoverflow.com/a/3431838
 def md5(fname: str):
     hash_md5 = hashlib.md5()
@@ -53,12 +72,21 @@ def remote_storage_args(benchmark: Benchmark) -> dict:
         or str(benchmark.converter.model.storage_api).upper() == "S3"
     ):
         auth_options = S3_access_config_from_env()
-        return {
+        base_dic = {
             "endpoint": benchmark.converter.model.storage,
-            "secure": False,
-            "access_key": auth_options["access_key"],
-            "secret_key": auth_options["secret_key"],
+            "secure": True
+            if benchmark.converter.model.storage.startswith("https")
+            else False,
         }
+        if "access_key" in auth_options and "secret_key" in auth_options:
+            auth_dic = {
+                "access_key": auth_options["access_key"],
+                "secret_key": auth_options["secret_key"],
+            }
+        else:
+            auth_dic = {}
+
+        return {**base_dic, **auth_dic}
     else:
         raise ValueError("Invalid storage api")
 
