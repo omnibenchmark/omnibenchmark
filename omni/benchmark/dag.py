@@ -1,8 +1,8 @@
 from typing import List, Tuple
 
 import networkx as nx
-import matplotlib.pyplot as plt
 import omni_schema.datamodel.omni_schema
+import pydot
 
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.benchmark_node import BenchmarkNode
@@ -77,7 +77,8 @@ def build_benchmark_dag(converter: LinkMLConverter, out_dir: str) -> nx.DiGraph:
     stage_nodes_map = {}
     for stage_id, stage in converter.get_stages().items():
         nodes = expend_stage_nodes(converter, stage, out_dir, stage_ordering)
-        g.add_nodes_from(nodes)
+        nodes_with_stage = [(node, {"stage": stage_id}) for node in nodes]
+        g.add_nodes_from(nodes_with_stage)
         stage_nodes_map[stage_id] = nodes
 
     for current_node in g.nodes:
@@ -150,22 +151,64 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
     return topological_order
 
 
-def plot_graph(
-    g, output_file, scale_factor=1.0, node_spacing=0.1, figure_size=(12, 12)
+def export_to_dot(
+    G: nx.DiGraph,
+    title: str = None,
 ):
-    layout = nx.circular_layout(g, scale=scale_factor)
+    import matplotlib.pyplot as plt
 
-    plt.figure(figsize=figure_size)
+    # Dynamically scale the node size based on node count
+    nodes_count = len(G.nodes)
+    div_nodes_count = max(1, nodes_count // 10)
+    graph_size = max(15, 15 * div_nodes_count)
 
-    nx.draw_networkx_edges(g, layout, edge_color="#AAAAAA")
-    nx.draw_networkx_nodes(
-        g, layout, nodelist=g.nodes(), node_size=100, node_color="#fc8d62"
+    # Color nodes by stage (assuming 'stage' is a node attribute)
+    stages = nx.get_node_attributes(G, "stage", default="none")
+    unique_stages = list(set(stages.values()))  # Get unique stages
+
+    # Define a colormap with different shades for the stages
+    stage_colors = plt.get_cmap("inferno", max(len(unique_stages), 5))
+
+    # Convert the graph to a PyDot graph object
+    pydot_graph = pydot.Dot(
+        graph_type="digraph", strict=True, label=title, labelloc="top", fontsize=20
     )
-    nodes = [node for node in g.nodes]
-    for l in layout:
-        layout[l][1] -= node_spacing
+    pydot_graph.set_graph_defaults(
+        size=f"{graph_size},{graph_size}!", ratio="fill", margin=div_nodes_count
+    )
 
-    nx.draw_networkx_labels(g, layout, labels=dict(zip(nodes, nodes)), font_size=10)
+    # Define the style for nodes
+    node_defaults = {
+        "shape": "rect",
+        "style": "filled,rounded",
+        "fontsize": "12",
+        "fontcolor": "white",
+        "width": "1.5",
+        "height": "0.6",
+        "penwidth": "1.0",
+    }
+    pydot_graph.set_node_defaults(**node_defaults)
 
-    # Save the figure to an image file
-    plt.savefig(output_file)
+    # Define the style for edges
+    edge_defaults = {"color": "#CCCCCC", "penwidth": "0.5", "arrowsize": "0.7"}
+    pydot_graph.set_edge_defaults(**edge_defaults)
+
+    for node in G.nodes:
+        node_name = str(node)
+        rgba_color = stage_colors(unique_stages.index(stages[node]))
+        hex_color = _rgba_to_hex(rgba_color)
+        pydot_node = pydot.Node(node_name, label=node_name, fillcolor=hex_color)
+        pydot_graph.add_node(pydot_node)
+
+    for source, target in G.edges:
+        pydot_edge = pydot.Edge(str(source), str(target))
+        pydot_graph.add_edge(pydot_edge)
+
+    return pydot_graph
+
+
+def _rgba_to_hex(rgba):
+    r = int(rgba[0] * 255)
+    g = int(rgba[1] * 255)
+    b = int(rgba[2] * 255)
+    return f"#{r:02X}{g:02X}{b:02X}"

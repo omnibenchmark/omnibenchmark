@@ -52,7 +52,6 @@ def execution(
 
     try:
         # Execute the shell script
-        print(command)
         result = subprocess.run(command, check=True, capture_output=True, text=True)
         return result.stdout
 

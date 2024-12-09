@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,10 @@ from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
+
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
+if sys.platform == "linux":
+    tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
 
 
 def test_remote():
@@ -25,15 +29,14 @@ def test_remote():
         )
 
     with TmpMinIOStorage(minio_testcontainer) as tmp:
-        os.environ["OB_STORAGE_S3_ACCESS_KEY"] = tmp.auth_options["access_key"]
-        os.environ["OB_STORAGE_S3_SECRET_KEY"] = tmp.auth_options["secret_key"]
+        tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
         with OmniCLISetup() as omni:
             result = omni.call(
                 [
                     "run",
                     "benchmark",
                     "--benchmark",
-                    str(benchmark_data_path / "mock_benchmark.yaml"),
+                    str(tmp.benchmark_file),
                 ]
             )
             assert result.exit_code == 0
@@ -78,7 +81,7 @@ def test_benchmark_format_incorrect():
 
 def test_benchmark_software_does_not_exist():
     expected_output = """
-    Error: An unexpected error occurred: Software environment with id 'python' does not define the following backend: 'conda'.
+    Error: An unexpected error occurred: Software environment with id 'python' does not have a valid backend definition for: 'conda'.
     """
     with OmniCLISetup() as omni:
         result = omni.call(
