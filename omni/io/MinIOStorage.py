@@ -6,8 +6,8 @@ import json
 import logging
 import os
 import re
-from itertools import groupby
-from typing import Dict, List, Tuple, Union
+from pathlib import Path
+from typing import Dict, Union
 from urllib.parse import urlparse
 
 import boto3
@@ -16,193 +16,25 @@ import minio.commonconfig
 import minio.retention
 from packaging.version import Version
 
+from omni.benchmark import Benchmark
 from omni.io.exception import (
     MinIOStorageBucketManipulationException,
     MinIOStorageConnectionException,
-    MinIOStorageVersioningCorruptionException,
     RemoteStorageInvalidInputException,
 )
-from omni.io.RemoteStorage import RemoteStorage, is_valid_version
+from omni.io.RemoteStorage import RemoteStorage
 from omni.io.S3config import S3_DEFAULT_STORAGE_OPTIONS, bucket_readonly_policy
+from omni.io.S3versioning import get_s3_object_versions_and_tags
+from omni.io.versioning import (
+    filter_objects_to_tag,
+    get_objects_to_tag,
+    get_remoteversion_from_bmversion,
+    prepare_csv_remoteversion_from_bmversion,
+)
 
-logging.basicConfig(level=logging.ERROR)
 logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
-def get_s3_object_versions_and_tags(
-    client: minio.Minio, benchmark: str, readonly: bool = False
-) -> Dict:
-    """
-    Retrieve the metadata of all objects in a S3 Bucket.
-
-    Args:
-    - client: A MinIO client object.
-    - benchmark: The name of the S3 bucket.
-    - readonly: A boolean indicating whether the client is read-only. Object tags can only be retrieved if the client is not read-only.
-
-    Returns:
-    - A dictionary of objects and associated metadata.
-    """
-    if not client.bucket_exists(benchmark):
-        raise MinIOStorageBucketManipulationException(
-            f"Benchmark {benchmark} does not exist."
-        )
-
-    object_ls = list(
-        client.list_objects(
-            benchmark, include_version=True, include_user_meta=True, recursive=True
-        )
-    )
-
-    # Group listed objects by their name
-    grouped_objects = groupby(object_ls, key=lambda o: o.object_name)
-
-    di = {}
-
-    # Iterate over object groups
-    for object_name, objects in grouped_objects:
-        objects = list(objects)
-        di[object_name] = {}
-
-        # Extract attributes for the objects group
-        version_ids = [o.version_id for o in objects]
-        sizes = [o.size for o in objects]
-        last_modified = [o.last_modified for o in objects]
-        is_delete_markers = [o.is_delete_marker for o in objects]
-        etags = [o.etag for o in objects]
-
-        # Iterate to all versions and create a dictionary entry
-        for i, v in enumerate(version_ids):
-            tags_filt = {}
-            if not readonly and not is_delete_markers[i]:
-                tags = client.get_object_tags(benchmark, object_name, version_id=v)
-                if tags is not None:
-                    tags_filt = {k: w for k, w in tags.items() if is_valid_version(k)}
-
-            di[object_name][v] = {
-                "tags": tags_filt,
-                "size": sizes[i],
-                "last_modified": last_modified[i],
-                "is_delete_marker": is_delete_markers[i],
-                "etag": etags[i],
-            }
-    return di
-
-
-def get_s3_objects_to_tag(
-    objdic: Dict, tracked_dirs: List = S3_DEFAULT_STORAGE_OPTIONS["tracked_directories"]
-) -> Tuple[List, List]:
-    """
-    Get a list of objects that need to be tagged with the current version.
-
-    Args:
-    - objdic: A dictionary of objects and associated metadata.
-    - tracked_dirs: A list of directories to track.
-
-    Returns:
-    - A list of object names and a list of version ids.
-    """
-    object_names = sorted(list(objdic.keys()))
-    object_names_to_tag = []
-    versionid_of_objects_to_tag = []
-    for object_name in object_names:
-        # get newest version
-        newest_version = sorted(
-            objdic[object_name].items(),
-            key=lambda it: it[1]["last_modified"],
-            reverse=True,
-        )[0][0]
-        # get root directory
-        object_name_red = object_name
-        while not os.path.split(object_name_red)[0] == "":
-            object_name_red = os.path.split(object_name_red)[0]
-            if object_name_red in tracked_dirs:
-                break
-        # check if newest version exists and
-        # if object is in tracked directories
-        if (object_name_red in tracked_dirs) and (
-            not objdic[object_name][newest_version]["is_delete_marker"]
-        ):
-            object_names_to_tag.append(object_name)
-            versionid_of_objects_to_tag.append(newest_version)
-    return object_names_to_tag, versionid_of_objects_to_tag
-
-
-# TODO: filter objects based on workflow. Currently removing objects from a
-# benchmark is not possible.
-def filter_s3_objects_to_tag(
-    object_names_to_tag: List,
-    versionid_of_objects_to_tag: List,
-    filter_options: Union[Dict, None] = None,
-    object_name_list: Union[List, None] = None,
-) -> Tuple[List, List]:
-    return object_names_to_tag, versionid_of_objects_to_tag
-
-
-def get_single_s3version_from_bmversion(
-    di: Dict, object_name: str, query_version: str
-) -> Union[str, None]:
-    """
-    Get the object version where the tag matches the benchmark version.
-
-    Args:
-    - di: A dictionary of objects and associated metadata.
-    - object_name: The name of the object.
-    - query_version: The benchmark version to query.
-
-    Returns:
-    - The object version or None where the tag matches the benchmark version.
-    """
-    version_ls = list(
-        filter(
-            lambda v: query_version in di[object_name][v]["tags"].keys(),
-            di[object_name].keys(),
-        )
-    )
-    if len(version_ls) > 1:
-        raise MinIOStorageVersioningCorruptionException(
-            f"Multiple versions found for object {object_name}"
-        )
-    return version_ls[0] if version_ls else None
-
-
-def get_s3version_from_bmversion(di: Dict, query_version: str) -> List:
-    """
-    Get the versions of all objects where the tag matches the benchmark version.
-
-    Args:
-    - di: A dictionary of objects and associated metadata.
-    - query_version: The benchmark version to query.
-
-    Returns:
-    - A list of objects and associated versions where the tag matches the benchmark
-    """
-    summary_ls = []
-    for object_name in di.keys():
-        version_id = get_single_s3version_from_bmversion(di, object_name, query_version)
-        if version_id is not None:
-            summary_ls.append(
-                [
-                    object_name,
-                    version_id,
-                    di[object_name][version_id]["last_modified"],
-                    di[object_name][version_id]["size"],
-                    di[object_name][version_id]["etag"],
-                ]
-            )
-    return summary_ls
-
-
-def prepare_csv_s3version_from_bmversion(summary_ls: List) -> str:
-    """
-    Prepare a CSV string from a list of objects and associated versions.
-    """
-    outstr = "name,version_id,last_modified,size,etag\n"
-    for element in summary_ls:
-        outstr += f"{element[0]},{element[1]},{element[2]},{element[3]},{element[4]}\n"
-    return outstr
 
 
 def set_bucket_public_readonly(client: minio.Minio, bucket_name: str):
@@ -326,7 +158,7 @@ class MinIOStorage(RemoteStorage):
                 versions.append(Version(version))
         self.versions = versions
 
-    def create_new_version(self) -> None:
+    def create_new_version(self, benchmark: Union[None, Benchmark] = None) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
                 "No version provided, set version first with method 'set_version'"
@@ -344,18 +176,32 @@ class MinIOStorage(RemoteStorage):
                 "Version already exists, set new version with method 'set_version'"
             )
 
+        # upload benchmark definition file
+        if benchmark is not None:
+            # read file
+            bmfile = Path(benchmark.get_definition_file())
+            with open(bmfile, "r") as fh:
+                bmstr = fh.read()
+
+            # upload file
+            _ = self.client.put_object(
+                self.benchmark,
+                "config/benchmark.yaml",
+                io.BytesIO(bmstr.encode()),
+                len(bmstr),
+            )
+
         # get all objects
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
 
         # get objects to tag
-        object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(
+        object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
             objdic, tracked_dirs=self.storage_options["tracked_directories"]
         )
 
         # filter objects based on workflow
-        # TODO: implement
-        object_names_to_tag, versionid_of_objects_to_tag = filter_s3_objects_to_tag(
-            object_names_to_tag, versionid_of_objects_to_tag
+        object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(
+            object_names_to_tag, versionid_of_objects_to_tag, benchmark
         )
 
         # Tag all objects with current version
@@ -367,7 +213,7 @@ class MinIOStorage(RemoteStorage):
         # set retention policy of objects
         retention_config = minio.retention.Retention(
             minio.commonconfig.GOVERNANCE,
-            datetime.datetime.utcnow() + datetime.timedelta(weeks=1000),
+            datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
         )
         for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
             self.client.set_object_retention(
@@ -378,8 +224,8 @@ class MinIOStorage(RemoteStorage):
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
 
         # write versions/{{version}}.csv
-        vv_ls = get_s3version_from_bmversion(objdic, str(self.version))
-        vv_str = prepare_csv_s3version_from_bmversion(vv_ls)
+        vv_ls = get_remoteversion_from_bmversion(objdic, str(self.version))
+        vv_str = prepare_csv_remoteversion_from_bmversion(vv_ls)
         version_filename = f"versions/{self.version}.csv"
         _ = self.client.put_object(
             self.benchmark, version_filename, io.BytesIO(vv_str.encode()), len(vv_str)
@@ -420,7 +266,7 @@ class MinIOStorage(RemoteStorage):
                     objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
 
             # add overview file to files
-            response_headers = response.getheaders()
+            response_headers = response.headers
             objdict[f"versions/{self.version}.csv"] = {
                 "version_id": response_headers.get("x-amz-version-id"),
                 # some parsing of date to get to consistent format
@@ -437,7 +283,7 @@ class MinIOStorage(RemoteStorage):
             )
 
             # get objects to tag
-            object_names_to_tag, versionid_of_objects_to_tag = get_s3_objects_to_tag(
+            object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
                 objdic, tracked_dirs=self.storage_options["tracked_directories"]
             )
             objdict = {}

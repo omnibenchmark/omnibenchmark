@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
@@ -23,10 +22,6 @@ def _create_initial_node(benchmark, node):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
-    backend = benchmark.get_benchmark_software_backend()
-
-    print(_get_environment_path(benchmark, node))
-
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
         wildcard_constraints:
@@ -37,11 +32,11 @@ def _create_initial_node(benchmark, node):
         output:
             formatter.format_output_templates_to_be_expanded(node),
         conda:
-            _get_environment_path(benchmark, node) if backend == SoftwareBackendEnum.conda else None
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
         envmodules:
-            _get_environment_path(benchmark,node) if backend == SoftwareBackendEnum.envmodules else None
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
         container:
-            _get_environment_path(benchmark,node) if backend == (SoftwareBackendEnum.apptainer or SoftwareBackendEnum.docker) else None
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
         params:
             repository_url = repository_url,
             commit_hash = commit_hash,
@@ -65,7 +60,6 @@ def _create_intermediate_node(benchmark, node):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
-    backend = benchmark.get_benchmark_software_backend()
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
 
     rule:
@@ -79,11 +73,11 @@ def _create_intermediate_node(benchmark, node):
         output:
             formatter.format_output_templates_to_be_expanded(node)
         conda:
-            _get_environment_path(benchmark, node) if backend == SoftwareBackendEnum.conda else None
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
         envmodules:
-            _get_environment_path(benchmark,node) if backend == SoftwareBackendEnum.envmodules else None
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
         container:
-            _get_environment_path(benchmark,node) if backend == (SoftwareBackendEnum.apptainer or SoftwareBackendEnum.docker) else None
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
         params:
             inputs_map = inputs_map,
             repository_url = repository_url,
@@ -130,20 +124,9 @@ def create_standalone_node_rule(node, config):
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
 
 
-def _get_environment_path(benchmark, node):
+def _get_environment_path(benchmark, node, software_backend):
     benchmark_dir = benchmark.directory
-    software_backend = benchmark.get_benchmark_software_backend()
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
-
-    environment_path = None
-    if (software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker):
-        environment_path = Validator.get_environment_path(benchmark_dir, environment.apptainer)
-
-    elif software_backend == SoftwareBackendEnum.envmodules:
-        ## it's not a path, just an env name
-        ## environment_path = Validator.get_environment_path(benchmark_dir,environment.envmodule)
-        environment_path = environment.envmodule
-    elif software_backend == SoftwareBackendEnum.conda:
-        environment_path = Validator.get_environment_path(benchmark_dir, environment.conda)
+    environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
 
     return environment_path

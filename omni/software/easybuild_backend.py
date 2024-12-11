@@ -6,17 +6,12 @@ Easybuild-powered software management, mostly by omniblock. Also includes singul
 Izaskun Mallona
 Started 5th June 2024
 """
-
-import subprocess, os, sys
+import subprocess, os
 import os.path as op
-from easybuild.tools.module_naming_scheme.mns import ModuleNamingScheme
-from easybuild.tools.module_naming_scheme.utilities import (
-    det_full_ec_version,
-    is_valid_module_name,
-)
+
+from easybuild.tools.module_naming_scheme.utilities import det_full_ec_version
 from easybuild.framework.easyconfig.tools import det_easyconfig_paths, parse_easyconfigs
 from easybuild.tools.options import set_up_configuration
-from easybuild.tools.modules import get_software_root_env_var_name, modules_tool
 
 
 from importlib import resources as impresources

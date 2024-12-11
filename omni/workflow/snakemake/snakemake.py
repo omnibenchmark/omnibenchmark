@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 from typing import TextIO, List, Optional
 
@@ -31,6 +32,7 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
+        module_path: str = os.environ.get("MODULEPATH", None),
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -42,6 +44,7 @@ class SnakemakeEngine(WorkflowEngine):
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
+            module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
@@ -50,12 +53,15 @@ class SnakemakeEngine(WorkflowEngine):
         """
 
         # Serialize Snakefile for workflow
-        snakefile = self.serialize_workflow(benchmark, work_dir)
+        snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
 
         # Prepare the argv list
         argv = self._prepare_argv(
             snakefile, cores, update, dryrun, backend, work_dir, **snakemake_kwargs
         )
+
+        if module_path:
+            os.environ["MODULEPATH"] = module_path
 
         # Execute snakemake script
         parser, args = parse_args(argv)
@@ -64,7 +70,10 @@ class SnakemakeEngine(WorkflowEngine):
         return success
 
     def serialize_workflow(
-        self, benchmark: Benchmark, output_dir: Path = Path(os.getcwd())
+        self,
+        benchmark: Benchmark,
+        output_dir: Path = Path(os.getcwd()),
+        write_to_disk=True,
     ) -> Path:
         """
         Serializes a Snakefile for the benchmark.
@@ -72,6 +81,7 @@ class SnakemakeEngine(WorkflowEngine):
         Args:
             benchmark (Benchmark): benchmark to serialize
             output_dir (str): output directory for the Snakefile
+            write_to_disk (bool): if write_to_disk is True, create Snakefile on disk, else create an in-memory temp file
 
         Returns:
         - Snakefile path.
@@ -83,8 +93,15 @@ class SnakemakeEngine(WorkflowEngine):
         version = benchmark.get_benchmark_version()
         author = benchmark.get_benchmark_author()
 
+        if write_to_disk:
+            snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
+        else:
+            temp_file = tempfile.NamedTemporaryFile(
+                delete=False, mode="w+", suffix=".smk", encoding="utf-8"
+            )
+            snakefile_path = Path(temp_file.name)
+
         # Serialize Snakemake file
-        snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
         with open(snakefile_path, "w", encoding="utf-8") as f:
             self._write_snakefile_header(f, name, version, author)
             self._write_includes(f, INCLUDES)
@@ -112,6 +129,7 @@ class SnakemakeEngine(WorkflowEngine):
         update: bool = True,
         dryrun: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
+        module_path: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
         **snakemake_kwargs,
     ) -> bool:
@@ -126,6 +144,7 @@ class SnakemakeEngine(WorkflowEngine):
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
+            module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
@@ -136,7 +155,7 @@ class SnakemakeEngine(WorkflowEngine):
         os.makedirs(work_dir, exist_ok=True)
 
         # Serialize Snakefile for node workflow
-        snakefile = self.serialize_node_workflow(node, work_dir)
+        snakefile = self.serialize_node_workflow(node, work_dir, write_to_disk=False)
 
         # Prepare the argv list
         argv = self._prepare_argv(
@@ -151,6 +170,9 @@ class SnakemakeEngine(WorkflowEngine):
             **snakemake_kwargs,
         )
 
+        if module_path:
+            os.environ["MODULEPATH"] = module_path
+
         # Execute snakemake script
         parser, args = parse_args(argv)
         success = snakemake_cli(args, parser)
@@ -158,7 +180,10 @@ class SnakemakeEngine(WorkflowEngine):
         return success
 
     def serialize_node_workflow(
-        self, node: BenchmarkNode, output_dir: Path = Path(os.getcwd())
+        self,
+        node: BenchmarkNode,
+        output_dir: Path = Path(os.getcwd()),
+        write_to_disk=True,
     ) -> Path:
         """
         Serializes a Snakefile for a benchmark node.
@@ -166,6 +191,7 @@ class SnakemakeEngine(WorkflowEngine):
         Args:
             node (BenchmarkNode): benchmark node to serialize
             output_dir (str): output directory for the Snakefile
+            write_to_disk (bool): if write_to_disk is True, create Snakefile on disk, else create an in-memory temp file
 
         Returns:
         - Snakefile path.
@@ -177,8 +203,15 @@ class SnakemakeEngine(WorkflowEngine):
         version = node.get_benchmark_version()
         author = node.get_benchmark_author()
 
+        if write_to_disk:
+            snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
+        else:
+            temp_file = tempfile.NamedTemporaryFile(
+                delete=False, mode="w+", suffix=".smk", encoding="utf-8"
+            )
+            snakefile_path = Path(temp_file.name)
+
         # Serialize Snakemake file
-        snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
         with open(snakefile_path, "w") as f:
             self._write_snakefile_header(f, name, version, author)
             self._write_includes(f, INCLUDES)

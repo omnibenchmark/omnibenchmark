@@ -8,6 +8,10 @@ from pathlib import Path
 import click
 
 
+from omni.io.utils import get_storage_from_benchmark
+from omni.cli.validate import validate_benchmark
+
+
 @click.group(name="run")
 @click.pass_context
 def run(ctx):
@@ -67,6 +71,8 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
 
     if not local:
         storage_options = remote_storage_snakemake_args(benchmark)
+        # creates bucket if it doesn't exist
+        _ = get_storage_from_benchmark(benchmark)
     else:
         storage_options = {}
 
@@ -76,7 +82,12 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     # Future: Create yaml for communicating resources for individual methods
     click.echo("Running benchmark...")
     success = workflow.run_workflow(
-        benchmark, cores=threads, update=update, dryrun=dry, **storage_options
+        benchmark,
+        cores=threads,
+        update=update,
+        dryrun=dry,
+        backend=benchmark.get_benchmark_software_backend(),
+        **storage_options,
     )
 
     if success:
@@ -221,6 +232,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
+                                    backend=benchmark.get_benchmark_software_backend(),
                                 )
 
                                 if success:
@@ -281,53 +293,3 @@ def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     click.echo("Validating a benchmark yaml.")
     benchmark = validate_benchmark(benchmark)
-
-
-## to validate the YAML
-def validate_benchmark(benchmark_file: str):
-    from pathlib import Path
-
-    import yaml
-
-    from omni.benchmark import Benchmark
-
-    if benchmark_file.endswith(".yaml") or benchmark_file.endswith(".yml"):
-        try:
-            with open(benchmark_file, "r") as file:
-                yaml.safe_load(file)
-                benchmark = Benchmark(Path(benchmark_file))
-                click.echo("Benchmark YAML file integrity check passed.")
-
-                return benchmark
-
-        except ValueError as e:
-            click.echo(
-                f"Error: Failed to parse YAML as a valid OmniBenchmark: {str(e)}.",
-                err=True,
-            )
-            sys.exit(1)  # raise click.Exit(code=1)
-
-        except yaml.YAMLError as e:
-            click.echo(f"Error: YAML file format error: {e}.", err=True)
-            sys.exit(1)  # raise click.Exit(code=1)
-
-        except FileNotFoundError:
-            click.echo(
-                "Error: Benchmark YAML file not found.",
-                err=True,
-            )
-            sys.exit(1)  # raise click.Exit(code=1)
-
-        except Exception as e:
-            click.echo(
-                f"Error: An unexpected error occurred: {e}",
-                err=True,
-            )
-            sys.exit(1)  # raise click.Exit(code=1)
-
-    else:
-        click.echo(
-            "Error: Invalid benchmark input. Please provide a valid YAML file path.",
-            err=True,
-        )
-        sys.exit(1)  # raise click.Exit(code=1)

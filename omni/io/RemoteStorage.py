@@ -8,7 +8,7 @@ from packaging.version import Version
 
 from omni.io.exception import RemoteStorageInvalidInputException
 
-DEFAULT_STORAGE_OPTIONS = {"tracked_directories": ["out", "versions"]}
+DEFAULT_STORAGE_OPTIONS = {"tracked_directories": ["out", "versions", "config"]}
 
 
 def is_valid_version(version: str):
@@ -16,6 +16,8 @@ def is_valid_version(version: str):
         packaging.version.parse(version)
         return True
     except packaging.version.InvalidVersion:
+        return False
+    except TypeError:
         return False
 
 
