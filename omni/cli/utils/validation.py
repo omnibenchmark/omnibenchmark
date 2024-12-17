@@ -2,6 +2,8 @@ import sys
 
 import click
 
+from omni.cli.utils.logging import logger
+
 
 ## to validate the YAML
 def validate_benchmark(benchmark_file: str, echo: bool = True):
@@ -18,38 +20,34 @@ def validate_benchmark(benchmark_file: str, echo: bool = True):
                 benchmark = Benchmark(Path(benchmark_file))
 
                 if echo:
-                    click.echo("Benchmark YAML file integrity check passed.")
+                    logger.info("Benchmark YAML file integrity check passed.")
 
                 return benchmark
 
         except ValueError as e:
-            click.echo(
+            logger.error(
                 f"Error: Failed to parse YAML as a valid OmniBenchmark: {str(e)}.",
-                err=True,
             )
-            sys.exit(1)  # raise click.Exit(code=1)
+            sys.exit(1)
 
         except yaml.YAMLError as e:
-            click.echo(f"Error: YAML file format error: {e}.", err=True)
-            sys.exit(1)  # raise click.Exit(code=1)
+            logger.info(f"Error: YAML file format error: {e}.")
+            click.Abort()
 
         except FileNotFoundError:
-            click.echo(
+            logger.error(
                 "Error: Benchmark YAML file not found.",
-                err=True,
             )
-            sys.exit(1)  # raise click.Exit(code=1)
+            sys.exit(1)
 
         except Exception as e:
-            click.echo(
+            logger.error(
                 f"Error: An unexpected error occurred: {e}",
-                err=True,
             )
-            sys.exit(1)  # raise click.Exit(code=1)
+            sys.exit(1)
 
     else:
-        click.echo(
+        logger.error(
             "Error: Invalid benchmark input. Please provide a valid YAML file path.",
-            err=True,
         )
-        sys.exit(1)  # raise click.Exit(code=1)
+        sys.exit(1)
