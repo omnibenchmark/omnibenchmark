@@ -229,7 +229,7 @@ def envmodules_build(easyconfig, threads):
         logger.error("ERROR: " + p.stderr)
     if p.returncode == 0:
         logger.info(p.stdout)
-        logger.info("DONE: built " + easyconfig)
+    logger.info("DONE: built " + easyconfig)
 
 
 @module.command(name="prepare", no_args_is_help=True)
