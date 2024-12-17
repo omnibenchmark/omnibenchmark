@@ -1,5 +1,9 @@
+import io
+import logging
 import re
 from pathlib import Path
+
+import pytest
 
 from tests.cli.cli_setup import OmniCLISetup
 
@@ -7,7 +11,23 @@ benchmark_path = Path(__file__).parent / ".."
 benchmark_data_path = benchmark_path / "data"
 
 
-def test_default_entry_module():
+@pytest.fixture
+def capture_logs():
+    """Fixture to capture log output during tests."""
+    log_stream = io.StringIO()
+    handler = logging.StreamHandler(log_stream)
+    logger = logging.getLogger("omnibenchmark")
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    yield log_stream  # Yield the stream to the test function
+
+    # Cleanup after the test
+    logger.removeHandler(handler)
+    log_stream.close()
+
+
+def test_default_entry_module(capture_logs):
     expected_output = """
         Running module on a local dataset.
         Benchmark YAML file integrity check passed.
@@ -25,11 +45,14 @@ def test_default_entry_module():
                 "D1",
             ]
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 0
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
-def test_default_nonentry_module():
+def test_default_nonentry_module(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -47,8 +70,11 @@ def test_default_nonentry_module():
                 "P1",
             ]
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+        assert clean(log_output) == clean(expected_output)
 
 
 # def test_multiple_behaviours_set():
@@ -133,7 +159,7 @@ def test_benchmark_not_found():
         assert clean(result.output).startswith(clean(expected_output))
 
 
-def test_benchmark_format_incorrect():
+def test_benchmark_format_incorrect(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Error: Failed to parse YAML as a valid OmniBenchmark: software_backend must be supplied.
@@ -149,11 +175,14 @@ def test_benchmark_format_incorrect():
                 "D1",
             ]
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+        assert clean(log_output) == clean(expected_output)
 
 
-def test_module_not_found():
+def test_module_not_found(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -172,11 +201,14 @@ def test_module_not_found():
                 str(benchmark_path),
             ]
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 1
-        assert clean(result.output) == clean(expected_output)
+        assert clean(log_output) == clean(expected_output)
 
 
-def test_behaviour_input():
+def test_behaviour_input(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -194,11 +226,14 @@ def test_behaviour_input():
                 "D1",
             ]
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 0
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
-def test_behaviour_input_dry():
+def test_behaviour_input_dry(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -217,11 +252,14 @@ def test_behaviour_input_dry():
                 "--dry",
             ]
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 0
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
-def test_behaviour_input_update_true():
+def test_behaviour_input_update_true(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -241,8 +279,11 @@ def test_behaviour_input_update_true():
             ],
             input="y",
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 0
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
 # def test_behaviour_input_update_false():
@@ -267,7 +308,7 @@ def test_behaviour_input_update_true():
 #         assert clean(result.output).startswith(clean(expected_output))
 
 
-def test_behaviour_input_update_dry():
+def test_behaviour_input_update_dry(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -288,8 +329,11 @@ def test_behaviour_input_update_dry():
             ],
             input="y",
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 0
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
 def test_behaviour_input_missing_input_dir():
@@ -310,11 +354,12 @@ def test_behaviour_input_missing_input_dir():
             ],
             input="y",
         )
+
         assert result.exit_code == 2
         assert clean(result.output).startswith(clean(expected_output))
 
 
-def test_behaviour_input_missing_input_files():
+def test_behaviour_input_missing_input_files(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -336,11 +381,14 @@ def test_behaviour_input_missing_input_files():
             ],
             input="y",
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 1
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
-def test_behaviour_input_nested_module_dry():
+def test_behaviour_input_nested_module_dry(capture_logs):
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -362,8 +410,11 @@ def test_behaviour_input_nested_module_dry():
             ],
             input="y",
         )
+
+        log_output = capture_logs.getvalue()
+
         assert result.exit_code == 0
-        assert clean(result.output).startswith(clean(expected_output))
+        assert clean(log_output).startswith(clean(expected_output))
 
 
 def clean(output: str) -> str:
