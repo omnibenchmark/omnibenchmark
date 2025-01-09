@@ -4,7 +4,11 @@ from typing import List
 
 from omni.benchmark import Benchmark
 
-# benchmark = Benchmark(Path("Clustering.yaml"))
+# from glob import glob
+# from itertools import chain
+# benchmark = Benchmark(Path("tests/data/Clustering.yaml"))
+# benchmark.get_definition_file()
+# conda_envs = list(chain.from_iterable(map(glob, str(benchmark.get_definition_file()))))
 
 
 def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
@@ -43,8 +47,22 @@ def prepare_archive_software(benchmark: Benchmark) -> List[Path]:
         List[Path]: The filenames of all software to archive.
     """
     # decide on software type
-    # call prepare_archive_software_<type>
-    return []
+    which_env = benchmark.get_benchmark_software_backend().text
+    if which_env == "host":
+        return []
+    else:
+        files = []
+        if which_env == "envmodules":
+            files += prepare_archive_software_easyconfig(benchmark)
+        elif which_env == "apptainer":
+            files += prepare_archive_software_apptainer(benchmark)
+        elif which_env == "conda":
+            files += prepare_archive_software_conda(benchmark)
+        else:
+            raise NotImplementedError(
+                f"Software backend {which_env} not implemented yet."
+            )
+        return files
 
 
 def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
@@ -57,10 +75,20 @@ def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
     Returns:
         List[Path]: The filenames of all software easyconfig to archive.
     """
-    # prepare easyconfigs software, get binaries, etc.
-    # how?
-    # return all files
-    return []
+    files = []
+    softenvs = benchmark.get_benchmark_software_environments()
+    for softenv in softenvs.values():
+        envmodule_file = benchmark.directory / Path(softenv.envmodule)
+        if envmodule_file.is_file():
+            files.append(envmodule_file)
+        else:
+            raise FileNotFoundError(f"File {envmodule_file} not found.")
+        easyconfig_file = benchmark.directory / Path(softenv.easyconfig)
+        if easyconfig_file.is_file():
+            files.append(easyconfig_file)
+        else:
+            raise FileNotFoundError(f"File {easyconfig_file} not found.")
+    return files
 
 
 def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
@@ -75,10 +103,17 @@ def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
     """
     # prepare conda, as in snakemake archive (https://github.com/snakemake/snakemake/blob/76d53290a003891c5ee41f81e8eb4821c406255d/snakemake/deployment/conda.py#L316) maybe?
     # return all files
-    from omni.software.conda_backend import pin_conda_envs
-
-    pin_conda_envs(benchmark.get_definition_file())
-    return []
+    # from omni.software.conda_backend import pin_conda_envs
+    # pin_conda_envs(benchmark.get_definition_file())
+    files = []
+    softenvs = benchmark.get_benchmark_software_environments()
+    for softenv in softenvs.values():
+        conda_file = benchmark.directory / Path(softenv.conda)
+        if conda_file.is_file():
+            files.append(conda_file)
+        else:
+            raise FileNotFoundError(f"File {conda_file} not found.")
+    return files
 
 
 def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
@@ -93,7 +128,15 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
     """
     # prepare apptainer, check if .sif file exists
     # return all files
-    return []
+    files = []
+    softenvs = benchmark.get_benchmark_software_environments()
+    for softenv in softenvs.values():
+        apptainer_file = benchmark.directory / Path(softenv.apptainer)
+        if apptainer_file.is_file():
+            files.append(apptainer_file)
+        else:
+            raise FileNotFoundError(f"File {apptainer_file} not found.")
+    return files
 
 
 def prepare_archive_results(benchmark: Benchmark) -> List[Path]:
@@ -133,6 +176,8 @@ def archive_version(
     code: bool = False,
     software: bool = False,
     results: bool = False,
+    compression=zipfile.ZIP_STORED,
+    compresslevel: int = None,
 ):
     # retrieve all filenames to save
     filenames = []
@@ -156,7 +201,6 @@ def archive_version(
     ### apptainer
     #### save .sif file
     if software:
-        raise NotImplementedError("Software archiving not implemented yet.")
         filenames += prepare_archive_software(benchmark)
 
     ## results (results files)
@@ -166,7 +210,9 @@ def archive_version(
 
     # save all files to zip archive
     outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
-    with zipfile.ZipFile(outdir / outfile, "w") as archive:
+    with zipfile.ZipFile(
+        outdir / outfile, "w", compression=compression, compresslevel=compresslevel
+    ) as archive:
         for filename in filenames:
             archive.write(filename, filename)
 

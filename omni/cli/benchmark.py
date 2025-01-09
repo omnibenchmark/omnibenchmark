@@ -28,16 +28,18 @@ def info(ctx):
 @click.option(
     "-c",
     "--code",
-    help="Archive code files.",
+    help="Archive benchmarking code (repos).",
     is_flag=True,
     default=False,
+    show_default=True,
 )
 @click.option(
     "-s",
     "--software",
-    help="Archive software files.",
+    help="Archive software environments.",
     is_flag=True,
     default=False,
+    show_default=True,
 )
 @click.option(
     "-r",
@@ -45,11 +47,40 @@ def info(ctx):
     help="Archive results files.",
     is_flag=True,
     default=False,
+    show_default=True,
+)
+@click.option(
+    "--compression",
+    type=click.Choice(["none", "deflated", "bzip2", "lzma"], case_sensitive=False),
+    default="none",
+    help="Compression method.",
+    show_default=True,
+)
+@click.option(
+    "--compresslevel",
+    type=int,
+    default=None,
+    help="Compression level.",
+    show_default=True,
 )
 @click.pass_context
-def archive_benchmark(ctx, benchmark, code, software, results):
+def archive_benchmark(
+    ctx, benchmark, code, software, results, compression, compresslevel
+):
     """Archive a benchmark"""
     benchmark = validate_benchmark(benchmark, echo=False)
+
+    match compression:
+        case "none":
+            compression = zipfile.ZIP_STORED
+        case "deflated":
+            compression = zipfile.ZIP_DEFLATED
+        case "bzip2":
+            compression = zipfile.ZIP_BZIP2
+        case "lzma":
+            compression = zipfile.ZIP_LZMA
+        case _:
+            compression = zipfile.ZIP_STORED
     zipfile = archive_version(
         benchmark,
         outdir=Path("."),
@@ -57,6 +88,8 @@ def archive_benchmark(ctx, benchmark, code, software, results):
         code=code,
         software=software,
         results=results,
+        compression=compression,
+        compresslevel=compresslevel,
     )
     click.echo(f"Created archive: {zipfile}")
 

@@ -6,7 +6,7 @@ storage:  http://omnibenchmark.mls.uzh.ch:9000
 storage_api: S3
 storage_bucket_name: benchmark004
 benchmark_yaml_spec: 0.01
-software_backend: conda
+software_backend: host
 software_environments:
   python:
     description: "Ppython3.12.0 with gfbf-2023 toolchain"

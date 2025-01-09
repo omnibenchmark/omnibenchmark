@@ -1,9 +1,8 @@
 #! /usr/bin/env python
+# WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
 
-import logging
 import os
 from pathlib import Path
-from typing import List
 
 from snakemake.script import Snakemake
 

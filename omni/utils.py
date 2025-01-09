@@ -1,11 +1,37 @@
 """ General utils functions"""
+import logging
+import os
 
 from linkml_runtime.loaders import yaml_loader
+import subprocess
 from pathlib import Path
-from typing import List, Union, Any
+from typing import List, Union, Any, Optional
 import re
 import yaml
 import platform
+
+from subprocess import PIPE, Popen
+import sys
+
+
+def try_avail_envmodule(module_name: str) -> bool:
+    env = {}
+    env.update(os.environ)
+
+    command = f"""
+    . "$LMOD_PKG"/init/profile ;
+    module purge ;
+    module avail {module_name}"""
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        text=True,
+        env=env,
+    )
+
+    return not "No module(s) or extension(s) found!" in result.stderr
 
 
 def as_list(input: Union[List, Any]):

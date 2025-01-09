@@ -1,9 +1,11 @@
 import os
 import shutil
-import stat
 import sys
 from pathlib import Path
 import os.path as op
+
+import pytest
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
 from omni.benchmark import Benchmark
 from omni.workflow.snakemake import SnakemakeEngine
@@ -13,30 +15,12 @@ sys.path.insert(0, op.dirname(__file__))
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 
-
-def test_run_benchmark_with_software():
-    benchmark_file = benchmark_data_path / "mock_benchmark.yaml"
-    benchmark_file_path = Path(__file__).parent / benchmark_file
-
-    if os.path.exists(benchmark_file):
-        benchmark = Benchmark(benchmark_file)
-        workflow = SnakemakeEngine()
-
-        backend = benchmark.get_benchmark_software_backend()
-
-        success = workflow.run_workflow(benchmark, backend=backend)
-
-        assert success
-
-        _cleanup_snakemake()
-
-    else:
-        raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")
+TO_CLEANUP = [".snakemake", "out", "Snakefile", "snakemake.log"]
 
 
 def _cleanup_snakemake():
     current_dir = os.getcwd()
-    for file in [".snakemake", "out", "Snakefile", "snakemake.log"]:
+    for file in TO_CLEANUP:
         file_path = os.path.join(current_dir, file)
         if os.path.exists(file_path):
             if os.path.isfile(file_path):
@@ -47,5 +31,77 @@ def _cleanup_snakemake():
 
 def _remove_readonly(func, path, _):
     """Clear the readonly bit and reattempt the removal"""
-    os.chmod(path, stat.S_IWRITE)
+    os.chmod(path, os.stat.S_IWRITE)
     func(path)
+
+
+def test_run_benchmark_with_software_envmodules():
+    benchmark_file = benchmark_data_path / "Clustering.yaml"
+    benchmark_file_path = Path(__file__).parent / benchmark_file
+
+    if os.path.exists(benchmark_file):
+        benchmark = Benchmark(benchmark_file_path)
+        workflow = SnakemakeEngine()
+
+        if os.environ.get("GITHUB_WORKSPACE", None):
+            override_module_path = os.path.join(
+                os.environ["GITHUB_WORKSPACE"],
+                "tests",
+                "data",
+                "envs",
+            )
+        else:
+            override_module_path = os.environ.get("MODULEPATH", None)
+
+        success = workflow.run_workflow(
+            benchmark,
+            backend=SoftwareBackendEnum.envmodules,
+            module_path=override_module_path,
+        )
+
+        assert success
+
+        _cleanup_snakemake()
+    else:
+        raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")
+
+
+def test_run_benchmark_with_software_conda():
+    benchmark_file = benchmark_data_path / "Clustering.yaml"
+    benchmark_file_path = Path(__file__).parent / benchmark_file
+
+    if os.path.exists(benchmark_file):
+        benchmark = Benchmark(benchmark_file_path)
+        workflow = SnakemakeEngine()
+
+        success = workflow.run_workflow(
+            benchmark,
+            backend=SoftwareBackendEnum.conda,
+        )
+
+        assert success
+
+        _cleanup_snakemake()
+    else:
+        raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")
+
+
+@pytest.mark.skip(reason="Apptainer image is not available yet")
+def test_run_benchmark_with_software_apptainer():
+    benchmark_file = benchmark_data_path / "Clustering.yaml"
+    benchmark_file_path = Path(__file__).parent / benchmark_file
+
+    if os.path.exists(benchmark_file):
+        benchmark = Benchmark(benchmark_file_path)
+        workflow = SnakemakeEngine()
+
+        success = workflow.run_workflow(
+            benchmark,
+            backend=SoftwareBackendEnum.apptainer,
+        )
+
+        assert success
+
+        _cleanup_snakemake()
+    else:
+        raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")

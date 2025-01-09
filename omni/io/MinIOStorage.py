@@ -32,7 +32,6 @@ from omni.io.versioning import (
     prepare_csv_remoteversion_from_bmversion,
 )
 
-logging.basicConfig(level=logging.ERROR)
 logging.getLogger("requests").setLevel(logging.DEBUG)
 logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
