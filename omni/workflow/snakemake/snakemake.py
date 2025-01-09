@@ -18,6 +18,7 @@ INCLUDES = [
     "rule_start_benchmark.smk",
     "rule_node.smk",
     "rule_all.smk",
+    "rule_on_success.smk",
 ]
 
 
