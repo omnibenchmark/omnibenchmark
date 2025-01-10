@@ -50,17 +50,29 @@ def execution(
     if parameters:
         command.extend(parameters)
 
+    # Prepare stdout and stderr files in the output directory
+    stdout_file = output_dir / "stdout.log"
+    stderr_file = output_dir / "stderr.log"
+
     try:
-        # Execute the shell script
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-        return result.stdout
+        with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
+            result = subprocess.run(
+                command,
+                check=True,
+                stdout=stdout_f,
+                stderr=stderr_f,
+                text=True,
+            )
+            return result.stdout
 
     except subprocess.CalledProcessError as e:
         logging.error(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
+            f"See {stderr_file} for details."
         )
         raise RuntimeError(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
+            f"See {stderr_file} for details."
         ) from e
 
 
