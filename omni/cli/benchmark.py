@@ -1,4 +1,5 @@
 """cli commands related to benchmark infos and stats"""
+import zipfile
 from pathlib import Path
 
 import click
