@@ -31,8 +31,6 @@ def _create_initial_node(benchmark, node):
             dataset=module_id
         benchmark:
             formatter.format_performance_file(node)
-        log:
-            formatter.format_log(node)
         output:
             formatter.format_output_templates_to_be_expanded(node),
         conda:
@@ -76,8 +74,6 @@ def _create_intermediate_node(benchmark, node):
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         benchmark:
             formatter.format_performance_file(node)
-        log:
-            formatter.format_log(node)
         output:
             formatter.format_output_templates_to_be_expanded(node)
         conda:

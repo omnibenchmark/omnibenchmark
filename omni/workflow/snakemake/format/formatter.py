@@ -12,14 +12,6 @@ class Wildcards(NamedTuple):
     dataset: str
 
 
-def format_log(node: BenchmarkNode) -> str:
-    """Return's a node log file path"""
-
-    outputs = format_output_templates_to_be_expanded(node)
-
-    return op.join(op.dirname(outputs[0]), "{dataset}_run.log")
-
-
 def format_performance_file(node: BenchmarkNode) -> str:
     """Provides a benchmark performance path for a node"""
 

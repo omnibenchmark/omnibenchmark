@@ -1,5 +1,4 @@
-from omni.workflow.snakemake.scripts import parse_performance
+from omni.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
 
 onsuccess:
-    # shell('find out -name "*performance.txt" | sort | xargs head > performances.txt')
     write_combined_performance_file()
