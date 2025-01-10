@@ -82,7 +82,7 @@ def archive_benchmark(
             compression = zipfile.ZIP_LZMA
         case _:
             compression = zipfile.ZIP_STORED
-    zipfile = archive_version(
+    archive_file = archive_version(
         benchmark,
         outdir=Path("."),
         config=True,
@@ -92,7 +92,7 @@ def archive_benchmark(
         compression=compression,
         compresslevel=compresslevel,
     )
-    click.echo(f"Created archive: {zipfile}")
+    click.echo(f"Created archive: {archive_file}")
 
 
 # @cli.command("cite")
