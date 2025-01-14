@@ -59,6 +59,17 @@ jobs:
             .venv
             ${{ env.R_LIBS_USER }}
           key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.r-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      #----------------------------------------------
+      # Setup conda for macos
+      #----------------------------------------------
+      - name: Set up conda for macOS
+        if: matrix.os == 'macos-latest'
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: 'latest'
+          auto-activate-base: false
+
       #----------------------------------------------
       # install dependencies if cache does not exist
       #----------------------------------------------

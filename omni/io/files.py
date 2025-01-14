@@ -94,7 +94,6 @@ def download_files(
         )
         logger.debug(
             f"Downloading {len(ss.files)} files with a total size of {sizeof_fmt(size)} ... ",
-            nl=False,
         )
     for objectname, filename in tqdm.tqdm(
         zip(objectnames, filenames), delay=5, disable=not verbose
@@ -104,7 +103,7 @@ def download_files(
         logger.debug("Done")
 
     if verbose:
-        logger.debug("Checking MD5 checksums... ", nl=False)
+        logger.debug("Checking MD5 checksums... ")
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):

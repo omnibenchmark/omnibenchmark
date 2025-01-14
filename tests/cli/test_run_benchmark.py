@@ -1,7 +1,5 @@
 import re
-import io
 import sys
-import logging
 import tempfile
 from pathlib import Path
 
@@ -16,22 +14,6 @@ benchmark_data_path = Path(__file__).parent / benchmark_data
 minio_testcontainer = MinIOSetup(sys.platform == "linux")
 if sys.platform == "linux":
     tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
-
-
-@pytest.fixture
-def capture_logs():
-    """Fixture to capture log output during tests."""
-    log_stream = io.StringIO()
-    handler = logging.StreamHandler(log_stream)
-    logger = logging.getLogger("omnibenchmark")
-    logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
-
-    yield log_stream  # Yield the stream to the test function
-
-    # Cleanup after the test
-    logger.removeHandler(handler)
-    log_stream.close()
 
 
 def test_remote(capture_logs):

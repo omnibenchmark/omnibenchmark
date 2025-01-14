@@ -11,7 +11,7 @@ from omni.cli.utils.logging import debug_option, logger
 
 
 # import logging
-@click.group()
+@click.group(name="software")
 @click.pass_context
 @debug_option
 def software(ctx):

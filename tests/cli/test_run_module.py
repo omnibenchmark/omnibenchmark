@@ -1,30 +1,10 @@
-import io
-import logging
 import re
 from pathlib import Path
-
-import pytest
 
 from tests.cli.cli_setup import OmniCLISetup
 
 benchmark_path = Path(__file__).parent / ".."
 benchmark_data_path = benchmark_path / "data"
-
-
-@pytest.fixture
-def capture_logs():
-    """Fixture to capture log output during tests."""
-    log_stream = io.StringIO()
-    handler = logging.StreamHandler(log_stream)
-    logger = logging.getLogger("omnibenchmark")
-    logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
-
-    yield log_stream  # Yield the stream to the test function
-
-    # Cleanup after the test
-    logger.removeHandler(handler)
-    log_stream.close()
 
 
 def test_default_entry_module(capture_logs):

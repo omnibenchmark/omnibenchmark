@@ -165,7 +165,7 @@ def checksum_files(benchmark: str):
     """Generate md5sums of all benchmark outputs"""
     from omni.io.files import checksum_files
 
-    logger.info(f"Checking MD5 checksums... ", nl=False)
+    logger.info(f"Checking MD5 checksums... ")
     failed_checks_filenames = checksum_files(benchmark=benchmark, verbose=True)
     if len(failed_checks_filenames) > 0:
         logger.error("Failed checksums:")
