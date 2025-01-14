@@ -26,7 +26,7 @@ def execution(
     dataset: str,
     inputs_map: dict[str, str],
     parameters: List[str],
-):
+) -> int:
     config_parser = _read_config(module_dir, module_name)
 
     executable = config_parser["DEFAULT"]["SCRIPT"]
@@ -63,7 +63,8 @@ def execution(
                 stderr=stderr_f,
                 text=True,
             )
-            return result.stdout
+
+            return result.returncode
 
     except subprocess.CalledProcessError as e:
         logging.error(
@@ -74,6 +75,13 @@ def execution(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
             f"See {stderr_file} for details."
         ) from e
+
+    finally:
+        # Cleanup empty log files
+        if stdout_file.exists() and os.path.getsize(stdout_file) == 0:
+            stdout_file.unlink()
+        if stderr_file.exists() and os.path.getsize(stderr_file) == 0:
+            stderr_file.unlink()
 
 
 def _read_config(module_dir: Path, module_name: str) -> configparser.ConfigParser:
