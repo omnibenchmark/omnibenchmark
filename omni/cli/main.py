@@ -7,7 +7,7 @@ from omni.cli.benchmark import info
 from omni.cli.io import storage
 from omni.cli.run import run
 from omni.cli.soft import software
-from omni.cli.utils.logging import logger, configure_logging
+from omni.cli.utils.logging import configure_logging
 
 
 @click.group()

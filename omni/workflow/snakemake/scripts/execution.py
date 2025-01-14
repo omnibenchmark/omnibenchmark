@@ -26,6 +26,7 @@ def execution(
     dataset: str,
     inputs_map: dict[str, str],
     parameters: List[str],
+    keep_module_logs: bool,
 ) -> int:
     config_parser = _read_config(module_dir, module_name)
 
@@ -77,8 +78,10 @@ def execution(
         ) from e
 
     finally:
-        # Cleanup empty log files
-        if stdout_file.exists() and os.path.getsize(stdout_file) == 0:
+        # Cleanup empty log files / always cleanup stdout_file if keep_module_logs is False
+        if stdout_file.exists() and (
+            os.path.getsize(stdout_file) == 0 or not keep_module_logs
+        ):
             stdout_file.unlink()
         if stderr_file.exists() and os.path.getsize(stderr_file) == 0:
             stderr_file.unlink()

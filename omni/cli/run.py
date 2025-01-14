@@ -13,15 +13,14 @@ from omni.cli.utils.validation import validate_benchmark
 
 
 @click.group(name="run")
-@click.pass_context
 @debug_option
+@click.pass_context
 def run(ctx):
     """Run benchmarks or benchmark modules."""
     ctx.ensure_object(dict)
 
 
 @run.command(name="benchmark")
-@click.pass_context
 @click.option(
     "-b",
     "--benchmark",
@@ -52,7 +51,13 @@ def run(ctx):
     is_flag=True,
     default=False,
 )
-def run_benchmark(ctx, benchmark, threads, update, dry, local):
+@click.option(
+    "--keep-module-logs/--no-keep-module-logs",
+    default=False,
+    help="Keep module-specific log files after execution.",
+)
+@click.pass_context
+def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
 
@@ -87,6 +92,7 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
         cores=threads,
         update=update,
         dryrun=dry,
+        keep_module_logs=keep_module_logs,
         backend=benchmark.get_benchmark_software_backend(),
         **storage_options,
     )
@@ -100,7 +106,6 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
 
 
 @run.command(name="module")
-@click.pass_context
 @click.option(
     "-b",
     "--benchmark",
@@ -125,7 +130,13 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     is_flag=True,
     default=False,
 )
-def run_module(ctx, benchmark, module, input_dir, dry, update):
+@click.option(
+    "--keep-module-logs/--no-keep-module-logs",
+    default=False,
+    help="Keep module-specific log files after execution.",
+)
+@click.pass_context
+def run_module(ctx, benchmark, module, input_dir, dry, update, keep_module_logs):
     """
     Run a specific module that is part of the benchmark.
     """
@@ -230,6 +241,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
+                                    keep_module_logs=keep_module_logs,
                                     backend=benchmark.get_benchmark_software_backend(),
                                 )
 
@@ -274,7 +286,6 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
 
 
 @run.command(no_args_is_help=True, name="validate")
-@click.pass_context
 @click.option(
     "-b",
     "--benchmark",
@@ -282,6 +293,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
     envvar="OB_BENCHMARK",
     type=click.Path(exists=True),
 )
+@click.pass_context
 def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     logger.info("Validating a benchmark yaml.")
