@@ -32,11 +32,11 @@ def _create_initial_node(benchmark, node):
         output:
             formatter.format_output_templates_to_be_expanded(node),
         conda:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda) or "conda.yml"
         envmodules:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "envmodules.yml"
         container:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "apptainer.yml"
         params:
             repository_url = repository_url,
             commit_hash = commit_hash,
@@ -73,11 +73,11 @@ def _create_intermediate_node(benchmark, node):
         output:
             formatter.format_output_templates_to_be_expanded(node)
         conda:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda) or "conda.yml"
         envmodules:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "envmodules.yml"
         container:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "apptainer.yml"
         params:
             inputs_map = inputs_map,
             repository_url = repository_url,
