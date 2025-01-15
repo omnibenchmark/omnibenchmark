@@ -120,8 +120,9 @@ def get_easyconfig_full_path(easyconfig: str) -> str:
     Args:
     - easyconfig (str): easyconfig filename. Doesn't have to be a full path. But readable from the robots path
     """
+
     try:
-        ec_path, ec = parse_easyconfig(op.basename(easyconfig))
+        ec_path, ec = parse_easyconfig(easyconfig)
         return ec_path
     except:
         raise FileNotFoundError("\nERROR: easyconfig not found.\n")
