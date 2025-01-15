@@ -261,13 +261,15 @@ def envmodules_prepare(benchmark, threads):
         benchmark = Benchmark(Path(benchmark))
 
     for easyconfig in benchmark.get_easyconfigs():
-        print(easyconfig)
+        logger.info(f"Building {easyconfig}. It will take some time.")
         ## check the easyconfig exists
         try:
             fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
         except:
             logger.error(
-                "ERROR: easyconfig not found.\n",
+                "ERROR: easyconfig "
+                + fp
+                + " not found, is it within your robot search path?.\n",
             )
             sys.exit()
 
@@ -277,7 +279,6 @@ def envmodules_prepare(benchmark, threads):
         if p.returncode == 0:
             logger.info(p.stdout)
             logger.info("DONE: built " + easyconfig)
-        logger.info("DONE: built all easyconfigs")
 
 
 ## conda #############################################################################################
@@ -331,17 +332,16 @@ def conda_prepare(benchmark):
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
+        bm = Benchmark(Path(benchmark))
 
-    for conda in benchmark.get_conda_envs():
-        if not os.path.isfile(os.path.join("envs", conda)):
+    for conda in bm.get_conda_envs():
+        conda_yaml_path = os.path.join(os.path.dirname(benchmark), conda)
+        if not os.path.isfile(conda_yaml_path):
             logger.error(
-                "ERROR: theconda env file at "
-                + os.path.join("envs", conda)
-                + "does not exist."
+                "ERROR: the conda env file at " + conda_yaml_path + " does not exist"
             )
             sys.exit()
-        conda_backend.pin_conda_envs(os.path.join("envs", conda))
+        conda_backend.pin_conda_envs(conda_yaml_path)
     logger.info("DONE: pinned all conda envs.")
 
 
