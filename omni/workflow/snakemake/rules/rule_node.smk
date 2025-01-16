@@ -31,12 +31,16 @@ def _create_initial_node(benchmark, node):
             dataset=module_id
         output:
             formatter.format_output_templates_to_be_expanded(node)
+
+        # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
+        # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
+        # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
         conda:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda) or "conda_not_provided.yml"
         envmodules:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
         container:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
         params:
             repository_url = repository_url,
             commit_hash = commit_hash,
@@ -72,12 +76,16 @@ def _create_intermediate_node(benchmark, node):
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         output:
             formatter.format_output_templates_to_be_expanded(node)
+
+        # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
+        # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
+        # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
         conda:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda) or "conda_not_provided.yml"
         envmodules:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
         container:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
         params:
             inputs_map = inputs_map,
             repository_url = repository_url,
@@ -129,7 +137,4 @@ def _get_environment_path(benchmark, node, software_backend):
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
 
-    # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
-    # Hence we provide alternative empty string for the environment_path, although it will not affect the normal flow
-    # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
-    return environment_path or ""
+    return environment_path
