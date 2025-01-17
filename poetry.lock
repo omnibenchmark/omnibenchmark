@@ -3575,21 +3575,21 @@ all = ["jinja2", "packaging", "pandas", "pygithub", "pyyaml", "requests", "reret
 
 [[package]]
 name = "snakemake"
-version = "8.27.1"
+version = "8.25.1"
 description = "Workflow management system to create reproducible and scalable data analyses"
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "snakemake-8.27.1-py3-none-any.whl", hash = "sha256:873e6014cb2418db14a6bdf02da4113488095c9cff179407b236ac7976143864"},
-    {file = "snakemake-8.27.1.tar.gz", hash = "sha256:17fb3c80618dae88c236766a0fe45924119351da9bdc9aa2e8f11dbcfd95aded"},
+    {file = "snakemake-8.25.1-py3-none-any.whl", hash = "sha256:02abfacbbd0d252b95458209635e27fe2a72fa97b1989a18796f819fb56a8dee"},
+    {file = "snakemake-8.25.1.tar.gz", hash = "sha256:c8f4442473f3af130f237fe5759ebfb03997b44e713cd7c479aba27d71338cd9"},
 ]
 
 [package.dependencies]
 appdirs = "*"
 conda-inject = ">=1.3.1,<2.0"
 configargparse = "*"
-connection_pool = ">=0.0.3"
+connection-pool = ">=0.0.3"
 datrie = "*"
 docutils = "*"
 dpath = ">=2.1.6,<3.0.0"
@@ -3613,10 +3613,10 @@ snakemake-interface-storage-plugins = ">=3.2.3,<4.0"
 tabulate = "*"
 throttler = "*"
 wrapt = "*"
-yte = ">=1.5.5,<2.0"
+yte = ">=1.5.1,<2.0"
 
 [package.extras]
-messaging = ["slack_sdk"]
+messaging = ["slack-sdk"]
 pep = ["eido", "peppy"]
 reports = ["pygments"]
 
@@ -4096,4 +4096,4 @@ pyyaml = ">=6.0,<7.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "bfd67e21a03e2f1c8883c65b35f950e146ac74b00c671edc381a977c7bf98445"
+content-hash = "ffb1c14eb4c13b2209fb61ad34ff11db0438b12c38e8f3d8c210e92dbedfd8a5"
