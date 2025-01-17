@@ -36,7 +36,7 @@ matplotlib = "3.8.0"
 networkx = "^3.3"
 
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.4"}
-snakemake = "^8.26.0"
+snakemake = "^8.24.0"
 
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
