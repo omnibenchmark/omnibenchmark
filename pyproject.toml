@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "omnibenchmark"
-version = "0.0.0" # Placeholder, managed by poetry-dynamic-versioning
+version = "0.1.0"
 description = "An tool for automated scientific benchmarking"
 authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>", "Daniel Incicau <daniel.incicau@gmail.com>"]
 readme = "README.md"
@@ -14,11 +14,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python"
 ]
-
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-style = "semver"
 
 
 [tool.poetry.dependencies]
@@ -41,7 +36,7 @@ matplotlib = "3.8.0"
 networkx = "^3.3"
 
 omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.4"}
-snakemake = "^8.16.0"
+snakemake = "8.25.1"
 
 easybuild="^4.9.2"
 easybuild-easyblocks="^4.9.2"
@@ -49,7 +44,6 @@ snakedeploy="^0.10.0"
 snakemake-storage-plugin-s3 = "^0.2.12"
 
 pydot = "^3.0.2"
-
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 black = "^23.12.0"
@@ -72,8 +66,8 @@ pytest-timeout = "^2.3.1"
 ob = 'omni.cli.main:cli'
 
 [build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 
 [tool.isort]
