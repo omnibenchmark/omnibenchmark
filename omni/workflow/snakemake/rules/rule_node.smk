@@ -6,14 +6,14 @@ from omni.benchmark import Validator
 from omni.workflow.snakemake import scripts
 from omni.workflow.snakemake.format import formatter
 
-def create_node_rule(node, benchmark):
+def create_node_rule(node, benchmark, config):
     if node.is_initial():
-        return _create_initial_node(benchmark, node)
+        return _create_initial_node(benchmark, node, config)
     else:
-        return _create_intermediate_node(benchmark, node)
+        return _create_intermediate_node(benchmark, node, config)
 
 
-def _create_initial_node(benchmark, node):
+def _create_initial_node(benchmark, node, config):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -45,11 +45,12 @@ def _create_initial_node(benchmark, node):
             repository_url = repository_url,
             commit_hash = commit_hash,
             parameters = node.get_parameters(),
-            dataset = module_id
+            dataset = module_id,
+            keep_module_logs=config['keep_module_logs']
         script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)), 'run_module.py')
 
 
-def _create_intermediate_node(benchmark, node):
+def _create_intermediate_node(benchmark, node, config):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -90,7 +91,8 @@ def _create_intermediate_node(benchmark, node):
             inputs_map = inputs_map,
             repository_url = repository_url,
             commit_hash = commit_hash,
-            parameters = node.get_parameters()
+            parameters = node.get_parameters(),
+            keep_module_logs=config['keep_module_logs']
         script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)), 'run_module.py')
 
 
@@ -114,7 +116,8 @@ def create_standalone_node_rule(node, config):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters=node.get_parameters(),
-                dataset=config['dataset']
+                dataset=config['dataset'],
+                keep_module_logs=config['keep_module_logs']
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
     else:
         rule:
@@ -128,7 +131,8 @@ def create_standalone_node_rule(node, config):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters=node.get_parameters(),
-                dataset=config['dataset']
+                dataset=config['dataset'],
+                keep_module_logs=config['keep_module_logs']
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
 
 

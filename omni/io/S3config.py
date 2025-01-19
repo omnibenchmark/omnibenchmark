@@ -4,6 +4,7 @@ import sys
 
 import click
 
+from omni.cli.utils.logging import logger
 from omni.io.RemoteStorage import DEFAULT_STORAGE_OPTIONS
 
 S3_DEFAULT_STORAGE_OPTIONS = {**DEFAULT_STORAGE_OPTIONS}
@@ -77,15 +78,13 @@ def S3_access_config_from_env() -> dict:
         if "access_key" in auth_options and "secret_key" in auth_options:
             return auth_options
         else:
-            click.echo(
+            logger.error(
                 f"Invalid S3 config, missing access_key or secret_key in config file ({os.environ['OB_STORAGE_S3_CONFIG']})",
-                err=True,
             )
             sys.exit(1)  # raise click.Exit(code=1)
     else:
-        click.echo(
+        logger.error(
             "Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG",
-            err=True,
         )
         sys.exit(1)  # raise click.Exit(code=1)
 

@@ -2,13 +2,12 @@
 
 import warnings
 from pathlib import Path
-from typing import Union
 
-import click
 import tqdm
 import yaml
 
 from omni.benchmark import Benchmark
+from omni.cli.utils.logging import logger
 from omni.io.utils import get_storage, md5, remote_storage_args, sizeof_fmt
 
 
@@ -93,19 +92,18 @@ def download_files(
         size = sum(
             [int(ss.files[objectname]["size"]) for objectname in ss.files.keys()]
         )
-        click.echo(
+        logger.debug(
             f"Downloading {len(ss.files)} files with a total size of {sizeof_fmt(size)} ... ",
-            nl=False,
         )
     for objectname, filename in tqdm.tqdm(
         zip(objectnames, filenames), delay=5, disable=not verbose
     ):
         ss.download_object(objectname, filename)
     if verbose:
-        click.echo("Done")
+        logger.debug("Done")
 
     if verbose:
-        click.echo("Checking MD5 checksums... ", nl=False)
+        logger.debug("Checking MD5 checksums... ")
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):
@@ -113,7 +111,7 @@ def download_files(
         if not etag.replace('"', "") == md5sum_val:
             warnings.warn(f"MD5 checksum failed for {filename}", Warning)
     if verbose:
-        click.echo("Done")
+        logger.debug("Done")
 
     return filenames
 

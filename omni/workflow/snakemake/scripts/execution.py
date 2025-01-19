@@ -26,7 +26,8 @@ def execution(
     dataset: str,
     inputs_map: dict[str, str],
     parameters: List[str],
-):
+    keep_module_logs: bool,
+) -> int:
     config_parser = _read_config(module_dir, module_name)
 
     executable = config_parser["DEFAULT"]["SCRIPT"]
@@ -50,18 +51,40 @@ def execution(
     if parameters:
         command.extend(parameters)
 
+    # Prepare stdout and stderr files in the output directory
+    stdout_file = output_dir / "stdout.log"
+    stderr_file = output_dir / "stderr.log"
+
     try:
-        # Execute the shell script
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-        return result.stdout
+        with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
+            result = subprocess.run(
+                command,
+                check=True,
+                stdout=stdout_f,
+                stderr=stderr_f,
+                text=True,
+            )
+
+            return result.returncode
 
     except subprocess.CalledProcessError as e:
         logging.error(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
+            f"See {stderr_file} for details."
         )
         raise RuntimeError(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
+            f"See {stderr_file} for details."
         ) from e
+
+    finally:
+        # Cleanup empty log files / always cleanup stdout_file if keep_module_logs is False
+        if stdout_file.exists() and (
+            os.path.getsize(stdout_file) == 0 or not keep_module_logs
+        ):
+            stdout_file.unlink()
+        if stderr_file.exists() and os.path.getsize(stderr_file) == 0:
+            stderr_file.unlink()
 
 
 def _read_config(module_dir: Path, module_name: str) -> configparser.ConfigParser:
