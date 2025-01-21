@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import configparser
 
@@ -28,16 +28,21 @@ def execution(
     parameters: List[str],
     keep_module_logs: bool,
 ) -> int:
-    config_parser = _read_config(module_dir, module_name)
+    config_parser = _read_config(module_dir)
+    if config_parser is None:
+        logging.error(f"ERROR: Failed to load config.cfg for {module_name}.")
+        return -1  # return exit_code -1
 
     executable = config_parser["DEFAULT"]["SCRIPT"]
     executable_path = module_dir / executable
     if not os.path.exists(executable_path):
         logging.error(f"ERROR: {module_name} executable does not exist.")
-        raise RuntimeError(f"{module_name} executable does not exist")
+        return -1  # return exit_code -1
 
     # Constructing the command
     command = _create_command(executable_path)
+    if command is None:
+        return -1  # return exit_code -1
 
     # Add output directory and dataset name to command
     command.extend(["--output_dir", output_dir.as_posix(), "--name", dataset])
@@ -64,18 +69,14 @@ def execution(
                 stderr=stderr_f,
                 text=True,
             )
-
-            return result.returncode
+            exit_code = result.returncode
+            logging.info(f"{executable} ran successfully with return code {exit_code}.")
 
     except subprocess.CalledProcessError as e:
+        exit_code = e.returncode
         logging.error(
-            f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
-            f"See {stderr_file} for details."
+            f"ERROR: Executing {executable} failed with exit code {e.returncode}. See {stderr_file} for details."
         )
-        raise RuntimeError(
-            f"ERROR: Executing {executable} failed with exit code {e.returncode}: {e.stdout} {e.stderr} {e.output}"
-            f"See {stderr_file} for details."
-        ) from e
 
     finally:
         # Cleanup empty log files / always cleanup stdout_file if keep_module_logs is False
@@ -86,12 +87,17 @@ def execution(
         if stderr_file.exists() and os.path.getsize(stderr_file) == 0:
             stderr_file.unlink()
 
+    if exit_code is None:
+        logging.error(f"ERROR: Failed to execute {executable}: Unknown error")
+        exit_code = -1
 
-def _read_config(module_dir: Path, module_name: str) -> configparser.ConfigParser:
+    return exit_code
+
+
+def _read_config(module_dir: Path) -> Optional[configparser.ConfigParser]:
     config_path = module_dir / "config.cfg"
     if not os.path.exists(config_path):
-        logging.error(f"ERROR: {module_name} config.cfg does not exist.")
-        raise RuntimeError(f"{module_name} config.cfg does not exist")
+        return None
 
     parser = configparser.ConfigParser()
 
@@ -101,7 +107,7 @@ def _read_config(module_dir: Path, module_name: str) -> configparser.ConfigParse
     return parser
 
 
-def _create_command(executable_path: Path) -> list[str]:
+def _create_command(executable_path: Path) -> Optional[list[str]]:
     _, extension = os.path.splitext(executable_path)
 
     if extension == ".py":
@@ -117,6 +123,4 @@ def _create_command(executable_path: Path) -> list[str]:
         logging.error(
             f"ERROR: Unsupported script extension: {extension}. Only Python/R/Shell scripts are supported."
         )
-        raise RuntimeError(
-            f"Unsupported script extension: {extension}. Only Python/R/Shell scripts are supported."
-        )
+        return None

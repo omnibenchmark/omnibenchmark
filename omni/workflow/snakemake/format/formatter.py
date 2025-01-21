@@ -15,14 +15,15 @@ class Wildcards(NamedTuple):
 def format_performance_file(node: BenchmarkNode) -> str:
     """Provides a benchmark performance path for a node"""
 
-    outputs = format_output_templates_to_be_expanded(node)
-
-    return op.join(op.dirname(outputs[0]), "{dataset}_performance.txt")
+    is_initial = node.is_initial()
+    if is_initial:
+        return "out/{stage}/{module}/{params}/{dataset}_performance.txt"
+    else:
+        return "{pre}/{post}/{dataset}_performance.txt"
 
 
 def format_output_templates_to_be_expanded(node: BenchmarkNode) -> List[str]:
     """Formats node outputs that will be expanded according to Snakemake's engine"""
-
     outputs = node.get_outputs()
     is_initial = node.is_initial()
 

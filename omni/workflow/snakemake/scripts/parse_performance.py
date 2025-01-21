@@ -11,7 +11,7 @@ import os.path as op
 
 def write_combined_performance_file():
     fd = combine_performances()
-    fd.to_csv("performances.tsv", sep="\t", index=False)
+    fd.to_csv(Path("out") / "performances.tsv", sep="\t", index=False)
 
 
 def combine_performances() -> pandas.DataFrame:
