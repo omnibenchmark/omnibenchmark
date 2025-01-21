@@ -7,9 +7,12 @@ from pathlib import Path
 import click
 import yaml
 
+from omni.cli.utils.logging import debug_option, logger
+
 
 @click.group(name="storage")
 @click.pass_context
+@debug_option
 def storage(ctx):
     """Manage remote storage."""
     ctx.ensure_object(dict)
@@ -45,13 +48,12 @@ def create_benchmark_version(benchmark: str):
     )
     ss.set_version(benchmark.get_benchmark_version())
     if ss.version in ss.versions:
-        click.echo(
+        logger.error(
             "Error: version already exists. Cannot overwrite.",
-            err=True,
         )
         sys.exit(1)
     else:
-        click.echo("Create a new benchmark version")
+        logger.info("Create a new benchmark version")
         ss.create_new_version(benchmark)
 
 
@@ -84,10 +86,10 @@ def list_files(
 ):
     """List all or specific files for a benchmark."""
     if file_id is not None:
-        click.echo("--file_id is not implemented")
+        logger.error("--file_id is not implemented")
         sys.exit(1)
     if type != "all":
-        click.echo("--type is not implemented")
+        logger.error("--type is not implemented")
         sys.exit(1)
     from omni.io.files import list_files
 
@@ -96,7 +98,7 @@ def list_files(
     )
     if len(objectnames) > 0:
         for objectname, etag in zip(objectnames, etags):
-            click.echo(f"{etag} {objectname}")
+            logger.info(f"{etag} {objectname}")
 
 
 @storage.command(name="download")
@@ -133,10 +135,10 @@ def download_files(
 ):
     """Download all or specific files for a benchmark."""
     if file_id is not None:
-        click.echo("--file_id is not implemented")
+        logger.error("--file_id is not implemented")
         raise click.Abort()
     if type != "all":
-        click.echo("--type is not implemented")
+        logger.info("--type is not implemented")
         raise click.Abort()
     from omni.io.files import download_files
 
@@ -163,14 +165,14 @@ def checksum_files(benchmark: str):
     """Generate md5sums of all benchmark outputs"""
     from omni.io.files import checksum_files
 
-    click.echo(f"Checking MD5 checksums... ", nl=False)
+    logger.info(f"Checking MD5 checksums... ")
     failed_checks_filenames = checksum_files(benchmark=benchmark, verbose=True)
     if len(failed_checks_filenames) > 0:
-        click.echo("Failed checksums:")
+        logger.error("Failed checksums:")
         for filename in failed_checks_filenames:
-            click.echo(filename)
+            logger.error(filename)
         raise click.Abort()
-    click.echo("Done")
+    logger.info("Done")
 
 
 @storage.command(name="create-policy")
@@ -199,9 +201,7 @@ def create_policy(benchmark: str):
         policy = benchmarker_access_token_policy(
             benchmark.converter.model.storage_bucket_name
         )
-        click.echo(json.dumps(policy, indent=2))
+        logger.error(json.dumps(policy, indent=2))
     else:
-        click.echo(
-            "Error: Invalid storage type. Only MinIO/S3 storage is supported.", err=True
-        )
+        logger.error("Error: Invalid storage type. Only MinIO/S3 storage is supported.")
         raise click.Abort()
