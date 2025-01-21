@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from packaging.version import InvalidVersion, Version
+from packaging.version import Version
 
 from omni.io.exception import RemoteStorageInvalidInputException
 from omni.io.RemoteStorage import (

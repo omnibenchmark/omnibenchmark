@@ -7,10 +7,13 @@ from pathlib import Path
 import click
 import yaml
 
+from omni.cli.utils.logging import debug_option, logger
+
 
 # import logging
-@click.group()
+@click.group(name="software")
 @click.pass_context
+@debug_option
 def software(ctx):
     """Manage and install benchmark-specific software."""
     ctx.ensure_object(dict)
@@ -38,7 +41,7 @@ software.add_command(singularity)
 )
 def singularity_build(easyconfig):
     """Build a singularity (fakeroot) image for a given easyconfig."""
-    click.echo(
+    logger.info(
         f"Installing software for {easyconfig} within a Singularity container. It will take some time."
     )
     from omni.software import common
@@ -53,7 +56,7 @@ def singularity_build(easyconfig):
     try:
         fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
     except:
-        click.echo("ERROR: easyconfig not found.\n", err=True)
+        logger.error("ERROR: easyconfig not found.")
         sys.exit()
 
     ## do
@@ -66,7 +69,7 @@ def singularity_build(easyconfig):
         nthreads=str(len(os.sched_getaffinity(0))),
     )
 
-    click.echo(
+    logger.info(
         "DONE: singularity recipe written for "
         + singularity_recipe
         + "\nDOING: building the image"
@@ -76,10 +79,10 @@ def singularity_build(easyconfig):
         singularity_recipe=singularity_recipe, easyconfig=easyconfig
     )
     if sb.returncode != 0:
-        click.echo("ERROR: " + sb.stderr)
+        logger.error("ERROR: " + sb.stderr)
     if sb.returncode == 0:
-        click.echo(sb.stdout)
-        click.echo("DONE: singularity image built for " + singularity_recipe)
+        logger.info(sb.stdout)
+        logger.info("DONE: singularity image built for " + singularity_recipe)
 
 
 @singularity.command(name="prepare")
@@ -93,7 +96,7 @@ def singularity_build(easyconfig):
 )
 def singularity_prepare(benchmark):
     """Build all singularity (fakeroot) images needed for a benchmark."""
-    click.echo(
+    logger.info(
         f"Installing software for {benchmark} using Singularity containers. It will take some time."
     )
     from omni.benchmark import Benchmark
@@ -115,7 +118,7 @@ def singularity_prepare(benchmark):
         try:
             fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
         except:
-            click.echo("ERROR: easyconfig not found.\n", err=True)
+            logger.error("ERROR: easyconfig not found.")
             sys.exit()
 
         ## do
@@ -128,7 +131,7 @@ def singularity_prepare(benchmark):
             nthreads=str(len(os.sched_getaffinity(0))),
         )
 
-        click.echo(
+        logger.info(
             "DONE: singularity recipe written for "
             + singularity_recipe
             + "\nDOING: building the image"
@@ -138,11 +141,11 @@ def singularity_prepare(benchmark):
             singularity_recipe=singularity_recipe, easyconfig=easyconfig
         )
         if sb.returncode != 0:
-            click.echo("ERROR: " + sb.stderr)
+            logger.error("ERROR: " + sb.stderr)
         if sb.returncode == 0:
-            click.echo(sb.stdout)
-            click.echo("DONE: singularity image built for " + singularity_recipe)
-        click.echo("DONE: singularity images built.")
+            logger.info(sb.stdout)
+            logger.info("DONE: singularity image built for " + singularity_recipe)
+        logger.info("DONE: singularity images built.")
 
 
 @singularity.command(name="push", no_args_is_help=True)
@@ -168,7 +171,7 @@ def singularity_prepare(benchmark):
 )
 def singularity_push(docker_username, docker_password, sif, oras):
     """Pushes a singularity SIF file to an ORAS-compatible registry."""
-    click.echo(f"Pushing {sif} to the registry {oras}.")
+    logger.info(f"Pushing {sif} to the registry {oras}.")
 
     from omni.software import easybuild_backend as eb
 
@@ -178,7 +181,7 @@ def singularity_push(docker_username, docker_password, sif, oras):
         docker_password=docker_password,
         oras=oras,
     )
-    click.echo("DONE\n.")
+    logger.info("DONE\n.")
 
 
 ## envmodules ########################################################################################
@@ -204,7 +207,7 @@ software.add_command(module)
 @click.option("-p", "--threads", type=int, default=2, help="Number of threads.")
 def envmodules_build(easyconfig, threads):
     """Build a given easyconfig (and generates the relevant envmodules)."""
-    click.echo(
+    logger.info(
         f"\nInstalling software for {easyconfig} using easybuild. It will take some time.\n"
     )
 
@@ -223,10 +226,10 @@ def envmodules_build(easyconfig, threads):
 
     p = eb.easybuild_easyconfig(easyconfig=easyconfig, threads=threads)
     if p.returncode != 0:
-        click.echo("ERROR: " + p.stderr)
+        logger.error("ERROR: " + p.stderr)
     if p.returncode == 0:
-        click.echo(p.stdout)
-    click.echo("DONE: built " + easyconfig)
+        logger.info(p.stdout)
+    logger.info("DONE: built " + easyconfig)
 
 
 @module.command(name="prepare", no_args_is_help=True)
@@ -241,7 +244,7 @@ def envmodules_build(easyconfig, threads):
 @click.option("-p", "--threads", default=2, help="Number of threads.", type=int)
 def envmodules_prepare(benchmark, threads):
     """Build all envmodules needed for a given benchmark YAML."""
-    click.echo(
+    logger.info(
         f"Installing software for {benchmark} using envmodules. It will take some time."
     )
     from omni.benchmark import Benchmark
@@ -258,24 +261,24 @@ def envmodules_prepare(benchmark, threads):
         benchmark = Benchmark(Path(benchmark))
 
     for easyconfig in benchmark.get_easyconfigs():
-        print(easyconfig)
+        logger.info(f"Building {easyconfig}. It will take some time.")
         ## check the easyconfig exists
         try:
             fp = eb.get_easyconfig_full_path(easyconfig=easyconfig)
         except:
-            click.echo(
-                "ERROR: easyconfig not found.\n",
-                err=True,
+            logger.error(
+                "ERROR: easyconfig "
+                + fp
+                + " not found, is it within your robot search path?.\n",
             )
             sys.exit()
 
         p = eb.easybuild_easyconfig(easyconfig=easyconfig, threads=threads)
         if p.returncode != 0:
-            click.echo("ERROR: " + p.stderr)
-            if p.returncode == 0:
-                click.echo(p.stdout)
-            click.echo("DONE: built " + easyconfig)
-        click.echo("DONE: built all easyconfigs")
+            logger.error("ERROR: " + p.stderr)
+        if p.returncode == 0:
+            logger.info(p.stdout)
+            logger.info("DONE: built " + easyconfig)
 
 
 ## conda #############################################################################################
@@ -302,11 +305,11 @@ software.add_command(conda)
 )
 def pin_conda_env(conda_env):
     """Pin all conda env-related dependencies versions using snakedeploy."""
-    click.echo(f"Pinning {conda_env} via snakedeploy. It will take some time.")
+    logger.info(f"Pinning {conda_env} via snakedeploy. It will take some time.")
     from omni.software import common, conda_backend
 
     conda_backend.pin_conda_envs(conda_env)
-    click.echo(f"\nDONE: Pinned {conda_env}\n")
+    logger.info(f"\nDONE: Pinned {conda_env}\n")
 
 
 @conda.command(name="prepare")
@@ -320,7 +323,7 @@ def pin_conda_env(conda_env):
 )
 def conda_prepare(benchmark):
     """Pin all conda envs needed for a given benchmark YAML."""
-    click.echo(f"Pinning conda envs for {benchmark}. It will take some time.")
+    logger.info(f"Pinning conda envs for {benchmark}. It will take some time.")
     from omni.benchmark import Benchmark
     from omni.software import common, conda_backend
 
@@ -329,18 +332,17 @@ def conda_prepare(benchmark):
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
+        bm = Benchmark(Path(benchmark))
 
-    for conda in benchmark.get_conda_envs():
-        if not os.path.isfile(os.path.join("envs", conda)):
-            click.echo(
-                "ERROR: theconda env file at "
-                + os.path.join("envs", conda)
-                + "does not exist."
+    for conda in bm.get_conda_envs():
+        conda_yaml_path = os.path.join(os.path.dirname(benchmark), conda)
+        if not os.path.isfile(conda_yaml_path):
+            logger.error(
+                "ERROR: the conda env file at " + conda_yaml_path + " does not exist"
             )
             sys.exit()
-        conda_backend.pin_conda_envs(os.path.join("envs", conda))
-    click.echo("DONE: pinned all conda envs.")
+        conda_backend.pin_conda_envs(conda_yaml_path)
+    logger.info("DONE: pinned all conda envs.")
 
 
 ## general stuff ######################################################################################
@@ -359,7 +361,7 @@ def conda_prepare(benchmark):
 )
 def check(ctx, what):
     """Check whether the component {what} is available."""
-    click.echo(
+    logger.info(
         f"Checking software stack handlers / backends (singularity, easybuild, etc)."
     )
     from omni.software import common
@@ -380,9 +382,9 @@ def check(ctx, what):
             "Bad `--what` value. Please check help (`ob software check --help`)."
         )
     if ret.returncode == 0:
-        click.echo("OK: " + ret.stdout)
+        logger.info("OK: " + ret.stdout)
     else:
-        click.echo("Failed: " + ret.stdout + ret.stderr)
+        logger.error("Failed: " + ret.stdout + ret.stderr)
 
 
 software.add_command(check)
