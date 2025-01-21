@@ -3,7 +3,8 @@ Gathers performance benchmark.txt files and documents the parameters used for ea
 """
 
 import csv
-import typing
+from pathlib import Path
+
 import pandas
 import glob
 import os.path as op
