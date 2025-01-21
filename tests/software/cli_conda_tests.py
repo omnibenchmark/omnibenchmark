@@ -3,7 +3,6 @@ import shlex
 import pytest
 from click.testing import CliRunner
 
-import omni.cli.main
 from omni.cli.main import cli
 
 runner = CliRunner()
@@ -15,7 +14,9 @@ test_cases = [
 
 
 @pytest.mark.parametrize("command, expected_output", test_cases)
-def test_click(command, expected_output):
+def test_click(command, expected_output, capture_logs):
     result = runner.invoke(cli, shlex.split(command))
-    assert expected_output in result.stdout
+    log_output = capture_logs.getvalue()
+
+    assert expected_output in log_output
     assert result.exit_code == 0

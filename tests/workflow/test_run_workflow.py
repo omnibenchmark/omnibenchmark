@@ -15,3 +15,17 @@ def test_run_workflow_001():
         success = setup.workflow.run_workflow(benchmark)
 
         assert success
+
+
+def test_run_workflow_backends_missing():
+    benchmark_file = Path("..") / "data" / "benchmark_some_backends_missing.yaml"
+    benchmark_file_path = Path(__file__).parent / benchmark_file
+
+    with SnakemakeSetup(benchmark_file_path) as setup:
+        benchmark = setup.benchmark
+        assert benchmark.get_benchmark_name() == "some_backends_missing"
+
+        # First run the whole workflow
+        success = setup.workflow.run_workflow(benchmark)
+
+        assert success

@@ -36,7 +36,7 @@ else:
 
 
 class TestCLIMinIOStorage:
-    def test_create_version(self, monkeypatch: pytest.MonkeyPatch):
+    def test_create_version(self, monkeypatch: pytest.MonkeyPatch, capture_logs):
         expected_output = """
         Create a new benchmark version
         """
@@ -62,8 +62,11 @@ class TestCLIMinIOStorage:
                         str(tmp.benchmark_file),
                     ]
                 )
+
+                log_output = capture_logs.getvalue()
+
                 assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
+                assert clean(log_output).startswith(clean(expected_output))
                 ss = MinIOStorage(
                     auth_options=tmp.auth_options, benchmark=tmp.bucket_name
                 )
@@ -71,7 +74,7 @@ class TestCLIMinIOStorage:
                 ss._get_objects()
                 assert "versions/1.0.csv" in ss.files.keys()
 
-    def test_list_files(self, monkeypatch: pytest.MonkeyPatch):
+    def test_list_files(self, monkeypatch: pytest.MonkeyPatch, capture_logs):
         if not sys.platform == "linux":
             pytest.skip(
                 "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
@@ -106,11 +109,15 @@ class TestCLIMinIOStorage:
                         str(tmp.benchmark_file),
                     ]
                 )
-                assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
 
-    def test_download_files(self, monkeypatch: pytest.MonkeyPatch):
+                log_output = capture_logs.getvalue()
+
+                assert result.exit_code == 0
+                assert clean(log_output).startswith(clean(expected_output))
+
+    def test_download_files(self, monkeypatch: pytest.MonkeyPatch, capture_logs):
         expected_output = """Downloading 8 files with a total size of 2.7KiB"""
+
         if not sys.platform == "linux":
             pytest.skip(
                 "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
@@ -122,17 +129,30 @@ class TestCLIMinIOStorage:
             monkeypatch.chdir(tmp.out_dir)
 
             subprocess.run(
-                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                [
+                    "ob",
+                    "run",
+                    "benchmark",
+                    "--benchmark",
+                    tmp.benchmark_file,
+                ],
                 cwd=tmp.out_dir,
             )
             subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
+                [
+                    "ob",
+                    "storage",
+                    "create-version",
+                    "--benchmark",
+                    tmp.benchmark_file,
+                ],
                 cwd=tmp.out_dir,
             )
             with OmniCLISetup() as omni:
                 with omni.runner.isolated_filesystem(tmp.out_dir):
                     result = omni.call(
                         [
+                            "--debug",
                             "storage",
                             "download",
                             "--benchmark",
@@ -140,8 +160,12 @@ class TestCLIMinIOStorage:
                         ]
                     )
                     curtempdir = os.getcwd()
+
+                    log_output = capture_logs.getvalue()
+                    print(f"LOG_OUTPUT: {log_output}")
+
                     assert result.exit_code == 0
-                    assert clean(result.output).startswith(clean(expected_output))
+                    assert clean(log_output).startswith(clean(expected_output))
 
                     # get remote files
                     ss = MinIOStorage(
@@ -160,7 +184,9 @@ class TestCLIMinIOStorage:
                         ]
                     )
 
-    def test_missing_S3_storage_credentials_1(self, monkeypatch: pytest.MonkeyPatch):
+    def test_missing_S3_storage_credentials_1(
+        self, monkeypatch: pytest.MonkeyPatch, capture_logs
+    ):
         expected_output = """Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG"""
         if not sys.platform == "linux":
             pytest.skip(
@@ -185,10 +211,15 @@ class TestCLIMinIOStorage:
                         str(tmp.benchmark_file),
                     ]
                 )
-                assert result.exit_code == 1
-                assert clean(result.output).startswith(clean(expected_output))
 
-    def test_S3_storage_credentials_from_file(self, monkeypatch: pytest.MonkeyPatch):
+                log_output = capture_logs.getvalue()
+
+                assert result.exit_code == 1
+                assert clean(log_output).startswith(clean(expected_output))
+
+    def test_S3_storage_credentials_from_file(
+        self, monkeypatch: pytest.MonkeyPatch, capture_logs
+    ):
         expected_output = """Create a new benchmark version"""
         if not sys.platform == "linux":
             pytest.skip(
@@ -221,10 +252,15 @@ class TestCLIMinIOStorage:
                         str(tmp.benchmark_file),
                     ]
                 )
-                assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
 
-    def test_missing_S3_storage_credentials_2(self, monkeypatch: pytest.MonkeyPatch):
+                log_output = capture_logs.getvalue()
+
+                assert result.exit_code == 0
+                assert clean(log_output).startswith(clean(expected_output))
+
+    def test_missing_S3_storage_credentials_2(
+        self, monkeypatch: pytest.MonkeyPatch, capture_logs
+    ):
         expected_output = (
             """Invalid S3 config, missing access_key or secret_key in config file"""
         )
@@ -260,8 +296,11 @@ class TestCLIMinIOStorage:
                         str(tmp.benchmark_file),
                     ]
                 )
+
+                log_output = capture_logs.getvalue()
+
                 assert result.exit_code == 1
-                assert clean(result.output).startswith(clean(expected_output))
+                assert clean(log_output).startswith(clean(expected_output))
 
 
 def clean(output: str) -> str:
