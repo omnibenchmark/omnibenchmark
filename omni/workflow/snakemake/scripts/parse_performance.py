@@ -9,15 +9,13 @@ import pandas
 import glob
 import os.path as op
 
-IMPLICIT_OUT_DIR = "out"
+
+def write_combined_performance_file(output_path: str):
+    fd = combine_performances(output_path)
+    fd.to_csv(Path(output_path) / "performances.tsv", sep="\t", index=False)
 
 
-def write_combined_performance_file():
-    fd = combine_performances()
-    fd.to_csv(Path(IMPLICIT_OUT_DIR) / "performances.tsv", sep="\t", index=False)
-
-
-def combine_performances() -> (pandas.DataFrame, Path):
+def combine_performances(output_path: str) -> pandas.DataFrame:
     fd = pandas.DataFrame()
 
     perfs = glob.glob("**/**performance.txt", recursive=True)
@@ -26,11 +24,11 @@ def combine_performances() -> (pandas.DataFrame, Path):
         temp_df = pandas.DataFrame(curr, index=[1])
         temp_df["module"] = op.dirname(perf).split("/")[-2]
         temp_df["path"] = (
-            str(Path(perf).relative_to(IMPLICIT_OUT_DIR))
-            if perf.startswith(f"{IMPLICIT_OUT_DIR}/")
+            str(Path(perf).relative_to(output_path))
+            if perf.startswith(f"{output_path}/")
             else perf
         )
-        temp_df["params"] = read_params(perf)
+        temp_df["params"] = read_params(output_path, perf)
         fd = pandas.concat([fd, temp_df], ignore_index=True, axis=0)
 
     return fd
@@ -45,18 +43,18 @@ def read_performance(file_path: str):
             yield record
 
 
-def tokenize(file_path: str):
+def tokenize(output_path: str, file_path: str):
     ## we get only after the 'out' directory
-    fp = file_path.split(f"{IMPLICIT_OUT_DIR}/")[1].split("/")
+    fp = file_path.split(f"{output_path}/")[1].split("/")
     ## and slice in stage/method/params triples
     return [x for x in zip(*(iter(fp),) * 3)]
 
 
-def read_params(file_path: str):
-    triples = tokenize(file_path)
+def read_params(output_path: str, file_path: str):
+    triples = tokenize(output_path, file_path)
     params_path = ""
     res = ""
-    parent = IMPLICIT_OUT_DIR
+    parent = output_path
     for triple in triples:
         parent = op.join(parent, triple[0], triple[1], triple[2])
         if not "default" in triple[2]:
@@ -77,4 +75,4 @@ def read_params(file_path: str):
 # read_params('./out/data/D2/default/process/P2/param_0/methods/M2/param_1/metrics/m1/default/D2_performance.txt')
 
 if __name__ == "__main__":
-    write_combined_performance_file()
+    write_combined_performance_file("out")
