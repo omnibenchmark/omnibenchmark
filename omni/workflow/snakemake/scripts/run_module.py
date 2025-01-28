@@ -97,7 +97,7 @@ def post_execution(
 def append_metric_mapping(
     metric_name: str, output_dir: Path, output_file: str, is_success: bool
 ) -> None:
-    metrics_mapping_file = Path("out") / "metrics.mapping.tsv"
+    metrics_mapping_file = Path("metrics.mapping.tsv")
 
     metric_id = generate_metric_id(metric_name, output_dir, output_file)
     timestamp = datetime.now().isoformat()
