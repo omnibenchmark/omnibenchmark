@@ -58,12 +58,11 @@ class TmpMinIOStorage:
             del self.auth_options_readonly["access_key"]
             del self.auth_options_readonly["secret_key"]
 
-            self.auth_options_readonly[
-                "endpoint"
-            ] = "http://" + self.auth_options_readonly["endpoint"].replace(
-                "http://", ""
-            ).replace(
-                "https://", ""
+            self.auth_options_readonly["endpoint"] = (
+                "http://"
+                + self.auth_options_readonly["endpoint"]
+                .replace("http://", "")
+                .replace("https://", "")
             )
 
             self.bucket_name = testcontainer.bucket_names.pop()
@@ -83,7 +82,9 @@ class TmpMinIOStorage:
             filename_out = "Benchmark_" + self.bucket_name + ".yaml"
             with open(in_dir / "Benchmark_004.yaml", "r") as fh:
                 yaml.safe_load(fh)
-                benchmark_obj = Benchmark(Path(in_dir / "Benchmark_004.yaml"))
+                benchmark_obj = Benchmark(
+                    Path(in_dir / "Benchmark_004.yaml"), out_dir=out_dir
+                )
 
             benchmark_obj.converter.model.storage = self.auth_options["endpoint"]
             benchmark_obj.converter.model.storage_bucket_name = self.bucket_name
