@@ -9,22 +9,27 @@ import pandas
 import glob
 import os.path as op
 
+IMPLICIT_OUT_DIR = "out"
+
 
 def write_combined_performance_file():
     fd = combine_performances()
-    fd.to_csv("performances.tsv", sep="\t", index=False)
+    fd.to_csv(Path(IMPLICIT_OUT_DIR) / "performances.tsv", sep="\t", index=False)
 
 
-def combine_performances() -> pandas.DataFrame:
+def combine_performances() -> (pandas.DataFrame, Path):
     fd = pandas.DataFrame()
 
     perfs = glob.glob("**/**performance.txt", recursive=True)
-
     for perf in perfs:
         curr = read_performance(perf)
         temp_df = pandas.DataFrame(curr, index=[1])
         temp_df["module"] = op.dirname(perf).split("/")[-2]
-        temp_df["path"] = perf
+        temp_df["path"] = (
+            str(Path(perf).relative_to(IMPLICIT_OUT_DIR))
+            if perf.startswith(f"{IMPLICIT_OUT_DIR}/")
+            else perf
+        )
         temp_df["params"] = read_params(perf)
         fd = pandas.concat([fd, temp_df], ignore_index=True, axis=0)
 
@@ -42,7 +47,7 @@ def read_performance(file_path: str):
 
 def tokenize(file_path: str):
     ## we get only after the 'out' directory
-    fp = file_path.split("out/")[1].split("/")
+    fp = file_path.split(f"{IMPLICIT_OUT_DIR}/")[1].split("/")
     ## and slice in stage/method/params triples
     return [x for x in zip(*(iter(fp),) * 3)]
 
@@ -51,7 +56,7 @@ def read_params(file_path: str):
     triples = tokenize(file_path)
     params_path = ""
     res = ""
-    parent = "out"
+    parent = IMPLICIT_OUT_DIR
     for triple in triples:
         parent = op.join(parent, triple[0], triple[1], triple[2])
         if not "default" in triple[2]:

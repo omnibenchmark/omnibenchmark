@@ -122,6 +122,8 @@ def create_standalone_node_rule(node, config):
                 parameters=node.get_parameters(),
                 dataset=config['dataset'],
                 keep_module_logs=config['keep_module_logs']
+            benchmark:
+                node.get_benchmark_path(config)
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
     else:
         rule:
@@ -137,6 +139,8 @@ def create_standalone_node_rule(node, config):
                 parameters=node.get_parameters(),
                 dataset=config['dataset'],
                 keep_module_logs=config['keep_module_logs']
+            benchmark:
+                node.get_benchmark_path(config)
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
 
 

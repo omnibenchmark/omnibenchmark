@@ -97,7 +97,16 @@ def post_execution(
 def append_metric_mapping(
     metric_name: str, output_dir: Path, output_file: str, is_success: bool
 ) -> None:
-    metrics_mapping_file = Path("metrics.mapping.tsv")
+    # Remove cwd from output_dir if it's a prefix
+    cwd = Path(os.getcwd())
+    if output_dir.is_relative_to(cwd):
+        output_dir = output_dir.relative_to(cwd)
+
+    # Split output_dir into root_output_dir and output_dir
+    root_output_dir = output_dir.parts[0]
+    output_dir = Path(*output_dir.parts[1:])
+
+    metrics_mapping_file = Path(root_output_dir) / "metrics.mapping.tsv"
 
     metric_id = generate_metric_id(metric_name, output_dir, output_file)
     timestamp = datetime.now().isoformat()
