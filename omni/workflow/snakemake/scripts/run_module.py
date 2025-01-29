@@ -44,10 +44,12 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
         repo = git.Repo.clone_from(repository_url, module_dir.as_posix())
         repo.git.checkout(commit_hash)
 
+        return repo
+
     lock = module_dir.with_suffix(".lock")
     with FileLock(lock):
         if not module_dir.exists():
-            clone()
+            repo = clone()
         else:
             repo = git.Repo(module_dir.as_posix())
             if repo.bare:
@@ -55,7 +57,7 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
                     f"Removing incomplete repo {module_dir} and retrying..."
                 )
                 shutil.rmtree(module_dir)
-                clone()
+                repo = clone()
 
         if repo.head.commit.hexsha[:7] != commit_hash:
             logging.error(
