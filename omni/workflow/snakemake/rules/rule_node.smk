@@ -41,6 +41,8 @@ def _create_initial_node(benchmark, node, config):
             _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
         container:
             _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
+        benchmark:
+            formatter.format_performance_file(node)
         params:
             repository_url = repository_url,
             commit_hash = commit_hash,
@@ -87,6 +89,8 @@ def _create_intermediate_node(benchmark, node, config):
             _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
         container:
             _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
+        benchmark:
+            formatter.format_performance_file(node)
         params:
             inputs_map = inputs_map,
             repository_url = repository_url,

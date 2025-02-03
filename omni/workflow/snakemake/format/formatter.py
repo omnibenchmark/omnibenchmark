@@ -2,6 +2,7 @@ import re
 from itertools import takewhile
 from pathlib import Path
 from typing import List, Set, Tuple, Union, NamedTuple
+import os.path as op
 
 from omni.benchmark import BenchmarkNode, Benchmark
 
@@ -10,6 +11,14 @@ class Wildcards(NamedTuple):
     pre: str
     post: str
     dataset: str
+
+
+def format_performance_file(node: BenchmarkNode) -> str:
+    """Provides a benchmark performance path for a node"""
+
+    outputs = format_output_templates_to_be_expanded(node)
+
+    return op.join(op.dirname(outputs[0]), "{dataset}_performance.txt")
 
 
 def format_output_templates_to_be_expanded(node: BenchmarkNode) -> List[str]:
