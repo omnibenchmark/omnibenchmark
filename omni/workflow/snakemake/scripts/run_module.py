@@ -3,12 +3,14 @@
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import List
 
 from snakemake.script import Snakemake
+from filelock import FileLock
 
 from omni.workflow.snakemake.scripts.execution import execution
 from omni.workflow.snakemake.scripts.utils import *
@@ -18,7 +20,7 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
     try:
         import git  # Check if gitpython is available
     except ImportError:
-        print("gitpython is not installed. Installing now...")
+        logging.info("gitpython is not installed. Installing now...")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "gitpython==3.1.43"]
         )
@@ -27,23 +29,38 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
     module_name = generate_unique_repo_folder_name(repository_url, commit_hash)
     module_dir = output_dir / module_name
 
-    if not module_dir.exists():
+    def clone():
         logging.info(
             f"Cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
         )
         repo = git.Repo.clone_from(repository_url, module_dir.as_posix())
         repo.git.checkout(commit_hash)
-    else:
-        repo = git.Repo(module_dir.as_posix())
 
-    if repo.head.commit.hexsha[:7] != commit_hash:
-        logging.error(
-            f"ERROR: Failed while cloning module `{repository_url}:{commit_hash}`"
-        )
-        logging.error(f"{commit_hash} does not match {repo.head.commit.hexsha[:7]}`")
-        raise RuntimeError(
-            f"ERROR: {commit_hash} does not match {repo.head.commit.hexsha[:7]}"
-        )
+        return repo
+
+    lock = module_dir.with_suffix(".lock")
+    with FileLock(lock):
+        if not module_dir.exists():
+            repo = clone()
+        else:
+            repo = git.Repo(module_dir.as_posix())
+            if repo.bare:
+                logging.warning(
+                    f"Removing incomplete repo {module_dir} and retrying..."
+                )
+                shutil.rmtree(module_dir)
+                repo = clone()
+
+        if repo.head.commit.hexsha[:7] != commit_hash:
+            logging.error(
+                f"ERROR: Failed while cloning module `{repository_url}:{commit_hash}`"
+            )
+            logging.error(
+                f"{commit_hash} does not match {repo.head.commit.hexsha[:7]}`"
+            )
+            raise RuntimeError(
+                f"ERROR: {commit_hash} does not match {repo.head.commit.hexsha[:7]}"
+            )
 
     return module_dir
 
