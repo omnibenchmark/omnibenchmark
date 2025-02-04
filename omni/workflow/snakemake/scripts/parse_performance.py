@@ -4,28 +4,35 @@ Gathers performance benchmark.txt files and documents the parameters used for ea
 
 import csv
 import glob
+import os.path
 from pathlib import Path
+from typing import List
 
 import pandas
 import os.path as op
 
 
-def write_combined_performance_file(out_dir: Path):
-    fd = combine_performances(out_dir)
+def write_combined_performance_file(out_dir: Path, performance_files: List[str]):
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    fd = combine_performances(out_dir, performance_files)
     fd.to_csv(out_dir / "performances.tsv", sep="\t", index=False)
 
 
-def combine_performances(out_dir: Path) -> pandas.DataFrame:
+def combine_performances(
+    out_dir: Path, performance_files: List[str]
+) -> pandas.DataFrame:
     fd = pandas.DataFrame()
 
-    perfs = glob.glob(str(out_dir / "**/**performance.txt"), recursive=True)
-    for perf in perfs:
-        curr = read_performance(perf)
-        temp_df = pandas.DataFrame(curr, index=[1])
-        temp_df["module"] = op.dirname(perf).split("/")[-2]
-        temp_df["path"] = perf
-        temp_df["params"] = read_params(out_dir, perf)
-        fd = pandas.concat([fd, temp_df], ignore_index=True, axis=0)
+    for perf in performance_files:
+        if os.path.exists(perf):
+            curr = read_performance(perf)
+            temp_df = pandas.DataFrame(curr, index=[1])
+            temp_df["module"] = op.dirname(perf).split("/")[-2]
+            temp_df["path"] = perf
+            temp_df["params"] = read_params(out_dir, perf)
+            fd = pandas.concat([fd, temp_df], ignore_index=True, axis=0)
 
     return fd
 
@@ -68,7 +75,6 @@ def read_params(output_path: Path, file_path: str):
     return res
 
 
-# read_params('./out/data/D2/default/process/P2/param_0/methods/M2/param_1/metrics/m1/default/D2_performance.txt')
-
 if __name__ == "__main__":
-    write_combined_performance_file(Path("out"))
+    files = glob.glob("**/*_performance.txt")
+    write_combined_performance_file(Path("out"), files)

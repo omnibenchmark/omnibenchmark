@@ -18,7 +18,6 @@ INCLUDES = [
     "rule_start_benchmark.smk",
     "rule_node.smk",
     "rule_all.smk",
-    "rule_on_success.smk",
 ]
 
 
@@ -121,7 +120,7 @@ class SnakemakeEngine(WorkflowEngine):
 
             # Create capture all rule
             f.write("all_paths = sorted(benchmark.get_output_paths())\n")
-            f.write("create_all_rule(all_paths)\n\n")
+            f.write("create_all_rule(all_paths, True)\n\n")
 
             # Create node rules
             f.write("nodes = benchmark.get_nodes()\n")

@@ -79,9 +79,7 @@ class TmpMinIOStorage:
             filename_out = "Benchmark_" + self.bucket_name + ".yaml"
             with open(in_dir / "Benchmark_004.yaml", "r") as fh:
                 yaml.safe_load(fh)
-                benchmark_obj = Benchmark(
-                    Path(in_dir / "Benchmark_004.yaml")
-                )
+                benchmark_obj = Benchmark(Path(in_dir / "Benchmark_004.yaml"))
 
             benchmark_obj.converter.model.storage = self.auth_options["endpoint"]
             benchmark_obj.converter.model.storage_bucket_name = self.bucket_name
