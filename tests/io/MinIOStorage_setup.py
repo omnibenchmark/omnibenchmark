@@ -80,7 +80,7 @@ class TmpMinIOStorage:
             with open(in_dir / "Benchmark_004.yaml", "r") as fh:
                 yaml.safe_load(fh)
                 benchmark_obj = Benchmark(
-                    Path(in_dir / "Benchmark_004.yaml"), out_dir=out_dir
+                    Path(in_dir / "Benchmark_004.yaml")
                 )
 
             benchmark_obj.converter.model.storage = self.auth_options["endpoint"]

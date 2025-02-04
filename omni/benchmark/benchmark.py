@@ -1,3 +1,5 @@
+import os.path
+
 import pydot
 
 from omni.benchmark import dag
@@ -9,6 +11,9 @@ from omni.utils import *
 class Benchmark:
     def __init__(self, benchmark_yaml: Path, out_dir: Path = Path("out")):
         self.directory = benchmark_yaml.parent.absolute()
+
+        if not os.path.exists(out_dir):
+            os.mkdir(out_dir)
 
         converter = LinkMLConverter(benchmark_yaml)
         validator = Validator()

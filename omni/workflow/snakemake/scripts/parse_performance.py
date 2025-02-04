@@ -3,10 +3,10 @@ Gathers performance benchmark.txt files and documents the parameters used for ea
 """
 
 import csv
+import glob
 from pathlib import Path
 
 import pandas
-import glob
 import os.path as op
 
 
@@ -18,16 +18,12 @@ def write_combined_performance_file(out_dir: Path):
 def combine_performances(out_dir: Path) -> pandas.DataFrame:
     fd = pandas.DataFrame()
 
-    perfs = glob.glob("**/**performance.txt", recursive=True)
+    perfs = glob.glob(str(out_dir / "**/**performance.txt"), recursive=True)
     for perf in perfs:
         curr = read_performance(perf)
         temp_df = pandas.DataFrame(curr, index=[1])
         temp_df["module"] = op.dirname(perf).split("/")[-2]
-        temp_df["path"] = (
-            str(Path(perf).relative_to(out_dir))
-            if perf.startswith(f"{out_dir}/")
-            else perf
-        )
+        temp_df["path"] = perf
         temp_df["params"] = read_params(out_dir, perf)
         fd = pandas.concat([fd, temp_df], ignore_index=True, axis=0)
 
@@ -43,7 +39,7 @@ def read_performance(file_path: str):
             yield record
 
 
-def tokenize(output_path: str, file_path: str):
+def tokenize(output_path: Path, file_path: str):
     ## we get only after the 'out' directory
     fp = file_path.split(f"{output_path}/")[1].split("/")
     ## and slice in stage/method/params triples
@@ -54,7 +50,7 @@ def read_params(output_path: Path, file_path: str):
     triples = tokenize(output_path, file_path)
     params_path = ""
     res = ""
-    parent = output_path
+    parent = str(output_path)
     for triple in triples:
         parent = op.join(parent, triple[0], triple[1], triple[2])
         if not "default" in triple[2]:
