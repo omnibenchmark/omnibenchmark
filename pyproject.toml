@@ -40,7 +40,7 @@ isort = "^5.13.2"
 matplotlib = "3.8.0"
 networkx = "^3.3"
 
-omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.4"}
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "6bd04e172dd78476375854c38ad814c939553100"}
 snakemake = "8.25.1"
 
 easybuild="^4.9.2"
