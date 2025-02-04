@@ -1,12 +1,9 @@
 import os
 import random
-import re
 import shutil
 import string
-import tempfile
 import time
 from pathlib import Path
-from typing import Union
 
 import minio
 import yaml
@@ -14,7 +11,6 @@ from linkml_runtime.dumpers import yaml_dumper
 from testcontainers.minio import MinioContainer
 
 from omni.benchmark import Benchmark
-from omni.io.MinIOStorage import set_bucket_public_readonly
 
 
 class MinIOSetup:
@@ -72,7 +68,7 @@ class TmpMinIOStorage:
             os.environ["OB_STORAGE_S3_ACCESS_KEY"] = self.auth_options["access_key"]
             os.environ["OB_STORAGE_S3_SECRET_KEY"] = self.auth_options["secret_key"]
 
-    def setup(self, in_dir, out_dir):
+    def setup(self, in_dir: Path, out_dir: Path):
         if self.do_init:
             if not os.path.exists(out_dir):
                 os.mkdir(out_dir)

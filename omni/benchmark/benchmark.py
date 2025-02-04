@@ -7,7 +7,7 @@ from omni.utils import *
 
 
 class Benchmark:
-    def __init__(self, benchmark_yaml: Path, out_dir: str = "out"):
+    def __init__(self, benchmark_yaml: Path, out_dir: Path = Path("out")):
         self.directory = benchmark_yaml.parent.absolute()
 
         converter = LinkMLConverter(benchmark_yaml)

@@ -10,12 +10,12 @@ import glob
 import os.path as op
 
 
-def write_combined_performance_file(output_path: str):
-    fd = combine_performances(output_path)
-    fd.to_csv(Path(output_path) / "performances.tsv", sep="\t", index=False)
+def write_combined_performance_file(out_dir: Path):
+    fd = combine_performances(out_dir)
+    fd.to_csv(out_dir / "performances.tsv", sep="\t", index=False)
 
 
-def combine_performances(output_path: str) -> pandas.DataFrame:
+def combine_performances(out_dir: Path) -> pandas.DataFrame:
     fd = pandas.DataFrame()
 
     perfs = glob.glob("**/**performance.txt", recursive=True)
@@ -24,11 +24,11 @@ def combine_performances(output_path: str) -> pandas.DataFrame:
         temp_df = pandas.DataFrame(curr, index=[1])
         temp_df["module"] = op.dirname(perf).split("/")[-2]
         temp_df["path"] = (
-            str(Path(perf).relative_to(output_path))
-            if perf.startswith(f"{output_path}/")
+            str(Path(perf).relative_to(out_dir))
+            if perf.startswith(f"{out_dir}/")
             else perf
         )
-        temp_df["params"] = read_params(output_path, perf)
+        temp_df["params"] = read_params(out_dir, perf)
         fd = pandas.concat([fd, temp_df], ignore_index=True, axis=0)
 
     return fd
@@ -50,7 +50,7 @@ def tokenize(output_path: str, file_path: str):
     return [x for x in zip(*(iter(fp),) * 3)]
 
 
-def read_params(output_path: str, file_path: str):
+def read_params(output_path: Path, file_path: str):
     triples = tokenize(output_path, file_path)
     params_path = ""
     res = ""
@@ -75,4 +75,4 @@ def read_params(output_path: str, file_path: str):
 # read_params('./out/data/D2/default/process/P2/param_0/methods/M2/param_1/metrics/m1/default/D2_performance.txt')
 
 if __name__ == "__main__":
-    write_combined_performance_file("out")
+    write_combined_performance_file(Path("out"))
