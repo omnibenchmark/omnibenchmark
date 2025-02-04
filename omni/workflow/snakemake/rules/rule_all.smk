@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import List
 
 from omni.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
@@ -19,4 +21,9 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
             run:
                 result = glob_wildcards(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt")
                 performances = expand(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
-                write_combined_performance_file(benchmark.out_dir, performances)
+
+                output_dir = Path(str(os.path.commonpath(output)))
+                if len(output) == 1:
+                    output_dir = Path(os.path.dirname(output_dir))
+
+                write_combined_performance_file(output_dir, performances)
