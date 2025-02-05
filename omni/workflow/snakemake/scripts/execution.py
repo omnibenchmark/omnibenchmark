@@ -24,7 +24,7 @@ def execution(
     module_name: str,
     output_dir: Path,
     dataset: str,
-    inputs_map: dict[str, str],
+    inputs_map: dict[str, str | List[str]],
     parameters: List[str],
     keep_module_logs: bool,
 ) -> int:
@@ -50,7 +50,10 @@ def execution(
     # Adding input files with their respective keys
     if inputs_map:
         for k, v in inputs_map.items():
-            command.extend([f"--{k}", Path(v).as_posix()])
+            if isinstance(v, str):
+                command.extend([f"--{k}", Path(v).as_posix()])
+            elif isinstance(v, list) and all(isinstance(item, str) for item in v):
+                command.extend([f"--{k}"] + [Path(item).as_posix() for item in v])
 
     # Adding extra parameters
     if parameters:

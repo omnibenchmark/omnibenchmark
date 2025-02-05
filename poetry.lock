@@ -2064,7 +2064,7 @@ files = [
 
 [[package]]
 name = "omni-schema"
-version = "0.0.0.post39.dev0+6bd04e1"
+version = "0.0.0.post41.dev0+94c3129"
 description = "Data model for omnibenchmark."
 optional = false
 python-versions = "^3.9"
@@ -2080,8 +2080,8 @@ docs = []
 [package.source]
 type = "git"
 url = "https://github.com/omnibenchmark/omni-schema.git"
-reference = "6bd04e172dd78476375854c38ad814c939553100"
-resolved_reference = "6bd04e172dd78476375854c38ad814c939553100"
+reference = "94c312957f96d218369e5e1bcf7abaf976ed0fbc"
+resolved_reference = "94c312957f96d218369e5e1bcf7abaf976ed0fbc"
 
 [[package]]
 name = "packaging"
@@ -3881,4 +3881,4 @@ pyyaml = ">=6.0,<7.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "465ac0d33484cb553aa71da3c9780e1d537d1984ecf8d8eb818f591f0b9216b1"
+content-hash = "963f7dc9cc4763345cda348cd297bfb65b7c2f5f57f8108cda02dc66bc7bf0d8"

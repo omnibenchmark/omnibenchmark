@@ -25,11 +25,10 @@ metric_collectors:
     name: "Biologically-relevant performance metrics gathering and postprocessing."
     software_environment: "zlib_new"
     repository:
-      url: https://github.com/imallona/clustering_report.git
-      commit: 1bbd286
+      url: https://github.com/omnibenchmark-example/metric-collector.git
+      commit: ef4a601
     inputs:
-      - entries:
-          - metrics.mapping
+      - metrics.mapping
     outputs:
       - "biometrics_report.html"
       - "biometrics.tsv"

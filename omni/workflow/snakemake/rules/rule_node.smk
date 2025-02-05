@@ -1,8 +1,8 @@
 import os
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
-from omni.benchmark import Validator
+from omni.benchmark import Validator, BenchmarkNode
 from omni.workflow.snakemake import scripts
 from omni.workflow.snakemake.format import formatter
 
@@ -144,7 +144,7 @@ def create_standalone_node_rule(node, config):
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
 
 
-def _get_environment_path(benchmark, node, software_backend):
+def _get_environment_path(benchmark: Benchmark, node: BenchmarkNode, software_backend: SoftwareBackendEnum):
     benchmark_dir = benchmark.directory
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)

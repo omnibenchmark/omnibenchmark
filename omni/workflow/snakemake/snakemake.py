@@ -119,13 +119,24 @@ class SnakemakeEngine(WorkflowEngine):
             f.write(f'benchmark = load("{benchmark_file.as_posix()}")\n\n')
 
             # Create capture all rule
-            f.write("all_paths = sorted(benchmark.get_output_paths())\n")
+            f.write("node_paths = sorted(benchmark.get_output_paths())\n")
+            f.write(
+                "mc_paths = sorted(benchmark.get_metric_collector_output_paths())\n"
+            )
+            f.write("all_paths = node_paths + mc_paths\n")
             f.write("create_all_rule(all_paths, True)\n\n")
 
             # Create node rules
             f.write("nodes = benchmark.get_nodes()\n")
             f.write("for node in nodes:\n")
             f.write("    create_node_rule(node, benchmark, config)\n\n")
+
+            # Create metric collector rules
+            f.write("collectors = benchmark.get_metric_collectors()\n")
+            f.write("for collector in collectors:\n")
+            f.write(
+                "    create_metric_collector_rule(benchmark, collector, node_paths)\n\n"
+            )
 
         return snakefile_path
 

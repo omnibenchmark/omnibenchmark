@@ -82,9 +82,9 @@ try:
     snakemake: Snakemake = snakemake
     params = dict(snakemake.params)
 
-    parameters = params["parameters"]
     repository_url = params["repository_url"]
     commit_hash = params["commit_hash"]
+    parameters = params.get("parameters")
     inputs_map = params.get("inputs_map")
     dataset = params.get("dataset")
     if dataset is None:

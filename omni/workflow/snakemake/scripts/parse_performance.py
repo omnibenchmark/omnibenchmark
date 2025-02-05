@@ -42,7 +42,15 @@ def read_performance(file_path: str):
         reader = csv.DictReader(fh, delimiter="\t")
         for record in reader:
             record.pop("h:m:s", None)
-            record = {k: float(v) for k, v in record.items()}
+            for k, v in record.items():
+                # Check for NA or invalid values and handle them
+                if v in ["NA", "none", "", "null"]:
+                    record[k] = 0
+                else:
+                    try:
+                        record[k] = float(v)
+                    except ValueError:
+                        record[k] = 0
             yield record
 
 
