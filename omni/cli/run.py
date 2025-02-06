@@ -44,6 +44,7 @@ def run(ctx):
     default=False,
 )
 @click.option("-d", "--dry", help="Dry run.", is_flag=True, default=False)
+@click.option("-k", "--continue-on-error", help="Go on with independent jobs if a job fails (--keep-going in snakemake).", is_flag=True, default=False)
 @click.option(
     "-l",
     "--local",
@@ -57,7 +58,7 @@ def run(ctx):
     help="Keep module-specific log files after execution.",
 )
 @click.pass_context
-def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs):
+def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs, continue_on_error):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
 
@@ -68,6 +69,13 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs)
     benchmark = validate_benchmark(benchmark)
     workflow: WorkflowEngine = SnakemakeEngine()
 
+    ## it is as --continue_on_error originally
+    if continue_on_error:
+        keepgoing_prompt = click.confirm(
+            "Are you sure you want to run the full benchmark even if some jobs fail?", abort=True
+        )
+        if not keepgoing_prompt:
+            raise click.Abort()
     if update and not dry:
         update_prompt = click.confirm(
             "Are you sure you want to re-run the entire workflow?", abort=True
@@ -92,6 +100,7 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs)
         cores=threads,
         update=update,
         dryrun=dry,
+        continue_on_error=continue_on_error,
         keep_module_logs=keep_module_logs,
         backend=benchmark.get_benchmark_software_backend(),
         **storage_options,
@@ -136,7 +145,7 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs)
     help="Keep module-specific log files after execution.",
 )
 @click.pass_context
-def run_module(ctx, benchmark, module, input_dir, dry, update, keep_module_logs):
+def run_module(ctx, benchmark, module, input_dir, dry, update, keep_module_logs, continue_on_error):
     """
     Run a specific module that is part of the benchmark.
     """
@@ -241,6 +250,7 @@ def run_module(ctx, benchmark, module, input_dir, dry, update, keep_module_logs)
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
+                                    continue_on_error=continue_on_error,
                                     keep_module_logs=keep_module_logs,
                                     backend=benchmark.get_benchmark_software_backend(),
                                 )
