@@ -110,7 +110,19 @@ class Validator:
                         )
                     )
 
-        # Raise ValidationError if there are errors
+        # Validate metric collectors
+        metric_collectors = converter.get_metric_collectors()
+        for collector in metric_collectors:
+            collector_id = collector.id
+            for collector_input in collector.inputs:
+                if collector_input.id not in output_ids:
+                    self.errors.append(
+                        ValidationError(
+                            f"Input with id '{collector_input.id}' for metric collector '{collector_id}' is not valid"
+                        )
+                    )
+
+                # Raise ValidationError if there are errors
         if self.errors:
             raise ValidationError(self.errors)
         else:
