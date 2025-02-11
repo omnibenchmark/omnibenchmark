@@ -149,6 +149,13 @@ def run_benchmark(
     default=False,
 )
 @click.option(
+    "-k",
+    "--continue-on-error",
+    help="Go on with independent jobs if a job fails (--keep-going in snakemake).",
+    is_flag=True,
+    default=False,
+)
+@click.option(
     "--keep-module-logs/--no-keep-module-logs",
     default=False,
     help="Keep module-specific log files after execution.",
