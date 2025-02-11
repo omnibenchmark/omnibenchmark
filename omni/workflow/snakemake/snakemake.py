@@ -58,17 +58,16 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
-
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile,
-            cores,
-            update,
-            dryrun,
-            continue_on_error,
-            keep_module_logs,
-            backend,
-            work_dir,
+            snakefile=snakefile,
+            cores=cores,
+            update=update,
+            dryrun=dryrun,
+            continue_on_error=continue_on_error,
+            keep_module_logs=keep_module_logs,
+            backend=backend,
+            work_dir=work_dir,
             **snakemake_kwargs,
         )
 
@@ -186,16 +185,16 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile,
-            cores,
-            update,
-            dryrun,
-            continue_on_error,
-            keep_module_logs,
-            backend,
-            work_dir,
-            input_dir,
-            dataset,
+            snakefile=snakefile,
+            cores=cores,
+            update=update,
+            dryrun=dryrun,
+            continue_on_error=continue_on_error,
+            keep_module_logs=keep_module_logs,
+            backend=backend,
+            work_dir=work_dir,
+            input_dir=input_dir,
+            dataset=dataset,
             **snakemake_kwargs,
         )
 
@@ -312,7 +311,6 @@ class SnakemakeEngine(WorkflowEngine):
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
-
         argv = [
             "--snakefile",
             str(snakefile),
