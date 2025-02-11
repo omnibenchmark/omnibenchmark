@@ -27,6 +27,7 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
             run:
                 result = glob_wildcards(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt")
                 performances = expand(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
+                performances = sorted(list(set(performances)))
 
                 output_dir = Path(str(os.path.commonpath(output)))
                 if len(output) == 1:
