@@ -30,6 +30,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        continue_on_error: bool = False,
         keep_module_logs: bool = False,
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
@@ -44,6 +45,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            continue_on_error (bool): continue with independent jobs if a job fails. Default: False
             keep_module_logs (bool): keep module-specific log files after execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
@@ -56,16 +58,16 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
-
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile,
-            cores,
-            update,
-            dryrun,
-            keep_module_logs,
-            backend,
-            work_dir,
+            snakefile=snakefile,
+            cores=cores,
+            update=update,
+            dryrun=dryrun,
+            continue_on_error=continue_on_error,
+            keep_module_logs=keep_module_logs,
+            backend=backend,
+            work_dir=work_dir,
             **snakemake_kwargs,
         )
 
@@ -148,6 +150,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        continue_on_error: bool = False,
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", None),
@@ -164,6 +167,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            continue_on_error (bool): continue with independent jobs if a job fails. Default: False
             keep_module_logs (bool): keep module-specific log files after execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
@@ -181,15 +185,16 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile,
-            cores,
-            update,
-            dryrun,
-            keep_module_logs,
-            backend,
-            work_dir,
-            input_dir,
-            dataset,
+            snakefile=snakefile,
+            cores=cores,
+            update=update,
+            dryrun=dryrun,
+            continue_on_error=continue_on_error,
+            keep_module_logs=keep_module_logs,
+            backend=backend,
+            work_dir=work_dir,
+            input_dir=input_dir,
+            dataset=dataset,
             **snakemake_kwargs,
         )
 
@@ -298,6 +303,7 @@ class SnakemakeEngine(WorkflowEngine):
         update: bool,
         dryrun: bool,
         keep_module_logs: bool,
+        continue_on_error: bool,
         backend: SoftwareBackendEnum,
         work_dir: Path,
         input_dir: Optional[Path] = None,
@@ -305,7 +311,6 @@ class SnakemakeEngine(WorkflowEngine):
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
-
         argv = [
             "--snakefile",
             str(snakefile),
@@ -324,6 +329,9 @@ class SnakemakeEngine(WorkflowEngine):
 
         if dryrun:
             argv.append("--dryrun")
+
+        if continue_on_error:
+            argv.append("--keep-going")
 
         if (
             backend == SoftwareBackendEnum.docker
