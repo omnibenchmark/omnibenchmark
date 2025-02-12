@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 
 from omni.benchmark import Benchmark
+from omni_schema.datamodel import omni_schema
 
 # from glob import glob
 # from itertools import chain
@@ -47,22 +48,20 @@ def prepare_archive_software(benchmark: Benchmark) -> List[Path]:
         List[Path]: The filenames of all software to archive.
     """
     # decide on software type
-    which_env = benchmark.get_benchmark_software_backend().text
-    if which_env == "host":
-        return []
-    else:
-        files = []
-        if which_env == "envmodules":
+    which_env = benchmark.get_benchmark_software_backend()
+    files = []
+    if which_env != omni_schema.SoftwareBackendEnum.host:
+        if which_env == omni_schema.SoftwareBackendEnum.envmodules:
             files += prepare_archive_software_easyconfig(benchmark)
-        elif which_env == "apptainer":
+        elif which_env == omni_schema.SoftwareBackendEnum.apptainer:
             files += prepare_archive_software_apptainer(benchmark)
-        elif which_env == "conda":
+        elif which_env == omni_schema.SoftwareBackendEnum.conda:
             files += prepare_archive_software_conda(benchmark)
         else:
             raise NotImplementedError(
                 f"Software backend {which_env} not implemented yet."
             )
-        return files
+    return files
 
 
 def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
