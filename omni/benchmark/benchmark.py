@@ -1,3 +1,6 @@
+import os.path
+from typing import Dict
+
 import pydot
 
 from omni.benchmark import dag
@@ -7,8 +10,11 @@ from omni.utils import *
 
 
 class Benchmark:
-    def __init__(self, benchmark_yaml: Path, out_dir: str = "out"):
+    def __init__(self, benchmark_yaml: Path, out_dir: Path = Path("out")):
         self.directory = benchmark_yaml.parent.absolute()
+
+        if not os.path.exists(out_dir):
+            os.mkdir(out_dir)
 
         converter = LinkMLConverter(benchmark_yaml)
         validator = Validator()
@@ -100,6 +106,18 @@ class Benchmark:
 
         return set(output_paths)
 
+    def get_metric_collector_output_paths(self):
+        collectors = self.get_metric_collectors()
+        output_paths = []
+
+        for collector in collectors:
+            for output in collector.outputs:
+                output_paths.append(
+                    format_mc_output(output, self.out_dir, collector.id)
+                )
+
+        return set(output_paths)
+
     def get_explicit_inputs(self, stage_id: str):
         stage = self.converter.get_stage(stage_id)
         implicit_inputs = self.converter.get_stage_implicit_inputs(stage)
@@ -108,6 +126,9 @@ class Benchmark:
         ]
         return explicit_inputs
 
+    def get_explicit_input(self, input_ids: List[str]) -> Dict[str, str]:
+        return self.converter.get_explicit_inputs(input_ids)
+
     def get_explicit_outputs(self, stage_id: str):
         stage = self.converter.get_stage(stage_id)
         return self.converter.get_stage_outputs(stage)
@@ -115,6 +136,9 @@ class Benchmark:
     def get_available_parameter(self, module_id: str):
         node = next(node for node in self.G.nodes if node.module_id == module_id)
         return node.get_parameters()
+
+    def get_metric_collectors(self):
+        return self.converter.get_metric_collectors()
 
     def export_to_dot(self) -> pydot.Dot:
         pydot_graph = dag.export_to_dot(

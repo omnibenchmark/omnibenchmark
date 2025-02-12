@@ -1,9 +1,12 @@
 import re
 from itertools import takewhile
 from pathlib import Path
-from typing import List, Set, Tuple, Union, NamedTuple
+from typing import List, Set, Tuple, Union, NamedTuple, Dict
+
+from omni_schema.datamodel.omni_schema import MetricCollector
 
 from omni.benchmark import BenchmarkNode, Benchmark
+from omni.utils import format_mc_output
 
 
 class Wildcards(NamedTuple):
@@ -12,9 +15,18 @@ class Wildcards(NamedTuple):
     dataset: str
 
 
+def format_performance_file(node: BenchmarkNode) -> str:
+    """Provides a benchmark performance path for a node"""
+
+    is_initial = node.is_initial()
+    if is_initial:
+        return "out/{stage}/{module}/{params}/{dataset}_performance.txt"
+    else:
+        return "{pre}/{post}/{dataset}_performance.txt"
+
+
 def format_output_templates_to_be_expanded(node: BenchmarkNode) -> List[str]:
     """Formats node outputs that will be expanded according to Snakemake's engine"""
-
     outputs = node.get_outputs()
     is_initial = node.is_initial()
 
@@ -25,9 +37,37 @@ def format_output_templates_to_be_expanded(node: BenchmarkNode) -> List[str]:
     return outputs
 
 
+def format_metric_collector_input(
+    benchmark: Benchmark, collector: MetricCollector, return_as_dict=False
+) -> Dict[str, str] | List[str]:
+    """Formats collector inputs that will be expanded according to Snakemake's engine"""
+    implicit_inputs = [i.id for i in collector.inputs]
+    explicit_inputs = benchmark.get_explicit_input(implicit_inputs)
+
+    if not return_as_dict:
+        inputs = list(explicit_inputs.values())
+    else:
+        inputs = explicit_inputs
+
+    # print(f'Collector Input: {collector.name}: {inputs}')
+    return inputs
+
+
+def format_metric_collector_output(
+    out_dir: Path, collector: MetricCollector
+) -> List[str]:
+    """Formats collector outputs that will be expanded according to Snakemake's engine"""
+    outputs = []
+    for o in collector.outputs:
+        outputs.append(format_mc_output(o, out_dir, collector.id))
+
+    # print(f'Collector Output: {collector.name}: {outputs}')
+    return outputs
+
+
 def format_input_templates_to_be_expanded(
     benchmark: Benchmark, wildcards: Wildcards, return_as_dict=False
-) -> dict[str, str] | list[str]:
+) -> Dict[str, str] | List[str]:
     """Formats benchmark inputs that will be expanded according to Snakemake's engine"""
 
     pre = wildcards.pre

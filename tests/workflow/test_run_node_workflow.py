@@ -40,4 +40,4 @@ def test_run_node_workflow_001():
             benchmark_node_3, input_dir=input_dir, dataset="D1"
         )
 
-        assert success == 1
+        assert success

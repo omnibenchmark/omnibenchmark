@@ -20,6 +20,18 @@ software_environments:
     envmodule: Python_3.12.6_Clustering.lua
     conda: envs/Python_3.12.6_Clustering.yaml
     apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
+metric_collectors:
+  - id: biometrics
+    name: "Biologically-relevant performance metrics gathering and postprocessing."
+    software_environment: "python"
+    repository:
+      url: https://github.com/omnibenchmark-example/metric-collector.git
+      commit: ef4a601
+    inputs:
+      - metrics.mapping
+    outputs:
+      - "biometrics_report.html"
+      - "biometrics.tsv"
 stages:
   - id: data
     modules:
