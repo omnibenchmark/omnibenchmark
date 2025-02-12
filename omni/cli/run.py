@@ -7,12 +7,13 @@ from pathlib import Path
 
 import click
 
-
+from omni.cli.utils.logging import debug_option, logger
 from omni.io.utils import get_storage_from_benchmark
-from omni.cli.validate import validate_benchmark
+from omni.cli.utils.validation import validate_benchmark
 
 
 @click.group(name="run")
+@debug_option
 @click.pass_context
 def run(ctx):
     """Run benchmarks or benchmark modules."""
@@ -20,7 +21,6 @@ def run(ctx):
 
 
 @run.command(name="benchmark")
-@click.pass_context
 @click.option(
     "-b",
     "--benchmark",
@@ -51,10 +51,16 @@ def run(ctx):
     is_flag=True,
     default=False,
 )
-def run_benchmark(ctx, benchmark, threads, update, dry, local):
+@click.option(
+    "--keep-module-logs/--no-keep-module-logs",
+    default=False,
+    help="Keep module-specific log files after execution.",
+)
+@click.pass_context
+def run_benchmark(ctx, benchmark, threads, update, dry, local, keep_module_logs):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
-    from omni.benchmark import Benchmark
+
     from omni.io.utils import remote_storage_snakemake_args
     from omni.workflow.snakemake import SnakemakeEngine
     from omni.workflow.workflow import WorkflowEngine
@@ -80,26 +86,26 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     # -c only controls the number of parallelism for the Snakemake scheduler
     # bioinfo methods are not designed with limited resources in mind (most)
     # Future: Create yaml for communicating resources for individual methods
-    click.echo("Running benchmark...")
+    logger.info("Running benchmark...")
     success = workflow.run_workflow(
         benchmark,
         cores=threads,
         update=update,
         dryrun=dry,
+        keep_module_logs=keep_module_logs,
         backend=benchmark.get_benchmark_software_backend(),
         **storage_options,
     )
 
     if success:
-        click.echo("Benchmark run has finished successfully.")
+        logger.info("Benchmark run has finished successfully.")
     else:
-        click.echo("Benchmark run has failed.", err=True)
+        logger.error("Benchmark run has failed.")
 
-    # raise click.Exit(code=0 if success else 1)
+    sys.exit(0 if success else 1)  # click.Exit(code=0 if success else 1)
 
 
 @run.command(name="module")
-@click.pass_context
 @click.option(
     "-b",
     "--benchmark",
@@ -124,7 +130,13 @@ def run_benchmark(ctx, benchmark, threads, update, dry, local):
     is_flag=True,
     default=False,
 )
-def run_module(ctx, benchmark, module, input_dir, dry, update):
+@click.option(
+    "--keep-module-logs/--no-keep-module-logs",
+    default=False,
+    help="Keep module-specific log files after execution.",
+)
+@click.pass_context
+def run_module(ctx, benchmark, module, input_dir, dry, update, keep_module_logs):
     """
     Run a specific module that is part of the benchmark.
     """
@@ -134,9 +146,8 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
         key: value for key, value in behaviours.items() if value is not None
     }
     if len(non_none_behaviours) >= 2:
-        click.echo(
+        logger.error(
             "Error: Only one of '--input_dir', '--example', or '--all' should be set. Please choose only one option.",
-            err=True,
         )
         sys.exit(1)  # raise click.Exit(code=1)
     else:
@@ -145,19 +156,18 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
 
         if behaviour == "example" or behaviour == "all":
             if behaviour == "example":
-                click.echo("Running module on a predefined remote example dataset.")
+                logger.info("Running module on a predefined remote example dataset.")
             if behaviour == "all":
-                click.echo("Running module on all available remote datasets.")
+                logger.info("Running module on all available remote datasets.")
 
             # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
             # TODO Implement remote execution using remote url from benchmark definition
-            click.echo(
+            logger.error(
                 "Error: Remote execution is not supported yet. Workflows can only be run in local mode.",
-                err=True,
             )
             sys.exit(1)  # raise click.Exit(code=1)
         else:
-            click.echo(f"Running module on a local dataset.")
+            logger.info(f"Running module on a local dataset.")
             benchmark = validate_benchmark(benchmark)
 
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
@@ -165,20 +175,19 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                 [node.is_entrypoint() for node in benchmark_nodes]
             )
             if len(benchmark_nodes) > 0:
-                click.echo(
+                logger.info(
                     f"Found {len(benchmark_nodes)} workflow nodes for module {module}."
                 )
 
                 if not is_entrypoint_module and len(non_none_behaviours) == 0:
-                    click.echo(
+                    logger.error(
                         "Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.",
-                        err=True,
                     )
                     sys.exit(1)  # raise click.Exit(code=1)
                 elif input_dir is None:
                     input_dir = os.getcwd()
 
-                click.echo("Running module benchmark...")
+                logger.info("Running module benchmark...")
 
                 # Check if input path exists and is a directory
                 if os.path.exists(input_dir) and os.path.isdir(input_dir):
@@ -232,17 +241,17 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                                     cores=1,
                                     update=update,
                                     dryrun=dry,
+                                    keep_module_logs=keep_module_logs,
                                     backend=benchmark.get_benchmark_software_backend(),
                                 )
 
                                 if success:
-                                    click.echo(
+                                    logger.info(
                                         "Module run has finished successfully.",
                                     )
                                 else:
-                                    click.echo(
+                                    logger.error(
                                         "Module run has failed.",
-                                        err=True,
                                     )
 
                                 sys.exit(
@@ -250,38 +259,33 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
                                 )  # raise click.Exit(code=0 if success else 1)
 
                         else:
-                            click.echo(
+                            logger.error(
                                 f"Error: The following required input files are missing from the input directory: {missing_files}.",
-                                err=True,
                             )
 
                             sys.exit(1)  # raise click.Exit(code=1)
 
                     else:
-                        click.echo(
+                        logger.error(
                             f"Error: Could not infer the appropriate dataset to run the node workflow on based on the files available in `{input_dir}`. None of the available datasets {benchmark_datasets} match the base names of the files.",
-                            err=True,
                         )
 
                         sys.exit(1)  # raise click.Exit(code=1)
                 else:
-                    click.echo(
+                    logger.error(
                         f"Error: Input directory does not exist or is not a valid directory: `{input_dir}`",
-                        err=True,
                     )
 
                     sys.exit(1)  # raise click.Exit(code=1)
 
             else:
-                click.echo(
+                logger.error(
                     f"Error: Could not find module with id `{module}` in benchmark definition",
-                    err=True,
                 )
                 sys.exit(1)  # raise click.Exit(code=1)
 
 
 @run.command(no_args_is_help=True, name="validate")
-@click.pass_context
 @click.option(
     "-b",
     "--benchmark",
@@ -289,7 +293,8 @@ def run_module(ctx, benchmark, module, input_dir, dry, update):
     envvar="OB_BENCHMARK",
     type=click.Path(exists=True),
 )
+@click.pass_context
 def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
-    click.echo("Validating a benchmark yaml.")
+    logger.info("Validating a benchmark yaml.")
     benchmark = validate_benchmark(benchmark)

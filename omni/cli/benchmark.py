@@ -1,4 +1,5 @@
 """cli commands related to benchmark infos and stats"""
+
 import zipfile
 from pathlib import Path
 
@@ -6,12 +7,15 @@ import click
 import yaml
 from packaging.version import Version
 
-from omni.cli.validate import validate_benchmark
 from omni.io.archive import archive_version
+from omni.io.utils import tree_string_from_list
+from omni.cli.utils.logging import debug_option, logger
+from omni.cli.utils.validation import validate_benchmark
 
 
-@click.group()
+@click.group(name="info")
 @click.pass_context
+@debug_option
 def info(ctx):
     """List benchmarks and/or information about them."""
     ctx.ensure_object(dict)
@@ -64,9 +68,17 @@ def info(ctx):
     help="Compression level.",
     show_default=True,
 )
+@click.option(
+    "-n",
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Do not create the archive, just show what would be done.",
+    show_default=True,
+)
 @click.pass_context
 def archive_benchmark(
-    ctx, benchmark, code, software, results, compression, compresslevel
+    ctx, benchmark, code, software, results, compression, compresslevel, dry_run
 ):
     """Archive a benchmark"""
     benchmark = validate_benchmark(benchmark, echo=False)
@@ -91,8 +103,12 @@ def archive_benchmark(
         results=results,
         compression=compression,
         compresslevel=compresslevel,
+        dry_run=dry_run,
     )
-    click.echo(f"Created archive: {archive_file}")
+    if dry_run:
+        click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")
+    else:
+        click.echo(f"Created archive: {archive_file}")
 
 
 # @cli.command("cite")
@@ -107,7 +123,7 @@ def archive_benchmark(
 #     ],
 # ):
 #     """Get the citation for a specific benchmark."""
-#     typer.echo(f"Citation for benchmark: {benchmark}")
+#     logger.info(f"Citation for benchmark: {benchmark}")
 
 
 @info.command("diff")
@@ -136,7 +152,7 @@ def archive_benchmark(
 @click.pass_context
 def diff_benchmark(ctx, benchmark, version1, version2):
     """Show differences between 2 benchmark versions."""
-    click.echo(
+    logger.info(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
     from datetime import datetime
@@ -215,7 +231,7 @@ def diff_benchmark(ctx, benchmark, version1, version2):
 @click.pass_context
 def list_versions(ctx, benchmark):
     """List all available benchmarks versions at a specific endpoint."""
-    click.echo(f"Available versions of {benchmark}:")
+    logger.info(f"Available versions of {benchmark}:")
     from omni.benchmark import Benchmark
     from omni.io.utils import get_storage, remote_storage_args
 

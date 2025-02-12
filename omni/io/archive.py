@@ -178,6 +178,7 @@ def archive_version(
     results: bool = False,
     compression=zipfile.ZIP_STORED,
     compresslevel: int = None,
+    dry_run: bool = False,
 ):
     # retrieve all filenames to save
     filenames = []
@@ -208,15 +209,18 @@ def archive_version(
     if results:
         filenames += prepare_archive_results(benchmark)
 
-    # save all files to zip archive
-    outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
-    with zipfile.ZipFile(
-        outdir / outfile, "w", compression=compression, compresslevel=compresslevel
-    ) as archive:
-        for filename in filenames:
-            archive.write(filename, filename)
+    if dry_run:
+        return filenames
+    else:
+        # save all files to zip archive
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
+        with zipfile.ZipFile(
+            outdir / outfile, "w", compression=compression, compresslevel=compresslevel
+        ) as archive:
+            for filename in filenames:
+                archive.write(filename, filename)
 
-    return outdir / outfile
+        return outdir / outfile
 
 
 # archive_version(benchmark, outdir=Path(), config=True, code=True, software=False, results=False)

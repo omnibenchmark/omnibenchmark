@@ -5,6 +5,7 @@ import hashlib
 from omni.benchmark import Benchmark
 from omni.io.MinIOStorage import MinIOStorage
 from omni.io.S3config import S3_access_config_from_env
+from collections import defaultdict
 
 # from omni_schema.datamodel.omni_schema import StorageAPIEnum
 
@@ -74,9 +75,9 @@ def remote_storage_args(benchmark: Benchmark) -> dict:
         auth_options = S3_access_config_from_env()
         base_dic = {
             "endpoint": benchmark.converter.model.storage,
-            "secure": True
-            if benchmark.converter.model.storage.startswith("https")
-            else False,
+            "secure": (
+                True if benchmark.converter.model.storage.startswith("https") else False
+            ),
         }
         if "access_key" in auth_options and "secret_key" in auth_options:
             auth_dic = {
@@ -106,3 +107,23 @@ def remote_storage_snakemake_args(benchmark: Benchmark) -> dict:
         }
     else:
         raise ValueError("Invalid storage api")
+
+
+def tree_string_from_list(file_list):
+    tree = lambda: defaultdict(tree)
+    file_tree = tree()
+
+    for file_path in file_list:
+        parts = file_path.parts
+        current_level = file_tree
+        for part in parts:
+            current_level = current_level[part]
+
+    def print_tree(current_level, indent=""):
+        out = ""
+        for key, subtree in current_level.items():
+            out += f"{indent}{key}/\n"
+            out += print_tree(subtree, indent + "    ")
+        return out
+
+    return print_tree(file_tree)

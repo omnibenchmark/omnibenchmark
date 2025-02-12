@@ -30,6 +30,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        keep_module_logs: bool = False,
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", None),
@@ -43,6 +44,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            keep_module_logs (bool): keep module-specific log files after execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
@@ -57,7 +59,14 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Prepare the argv list
         argv = self._prepare_argv(
-            snakefile, cores, update, dryrun, backend, work_dir, **snakemake_kwargs
+            snakefile,
+            cores,
+            update,
+            dryrun,
+            keep_module_logs,
+            backend,
+            work_dir,
+            **snakemake_kwargs,
         )
 
         if module_path:
@@ -116,7 +125,7 @@ class SnakemakeEngine(WorkflowEngine):
             # Create node rules
             f.write("nodes = benchmark.get_nodes()\n")
             f.write("for node in nodes:\n")
-            f.write("    create_node_rule(node, benchmark)\n\n")
+            f.write("    create_node_rule(node, benchmark, config)\n\n")
 
         return snakefile_path
 
@@ -128,6 +137,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
+        keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
@@ -143,6 +153,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
+            keep_module_logs (bool): keep module-specific log files after execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
@@ -163,6 +174,7 @@ class SnakemakeEngine(WorkflowEngine):
             cores,
             update,
             dryrun,
+            keep_module_logs,
             backend,
             work_dir,
             input_dir,
@@ -274,6 +286,7 @@ class SnakemakeEngine(WorkflowEngine):
         cores: int,
         update: bool,
         dryrun: bool,
+        keep_module_logs: bool,
         backend: SoftwareBackendEnum,
         work_dir: Path,
         input_dir: Optional[Path] = None,
@@ -292,6 +305,7 @@ class SnakemakeEngine(WorkflowEngine):
             "--config",
             f"input={str(input_dir)}",
             f"dataset={dataset}",
+            f"keep_module_logs={keep_module_logs}",
         ]
 
         if update:

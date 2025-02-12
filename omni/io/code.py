@@ -5,6 +5,7 @@ import shutil
 import tarfile
 from pathlib import Path
 from typing import List
+from filelock import FileLock
 
 import requests
 from git import Repo
@@ -91,47 +92,46 @@ def get_git_archive(output_dir: Path, repository_url: str, commit_hash: str) -> 
         raise ValueError(f"Unknown git provider in {repository_url}")
 
 
-def clone_module(
-    output_dir: Path, repository_url: str, commit_hash: str, overwrite: bool = False
-) -> Path:
+def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
     module_name = generate_unique_repo_folder_name(repository_url, commit_hash)
     module_dir = output_dir / module_name
 
-    if module_dir.exists() and overwrite:
-        shutil.rmtree(module_dir)
+    lock = module_dir.with_suffix(".lock")
+    with FileLock(lock):
+        if not module_dir.exists():
+            try:
+                logging.info(
+                    f"Get git archive `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
+                )
+                get_git_archive(module_dir, repository_url, commit_hash)
+                observed_commit_hash = commit_hash
+            except Exception as e:
+                logging.info(
+                    f"Archival retirieval failed, cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
+                )
+                repo = Repo.clone_from(repository_url, module_dir.as_posix())
+                repo.git.checkout(commit_hash)
+                observed_commit_hash = repo.head.commit.hexsha[:7]
+        else:
+            try:
+                repo = Repo(module_dir.as_posix())
+                observed_commit_hash = repo.head.commit.hexsha[:7]
+            except InvalidGitRepositoryError:
+                # is archive
+                observed_commit_hash = commit_hash
+            except Exception as e:
+                observed_commit_hash = "known"
 
-    if not module_dir.exists():
-        try:
-            logging.info(
-                f"Get git archive `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
+        if observed_commit_hash != commit_hash:
+            logging.error(
+                f"ERROR: Failed while cloning module `{repository_url}:{commit_hash}`"
             )
-            get_git_archive(module_dir, repository_url, commit_hash)
-            observed_commit_hash = commit_hash
-        except Exception as e:
-            logging.info(
-                f"Archival retirieval failed, cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
+            logging.error(
+                f"{commit_hash} does not match {repo.head.commit.hexsha[:7]}`"
             )
-            repo = Repo.clone_from(repository_url, module_dir.as_posix())
-            repo.git.checkout(commit_hash)
-            observed_commit_hash = repo.head.commit.hexsha[:7]
-    else:
-        try:
-            repo = Repo(module_dir.as_posix())
-            observed_commit_hash = repo.head.commit.hexsha[:7]
-        except InvalidGitRepositoryError:
-            # is archive
-            observed_commit_hash = commit_hash
-        except Exception as e:
-            observed_commit_hash = "known"
-
-    if observed_commit_hash != commit_hash:
-        logging.error(
-            f"ERROR: Failed while cloning module `{repository_url}:{commit_hash}`"
-        )
-        logging.error(f"{commit_hash} does not match {repo.head.commit.hexsha[:7]}`")
-        raise RuntimeError(
-            f"ERROR: {commit_hash} does not match {repo.head.commit.hexsha[:7]}"
-        )
+            raise RuntimeError(
+                f"ERROR: {commit_hash} does not match {repo.head.commit.hexsha[:7]}"
+            )
 
     return module_dir
 

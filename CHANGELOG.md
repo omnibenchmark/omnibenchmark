@@ -3,6 +3,16 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-rc.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.3)
+- cli: added dynamic versioning managed by poetry-dynamic-versioning , using a semvar style.
+- cli: added `ob --version` which outputs the current version of the cli
+- logging: added uniform logging + configuration and management across the whole codebase, no longer using click.echo, rather logger.log
+- ci/cd: added a black pre-commit hook
+- logging and workflow: for each rule execution, subprocess.stdout and subprocess.stderr, if not empty, are kept as logs next to the rule output(s)
+- software: fixes path checks on `ob software conda prepare -b [yaml]`
+- workflow: modifies rule generation to populate software (conda, envmodules, container) directives defensively to align with snakemake>8.25.2
+
+
 ## [0.1.0-rc.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.2)
 - example: added a realistic `tests/data/Clustering.yaml` defining a clustering benchmark 
 - tests: replaced `tests/data/Benchmark_001.yaml` by `tests/data/Clustering.yaml` during benchmark execution testing (e.g. envmodules)

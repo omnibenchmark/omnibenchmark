@@ -21,6 +21,8 @@ try:
     if dataset is None:
         dataset = getattr(snakemake.wildcards, "dataset", "unknown")
 
+    keep_module_logs = params.get("keep_module_logs", False)
+
     # Create parameters file for outputs
     output_dir = os.path.dirname(snakemake.output[0])
     dump_parameters_to_file(output_dir, parameters)
@@ -43,6 +45,7 @@ try:
         dataset=dataset,
         inputs_map=inputs_map,
         parameters=parameters,
+        keep_module_logs=keep_module_logs,
     )
 
 except NameError:
