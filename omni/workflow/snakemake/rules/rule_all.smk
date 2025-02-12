@@ -54,7 +54,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
     rule:
         name: f"metric_collector_{{name}}".format(name=collector.id)
         input:
-            updated_inputs
+            expand(updated_inputs, allow_missing=True)
         output:
             formatter.format_metric_collector_output(benchmark.out_dir, collector)
 
