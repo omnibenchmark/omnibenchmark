@@ -213,7 +213,6 @@ class TestMinIOStorage:
 
     def test_filter_with_benchmark(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp = TmpMinIOStorage(minio_testcontainer)
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
             result = ss.client.put_object(
                 ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
@@ -235,6 +234,32 @@ class TestMinIOStorage:
             ss._get_objects()
             assert all(
                 [f not in ss.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
+            )
+
+    def test_store_software_and_config_with_benchmark(self):
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
+            benchmark = str(benchmark_data_path / "Clustering.yaml")
+            print(benchmark)
+            with open(benchmark, "r") as fh:
+                yaml.safe_load(fh)
+                benchmark = Benchmark(Path(benchmark))
+            from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
+            benchmark.converter.model.software_backend = SoftwareBackendEnum("conda")
+            ss.set_version("0.3")
+            ss.create_new_version(benchmark)
+            ss._get_objects()
+            ss.files.keys()
+            assert all(
+                [
+                    f in ss.files.keys()
+                    for f in [
+                        "software/R_4.4.1_Clustering.yaml",
+                        "software/Python_3.12.6_Clustering.yaml",
+                        "config/benchmark.yaml",
+                    ]
+                ]
             )
 
 

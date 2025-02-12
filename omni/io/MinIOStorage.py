@@ -22,6 +22,7 @@ from omni.io.exception import (
     MinIOStorageConnectionException,
     RemoteStorageInvalidInputException,
 )
+from omni.io.archive import prepare_archive_software
 from omni.io.RemoteStorage import RemoteStorage
 from omni.io.S3config import S3_DEFAULT_STORAGE_OPTIONS, bucket_readonly_policy
 from omni.io.S3versioning import get_s3_object_versions_and_tags
@@ -190,6 +191,22 @@ class MinIOStorage(RemoteStorage):
                 io.BytesIO(bmstr.encode()),
                 len(bmstr),
             )
+
+            # read software files
+            software_files = prepare_archive_software(benchmark)
+
+            # upload software files
+            for software_file in software_files:
+                print(software_file)
+                with open(software_file, "r") as fh:
+                    softstr = fh.read()
+
+                _ = self.client.put_object(
+                    self.benchmark,
+                    f"software/{software_file.name}",
+                    io.BytesIO(softstr.encode()),
+                    len(softstr),
+                )
 
         # get all objects
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
