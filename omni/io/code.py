@@ -10,14 +10,7 @@ from filelock import FileLock
 import requests
 from git import Repo
 from git.exc import InvalidGitRepositoryError
-
-
-# Create a unique folder name based on the repository URL and commit hash
-def generate_unique_repo_folder_name(repo_url, commit_hash):
-    unique_string = f"{repo_url}@{commit_hash}"
-    folder_name = hashlib.md5(unique_string.encode()).hexdigest()
-
-    return folder_name
+from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_name
 
 
 # Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
