@@ -2,12 +2,16 @@
 
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 import click
 import yaml
 
+from omni.io.archive import archive_version
+from omni.io.utils import tree_string_from_list
 from omni.cli.utils.logging import debug_option, logger
+from omni.cli.utils.validation import validate_benchmark
 
 
 @click.group(name="storage")
@@ -205,3 +209,100 @@ def create_policy(benchmark: str):
     else:
         logger.error("Error: Invalid storage type. Only MinIO/S3 storage is supported.")
         raise click.Abort()
+
+
+@storage.command("archive")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "-c",
+    "--code",
+    help="Archive benchmarking code (repos).",
+    is_flag=True,
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "-s",
+    "--software",
+    help="Archive software environments.",
+    is_flag=True,
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "-r",
+    "--results",
+    help="Archive results files.",
+    is_flag=True,
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "--compression",
+    type=click.Choice(["none", "deflated", "bzip2", "lzma"], case_sensitive=False),
+    default="none",
+    help="Compression method.",
+    show_default=True,
+)
+@click.option(
+    "--compresslevel",
+    type=int,
+    default=None,
+    help="Compression level.",
+    show_default=True,
+)
+@click.option(
+    "-n",
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Do not create the archive, just show what would be done.",
+    show_default=True,
+)
+@click.option(
+    "-l",
+    "--local",
+    help="Execute and store results locally. Default False.",
+    is_flag=True,
+    default=False,
+)
+@click.pass_context
+def archive_benchmark(
+    ctx, benchmark, code, software, results, compression, compresslevel, dry_run, local
+):
+    """Archive a benchmark"""
+    benchmark = validate_benchmark(benchmark, echo=False)
+
+    match compression:
+        case "none":
+            compression = zipfile.ZIP_STORED
+        case "deflated":
+            compression = zipfile.ZIP_DEFLATED
+        case "bzip2":
+            compression = zipfile.ZIP_BZIP2
+        case "lzma":
+            compression = zipfile.ZIP_LZMA
+        case _:
+            compression = zipfile.ZIP_STORED
+    archive_file = archive_version(
+        benchmark,
+        outdir=Path("."),
+        config=True,
+        code=code,
+        software=software,
+        results=results,
+        compression=compression,
+        compresslevel=compresslevel,
+        dry_run=dry_run,
+    )
+    if dry_run:
+        click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")
+    else:
+        click.echo(f"Created archive: {archive_file}")

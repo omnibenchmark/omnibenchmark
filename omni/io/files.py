@@ -17,22 +17,9 @@ def list_files(
     stage: str = None,
     module: str = None,
     file_id: str = None,
+    local: bool = False,
 ):
     """List all available files for a certain benchmark, version and stage"""
-
-    with open(benchmark, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
-
-    auth_options = remote_storage_args(benchmark)
-
-    ss = get_storage(
-        str(benchmark.converter.model.storage_api),
-        auth_options,
-        str(benchmark.converter.model.storage_bucket_name),
-    )
-    ss.set_version(benchmark.get_benchmark_version())
-    ss._get_objects()
 
     all_files = benchmark.get_output_paths()
     expected_files = []
@@ -50,11 +37,37 @@ def list_files(
         if not filter_stage and not filter_module:
             expected_files.append(file.replace("{dataset}", file.split("/")[2]))
 
-    files = {k: v for k, v in ss.files.items() if k in expected_files}
+    if not local:
+        with open(benchmark, "r") as fh:
+            yaml.safe_load(fh)
+            benchmark = Benchmark(Path(benchmark))
 
-    # get urls
-    objectnames = list(files.keys())
-    etags = [files[objectname]["etag"] for objectname in objectnames]
+        auth_options = remote_storage_args(benchmark)
+
+        ss = get_storage(
+            str(benchmark.converter.model.storage_api),
+            auth_options,
+            str(benchmark.converter.model.storage_bucket_name),
+        )
+        ss.set_version(benchmark.get_benchmark_version())
+        ss._get_objects()
+        files = {k: v for k, v in ss.files.items() if k in expected_files}
+
+        # get urls
+        objectnames = list(files.keys())
+        etags = [files[objectname]["etag"] for objectname in objectnames]
+
+    else:
+        file_local_is_local = [Path(f).is_file() for f in expected_files]
+        if not all(file_local_is_local):
+            logger.warning("Not all expected files are available locally")
+            logger.info("Missing files:")
+            for i, f in enumerate(expected_files):
+                if not file_local_is_local[i]:
+                    logger.info(f)
+        # make unique
+        objectnames = list(set(expected_files))
+        etags = []
 
     return objectnames, etags
 
