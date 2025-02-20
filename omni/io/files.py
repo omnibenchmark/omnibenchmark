@@ -20,6 +20,9 @@ def list_files(
     local: bool = False,
 ):
     """List all available files for a certain benchmark, version and stage"""
+    with open(benchmark, "r") as fh:
+        yaml.safe_load(fh)
+        benchmark = Benchmark(Path(benchmark))
 
     all_files = benchmark.get_output_paths()
     expected_files = []
@@ -38,10 +41,6 @@ def list_files(
             expected_files.append(file.replace("{dataset}", file.split("/")[2]))
 
     if not local:
-        with open(benchmark, "r") as fh:
-            yaml.safe_load(fh)
-            benchmark = Benchmark(Path(benchmark))
-
         auth_options = remote_storage_args(benchmark)
 
         ss = get_storage(
