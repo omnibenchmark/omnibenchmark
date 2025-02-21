@@ -213,8 +213,15 @@ def archive_version(
     if dry_run:
         return filenames
     else:
+        match compression:
+            case zipfile.ZIP_BZIP2:
+                file_extension = ".bz2"
+            case zipfile.ZIP_LZMA:
+                file_extension = ".xz"
+            case _:
+                file_extension = ".zip"
         # save all files to zip archive
-        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}{file_extension}"
         with zipfile.ZipFile(
             outdir / outfile, "w", compression=compression, compresslevel=compresslevel
         ) as archive:
