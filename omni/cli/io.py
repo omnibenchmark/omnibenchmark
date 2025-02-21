@@ -130,12 +130,21 @@ def list_files(
 @click.option(
     "-i", "--id", "file_id", help="File id to download.", type=str, default=None
 )
+@click.option(
+    "-o",
+    "--overwrite",
+    help="Overwrite existing files.",
+    is_flag=True,
+    default=False,
+    show_default=True,
+)
 def download_files(
     benchmark: str,
     type: str = "all",
     stage: str = None,
     module: str = None,
     file_id: str = None,
+    overwrite: bool = False,
 ):
     """Download all or specific files for a benchmark."""
     if file_id is not None:
@@ -153,6 +162,7 @@ def download_files(
         module=module,
         file_id=file_id,
         verbose=True,
+        overwrite=overwrite,
     )
 
 

@@ -175,6 +175,7 @@ def prepare_archive_results(benchmark: Benchmark, local: bool = False) -> List[P
             stage=None,
             module=None,
             file_id=None,
+            overwrite=True,
         )
     return objectnames
 

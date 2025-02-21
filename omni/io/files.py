@@ -78,6 +78,7 @@ def download_files(
     module: str = None,
     file_id: str = None,
     verbose: bool = False,
+    overwrite: bool = False,
 ):
     """Download all available files for a certain benchmark, version and stage"""
 
@@ -100,17 +101,39 @@ def download_files(
     ss.set_version(benchmark.get_benchmark_version())
     ss._get_objects()
 
+    logger.debug(f"Checking if files are already downloaded... ")
+    do_download_file = []
+    for filename, etag in tqdm.tqdm(
+        zip(filenames, etags), delay=5, disable=not verbose
+    ):
+        if Path(filename).is_file():
+            if etag.replace('"', "") == md5(filename):
+                do_download_file.append(False)
+            else:
+                if overwrite:
+                    do_download_file.append(True)
+                else:
+                    do_download_file.append(False)
+        else:
+            do_download_file.append(True)
+
     if verbose:
         size = sum(
-            [int(ss.files[objectname]["size"]) for objectname in ss.files.keys()]
+            [
+                int(ss.files[objectname]["size"])
+                for objectname, do_download in zip(ss.files.keys(), do_download_file)
+                if do_download
+            ]
         )
         logger.debug(
-            f"Downloading {len(ss.files)} files with a total size of {sizeof_fmt(size)} ... ",
+            f"Downloading {sum(do_download_file)} files with a total size of {sizeof_fmt(size)} ... ",
         )
-    for objectname, filename in tqdm.tqdm(
-        zip(objectnames, filenames), delay=5, disable=not verbose
+
+    for objectname, filename, do_download in tqdm.tqdm(
+        zip(objectnames, filenames, do_download_file), delay=5, disable=not verbose
     ):
-        ss.download_object(objectname, filename)
+        if do_download:
+            ss.download_object(objectname, filename)
     if verbose:
         logger.debug("Done")
 
