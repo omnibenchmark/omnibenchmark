@@ -1,6 +1,7 @@
 import zipfile
 from pathlib import Path
 from typing import List
+import os
 
 from omni.benchmark import Benchmark
 from omni_schema.datamodel import omni_schema
@@ -77,12 +78,16 @@ def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        envmodule_file = benchmark.directory / Path(softenv.envmodule)
+        envmodule_file = (benchmark.directory / Path(softenv.envmodule)).relative_to(
+            Path(os.getcwd())
+        )
         if envmodule_file.is_file():
             files.append(envmodule_file)
         else:
             raise FileNotFoundError(f"File {envmodule_file} not found.")
-        easyconfig_file = benchmark.directory / Path(softenv.easyconfig)
+        easyconfig_file = (
+            benchmark.directory / Path(softenv.easyconfig_file)
+        ).relative_to(Path(os.getcwd()))
         if easyconfig_file.is_file():
             files.append(easyconfig_file)
         else:
@@ -107,10 +112,13 @@ def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        if Path(softenv.conda).is_file():
-            files.append(Path(softenv.conda))
+        conda_file = (benchmark.directory / Path(softenv.conda)).relative_to(
+            Path(os.getcwd())
+        )
+        if conda_file.is_file():
+            files.append(conda_file)
         else:
-            raise FileNotFoundError(f"File {Path(softenv.conda)} not found.")
+            raise FileNotFoundError(f"File {conda_file} not found.")
     return files
 
 
@@ -129,7 +137,9 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        apptainer_file = benchmark.directory / Path(softenv.apptainer)
+        apptainer_file = (benchmark.directory / Path(softenv.apptainer)).relative_to(
+            Path(os.getcwd())
+        )
         if apptainer_file.is_file():
             files.append(apptainer_file)
         else:
