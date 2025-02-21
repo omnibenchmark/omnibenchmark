@@ -301,6 +301,7 @@ def archive_benchmark(
         compression=compression,
         compresslevel=compresslevel,
         dry_run=dry_run,
+        local=local,
     )
     if dry_run:
         click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")

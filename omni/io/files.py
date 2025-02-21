@@ -65,7 +65,7 @@ def list_files(
                 if not file_local_is_local[i]:
                     logger.info(f)
         # make unique
-        objectnames = list(set(expected_files))
+        objectnames = list(set([Path(f) for f in expected_files]))
         etags = []
 
     return objectnames, etags

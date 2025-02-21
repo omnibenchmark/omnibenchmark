@@ -107,11 +107,10 @@ def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        conda_file = benchmark.directory / Path(softenv.conda)
-        if conda_file.is_file():
-            files.append(conda_file)
+        if Path(softenv.conda).is_file():
+            files.append(Path(softenv.conda))
         else:
-            raise FileNotFoundError(f"File {conda_file} not found.")
+            raise FileNotFoundError(f"File {Path(softenv.conda)} not found.")
     return files
 
 
