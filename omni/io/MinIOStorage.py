@@ -22,6 +22,7 @@ from omni.io.exception import (
     MinIOStorageConnectionException,
     RemoteStorageInvalidInputException,
 )
+from omni.io.archive import prepare_archive_software
 from omni.io.RemoteStorage import RemoteStorage
 from omni.io.S3config import S3_DEFAULT_STORAGE_OPTIONS, bucket_readonly_policy
 from omni.io.S3versioning import get_s3_object_versions_and_tags
@@ -191,6 +192,22 @@ class MinIOStorage(RemoteStorage):
                 len(bmstr),
             )
 
+            # read software files
+            software_files = prepare_archive_software(benchmark)
+
+            # upload software files
+            for software_file in software_files:
+                print(software_file)
+                with open(software_file, "r") as fh:
+                    softstr = fh.read()
+
+                _ = self.client.put_object(
+                    self.benchmark,
+                    f"software/{software_file.name}",
+                    io.BytesIO(softstr.encode()),
+                    len(softstr),
+                )
+
         # get all objects
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
 
@@ -314,9 +331,23 @@ class MinIOStorage(RemoteStorage):
             version_id=self.files[object_name]["version_id"],
         )
 
-    def archive_version(self, version):
+    def archive_version(
+        self,
+        benchmark: Benchmark,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
         NotImplementedError
-        # self._update_overview(cleanup=True)
+
+        from omni.io.archive import archive_version
+
+        zip_archive = archive_version(
+            benchmark, outdir, config, code, software, results
+        )
+        # upload zip archive
 
     def delete_version(self, version):
         NotImplementedError

@@ -3,79 +3,16 @@
 
 import logging
 import os
-import shutil
-import subprocess
-import sys
 from pathlib import Path
-from typing import List
 
 from snakemake.script import Snakemake
-from filelock import FileLock
 
+from omni.io.code import clone_module
 from omni.workflow.snakemake.scripts.execution import execution
-from omni.workflow.snakemake.scripts.utils import *
-
-
-def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
-    try:
-        import git  # Check if gitpython is available
-    except ImportError:
-        logging.info("gitpython is not installed. Installing now...")
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "gitpython==3.1.43"]
-        )
-        import git  # Retry importing
-
-    module_name = generate_unique_repo_folder_name(repository_url, commit_hash)
-    module_dir = output_dir / module_name
-
-    def clone():
-        logging.info(
-            f"Cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
-        )
-        repo = git.Repo.clone_from(repository_url, module_dir.as_posix())
-        repo.git.checkout(commit_hash)
-
-        return repo
-
-    lock = module_dir.with_suffix(".lock")
-    with FileLock(lock):
-        if not module_dir.exists():
-            repo = clone()
-        else:
-            repo = git.Repo(module_dir.as_posix())
-            if repo.bare:
-                logging.warning(
-                    f"Removing incomplete repo {module_dir} and retrying..."
-                )
-                shutil.rmtree(module_dir)
-                repo = clone()
-
-        if repo.head.commit.hexsha[:7] != commit_hash:
-            logging.error(
-                f"ERROR: Failed while cloning module `{repository_url}:{commit_hash}`"
-            )
-            logging.error(
-                f"{commit_hash} does not match {repo.head.commit.hexsha[:7]}`"
-            )
-            raise RuntimeError(
-                f"ERROR: {commit_hash} does not match {repo.head.commit.hexsha[:7]}"
-            )
-
-    return module_dir
-
-
-def dump_parameters_to_file(output_dir: Path, parameters: List[str]) -> None:
-    os.makedirs(output_dir, exist_ok=True)
-
-    if parameters is not None:
-        params_file = os.path.join(output_dir, "parameters.txt")
-        with open(params_file, "w") as params_file:
-            params_file.write(f"{parameters}")
-
-        param_dict_file = os.path.join(output_dir, "..", "parameters_dict.txt")
-        with open(param_dict_file, "a") as param_dict_file:
-            param_dict_file.write(f"{os.path.basename(output_dir)} {parameters}\n")
+from omni.workflow.snakemake.scripts.utils import (
+    get_module_name_from_rule_name,
+    dump_parameters_to_file,
+)
 
 
 try:

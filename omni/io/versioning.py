@@ -61,7 +61,8 @@ def filter_objects_to_tag(
             *[
                 (obj, versionid_of_objects_to_tag[i])
                 for i, obj in enumerate(object_names_to_tag)
-                if obj in object_names_to_keep or rootdirs[i] in ["config", "versions"]
+                if obj in object_names_to_keep
+                or rootdirs[i] in ["config", "versions", "software"]
             ]
         )
 

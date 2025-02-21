@@ -1,6 +1,7 @@
 """Base class for remote storage."""
 
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Dict, Union
 
 import packaging.version
@@ -8,7 +9,9 @@ from packaging.version import Version
 
 from omni.io.exception import RemoteStorageInvalidInputException
 
-DEFAULT_STORAGE_OPTIONS = {"tracked_directories": ["out", "versions", "config"]}
+DEFAULT_STORAGE_OPTIONS = {
+    "tracked_directories": ["out", "versions", "config", "software"]
+}
 
 
 def is_valid_version(version: str):
@@ -186,7 +189,15 @@ class RemoteStorage(metaclass=ABCMeta):
         NotImplementedError
 
     @abstractmethod
-    def archive_version(self, version):
+    def archive_version(
+        self,
+        benchmark: str,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
         """
         Archives/Freezes a specific benchmark version.
 
