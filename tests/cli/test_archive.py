@@ -61,7 +61,7 @@ class TestCLIMinIOStorage:
             with OmniCLISetup() as omni:
                 result = omni.call(
                     [
-                        "info",
+                        "storage",
                         "archive",
                         "--benchmark",
                         str(tmp.benchmark_file),
@@ -98,7 +98,7 @@ class TestCLIMinIOStorage:
             )
             with OmniCLISetup() as omni:
                 result = omni.call(
-                    ["info", "archive", "--benchmark", str(tmp.benchmark_file), "-c"]
+                    ["storage", "archive", "--benchmark", str(tmp.benchmark_file), "-c"]
                 )
                 assert result.exit_code == 0
                 assert clean(result.output).startswith(clean(expected_output))
@@ -136,11 +136,55 @@ class TestCLIMinIOStorage:
             )
             with OmniCLISetup() as omni:
                 result = omni.call(
-                    ["info", "archive", "--benchmark", str(tmp.benchmark_file), "-r"]
+                    ["storage", "archive", "--benchmark", str(tmp.benchmark_file), "-r"]
                 )
                 assert result.exit_code == 0
                 assert clean(result.output).startswith(clean(expected_output))
                 outfile = f"{benchmark_obj.get_benchmark_name()}_{benchmark_obj.get_converter().get_version()}.zip"
+                assert Path(outfile).exists()
+                with zipfile.ZipFile(outfile, "r") as f:
+                    files = f.namelist()
+                print(str(tmp.benchmark_file))
+                print(files)
+                testfile = "out/data/D2/default/D2.meta.json"
+                assert testfile in files
+
+    def test_archive_compression(self, monkeypatch: pytest.MonkeyPatch):
+        expected_output = """
+        Created archive:
+        """
+        if not sys.platform == "linux":
+            pytest.skip(
+                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
+                allow_module_level=True,
+            )
+
+        with TmpMinIOStorage(minio_testcontainer) as tmp:
+            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
+            monkeypatch.chdir(tmp.out_dir)
+            subprocess.run(
+                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
+            subprocess.run(
+                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
+                cwd=tmp.out_dir,
+            )
+            with OmniCLISetup() as omni:
+                result = omni.call(
+                    [
+                        "storage",
+                        "archive",
+                        "--benchmark",
+                        str(tmp.benchmark_file),
+                        "-r",
+                        "--compression",
+                        "bzip2",
+                    ]
+                )
+                assert result.exit_code == 0
+                assert clean(result.output).startswith(clean(expected_output))
+                outfile = f"{benchmark_obj.get_benchmark_name()}_{benchmark_obj.get_converter().get_version()}.bz2"
                 assert Path(outfile).exists()
                 with zipfile.ZipFile(outfile, "r") as f:
                     files = f.namelist()
