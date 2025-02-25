@@ -213,12 +213,15 @@ class MinIOStorage(RemoteStorage):
 
         # get objects to tag
         object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
-            objdic, tracked_dirs=self.storage_options["tracked_directories"]
+            objdic, storage_options=self.storage_options
         )
 
         # filter objects based on workflow
         object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(
-            object_names_to_tag, versionid_of_objects_to_tag, benchmark
+            object_names_to_tag,
+            versionid_of_objects_to_tag,
+            benchmark,
+            self.storage_options,
         )
 
         # Tag all objects with current version
@@ -301,7 +304,7 @@ class MinIOStorage(RemoteStorage):
 
             # get objects to tag
             object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
-                objdic, tracked_dirs=self.storage_options["tracked_directories"]
+                objdic, storage_options=self.storage_options
             )
             objdict = {}
             for obj, vt in zip(object_names_to_tag, versionid_of_objects_to_tag):

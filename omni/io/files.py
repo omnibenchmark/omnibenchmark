@@ -9,6 +9,7 @@ import yaml
 from omni.benchmark import Benchmark
 from omni.cli.utils.logging import logger
 from omni.io.utils import get_storage, md5, remote_storage_args, sizeof_fmt
+from omni.io.versioning import get_expected_benchmark_output_files
 
 
 def list_files(
@@ -24,21 +25,7 @@ def list_files(
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
-    all_files = benchmark.get_output_paths()
-    expected_files = []
-    for file in all_files:
-        filter_stage = False
-        if stage is not None:
-            if file.split("/")[-4] != stage:
-                filter_stage = True
-
-        filter_module = False
-        if module is not None:
-            if file.split("/")[-3] != module:
-                filter_module = True
-
-        if not filter_stage and not filter_module:
-            expected_files.append(file.replace("{dataset}", file.split("/")[2]))
+    expected_files = get_expected_benchmark_output_files(benchmark)
 
     if not local:
         auth_options = remote_storage_args(benchmark)
