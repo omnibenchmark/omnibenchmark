@@ -9,6 +9,7 @@ import yaml
 from omni.benchmark import Benchmark
 from omni.cli.utils.logging import logger
 from omni.io.utils import get_storage, md5, remote_storage_args, sizeof_fmt
+from omni.io.versioning import get_expected_benchmark_output_files
 
 
 def list_files(
@@ -17,44 +18,42 @@ def list_files(
     stage: str = None,
     module: str = None,
     file_id: str = None,
+    local: bool = False,
 ):
     """List all available files for a certain benchmark, version and stage"""
-
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
 
-    auth_options = remote_storage_args(benchmark)
+    expected_files = get_expected_benchmark_output_files(benchmark)
 
-    ss = get_storage(
-        str(benchmark.converter.model.storage_api),
-        auth_options,
-        str(benchmark.converter.model.storage_bucket_name),
-    )
-    ss.set_version(benchmark.get_benchmark_version())
-    ss._get_objects()
+    if not local:
+        auth_options = remote_storage_args(benchmark)
 
-    all_files = benchmark.get_output_paths()
-    expected_files = []
-    for file in all_files:
-        filter_stage = False
-        if stage is not None:
-            if file.split("/")[-4] != stage:
-                filter_stage = True
+        ss = get_storage(
+            str(benchmark.converter.model.storage_api),
+            auth_options,
+            str(benchmark.converter.model.storage_bucket_name),
+        )
+        ss.set_version(benchmark.get_benchmark_version())
+        ss._get_objects()
+        files = {k: v for k, v in ss.files.items() if k in expected_files}
 
-        filter_module = False
-        if module is not None:
-            if file.split("/")[-3] != module:
-                filter_module = True
+        # get urls
+        objectnames = list(files.keys())
+        etags = [files[objectname]["etag"] for objectname in objectnames]
 
-        if not filter_stage and not filter_module:
-            expected_files.append(file.replace("{dataset}", file.split("/")[2]))
-
-    files = {k: v for k, v in ss.files.items() if k in expected_files}
-
-    # get urls
-    objectnames = list(files.keys())
-    etags = [files[objectname]["etag"] for objectname in objectnames]
+    else:
+        file_local_is_local = [Path(f).is_file() for f in expected_files]
+        if not all(file_local_is_local):
+            logger.warning("Not all expected files are available locally")
+            logger.info("Missing files:")
+            for i, f in enumerate(expected_files):
+                if not file_local_is_local[i]:
+                    logger.info(f)
+        # make unique
+        objectnames = list(set([Path(f) for f in expected_files]))
+        etags = []
 
     return objectnames, etags
 
@@ -66,6 +65,7 @@ def download_files(
     module: str = None,
     file_id: str = None,
     verbose: bool = False,
+    overwrite: bool = False,
 ):
     """Download all available files for a certain benchmark, version and stage"""
 
@@ -88,17 +88,39 @@ def download_files(
     ss.set_version(benchmark.get_benchmark_version())
     ss._get_objects()
 
+    logger.debug(f"Checking if files are already downloaded... ")
+    do_download_file = []
+    for filename, etag in tqdm.tqdm(
+        zip(filenames, etags), delay=5, disable=not verbose
+    ):
+        if Path(filename).is_file():
+            if etag.replace('"', "") == md5(filename):
+                do_download_file.append(False)
+            else:
+                if overwrite:
+                    do_download_file.append(True)
+                else:
+                    do_download_file.append(False)
+        else:
+            do_download_file.append(True)
+
     if verbose:
         size = sum(
-            [int(ss.files[objectname]["size"]) for objectname in ss.files.keys()]
+            [
+                int(ss.files[objectname]["size"])
+                for objectname, do_download in zip(ss.files.keys(), do_download_file)
+                if do_download
+            ]
         )
         logger.debug(
-            f"Downloading {len(ss.files)} files with a total size of {sizeof_fmt(size)} ... ",
+            f"Downloading {sum(do_download_file)} files with a total size of {sizeof_fmt(size)} ... ",
         )
-    for objectname, filename in tqdm.tqdm(
-        zip(objectnames, filenames), delay=5, disable=not verbose
+
+    for objectname, filename, do_download in tqdm.tqdm(
+        zip(objectnames, filenames, do_download_file), delay=5, disable=not verbose
     ):
-        ss.download_object(objectname, filename)
+        if do_download:
+            ss.download_object(objectname, filename)
     if verbose:
         logger.debug("Done")
 
