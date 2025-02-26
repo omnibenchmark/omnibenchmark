@@ -15,7 +15,7 @@ from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_na
 
 # Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
 def get_git_archive_from_github(
-    output_dir: Path, repository_url: str, commit_hash: str
+    output_dir: Path, repository_url: str, commit_hash: str, dry_run: bool = False
 ) -> Path:
     # construct url
     baseurl = (
@@ -31,6 +31,8 @@ def get_git_archive_from_github(
     }
     # get the tar file
     req = requests.get(url, headers=headers)
+    if dry_run:
+        return req.ok
     tarfilename = Path(f"{output_dir}.tar")
     with open(tarfilename, "wb") as f:
         f.write(req.content)
@@ -49,7 +51,7 @@ def get_git_archive_from_github(
 
 # https://docs.gitlab.com/ee/api/repositories.html#get-file-archive
 def get_git_archive_from_gitlab(
-    output_dir: Path, repository_url: str, commit_hash: str
+    output_dir: Path, repository_url: str, commit_hash: str, dry_run: bool = False
 ) -> Path:
     # construct url
     baseurl = repository_url.replace("https://", "").replace("http://", "")
@@ -60,6 +62,8 @@ def get_git_archive_from_gitlab(
     url = f"https://{gitlab_remote}/api/v4/projects/{str(baseurl)}/repository/archive?sha={commit_hash}"
     # get the tar file
     req = requests.get(url)
+    if dry_run:
+        return req.ok
     tarfilename = Path(f"{output_dir}.tar")
     with open(tarfilename, "wb") as f:
         f.write(req.content)
@@ -76,11 +80,17 @@ def get_git_archive_from_gitlab(
         os.remove(tarfilename)
 
 
-def get_git_archive(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
+def get_git_archive(
+    output_dir: Path, repository_url: str, commit_hash: str, dry_run: bool = False
+) -> Path:
     if "github.com" in repository_url:
-        get_git_archive_from_github(output_dir, repository_url, commit_hash)
+        return get_git_archive_from_github(
+            output_dir, repository_url, commit_hash, dry_run
+        )
     elif "gitlab" in repository_url:
-        get_git_archive_from_gitlab(output_dir, repository_url, commit_hash)
+        return get_git_archive_from_gitlab(
+            output_dir, repository_url, commit_hash, dry_run
+        )
     else:
         raise ValueError(f"Unknown git provider in {repository_url}")
 

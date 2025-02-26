@@ -8,6 +8,7 @@ from packaging.version import Version
 
 from omni.cli.utils.logging import debug_option, logger
 from omni.cli.utils.validation import validate_benchmark
+from omni.benchmark.template_repo import create_repo_files, get_missing_repos
 
 
 @click.group(name="info")
@@ -196,3 +197,76 @@ def plot(ctx, benchmark: str):
     benchmark = validate_benchmark(benchmark, echo=False)
     mermaid = benchmark.export_to_mermaid()
     click.echo(mermaid)
+
+
+@click.group
+@click.pass_context
+def repo(ctx):
+    """Manage and install software using Singularity."""
+    ctx.ensure_object(dict)
+
+
+info.add_command(repo)
+
+
+@repo.command("list-missing")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def list_missing_repos(ctx, benchmark: str):
+    """List missing repositories in the benchmark."""
+
+    benchmark = validate_benchmark(benchmark, echo=False)
+    nodes = get_missing_repos(benchmark)
+    for node in nodes:
+        click.echo(node.display_name())
+
+
+@repo.command("create-missing")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "--module",
+    "-m",
+    required=True,
+    type=str,
+    help="Node name, output from 'list-missing'",
+)
+@click.option(
+    "--output_dir",
+    "-o",
+    required=True,
+    type=click.Path(exists=True),
+    help="Output directory to store data files.",
+)
+@click.option(
+    "--language",
+    "-l",
+    required=False,
+    type=str,
+    help="Programming language of the module.",
+)
+@click.pass_context
+def list_missing_repos(
+    ctx, benchmark: str, module: str, output_dir: Path, language: str = None
+):
+    """List missing repositories in the benchmark."""
+
+    benchmark = validate_benchmark(benchmark, echo=False)
+    nodes = get_missing_repos(benchmark)
+    selected_node = [n for n in nodes if module in n.display_name()]
+    assert len(selected_node) == 1
+    selected_node = selected_node[0]
+    create_repo_files(selected_node, language=language, output_dir=output_dir)
