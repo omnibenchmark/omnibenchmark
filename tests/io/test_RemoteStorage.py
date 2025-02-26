@@ -40,7 +40,7 @@ class TestRemoteStorage:
         with pytest.raises(RemoteStorageInvalidInputException):
             for ao in [1, 0.1, [1], (1,), None]:
                 ss._parse_storage_options(ao)
-        assert ss.storage_options == DEFAULT_STORAGE_OPTIONS
+        assert type(ss.storage_options) == type(DEFAULT_STORAGE_OPTIONS())
 
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test__parse_version(self):

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
+import glob
 
 from omni.benchmark import Benchmark
 from omni.io.exception import MinIOStorageVersioningCorruptionException
@@ -8,14 +9,15 @@ from omni.io.S3config import S3_DEFAULT_STORAGE_OPTIONS
 
 
 def get_objects_to_tag(
-    objdic: Dict, tracked_dirs: List = S3_DEFAULT_STORAGE_OPTIONS["tracked_directories"]
+    objdic: Dict,
+    storage_options: S3_DEFAULT_STORAGE_OPTIONS = S3_DEFAULT_STORAGE_OPTIONS(),
 ) -> Tuple[List, List]:
     """
     Get a list of objects that need to be tagged with the current version.
 
     Args:
     - objdic: A dictionary of objects and associated metadata.
-    - tracked_dirs: A list of directories to track.
+    - storage_options: The storage options.
 
     Returns:
     - A list of object names and a list of version ids.
@@ -34,11 +36,11 @@ def get_objects_to_tag(
         object_name_red = object_name
         while not os.path.split(object_name_red)[0] == "":
             object_name_red = os.path.split(object_name_red)[0]
-            if object_name_red in tracked_dirs:
+            if object_name_red in storage_options.tracked_directories:
                 break
         # check if newest version exists and
         # if object is in tracked directories
-        if (object_name_red in tracked_dirs) and (
+        if (object_name_red in storage_options.tracked_directories) and (
             not objdic[object_name][newest_version]["is_delete_marker"]
         ):
             object_names_to_tag.append(object_name)
@@ -46,22 +48,48 @@ def get_objects_to_tag(
     return object_names_to_tag, versionid_of_objects_to_tag
 
 
+def get_expected_benchmark_output_files(
+    benchmark: Benchmark,
+    storage_options: S3_DEFAULT_STORAGE_OPTIONS = S3_DEFAULT_STORAGE_OPTIONS(),
+) -> List:
+    object_names_to_keep = benchmark.get_output_paths()
+    if storage_options.extra_files_to_version_not_in_benchmark_yaml:
+        for (
+            glob_expression
+        ) in storage_options.extra_files_to_version_not_in_benchmark_yaml:
+            found_files = glob.glob(glob_expression, recursive=True)
+            if isinstance(found_files, str):
+                found_files = [found_files]
+            for found_file in found_files:
+                object_names_to_keep.add(found_file)
+    return list(object_names_to_keep)
+
+
 # filter objects based on workflow.
 def filter_objects_to_tag(
     object_names_to_tag: List,
     versionid_of_objects_to_tag: List,
     benchmark: Union[None, Benchmark] = None,
+    storage_options: S3_DEFAULT_STORAGE_OPTIONS = S3_DEFAULT_STORAGE_OPTIONS(),
 ) -> Tuple[List, List]:
     if benchmark is None:
         return object_names_to_tag, versionid_of_objects_to_tag
     else:
-        object_names_to_keep = benchmark.get_output_paths()
+        object_names_to_keep = get_expected_benchmark_output_files(
+            benchmark, storage_options
+        )
+
         rootdirs = [Path(obj).parents[-2].name for obj in object_names_to_tag]
+        overwrite_dirs_to_keep = [
+            t
+            for t in storage_options.tracked_directories
+            if t not in storage_options.results_directories
+        ]
         return zip(
             *[
                 (obj, versionid_of_objects_to_tag[i])
                 for i, obj in enumerate(object_names_to_tag)
-                if obj in object_names_to_keep or rootdirs[i] in ["config", "versions"]
+                if obj in object_names_to_keep or rootdirs[i] in overwrite_dirs_to_keep
             ]
         )
 

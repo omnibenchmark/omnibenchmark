@@ -18,19 +18,6 @@ def info(ctx):
     ctx.ensure_object(dict)
 
 
-# @cli.command("archive")
-# def archive_benchmark(
-#     benchmark: Annotated[
-#         str,
-#         typer.Option(
-#             "--benchmark", "-b", help="Path to benchmark yaml file or benchmark id."
-#         ),
-#     ],
-# ):
-#     """Archive a benchmark (changes to read-only permissions)"""
-#     logger.info(f"Archiving benchmark with yaml {benchmark}")
-
-
 # @cli.command("cite")
 # def cite_benchmark(
 #     benchmark: Annotated[

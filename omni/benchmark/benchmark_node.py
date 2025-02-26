@@ -106,6 +106,27 @@ class BenchmarkNode:
 
         return output_paths
 
+    def get_benchmark_path(self, config):
+        pre = config.get("input", config.get("output"))
+        dataset = config["dataset"]
+
+        output_paths = self.get_outputs()
+        output_dir = os.path.commonpath(output_paths)
+        if len(output_paths) == 1:
+            output_dir = Path(os.path.dirname(output_dir))
+
+        benchmark_path = Path(output_dir) / "{dataset}_performance.txt"
+
+        benchmark_path = str(benchmark_path).format(
+            pre=pre,
+            dataset=dataset,
+            stage=self.stage_id,
+            module=self.module_id,
+            params=self.param_id,
+        )
+
+        return benchmark_path
+
     def get_parameters(self):
         return self.parameters
 

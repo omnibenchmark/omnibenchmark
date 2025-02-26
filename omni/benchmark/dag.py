@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Tuple
 
 import networkx as nx
@@ -12,12 +13,12 @@ from omni.benchmark.validation import ValidationError
 def expend_stage_nodes(
     converter: LinkMLConverter,
     stage: omni_schema.datamodel.omni_schema.Stage,
-    out_dir: str,
+    out_dir: Path,
     stage_ordering: List[str],
 ) -> List[BenchmarkNode]:
     nodes = []
 
-    input_dirname = out_dir if converter.is_initial(stage) else "{pre}"
+    input_dirname = str(out_dir) if converter.is_initial(stage) else "{pre}"
     stage_outputs = converter.get_stage_outputs(stage).values()
     outputs = [x.replace("{input}", input_dirname) for x in stage_outputs]
 
@@ -68,7 +69,7 @@ def expend_stage_nodes(
     return nodes
 
 
-def build_benchmark_dag(converter: LinkMLConverter, out_dir: str) -> nx.DiGraph:
+def build_benchmark_dag(converter: LinkMLConverter, out_dir: Path) -> nx.DiGraph:
     g = nx.DiGraph()
 
     G_stages = build_stage_dag(converter)

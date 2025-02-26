@@ -1,17 +1,16 @@
 """ General utils functions"""
-import logging
+
 import os
 
 from linkml_runtime.loaders import yaml_loader
 import subprocess
 from pathlib import Path
-from typing import List, Union, Any, Optional
+from typing import List, Union, Any
 import re
 import yaml
 import platform
 
-from subprocess import PIPE, Popen
-import sys
+from omni_schema.datamodel.omni_schema import IOFile
 
 
 def try_avail_envmodule(module_name: str) -> bool:
@@ -70,3 +69,12 @@ def format_name(path, prefix):
     new_path = path.format(dataset=dataset)
 
     return new_path
+
+
+def format_mc_output(output: IOFile, out_dir: Path, collector_id: str):
+    if output.path:
+        o = output.path.replace("{input}", str(out_dir))
+        o = o.replace("{name}", collector_id)
+        return o
+    else:
+        return str(out_dir / output.id)
