@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 import yaml
 from packaging.version import Version
+import sys
 
 from omni.cli.utils.logging import debug_option, logger
 from omni.cli.utils.validation import validate_benchmark
@@ -273,7 +274,7 @@ def list_missing_repos(ctx, benchmark: str, reason: bool = False):
     help="Programming language of the module.",
 )
 @click.pass_context
-def list_missing_repos(
+def create_missing_repos(
     ctx, benchmark: str, url: str, output_dir: Path, language: str = None
 ):
     """List missing repositories in the benchmark."""
@@ -281,6 +282,12 @@ def list_missing_repos(
     benchmark = validate_benchmark(benchmark, echo=False)
     urls, nodes = get_missing_repos(benchmark)
     selected_node = [n for u, n in zip(urls, nodes) if url in u]
-    assert len(selected_node) == 1
-    selected_node = selected_node[0]
-    create_repo_files(selected_node, language=language, output_dir=output_dir)
+    if len(selected_node) != 1:
+        if len(selected_node) > 1:
+            logger.error(f"URL {url} found in multiple missing repositories.")
+        else:
+            logger.error(f"URL {url} not found in missing repositories.")
+        sys.exit(1)
+    else:
+        selected_node = selected_node[0]
+        create_repo_files(selected_node, language=language, output_dir=output_dir)
