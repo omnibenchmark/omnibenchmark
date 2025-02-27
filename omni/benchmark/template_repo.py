@@ -3,7 +3,7 @@ from typing import List
 import os
 
 from omni.benchmark import Benchmark
-from omni.io.code import get_git_archive
+from omni.io.code import get_git_archive, check_remote_repo_existance
 
 # parse benchmark
 
@@ -144,7 +144,9 @@ def get_missing_repos(benchmark: Benchmark) -> List:
         repo = node.get_repository()
         if not get_git_archive("", repo["url"], repo["commit"], True):
             inexistent_nodes.append(node)
-    return inexistent_nodes
+
+    repo_urls = [node.get_repository()["url"] for node in inexistent_nodes]
+    return repo_urls, inexistent_nodes
 
 
 def guess_language(node):
@@ -187,10 +189,13 @@ def create_repo_files(node, language: str = None, output_dir: Path = Path("outpu
 if __name__ == "__main__":
     benchmark = Benchmark(Path("tests/data/Clustering.yaml"))
     benchmark
-    nodes = get_missing_repos(benchmark)
+    urls, nodes = get_missing_repos(benchmark)
 
     # print(prepare_template(nodes[0], language="R"))
     # print(prepare_template(nodes[0], language="python"))
     create_template(nodes[0])
     create_repo_files(nodes[0], output_dir=Path("tmp"))
     # prepare_template(nodes[2])
+
+    repository_url = urls[0]
+    check_remote_repo_existance(repository_url)

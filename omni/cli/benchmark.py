@@ -9,6 +9,7 @@ from packaging.version import Version
 from omni.cli.utils.logging import debug_option, logger
 from omni.cli.utils.validation import validate_benchmark
 from omni.benchmark.template_repo import create_repo_files, get_missing_repos
+from omni.io.code import check_remote_repo_existance
 
 
 @click.group(name="info")
@@ -218,14 +219,27 @@ info.add_command(repo)
     help="Path to benchmark yaml file or benchmark id.",
     envvar="OB_BENCHMARK",
 )
+@click.option(
+    "--reason",
+    "-r",
+    is_flag=True,
+    help="Include reason for missing repository.",
+)
 @click.pass_context
-def list_missing_repos(ctx, benchmark: str):
+def list_missing_repos(ctx, benchmark: str, reason: bool = False):
     """List missing repositories in the benchmark."""
 
     benchmark = validate_benchmark(benchmark, echo=False)
-    nodes = get_missing_repos(benchmark)
-    for node in nodes:
-        click.echo(node.display_name())
+    urls, nodes = get_missing_repos(benchmark)
+    for url in urls:
+        if reason:
+            if check_remote_repo_existance(url):
+                reason_str = "missing_commit"
+            else:
+                reason_str = "missing_repo"
+            click.echo(f"{url}\t{reason_str}")
+        else:
+            click.echo(url)
 
 
 @repo.command("create-missing")
@@ -238,11 +252,11 @@ def list_missing_repos(ctx, benchmark: str):
     envvar="OB_BENCHMARK",
 )
 @click.option(
-    "--module",
-    "-m",
+    "--url",
+    "-u",
     required=True,
     type=str,
-    help="Node name, output from 'list-missing'",
+    help="URL of git repository, output from 'list-missing'",
 )
 @click.option(
     "--output_dir",
@@ -260,13 +274,13 @@ def list_missing_repos(ctx, benchmark: str):
 )
 @click.pass_context
 def list_missing_repos(
-    ctx, benchmark: str, module: str, output_dir: Path, language: str = None
+    ctx, benchmark: str, url: str, output_dir: Path, language: str = None
 ):
     """List missing repositories in the benchmark."""
 
     benchmark = validate_benchmark(benchmark, echo=False)
-    nodes = get_missing_repos(benchmark)
-    selected_node = [n for n in nodes if module in n.display_name()]
+    urls, nodes = get_missing_repos(benchmark)
+    selected_node = [n for u, n in zip(urls, nodes) if url in u]
     assert len(selected_node) == 1
     selected_node = selected_node[0]
     create_repo_files(selected_node, language=language, output_dir=output_dir)

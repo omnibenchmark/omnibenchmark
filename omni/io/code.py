@@ -4,7 +4,7 @@ import os
 import shutil
 import tarfile
 from pathlib import Path
-from typing import List
+from typing import List, Union
 from filelock import FileLock
 
 import requests
@@ -13,18 +13,60 @@ from git.exc import InvalidGitRepositoryError
 from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_name
 
 
-# Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
-def get_git_archive_from_github(
-    output_dir: Path, repository_url: str, commit_hash: str, dry_run: bool = False
-) -> Path:
-    # construct url
+def construct_url_github(
+    repository_url: str, commit_hash: Union[None, str] = None
+) -> str:
     baseurl = (
         repository_url.replace("https://", "")
         .replace("http://", "")
         .replace("github.com/", "")
         .replace(".git", "")
     )
-    url = f"https://api.github.com/repos/{baseurl}/tarball/{commit_hash}"
+    if commit_hash is None:
+        return f"https://api.github.com/repos/{baseurl}"
+    else:
+        return f"https://api.github.com/repos/{baseurl}/tarball/{commit_hash}"
+
+
+def construct_url_gitlab(
+    repository_url: str, commit_hash: Union[None, str] = None
+) -> str:
+    baseurl = repository_url.replace("https://", "").replace("http://", "")
+    gitlab_remote = str(Path(baseurl).parents[-2])
+    baseurl = baseurl.replace(f"{gitlab_remote}/", "")
+    baseurl = requests.utils.quote(baseurl, safe="")
+    if commit_hash is None:
+        return f"https://{gitlab_remote}/api/v4/projects/{str(baseurl)}"
+    else:
+        return f"https://{gitlab_remote}/api/v4/projects/{str(baseurl)}/repository/archive?sha={commit_hash}"
+
+
+def construct_url(repository_url: str, commit_hash: Union[None, str] = None) -> str:
+    if "github.com" in repository_url:
+        return construct_url_github(repository_url, commit_hash)
+    elif "gitlab" in repository_url:
+        return construct_url_gitlab(repository_url, commit_hash)
+    else:
+        raise ValueError(f"Unknown git provider in {repository_url}")
+
+
+def check_remote_repo_existance(
+    repository_url: str, commit_hash: Union[None, str] = None
+) -> bool:
+    url = construct_url(repository_url, commit_hash)
+    req = requests.get(url)
+    return req.ok
+
+
+# Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
+def get_git_archive_from_github(
+    output_dir: Path,
+    repository_url: str,
+    commit_hash: Union[None, str] = None,
+    dry_run: bool = False,
+) -> Path:
+    # construct url
+    url = construct_url_github(repository_url, commit_hash)
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
@@ -51,15 +93,13 @@ def get_git_archive_from_github(
 
 # https://docs.gitlab.com/ee/api/repositories.html#get-file-archive
 def get_git_archive_from_gitlab(
-    output_dir: Path, repository_url: str, commit_hash: str, dry_run: bool = False
+    output_dir: Path,
+    repository_url: str,
+    commit_hash: Union[None, str] = None,
+    dry_run: bool = False,
 ) -> Path:
     # construct url
-    baseurl = repository_url.replace("https://", "").replace("http://", "")
-    gitlab_remote = str(Path(baseurl).parents[-2])
-    baseurl = baseurl.replace(f"{gitlab_remote}/", "")
-    # url encode the baseurl
-    baseurl = requests.utils.quote(baseurl, safe="")
-    url = f"https://{gitlab_remote}/api/v4/projects/{str(baseurl)}/repository/archive?sha={commit_hash}"
+    url = construct_url_gitlab(repository_url, commit_hash)
     # get the tar file
     req = requests.get(url)
     if dry_run:
