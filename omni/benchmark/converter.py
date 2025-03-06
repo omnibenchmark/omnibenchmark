@@ -9,7 +9,9 @@ from omni.utils import merge_dict_list, parse_instance
 class LinkMLConverter:
     def __init__(self, benchmark_file: Path):
         self.benchmark_file = benchmark_file
-        self.model = parse_instance(benchmark_file, omni_schema.Benchmark)
+        self.model: omni_schema.Benchmark = parse_instance(
+            benchmark_file, omni_schema.Benchmark
+        )
 
     def get_name(self) -> str:
         """Get name of the benchmark"""
@@ -102,7 +104,6 @@ class LinkMLConverter:
 
     def get_explicit_inputs(self, input_ids: List[str]) -> Dict[str, str]:
         """Get explicit inputs of a stage by input_id(s)"""
-
         all_stages_outputs = []
         for stage_id in self.get_stages():
             outputs = self.get_stage_outputs(stage=stage_id)
@@ -187,6 +188,9 @@ class LinkMLConverter:
             module = self.get_modules()[module]
 
         return module.software_environment
+
+    def get_metric_collectors(self) -> List[omni_schema.MetricCollector]:
+        return self.model.metric_collectors
 
     def is_initial(self, stage: omni_schema.Stage) -> bool:
         """Check if stage is initial"""

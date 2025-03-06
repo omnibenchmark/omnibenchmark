@@ -7,7 +7,9 @@ import click
 from omni.cli.utils.logging import logger
 from omni.io.RemoteStorage import DEFAULT_STORAGE_OPTIONS
 
-S3_DEFAULT_STORAGE_OPTIONS = {**DEFAULT_STORAGE_OPTIONS}
+
+class S3_DEFAULT_STORAGE_OPTIONS(DEFAULT_STORAGE_OPTIONS):
+    pass
 
 
 def benchmarker_access_token_policy(benchmark):

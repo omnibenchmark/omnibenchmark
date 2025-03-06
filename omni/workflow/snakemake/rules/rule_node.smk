@@ -1,8 +1,8 @@
 import os
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
-from omni.benchmark import Validator
+from omni.benchmark import Validator, BenchmarkNode
 from omni.workflow.snakemake import scripts
 from omni.workflow.snakemake.format import formatter
 
@@ -29,6 +29,8 @@ def _create_initial_node(benchmark, node, config):
             module=module_id,
             params=param_id,
             dataset=module_id
+        benchmark:
+            formatter.format_performance_file(node)
         output:
             formatter.format_output_templates_to_be_expanded(node)
 
@@ -75,6 +77,8 @@ def _create_intermediate_node(benchmark, node, config):
             module=module_id
         input:
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
+        benchmark:
+            formatter.format_performance_file(node)
         output:
             formatter.format_output_templates_to_be_expanded(node)
 
@@ -118,6 +122,8 @@ def create_standalone_node_rule(node, config):
                 parameters=node.get_parameters(),
                 dataset=config['dataset'],
                 keep_module_logs=config['keep_module_logs']
+            benchmark:
+                node.get_benchmark_path(config)
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
     else:
         rule:
@@ -133,10 +139,12 @@ def create_standalone_node_rule(node, config):
                 parameters=node.get_parameters(),
                 dataset=config['dataset'],
                 keep_module_logs=config['keep_module_logs']
+            benchmark:
+                node.get_benchmark_path(config)
             script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
 
 
-def _get_environment_path(benchmark, node, software_backend):
+def _get_environment_path(benchmark: Benchmark, node: BenchmarkNode, software_backend: SoftwareBackendEnum):
     benchmark_dir = benchmark.directory
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
