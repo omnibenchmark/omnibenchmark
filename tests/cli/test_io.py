@@ -116,7 +116,7 @@ class TestCLIMinIOStorage:
                 assert clean(log_output).startswith(clean(expected_output))
 
     def test_download_files(self, monkeypatch: pytest.MonkeyPatch, capture_logs):
-        expected_output = """Downloading 8 files with a total size of 2.7KiB"""
+        expected_output = """Checking if files are already downloaded... \nDownloading 6 files with a total size of 1.6KiB"""
 
         if not sys.platform == "linux":
             pytest.skip(

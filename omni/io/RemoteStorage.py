@@ -1,6 +1,7 @@
 """Base class for remote storage."""
 
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Dict, Union
 
 import packaging.version
@@ -8,7 +9,22 @@ from packaging.version import Version
 
 from omni.io.exception import RemoteStorageInvalidInputException
 
-DEFAULT_STORAGE_OPTIONS = {"tracked_directories": ["out", "versions", "config"]}
+
+class DEFAULT_STORAGE_OPTIONS:
+    tracked_directories = ["out", "versions", "config", "software"]
+    results_directories = ["out"]
+    extra_files_to_version_not_in_benchmark_yaml = [
+        "out/**/parameters.txt",
+        "out/**/parameters_dict.txt",
+    ]  # glob style
+
+
+assert all(
+    [
+        isinstance(i, str) and i in DEFAULT_STORAGE_OPTIONS().tracked_directories
+        for i in DEFAULT_STORAGE_OPTIONS().results_directories
+    ]
+)
 
 
 def is_valid_version(version: str):
@@ -51,7 +67,12 @@ class RemoteStorage(metaclass=ABCMeta):
     - delete_version(version): Deletes a specific benchmark version.
     """
 
-    def __init__(self, auth_options: Dict, benchmark: str, storage_options: Dict = {}):
+    def __init__(
+        self,
+        auth_options: Dict,
+        benchmark: str,
+        storage_options: DEFAULT_STORAGE_OPTIONS = DEFAULT_STORAGE_OPTIONS(),
+    ):
         self.version = None
         self.versions = list()
         self.files = dict()
@@ -71,12 +92,15 @@ class RemoteStorage(metaclass=ABCMeta):
             )
         self.auth_options = auth_options
 
-    def _parse_storage_options(self, storage_options: Dict) -> None:
-        if not type(storage_options) is dict:
+    def _parse_storage_options(self, storage_options: DEFAULT_STORAGE_OPTIONS) -> None:
+        expected_attributes = [
+            t for t in dir(DEFAULT_STORAGE_OPTIONS()) if not t.startswith("_")
+        ]
+        if not all([hasattr(storage_options, t) for t in expected_attributes]):
             raise RemoteStorageInvalidInputException(
-                "storage_options must be a dictionary"
+                "storage_options must be a DEFAULT_STORAGE_OPTIONS object"
             )
-        self.storage_options = {**DEFAULT_STORAGE_OPTIONS, **storage_options}
+        self.storage_options = storage_options
 
     @abstractmethod
     def connect(self):
@@ -186,7 +210,15 @@ class RemoteStorage(metaclass=ABCMeta):
         NotImplementedError
 
     @abstractmethod
-    def archive_version(self, version):
+    def archive_version(
+        self,
+        benchmark: str,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
         """
         Archives/Freezes a specific benchmark version.
 
