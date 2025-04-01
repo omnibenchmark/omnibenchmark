@@ -77,6 +77,14 @@ class Benchmark:
 
         return nodes
 
+    def get_nodes_by_stage_id(self, stage_id: str) -> List:
+        nodes = []
+        for node in self.G.nodes:
+            if node.stage_id == stage_id:
+                nodes.append(node)
+
+        return nodes
+
     def get_benchmark_datasets(self) -> List[str]:
         datasets = []
         for _, stage in self.converter.get_stages().items():
@@ -147,6 +155,15 @@ class Benchmark:
         )
 
         return pydot_graph
+
+    def remove_node_and_dependents(self, node_id: str):
+        node = self.get_node_by_id(node_id)
+        if not node or not self.G.has_node(node):
+            print(f"Node {node_id} not found in the graph.")
+            return self
+
+        self.G.remove_node(node)
+        return self
 
     def export_to_mermaid(self, show_params: bool = True) -> str:
         # Initialize the mermaid diagram syntax
