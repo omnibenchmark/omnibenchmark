@@ -25,11 +25,13 @@ from enum import Enum
 class filetype(Enum):
     python = "py"
     R = "R"
+    sh = "sh"
 
 
 class languageregex(Enum):
     python = "(P|p)ython"
     R = "(R|r)(_|-| )"
+    sh = "sh"
 
 
 def create_argparse_expression(
@@ -40,6 +42,10 @@ def create_argparse_expression(
         return f"parser.add_argument('--{argument}', type=str, help='{description}', required = True)"
     elif language == "R":
         return f"parser$add_argument('--{argument}', type='character', help='{description}')"
+    elif language == "sh":
+        return (
+            f'--{argument})\n      {argument}="$2"\n      shift\n      shift\n      ;;'
+        )
     else:
         raise ValueError(f"Language {language} not supported.")
 
@@ -59,6 +65,11 @@ def create_variable_expression(
             return f"{vartype}_file_{iter} = file.path(args[['output_dir']], paste0(args[['name']], 'args[[{argument}]]'))"
         else:
             return f"{vartype}_file_{iter} = args[['{argument}']]"
+    elif language == "sh":
+        if vartype == "output":
+            return f"{vartype}_file_{iter}=${{output_dir}}/${{name}}{argument}\n"
+        else:
+            return f"{vartype}_file_{iter}=${{{argument}}}\n"
     else:
         raise ValueError(f"Language {language} not supported.")
 
@@ -75,6 +86,8 @@ def prepare_template(node, language: str = "python") -> str:
             )
             input_variable_str += (
                 "    "
+                if language in ["python", "R"]
+                else ""
                 + create_variable_expression(input, i + 1, "input", language=language)
                 + "\n"
             )
@@ -95,6 +108,8 @@ def prepare_template(node, language: str = "python") -> str:
             )
             parameters_variable_str += (
                 "    "
+                if language in ["python", "R"]
+                else ""
                 + create_variable_expression(
                     parameter, i + 1, "parameter", language=language
                 )
@@ -112,6 +127,8 @@ def prepare_template(node, language: str = "python") -> str:
             file_ending = output_basename[(ti + 1) :]
             outputs_variable_str += (
                 "    "
+                if language in ["python", "R"]
+                else ""
                 + create_variable_expression(
                     file_ending, i + 1, "output", language=language
                 )
@@ -122,12 +139,14 @@ def prepare_template(node, language: str = "python") -> str:
 
     with open(f"data/templates/main.{filetype[language].value}", "r") as f:
         template = f.read()
-        template = template.replace("    INPUTS_ARGPARSE", input_argparse_str)
-        template = template.replace("    PARAMETERS_ARGPARSE", parameters_argparse_str)
-        template = template.replace("    VARIABLES_INPUTS", input_variable_str)
-        template = template.replace("    VARIABLES_PARAMETERS", parameters_variable_str)
-        template = template.replace("    VARIABLES_OUTPUTS", outputs_variable_str)
-
+        replace_dict = {
+            "INPUTS_ARGPARSE": input_argparse_str,
+            "PARAMETERS_ARGPARSE": parameters_argparse_str,
+            "VARIABLES_INPUTS": input_variable_str,
+            "VARIABLES_PARAMETERS": parameters_variable_str,
+            "VARIABLES_OUTPUTS": outputs_variable_str,
+        }
+        template = template.format(**replace_dict)
     return template
 
 
@@ -195,6 +214,7 @@ if __name__ == "__main__":
     # print(prepare_template(nodes[0], language="python"))
     create_template(nodes[0])
     create_repo_files(nodes[0], output_dir=Path("tmp"))
+    create_repo_files(nodes[2], output_dir=Path("tmp"))
     # prepare_template(nodes[2])
 
     repository_url = urls[0]
