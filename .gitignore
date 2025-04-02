@@ -162,9 +162,16 @@ cython_debug/
 # tildes
 *~
 
+# pixi environments (not using it officially yet)
+.pixi
+pixi.lock
+pixi.toml
+
+# snakemake stuff
+Snakefile
+.snakemake/
+
 # Custom omni-benchmark specific folders
 out/
 log/
-.snakemake/
 output_dag.png
-Snakefile
