@@ -2,6 +2,7 @@ import os
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
+from omni.benchmark import constants
 from omni.benchmark import Validator, BenchmarkNode
 from omni.workflow.snakemake import scripts
 from omni.workflow.snakemake.format import formatter
@@ -21,6 +22,8 @@ def _create_initial_node(benchmark, node, config):
     repository = node.get_repository()
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
+
+    timeout = config.get("timeout", constants.DEFAULT_TIMEOUT_SECONDS)
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -49,6 +52,8 @@ def _create_initial_node(benchmark, node, config):
             parameters = node.get_parameters(),
             dataset = module_id,
             keep_module_logs=config['keep_module_logs']
+        resources:
+            timeout=timeout
         script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)), 'run_module.py')
 
 

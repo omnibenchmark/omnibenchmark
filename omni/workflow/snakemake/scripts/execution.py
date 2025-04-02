@@ -8,6 +8,7 @@ import configparser
 
 from snakemake.script import Snakemake
 
+from omni.benchmark import constants
 
 def mock_execution(inputs: List[str], output: str, snakemake: Snakemake):
     print("Processed", inputs, "to", output, "using threads", snakemake.threads)
@@ -63,6 +64,8 @@ def execution(
     stdout_file = output_dir / "stdout.log"
     stderr_file = output_dir / "stderr.log"
 
+    timeout = resources.get("timeout", constants.DEFAULT_TIMEOUT_SECONDS)
+
     try:
         with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
             result = subprocess.run(
@@ -71,6 +74,7 @@ def execution(
                 stdout=stdout_f,
                 stderr=stderr_f,
                 text=True,
+                timeout=timeout
             )
             exit_code = result.returncode
             logging.info(f"{executable} ran successfully with return code {exit_code}.")
@@ -80,6 +84,14 @@ def execution(
         logging.error(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}. See {stderr_file} for details."
         )
+
+    except subprocess.TimeoutExpired as e:
+        logging.error(
+            f"ERROR: Executing {executable} failed after timing out in {timeout}s"
+            f"See {stderr_file} for details."
+        )
+        raise e
+
 
     finally:
         # Cleanup empty log files / always cleanup stdout_file if keep_module_logs is False
