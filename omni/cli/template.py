@@ -83,9 +83,23 @@ def list_missing_repos(ctx, benchmark: str, reason: bool = False):
     type=str,
     help="Programming language of the module.",
 )
+@click.option(
+    "--type",
+    "-t",
+    "script_type",
+    required=False,
+    type=str,
+    default="explicit",
+    help="The type of script to create. Can be 'explicit' or 'implicit'.",
+)
 @click.pass_context
 def create_missing_repos(
-    ctx, benchmark: str, url: str, output_dir: Path, language: str = None
+    ctx,
+    benchmark: str,
+    url: str,
+    output_dir: Path,
+    language: str = None,
+    script_type: str = "explicit",
 ):
     """List missing repositories in the benchmark."""
 
@@ -100,4 +114,9 @@ def create_missing_repos(
         sys.exit(1)
     else:
         selected_node = selected_node[0]
-        create_repo_files(selected_node, language=language, output_dir=output_dir)
+        create_repo_files(
+            selected_node,
+            language=language,
+            output_dir=output_dir,
+            script_type=script_type,
+        )

@@ -34,110 +34,125 @@ class languageregex(Enum):
     sh = "sh"
 
 
+# offset of each line in the script
+script_offsets = {
+    "argparse": {
+        "python": "    ",
+        "R": "",
+        "sh": "    ",
+    },
+    "variable": {
+        "python": "    ",
+        "R": "",
+        "sh": "",
+    },
+}
+
+# replacement line for argparse
+argparse_dict_base = {
+    "python": "parser.add_argument('--{argument}', type=str, help='input file {argument}')",
+    "R": "parser$add_argument('--{argument}', type='character', help='input file {argument}')",
+    "sh": '--{argument})\n      {argument}="$2"\n      shift\n      shift\n      ;;',
+}
+
+# replacement line for variable
+replace_dict_base = {
+    "implicit": {
+        "input": {
+            "python": "input_file_{iter} = snakemake.input['{argument}']",
+            "R": "input_file_{iter} <- snakemake@input[['{argument}']]",
+            "sh": "input_file_{iter}=${{snakemake_input[{argument}]}}\n",
+        },
+        "params": {
+            "python": "params_file_{iter} = snakemake.params['{argument}']",
+            "R": "params_file_{iter} <- snakemake@params[['{argument}']]",
+            "sh": "params_file_{iter}=${{snakemake_params[{argument}]}}\n",
+        },
+        "output": {
+            "python": "output_file_{iter} = os.path.join(snakemake.output['output_dir'], f'{{snakemake.output['name']}}{argument}')",
+            "R": "output_file_{iter} <- file.path(snakemake@output[['output_dir']], paste0(snakemake@output[['name']], '{argument}'))",
+            "sh": "output_file_{iter}=${{snakemake_output[output_dir]}}/${{snakemake_output[name]}}{argument}\n",
+        },
+    },
+    "explicit": {
+        "input": {
+            "python": "input_file_{iter} = getattr(args, '{argument}')",
+            "R": "input_file_{iter} = args[['{argument}']]",
+            "sh": "input_file_{iter}=${{{argument}}}\n",
+        },
+        "params": {
+            "python": "params_file_{iter} = getattr(args, '{argument}')",
+            "R": "params_file_{iter} = args[['{argument}']]",
+            "sh": "params_file_{iter}=${{{argument}}}\n",
+        },
+        "output": {
+            "python": "output_file_{iter} = os.path.join(getattr(args, 'output_dir'), f'{{getattr(args, 'name')}}{argument}')",
+            "R": "output_file_{iter} = file.path(args[['output_dir']], paste0(args[['name']], 'args[[{argument}]]'))",
+            "sh": "output_file_{iter}=${{output_dir}}/${{name}}{argument}\n",
+        },
+    },
+}
+
+
 def create_argparse_expression(
     argument: str, description: str = "", language: str = "python"
 ) -> str:
     assert language in [l.name for l in list(filetype)]
-    if language == "python":
-        return f"parser.add_argument('--{argument}', type=str, help='{description}', required = True)"
-    elif language == "R":
-        return f"parser$add_argument('--{argument}', type='character', help='{description}')"
-    elif language == "sh":
-        return (
-            f'--{argument})\n      {argument}="$2"\n      shift\n      shift\n      ;;'
-        )
-    else:
-        raise ValueError(f"Language {language} not supported.")
+    return argparse_dict_base[language].format(
+        argument=argument, description=description
+    )
 
 
 def create_variable_expression(
-    argument: str, iter: int = 1, vartype="input", language: str = "python"
+    argument: str,
+    iter: int = 1,
+    vartype="input",
+    language: str = "python",
+    script_type: str = "explicit",
 ) -> str:
-    assert vartype in ["input", "parameter", "output"]
+    assert vartype in ["input", "params", "output"]
+    assert script_type in ["explicit", "implicit"]
     assert language in [l.name for l in list(filetype)]
-    if language == "python":
-        if vartype == "output":
-            return f"{vartype}_file_{iter} = os.path.join(getattr(args, 'output_dir'), f'{{getattr(args, 'name')}}{argument}')"
-        else:
-            return f"{vartype}_file_{iter} = getattr(args, '{argument}')"
-    elif language == "R":
-        if vartype == "output":
-            return f"{vartype}_file_{iter} = file.path(args[['output_dir']], paste0(args[['name']], 'args[[{argument}]]'))"
-        else:
-            return f"{vartype}_file_{iter} = args[['{argument}']]"
-    elif language == "sh":
-        if vartype == "output":
-            return f"{vartype}_file_{iter}=${{output_dir}}/${{name}}{argument}\n"
-        else:
-            return f"{vartype}_file_{iter}=${{{argument}}}\n"
-    else:
-        raise ValueError(f"Language {language} not supported.")
+    return replace_dict_base[script_type][vartype][language].format(
+        argument=argument, iter=iter
+    )
 
 
-def prepare_template(node, language: str = "python") -> str:
+def prepare_template(
+    node, language: str = "python", script_type: str = "explicit"
+) -> str:
     assert language in [l.name for l in list(filetype)]
-    input_argparse_str = ""
-    input_variable_str = ""
+    input_argparse_str, input_variable_str = "", ""
     try:
         inputs = node.get_explicit_inputs()[0]
         for i, input in enumerate(inputs.keys()):
-            input_argparse_str += (
-                "    " + create_argparse_expression(input, language=language) + "\n"
-            )
-            input_variable_str += (
-                "    "
-                if language in ["python", "R"]
-                else ""
-                + create_variable_expression(input, i + 1, "input", language=language)
-                + "\n"
-            )
-    except:
+            input_argparse_str += f"{script_offsets['argparse'][language]}{create_argparse_expression(input, language)}\n"
+            input_variable_str += f"{script_offsets['variable'][language]}{create_variable_expression(input, i + 1, 'input', language, script_type)}\n"
+    except Exception:
         pass
-
-    parameters_argparse_str = ""
-    parameters_variable_str = ""
+    parameters_argparse_str, parameters_variable_str = "", ""
     try:
         parameters = node.get_parameters()[::2]
-        for i, parameter in enumerate(parameters):
-            parameters_argparse_str += (
-                "    "
-                + create_argparse_expression(
-                    parameter.replace("--", ""), language=language
-                )
-                + "\n"
-            )
-            parameters_variable_str += (
-                "    "
-                if language in ["python", "R"]
-                else ""
-                + create_variable_expression(
-                    parameter, i + 1, "parameter", language=language
-                )
-                + "\n"
-            )
-    except:
+        for i, params in enumerate(parameters):
+            parameters_argparse_str += f"{script_offsets['argparse'][language]}{create_argparse_expression(params.replace("--", ""), language)}\n"
+            parameters_variable_str += f"{script_offsets['variable'][language]}{create_variable_expression(params, i+1, "param", language, script_type)}\n"
+    except Exception:
         pass
 
     outputs_variable_str = ""
-    outputs = node.get_outputs()
     try:
+        outputs = node.get_outputs()
         for i, output in enumerate(outputs):
             output_basename = os.path.basename(output)
             ti = output_basename.find("}")
             file_ending = output_basename[(ti + 1) :]
-            outputs_variable_str += (
-                "    "
-                if language in ["python", "R"]
-                else ""
-                + create_variable_expression(
-                    file_ending, i + 1, "output", language=language
-                )
-                + "\n"
-            )
-    except:
+            outputs_variable_str += f"{script_offsets['variable'][language]}{create_variable_expression(file_ending, i + 1, 'output', language, script_type)}\n"
+    except Exception:
         pass
 
-    with open(f"data/templates/main.{filetype[language].value}", "r") as f:
+    with open(
+        f"data/templates/main_{script_type}.{filetype[language].value}", "r"
+    ) as f:
         template = f.read()
         replace_dict = {
             "INPUTS_ARGPARSE": input_argparse_str,
@@ -178,17 +193,24 @@ def guess_language(node):
     return None
 
 
-def create_template(node, language: str = None, outfile: str = None):
+def create_template(
+    node, language: str = None, outfile: str = None, script_type="explicit"
+):
     if language is None:
         language = guess_language(node)
     if outfile is None:
-        return prepare_template(node, language=language)
+        return prepare_template(node, language=language, script_type=script_type)
     else:
         with open(outfile, "w") as f:
-            f.write(prepare_template(node, language=language))
+            f.write(prepare_template(node, language=language, script_type=script_type))
 
 
-def create_repo_files(node, language: str = None, output_dir: Path = Path("output")):
+def create_repo_files(
+    node,
+    language: str = None,
+    output_dir: Path = Path("output"),
+    script_type="explicit",
+):
     if language is None:
         language = guess_language(node)
     assert language in [l.name for l in list(filetype)]
@@ -197,6 +219,7 @@ def create_repo_files(node, language: str = None, output_dir: Path = Path("outpu
         node,
         language=language,
         outfile=output_dir / Path(f"main.{filetype[language].value}"),
+        script_type=script_type,
     )
 
     config_cfg_str = f"[DEFAULT]\nSCRIPT=main.{filetype[language].value}"
@@ -213,7 +236,9 @@ if __name__ == "__main__":
     # print(prepare_template(nodes[0], language="R"))
     # print(prepare_template(nodes[0], language="python"))
     create_template(nodes[0])
-    create_repo_files(nodes[0], output_dir=Path("tmp"))
+    create_repo_files(
+        nodes[0], output_dir=Path("tmp"), language="python", script_type="implicit"
+    )
     create_repo_files(nodes[2], output_dir=Path("tmp"))
     # prepare_template(nodes[2])
 

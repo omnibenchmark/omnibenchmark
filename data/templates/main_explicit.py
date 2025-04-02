@@ -7,10 +7,10 @@ def main():
     parser = argparse.ArgumentParser(description="")
 
     # Inputs
-    {INPUTS_ARGPARSE}
+{INPUTS_ARGPARSE}
 
     # Parameters
-    {PARAMETERS_ARGPARSE}
+{PARAMETERS_ARGPARSE}
 
     # Outputs
     parser.add_argument(
@@ -24,11 +24,11 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    {VARIABLES_INPUTS}
+{VARIABLES_INPUTS}
 
-    {VARIABLES_PARAMETERS}
+{VARIABLES_PARAMETERS}
 
-    {VARIABLES_OUTPUTS}
+{VARIABLES_OUTPUTS}
 
 
 if __name__ == "__main__":

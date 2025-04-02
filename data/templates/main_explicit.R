@@ -3,10 +3,10 @@ library(argparse)
 parser <- ArgumentParser(description="")
 
 # Inputs
-    {INPUTS_ARGPARSE}
+{INPUTS_ARGPARSE}
 
 # Parameters
-    {PARAMETERS_ARGPARSE}
+{PARAMETERS_ARGPARSE}
 
 # Outputs
 parser$add_argument("--output_dir", "-o", dest="output_dir", type="character", help="output directory where files will be saved", default=getwd())
@@ -15,9 +15,9 @@ parser$add_argument("--name", "-n", dest="name", type="character", help="name of
 args <- parser$parse_args()
 
 
-    {VARIABLES_INPUTS}
+{VARIABLES_INPUTS}
 
-    {VARIABLES_PARAMETERS}
+{VARIABLES_PARAMETERS}
 
-    {VARIABLES_OUTPUTS}
+{VARIABLES_OUTPUTS}
 

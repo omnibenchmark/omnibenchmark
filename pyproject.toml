@@ -78,3 +78,6 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 [tool.isort]
 profile = "black"
+
+[tool.black]
+force-exclude = '''.*templates*'''
