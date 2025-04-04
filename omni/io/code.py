@@ -12,6 +12,8 @@ from git import Repo
 from git.exc import InvalidGitRepositoryError
 from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_name
 
+REPOSITORIES_DIR = Path(".snakemake") / "repos"
+
 
 def construct_url_github(
     repository_url: str, commit_hash: Union[None, str] = None

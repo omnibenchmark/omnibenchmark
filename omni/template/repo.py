@@ -3,7 +3,8 @@ from typing import List
 import os
 
 from omni.benchmark import Benchmark
-from omni.io.code import get_git_archive, check_remote_repo_existance
+from omni.io.code import get_git_archive, check_remote_repo_existance, REPOSITORIES_DIR
+from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_name
 
 # parse benchmark
 
@@ -165,7 +166,7 @@ def prepare_template(
     return template
 
 
-def get_missing_repos(benchmark: Benchmark) -> List:
+def get_missing_repos(benchmark: Benchmark, work_dir: Path = Path(os.getcwd())) -> List:
     modules = {}
     for i, node in enumerate(benchmark.get_nodes()):
         modules[node.get_repository()["url"]] = i
@@ -173,9 +174,16 @@ def get_missing_repos(benchmark: Benchmark) -> List:
     unique_module_ids = list(modules.values())
     nodes = [no for i, no in enumerate(benchmark.get_nodes()) if i in unique_module_ids]
 
+    local_repocommit_hashes = os.listdir(work_dir / REPOSITORIES_DIR)
+
     inexistent_nodes = []
     for node in nodes:
         repo = node.get_repository()
+        repocommit_hash = generate_unique_repo_folder_name(repo["url"], repo["commit"])
+        # check if exists locally
+        if repocommit_hash in local_repocommit_hashes:
+            continue
+        # if not exists locally, check if exists remotely
         if not get_git_archive("", repo["url"], repo["commit"], True):
             inexistent_nodes.append(node)
 
