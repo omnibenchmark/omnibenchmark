@@ -1,4 +1,4 @@
-""" General utils functions"""
+"""General utils functions"""
 
 import os
 

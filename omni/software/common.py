@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Common omniblock software management logics, regardless of conda/easybuild/system. 
+Common omniblock software management logics, regardless of conda/easybuild/system.
 Calls workflow capabilities to reuse schema / yaml parsing logics
 """
 
