@@ -1,16 +1,16 @@
-[tool.poetry]
+[project]
 name = "omnibenchmark"
-version = "0.0.0" # Placeholder, managed by poetry-dynamic-versioning
-description = "An tool for automated scientific benchmarking"
+description = "A tool for automated scientific benchmarking"
 authors = [
-    "almutlue <almut.lue@gmail.com>",
-    "Izaskun Mallona <izaskun.mallona@gmail.com>",
-    "Daniel Incicau <daniel.incicau@gmail.com>",
+    {name = "Almut Lütge", email= "almut.lue@gmail.com"},
+    {name = "Izaskun Mallona", email = "izaskun.mallona@gmail.com"},
+    {name = "Daniel Incicau", email = "daniel.incicau@gmail.com"},
+    {name = "Reto Gerber"},
+    {name = "Ben Carrillo"},
 ]
 readme = "README.md"
-packages = [{ include = "omni" }]
-homepage = "https://github.com/omnibenchmark/omni-py"
-repository = "https://github.com/omnibenchmark/omni-py"
+homepage = "https://github.com/omnibenchmark/omnibenchmark"
+repository = "https://github.com/omnibenchmark/omnibenchmark"
 classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
@@ -18,40 +18,62 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
 ]
+requires-python = "~=3.12"
+
+dynamic = ["version"]
+
+dependencies = [
+    "click>=8.1.7",
+    "aiohttp>=3.9.5",
+    "async>=0.6.2",
+    "tqdm>=4.66.4",
+    "requests>=2.31.0",
+    "python-dateutil>=2.9.0.post0",
+
+    # DAG & Visualization
+    "networkx>=3.3",
+    "matplotlib==3.8.0",
+    "pydot>=3.0.2",
+
+    # Cloning modules
+    "GitPython>=3.1.0",
+
+    # Workflow
+    "snakemake==8.25.1", # TODO: try to unpin
+    "snakedeploy>=0.10.0",
+
+    # Build tools
+    "easybuild>=5.0.0",
+    "easybuild-easyblocks>=5.0.0",
+
+    # Git dependencies
+    # TODO: either push to pip or internalize
+    "omni-schema @ git+https://github.com/omnibenchmark/omni-schema.git@version/0.0.6"
+]
+
+[project.optional-dependencies]
+s3 = [
+    "minio>=7.2.7",
+    "boto3>=1.34.102",
+    "snakemake-storage-plugin-s3>=0.2.12"
+]
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.8.2,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry]
+packages = [{ include = "omni" }]
+version = "0.0.0"  # changed dynamically by plugin
+
+[tool.poetry.scripts]
+ob = 'omni.cli.main:cli'
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
 
 [tool.poetry-dynamic-versioning]
 enable = true
-vcs = "git"
-style = "semver"
-
-
-[tool.poetry.dependencies]
-python = "^3.12"
-click = "^8.1.7"
-aiohttp = "^3.9.5"
-async = "^0.6.2"
-tqdm = "^4.66.4"
-requests = "^2.31.0"
-python-dateutil = "^2.9.0.post0"
-
-matplotlib = "3.8.0"
-networkx = "^3.3"
-pydot = "^3.0.2"
-
-omni-schema = { git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.5" }
-
-snakemake = "8.25.1"
-snakedeploy = "^0.10.0"
-
-easybuild = "^4.9.2"
-easybuild-easyblocks = "^4.9.2"
-
-minio = { version = "^7.2.7", optional = true }
-boto3 = { version = "^1.34.102", optional = true }
-snakemake-storage-plugin-s3 = { version = "^0.2.12", optional = true }
-
-[tool.poetry.extras]
-s3 = ["minio", "boto3", "snakemake-storage-plugin-s3"]
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.1"
@@ -59,7 +81,6 @@ black = "^23.12.0"
 typing-extensions = "^4.11.0"
 isort = "^5.13.2"
 pyright = "^1.1.398"
-
 
 [tool.poetry.group.test.dependencies]
 pytest-cov = "^4.1.0"
@@ -73,13 +94,6 @@ s3fs = { extras = ["boto3"], version = ">=2023.12.0" }
 boto3 = "*"
 botocore = "*"
 pytest-timeout = "^2.3.1"
-
-[tool.poetry.scripts]
-ob = 'omni.cli.main:cli'
-
-[build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"
 
 [tool.isort]
 profile = "black"
