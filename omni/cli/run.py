@@ -203,7 +203,7 @@ def run_module(
             )
             sys.exit(1)  # raise click.Exit(code=1)
         else:
-            logger.info(f"Running module on a local dataset.")
+            logger.info("Running module on a local dataset.")
             benchmark = validate_benchmark(benchmark)
 
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)

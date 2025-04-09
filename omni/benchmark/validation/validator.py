@@ -1,4 +1,3 @@
-import logging
 import os.path
 from collections import Counter
 from pathlib import Path

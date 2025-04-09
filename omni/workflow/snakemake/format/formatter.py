@@ -159,7 +159,7 @@ def _match_input_module(input: str, stages: List[Tuple[str]], dataset: str) -> s
 
 
 def _match_input_prefix(input: str, pre: str) -> str:
-    stage = f'/{input.split("/")[1]}'
+    stage = f"/{input.split('/')[1]}"
     matched_prefix = pre.split(stage)[0]
     formatted_input = input.format(pre=matched_prefix)
 

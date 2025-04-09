@@ -150,7 +150,7 @@ class Benchmark:
 
     def export_to_mermaid(self, show_params: bool = True) -> str:
         # Initialize the mermaid diagram syntax
-        mermaid_diagram = f"---\n"
+        mermaid_diagram = "---\n"
         mermaid_diagram += f"title: {self.get_benchmark_name()}\n"
         mermaid_diagram += "---\n"
         mermaid_diagram += "flowchart LR\n"

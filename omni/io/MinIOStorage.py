@@ -109,7 +109,7 @@ class MinIOStorage(RemoteStorage):
             tmp_auth_options = self.auth_options.copy()
         try:
             return minio.Minio(**tmp_auth_options)
-        except Exception as e:
+        except Exception:
             url = urlparse(tmp_auth_options["endpoint"])
             tmp_auth_options["endpoint"] = url.netloc
             return minio.Minio(**tmp_auth_options)
@@ -155,7 +155,7 @@ class MinIOStorage(RemoteStorage):
         ]
         versions = list()
         for version in allversions:
-            if re.match(f"(\\d+).(\\d+)", version):
+            if re.match("(\\d+).(\\d+)", version):
                 versions.append(Version(version))
         self.versions = versions
 
@@ -165,7 +165,7 @@ class MinIOStorage(RemoteStorage):
                 "No version provided, set version first with method 'set_version'"
             )
 
-        if not "access_key" in self.auth_options.keys():
+        if "access_key" not in self.auth_options.keys():
             raise RemoteStorageInvalidInputException(
                 "Read-only mode, cannot create new version, set access_key and secret_key in auth_options"
             )
@@ -259,7 +259,7 @@ class MinIOStorage(RemoteStorage):
 
         # check if version exists
         self._get_versions()
-        if not self.version in self.versions:
+        if self.version not in self.versions:
             raise MinIOStorageBucketManipulationException("Version creation failed")
 
     def _get_objects(self) -> None:

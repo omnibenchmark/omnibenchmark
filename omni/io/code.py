@@ -1,7 +1,5 @@
-import hashlib
 import logging
 import os
-import shutil
 import tarfile
 from pathlib import Path
 
@@ -12,6 +10,7 @@ import requests
 from typing import List
 
 from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_name
+
 
 # Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
 def get_git_archive_from_github(
@@ -98,7 +97,7 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
                 )
                 get_git_archive(module_dir, repository_url, commit_hash)
                 observed_commit_hash = commit_hash
-            except Exception as e:
+            except Exception:
                 logging.info(
                     f"Archival retirieval failed, cloning module `{repository_url}:{commit_hash}` to `{module_dir.as_posix()}`"
                 )
@@ -112,7 +111,7 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
             except InvalidGitRepositoryError:
                 # is archive
                 observed_commit_hash = commit_hash
-            except Exception as e:
+            except Exception:
                 observed_commit_hash = "known"
 
         if observed_commit_hash != commit_hash:

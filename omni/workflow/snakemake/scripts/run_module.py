@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 # WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
 
-import logging
 import os
 from pathlib import Path
 
@@ -55,4 +54,4 @@ try:
 
 
 except NameError:
-    raise RuntimeError(f"This script must be run from within a Snakemake workflow")
+    raise RuntimeError("This script must be run from within a Snakemake workflow")
