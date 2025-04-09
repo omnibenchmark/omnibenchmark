@@ -9,7 +9,7 @@ runner = CliRunner()
 
 # largely as in https://pytest-with-eric.com/pytest-advanced/pytest-argparse-typer/
 test_cases = [
-    ("software conda pin --env data/ripgrep.yml", "DONE: Pinned data/ripgrep.yml"),
+    ("software conda pin --env data/ripgrep.yml", "Pinning data/ripgrep.yml via snakedeploy. It will take some time.\n"),
 ]
 
 
