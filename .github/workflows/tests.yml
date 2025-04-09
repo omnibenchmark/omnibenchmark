@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       #----------------------------------------------
-      #       check-out repo and set-up python, R, OS dependencies
+      # Check-out repo and set-up python
       #----------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,12 +34,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Setup R ${{ matrix.r-version }}
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: ${{ matrix.r-version }}
-          # Enable RStudio Package Manager to speed up package installation
-          use-public-rspm: true
       #----------------------------------------------
       #  -----  install & configure poetry  -----
       #----------------------------------------------
@@ -48,36 +42,54 @@ jobs:
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
-      #----------------R------------------------------
-      #       load cached venv if cache exists
+      #----------------------------------------------
+      # Check Poetry configuration
+      #----------------------------------------------
+      - name: Validate Poetry configuration
+        run: poetry check
+        # This will fail the job if there are issues with pyproject.toml
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies with poetry
+        if: steps.cached-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install --no-interaction --no-root --extras s3 --extras test
+
+      #----------------------------------------------
+      # load cached venv if cache exists
       #----------------------------------------------
       - name: Load cached venv
         id: cached-dependencies
         uses: actions/cache@v3
         with:
-          path: | 
+          path: |
             .venv
             ${{ env.R_LIBS_USER }}
           key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.r-version }}-${{ hashFiles('**/poetry.lock') }}
 
       #----------------------------------------------
-      # Setup conda for macos
+      # Setup conda (macos only)
       #----------------------------------------------
       - name: Set up conda for macOS
         if: matrix.os == 'macos-latest'
         uses: conda-incubator/setup-miniconda@v2
         with:
-          miniconda-version: 'latest'
+          miniconda-version: "latest"
           auto-activate-base: false
 
       #----------------------------------------------
-      # install dependencies if cache does not exist
+      # Setup R
       #----------------------------------------------
-      - name: Install Poetry dependencies
-        if: steps.cached-dependencies.outputs.cache-hit != 'true'
-        run: |          
-          poetry install --all-extras --no-interaction --no-root
-
+      - name: Setup R ${{ matrix.r-version }}
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.r-version }}
+          # Enable RStudio Package Manager to speed up package installation
+          use-public-rspm: true
+      #----------------------------------------------
+      # Install R environment
+      #----------------------------------------------
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -88,7 +100,7 @@ jobs:
       # install your root project, if required
       #----------------------------------------------
       - name: Install library
-        run: poetry install --all-extras --no-interaction
+        run: poetry install --no-interaction
 
       #----------------------------------------------
       # run test suite and output coverage file for mac and linux
@@ -96,7 +108,7 @@ jobs:
       - name: Run tests
         run: |
           # I think lmod should be loadable/installed for tests to run?
-          # source "$LMOD_PKG"/init/profile 
+          # source "$LMOD_PKG"/init/profile
           # export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io
@@ -110,7 +122,7 @@ jobs:
           ## skip software tests, they're done differently
           poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
         if: matrix.os == 'windows-latest'
-      
+
       #----------------------------------------------
       # Generate badges
       #----------------------------------------------

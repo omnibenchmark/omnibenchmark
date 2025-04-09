@@ -33,7 +33,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-20.04]
-        test_group: [1,2]
+        test_group: [1, 2]
         python-version: ["3.12"]
         r-version: ["4.4.1"]
       fail-fast: false
@@ -93,36 +93,36 @@ jobs:
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
 
       - name: Test
-        ## env:
-        ##   CI: true
         env:
           CI: false
         shell: bash -el {0}
         run: |
+          # tests script
+          # install the s3 and test extra dependencies
+          pip install -e ".[s3]"
+          pip install -e ".[test]"
+
+          ## install required python dependencies
+          pip install numpy pandas scikit-learn scipy
+
           cd tests/software
 
           source "$LMOD_PKG"/init/profile
-                    
+
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
-                    
+
           module spider 3.6.3-foss-2017b
 
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          ## poetry toml section ignored by pip during env creation
-          pip install pytest-cov pytest-split pytest-xdist
-          
-          ## install required python dependencies
-          pip install numpy pandas scikit-learn scipy
-          
-          # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
+          # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
-              
+
   software_testing_mac:
     permissions: write-all
     strategy:
@@ -147,12 +147,12 @@ jobs:
       - name: Install packages using homebrew
         shell: bash -el {0}
         run: |
-             bash
-             brew upgrade
-             brew install coreutils
-             brew install lmod
-             brew install micromamba
-          
+          bash
+          brew upgrade
+          brew install coreutils
+          brew install lmod
+          brew install micromamba
+
       - name: Setup R ${{ matrix.r-version }}
         uses: r-lib/actions/setup-r@v2
         with:
@@ -173,7 +173,6 @@ jobs:
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
-
       - name: Manually create env
         shell: bash -el {0}
         run: |
@@ -187,20 +186,20 @@ jobs:
           CI: true
         shell: bash -el {0}
         run: |
-           cat <<'EOF' >>~/.bashrc
-           if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
-                source /opt/homebrew/opt/lmod/init/profile
-           fi
-           if [ -f /usr/local/opt/lmod/init/bash ]; then
-                source /usr/local/opt/lmod/init/profile
-           fi
-           eval "$(micromamba shell hook --shell bash)"
-           export R_LIBS=~/work/Rlib
-           EOF
-           
-           cat <<'EOF' >>~/.bash_profile
-           source ~/.bashrc
-           EOF         
+          cat <<'EOF' >>~/.bashrc
+          if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+               source /opt/homebrew/opt/lmod/init/profile
+          fi
+          if [ -f /usr/local/opt/lmod/init/bash ]; then
+               source /usr/local/opt/lmod/init/profile
+          fi
+          eval "$(micromamba shell hook --shell bash)"
+          export R_LIBS=~/work/Rlib
+          EOF
+
+          cat <<'EOF' >>~/.bash_profile
+          source ~/.bashrc
+          EOF
 
       - name: Test
         env:
@@ -211,23 +210,23 @@ jobs:
           # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
           micromamba activate omnibenchmark
-          
+
+          # install the s3 and test extra dependencies
+          pip install -e ".[s3]"
+          pip install -e ".[test]"
+
+          ## install required Python dependenices
+          pip install numpy pandas scikit-learn scipy
+
           cd tests/software
 
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
-          
+
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          ## poetry toml section ignored by pip during env creation
-          pip install pytest-cov pytest-split pytest-xdist
-          
-          ## install required Python dependenices
-          pip install numpy pandas scikit-learn scipy
-          
-          # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
