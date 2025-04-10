@@ -50,6 +50,10 @@ snakemake-storage-plugin-s3 = "^0.2.12"
 
 pydot = "^3.0.2"
 
+pydantic = "^2.7.0"
+spdx-license-list = "^3.19"
+PyYAML = "^6.0"
+
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 black = "^23.12.0"
