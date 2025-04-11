@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 import os
 
+from omni.io.code import REPOSITORIES_DIR
 from omni.benchmark import Benchmark
 from omni_schema.datamodel import omni_schema
 
@@ -30,11 +31,10 @@ def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
     for node in nodes:
         repositories.add((node.get_repository().url, node.get_repository().commit))
 
-    repositories_dir = Path(".snakemake") / "repos"
     files = []
     while repositories:
         repo = repositories.pop()
-        files += list(clone_module(repositories_dir, repo[0], repo[1]).iterdir())
+        files += list(clone_module(REPOSITORIES_DIR, repo[0], repo[1]).iterdir())
     return files
 
 

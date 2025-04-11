@@ -7,7 +7,7 @@ from pathlib import Path
 
 from snakemake.script import Snakemake
 
-from omni.io.code import clone_module
+from omni.io.code import clone_module, REPOSITORIES_DIR
 from omni.workflow.snakemake.scripts.execution import execution
 from omni.workflow.snakemake.scripts.utils import (
     get_module_name_from_rule_name,
@@ -37,8 +37,7 @@ try:
     dump_parameters_to_file(output_dir, parameters)
 
     # Clone git repository
-    repositories_dir = Path(".snakemake") / "repos"
-    module_dir = clone_module(repositories_dir, repository_url, commit_hash)
+    module_dir = clone_module(REPOSITORIES_DIR, repository_url, commit_hash)
 
     # Execute module code
     module_name = get_module_name_from_rule_name(snakemake.rule)
