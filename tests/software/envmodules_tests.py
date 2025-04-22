@@ -1,6 +1,6 @@
 ## updated from Snakemake's test suite
 ##
-##https://raw.githubusercontent.com/snakemake/snakemake/main/tests/tests.py
+## https://raw.githubusercontent.com/snakemake/snakemake/main/tests/tests.py
 ## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
 ## From Koester's license above:
 ##
@@ -16,18 +16,10 @@ import os.path as op
 from utils.run import run
 
 sys.path.insert(0, op.dirname(__file__))
-# WD = op.dirname(__file__)
-
-
-def test_omni_python_import():
-    pass
-
-
-def test_omni_easybuild_import():
-    pass
 
 
 ## this won't work on Mac
+# TODO(ben): add a pytest conditional skip
 def test_easybuild_sys_toolchain_build():
     run(
         Snakefile=op.join("04_easybuild_build_envmodules", "Snakefile"),

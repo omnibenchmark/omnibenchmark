@@ -17,7 +17,6 @@ import pytest
 from utils.run import run, check_cmd_zero_exit
 
 sys.path.insert(0, op.dirname(__file__))
-# WD = op.dirname(__file__)
 
 
 def test_singularity():
@@ -53,27 +52,7 @@ def test_bash_cmd():
     check_cmd_zero_exit("bash --version")
 
 
-# def test_module_cmd():
-#     from omni.software import easybuild_backend as easy
-#     # assert easy.check_available_modules() == ['lmod', 'settarg']
-#     mod_tool = modules_tool()
-#     # assert len(mod_tool.available(envmodule)) != 0
-
-
-def test_omni_python_import():
-    pass
-
-
-def test_omni_easybuild_import():
-    pass
-
-
-# def test_env_export():
-#     eb.export_lmod_env_vars()
-
-
 def test_easybuild_sys_toolchain_build():
-    # try:
     run(
         Snakefile=op.join("03_easybuild_build", "Snakefile"),
         produced=op.join("binutils-2.35.eb_ld.txt"),
@@ -82,12 +61,3 @@ def test_easybuild_sys_toolchain_build():
         ),
         method="apptainer",
     )
-
-
-# def test_easybuild_build_toolchain():
-#     run(Snakefile = op.join("04_easybuild_build_toolchain", "Snakefile"),
-#         produced = op.join('testing_04', 'placeholder'),
-#         expected = op.join('04_easybuild_build', 'expected_results', 'placeholder'),
-#         method= 'apptainer')
-
-# def test_easybuild_cli():

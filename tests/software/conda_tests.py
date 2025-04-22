@@ -17,7 +17,6 @@ import os.path as op
 from utils.run import run
 
 sys.path.insert(0, op.dirname(__file__))
-# WD = op.dirname(__file__)
 
 
 def test_conda():
@@ -27,11 +26,3 @@ def test_conda():
         expected=op.join("00_conda", "expected_results", "test0.out"),
         method="conda",
     )
-
-
-def test_omni_python_import():
-    pass
-
-
-def test_omni_easybuild_import():
-    pass
