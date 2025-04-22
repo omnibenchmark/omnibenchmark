@@ -29,6 +29,7 @@ def execution(
     inputs_map: dict[str, str | List[str]],
     parameters: Params,
     keep_module_logs: bool,
+    timeout: int,
 ) -> int:
     config_parser = _read_config(module_dir)
     if config_parser is None:
@@ -65,6 +66,8 @@ def execution(
     stdout_file = output_dir / "stdout.log"
     stderr_file = output_dir / "stderr.log"
 
+    logging.info(f"Seting timeout to {timeout} seconds")
+
     try:
         with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
             result = subprocess.run(
@@ -73,6 +76,7 @@ def execution(
                 stdout=stdout_f,
                 stderr=stderr_f,
                 text=True,
+                timeout=timeout,
             )
             exit_code = result.returncode
             logging.info(f"{executable} ran successfully with return code {exit_code}.")
@@ -82,6 +86,13 @@ def execution(
         logging.error(
             f"ERROR: Executing {executable} failed with exit code {e.returncode}. See {stderr_file} for details."
         )
+
+    except subprocess.TimeoutExpired as e:
+        logging.error(
+            f"ERROR: Executing {executable} failed after timing out in {timeout}s"
+            f"See {stderr_file} for details."
+        )
+        raise e
 
     finally:
         # Cleanup empty log files / always cleanup stdout_file if keep_module_logs is False

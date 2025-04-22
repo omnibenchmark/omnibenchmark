@@ -154,12 +154,13 @@ def list_versions(ctx, benchmark):
     envvar="OB_BENCHMARK",
 )
 @click.pass_context
-def plot(ctx, benchmark: str):
+def computational_graph(ctx, benchmark: str):
     """Export computational graph to dot format."""
 
     b = validate_benchmark(benchmark, echo=False)
-    dot = b.export_to_dot()
-    click.echo(dot.to_string())
+    if b is not None:
+        dot = b.export_to_dot()
+        click.echo(dot.to_string())
 
 
 @info.command("topology")
@@ -176,5 +177,6 @@ def plot_topology(ctx, benchmark: str):
     """Export benchmark topology to mermaid diagram format."""
 
     b = validate_benchmark(benchmark, echo=False)
-    mermaid = b.export_to_mermaid()
-    click.echo(mermaid)
+    if b is not None:
+        mermaid = b.export_to_mermaid()
+        click.echo(mermaid)
