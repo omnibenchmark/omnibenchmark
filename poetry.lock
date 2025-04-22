@@ -3663,6 +3663,18 @@ files = [
 ]
 
 [[package]]
+name = "spdx-license-list"
+version = "3.26.0"
+description = "SPDX License List as a Python dictionary"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "spdx_license_list-3.26.0-py3-none-any.whl", hash = "sha256:dab69ae676e822623bb64ddfd0a4061a4a264498ca10799ac8e98592ca813f49"},
+    {file = "spdx_license_list-3.26.0.tar.gz", hash = "sha256:dc8eed9acdf070deba0e6ac9335d704f0e3338d30895000d911c70e4b7853e5b"},
+]
+
+[[package]]
 name = "tabulate"
 version = "0.9.0"
 description = "Pretty-print tabular data"
@@ -4073,4 +4085,4 @@ test = ["pytest-cov", "pytest-split", "pytest-xdist", "testcontainers"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~=3.12"
-content-hash = "fd33d6ba383ed45f627df7805cdb57069ca4ffbabc015232761ed67d58c9c93f"
+content-hash = "1360640b134b5c82a16811a26b4f4b1a322550a4eb7dac0af3321de56888aecf"

@@ -43,7 +43,7 @@ dependencies = [
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake==8.25.1", # TODO: try to unpin
+    "snakemake>=8.0", # modify constraints.txt if you need stricter pinning
     "snakedeploy>=0.10.0",
 
     # Build tools
