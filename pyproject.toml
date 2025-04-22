@@ -30,6 +30,9 @@ dependencies = [
     "requests>=2.31.0",
     "python-dateutil>=2.9.0.post0",
     "filelock>=3.4.0",
+    "pydantic",
+    "spdx-license-list>=3.19",
+    "PyYAML",
 
     # DAG & Visualization
     "networkx>=3.3", # this might be overkill for the DAG
