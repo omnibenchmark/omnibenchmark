@@ -56,14 +56,17 @@ def read_performance(file_path: str):
 
 def tokenize(output_path: Path, file_path: str):
     ## we get only after the 'out' directory
-    fp = file_path.split(f"{output_path}/")[1].split("/")
+    # TODO(ben): be more careful here
+    try:
+        fp = file_path.split(f"{output_path}/")[1].split("/")
+    except IndexError:
+        return []
     ## and slice in stage/method/params triples
     return [x for x in zip(*(iter(fp),) * 3)]
 
 
 def read_params(output_path: Path, file_path: str):
     triples = tokenize(output_path, file_path)
-    params_path = ""
     res = ""
     parent = str(output_path)
     for triple in triples:
