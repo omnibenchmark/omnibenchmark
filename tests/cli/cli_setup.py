@@ -1,33 +1,38 @@
-import os
-import shutil
+import subprocess
 from typing import List, Optional
 
-from click.testing import CliRunner, Result
 
-from omni.cli.main import cli
-
-FILES_TO_CLEANUP = [".snakemake", "out", "Snakefile", "snakemake.log"]
+# from click.testing import CliRunner, Result
+# from omni.cli.main import cli
 
 
 class OmniCLISetup:
-    def __init__(self):
-        self.runner = CliRunner()
+    def call(
+        self, args: List[str], input: Optional[str] = None
+    ) -> subprocess.CompletedProcess:
+        """
+        Call the CLI using subprocess.run.
+        Args:
+            args: List of arguments to pass to the CLI.
+            input: Optional input to pass to the CLI's stdin.
+        Returns:
+            A subprocess.CompletedProcess object containing the result of the command.
+        """
+        # Construct the command to run
+        command = ["python", "-m", "omni.cli.main"] + args
 
-    def call(self, args: List[str], input: Optional = None) -> Result:
-        return self.runner.invoke(cli, args, input=input)
+        # Run the command using subprocess.run
+        result = subprocess.run(
+            command,
+            input=input,
+            text=True,  # Ensures input/output are treated as strings
+            capture_output=True,  # Captures stdout and stderr
+        )
+
+        return result
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._cleanup_run()
-
-    def _cleanup_run(self):
-        current_dir = os.getcwd()
-        for file in FILES_TO_CLEANUP:
-            file_path = os.path.join(current_dir, file)
-            if os.path.exists(file_path):
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
+        pass
