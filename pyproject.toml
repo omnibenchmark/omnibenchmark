@@ -49,10 +49,8 @@ dependencies = [
     # Build tools
     "easybuild>=5.0.0",
     "easybuild-easyblocks>=5.0.0",
+    "omni-schema>=0.0.6",
 
-    # Git dependencies
-    # TODO: either push to pip or internalize
-    "omni-schema @ git+https://github.com/omnibenchmark/omni-schema.git@version/0.0.6"
 ]
 
 [project.optional-dependencies]
