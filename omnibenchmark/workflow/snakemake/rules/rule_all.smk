@@ -5,10 +5,13 @@ from typing import List
 
 from omni_schema.datamodel.omni_schema import MetricCollector, SoftwareBackendEnum
 
-from omni.benchmark import Benchmark, Validator
-from omni.workflow.snakemake import scripts
-from omni.workflow.snakemake.format import formatter
-from omni.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
+from omnibenchmark.benchmark import Benchmark, Validator
+from omnibenchmark.workflow.snakemake import scripts
+from omnibenchmark.workflow.snakemake.format import formatter
+from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
+
+import logging
+logging.getLogger('snakemake').setLevel(logging.DEBUG)
 
 
 def create_all_rule(paths: List[str], aggregate_performance: bool = False):

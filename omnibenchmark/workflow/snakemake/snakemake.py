@@ -36,6 +36,7 @@ class SnakemakeEngine(WorkflowEngine):
         work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
+        debug: bool = False,
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -56,7 +57,6 @@ class SnakemakeEngine(WorkflowEngine):
         Returns:
         - Status code (bool) of the workflow run.
         """
-
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
         # Prepare the argv list
@@ -69,17 +69,20 @@ class SnakemakeEngine(WorkflowEngine):
             keep_module_logs=keep_module_logs,
             backend=backend,
             work_dir=work_dir,
+            debug=debug,
             **snakemake_kwargs,
         )
 
         if module_path:
             os.environ["MODULEPATH"] = module_path
 
+        import logging
+
+        logging.getLogger("snakemake").setLevel(logging.DEBUG)
+
         # Execute snakemake script
         parser, args = parse_args(argv)
-        success = snakemake_cli(args, parser)
-
-        return success
+        return snakemake_cli(args, parser)
 
     def serialize_workflow(
         self,
@@ -204,6 +207,8 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Execute snakemake script
         parser, args = parse_args(argv)
+
+        print(">>> args:", args)
         success = snakemake_cli(args, parser)
 
         return success
@@ -309,6 +314,7 @@ class SnakemakeEngine(WorkflowEngine):
         work_dir: Path,
         input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
+        debug: bool = False,
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
@@ -323,10 +329,10 @@ class SnakemakeEngine(WorkflowEngine):
             f"input={str(input_dir)}",
             f"dataset={dataset}",
             f"keep_module_logs={keep_module_logs}",
-            # TODO: pass flags
-            "--verbose",
-            "--debug",
         ]
+
+        if debug:
+            argv.extend(["--verbose", "--debug"])
 
         if update:
             argv.append("-F")

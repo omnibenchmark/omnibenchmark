@@ -3,9 +3,9 @@ import sys
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
-from omni.benchmark import Validator, BenchmarkNode
-from omni.workflow.snakemake import scripts
-from omni.workflow.snakemake.format import formatter
+from omnibenchmark.benchmark import Validator, BenchmarkNode
+from omnibenchmark.workflow.snakemake import scripts
+from omnibenchmark.workflow.snakemake.format import formatter
 
 def create_node_rule(node, benchmark, config):
     if node.is_initial():

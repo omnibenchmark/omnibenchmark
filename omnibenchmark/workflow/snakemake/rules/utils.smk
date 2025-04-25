@@ -1,5 +1,5 @@
 from pathlib import Path
-from omni.benchmark import Benchmark
+from omnibenchmark.benchmark import Benchmark
 
 def load(benchmark_yaml: str):
     return Benchmark(Path(benchmark_yaml))
