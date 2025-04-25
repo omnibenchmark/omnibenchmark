@@ -8,23 +8,28 @@ from pathlib import Path
 import click
 import yaml
 
-from omnibenchmark.io.archive import archive_version
-from omnibenchmark.io.utils import tree_string_from_list
-from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.cli.utils.logging import debug_option
-from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.cli.utils.validation import validate_benchmark
+from omnibenchmark.io.archive import archive_version
+from omnibenchmark.io.files import checksum_files
+from omnibenchmark.io.files import list_files
+from omnibenchmark.io.files import download_files
+from omnibenchmark.io.S3config import benchmarker_access_token_policy
+from omnibenchmark.io.utils import tree_string_from_list
 from omnibenchmark.io.utils import get_storage, remote_storage_args
+
+from .debug import add_debug_option
 
 
 @click.group(name="storage")
 @click.pass_context
-@debug_option
 def storage(ctx):
     """Manage remote storage."""
     ctx.ensure_object(dict)
 
 
+@add_debug_option
 @storage.command(name="create-version")
 @click.option(
     "-b",
@@ -61,6 +66,7 @@ def create_benchmark_version(benchmark: str):
         ss.create_new_version(benchmark)
 
 
+@add_debug_option
 @storage.command(name="list")
 @click.option(
     "-b",
@@ -81,7 +87,7 @@ def create_benchmark_version(benchmark: str):
 @click.option(
     "-i", "--id", "file_id", help="File id/type to list.", type=str, default=None
 )
-def list_files(
+def list_all_files(
     benchmark: str,
     type: str = "all",
     stage: str = None,
@@ -95,7 +101,6 @@ def list_files(
     if type != "all":
         logger.error("--type is not implemented")
         sys.exit(1)
-    from omni.io.files import list_files
 
     objectnames, etags = list_files(
         benchmark=benchmark, type=type, stage=stage, module=module, file_id=file_id
@@ -105,6 +110,7 @@ def list_files(
             logger.info(f"{etag} {objectname}")
 
 
+@add_debug_option
 @storage.command(name="download")
 @click.option(
     "-b",
@@ -138,7 +144,7 @@ def list_files(
     default=False,
     show_default=True,
 )
-def download_files(
+def download_all_files(
     benchmark: str,
     type: str = "all",
     stage: str = None,
@@ -153,7 +159,6 @@ def download_files(
     if type != "all":
         logger.info("--type is not implemented")
         raise click.Abort()
-    from omni.io.files import download_files
 
     download_files(
         benchmark=benchmark,
@@ -166,6 +171,7 @@ def download_files(
     )
 
 
+@add_debug_option
 @storage.command(name="checksum")
 @click.option(
     "-b",
@@ -175,9 +181,8 @@ def download_files(
     required=True,
     envvar="OB_BENCHMARK",
 )
-def checksum_files(benchmark: str):
+def checksum_all_files(benchmark: str):
     """Generate md5sums of all benchmark outputs"""
-    from omni.io.files import checksum_files
 
     logger.info("Checking MD5 checksums... ")
     failed_checks_filenames = checksum_files(benchmark=benchmark, verbose=True)
@@ -200,9 +205,6 @@ def checksum_files(benchmark: str):
 )
 def create_policy(benchmark: str):
     """Create a new policy for a benchmark."""
-
-    from omnibenchmark.benchmark import Benchmark
-    from omni.io.S3config import benchmarker_access_token_policy
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)

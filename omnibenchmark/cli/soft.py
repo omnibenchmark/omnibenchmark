@@ -7,12 +7,13 @@ from pathlib import Path
 import click
 import yaml
 
-from omnibenchmark.cli.utils.logging import debug_option, logger
+# from omnibenchmark.cli.utils.logging import debug_option, logger
+from omnibenchmark.cli.utils.logging import logger
 
 
 @click.group(name="software")
 @click.pass_context
-@debug_option
+# @debug_option
 def software(ctx):
     """Manage and install benchmark-specific software."""
     ctx.ensure_object(dict)

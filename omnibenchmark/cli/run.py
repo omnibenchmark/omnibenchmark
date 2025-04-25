@@ -7,22 +7,24 @@ from pathlib import Path
 
 import click
 
-from omnibenchmark.cli.utils.logging import debug_option, logger
+from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.utils import get_storage_from_benchmark
 from omnibenchmark.io.utils import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
+from .debug import add_debug_option
+
 
 @click.group(name="run")
-@debug_option
 @click.pass_context
 def run(ctx):
     """Run benchmarks or benchmark modules."""
     ctx.ensure_object(dict)
 
 
+@add_debug_option
 @run.command(name="benchmark")
 @click.option(
     "-b",
@@ -73,6 +75,9 @@ def run_benchmark(
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
 
+    # Retrieve the global debug flag from the Click context
+    debug = ctx.obj.get("DEBUG", False)
+
     benchmark = validate_benchmark(benchmark)
     if benchmark is None:
         logger.error("Invalid benchmark")
@@ -120,6 +125,7 @@ def run_benchmark(
         continue_on_error=continue_on_error,
         keep_module_logs=keep_module_logs,
         backend=benchmark.get_benchmark_software_backend(),
+        debug=debug,
         **storage_options,
     )
 
@@ -263,9 +269,6 @@ def run_module(
                         ]
 
                         if len(missing_files) == 0:
-                            from omni.workflow.snakemake import SnakemakeEngine
-                            from omni.workflow.workflow import WorkflowEngine
-
                             workflow: WorkflowEngine = SnakemakeEngine()
                             for benchmark_node in benchmark_nodes:
                                 # When running a single module, it doesn't have sense to make parallelism level (cores) configurable

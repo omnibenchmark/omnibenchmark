@@ -10,14 +10,14 @@ from datetime import datetime
 from difflib import unified_diff
 
 from omnibenchmark.benchmark import Benchmark
-from omnibenchmark.cli.utils.logging import debug_option, logger
+from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.utils import get_storage, remote_storage_args
 
 
 @click.group(name="info")
 @click.pass_context
-@debug_option
+# @debug_option
 def info(ctx):
     """List benchmarks and/or information about them."""
     ctx.ensure_object(dict)
@@ -123,8 +123,6 @@ def diff_benchmark(ctx, benchmark, version1, version2):
 def list_versions(ctx, benchmark):
     """List all available benchmarks versions at a specific endpoint."""
     logger.info(f"Available versions of {benchmark}:")
-    from omnibenchmark.benchmark import Benchmark
-    from omni.io.utils import get_storage, remote_storage_args
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
