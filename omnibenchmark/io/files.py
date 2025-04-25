@@ -8,7 +8,6 @@ import yaml
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.io.utils import get_storage, md5, remote_storage_args, sizeof_fmt
 from omnibenchmark.io.versioning import get_expected_benchmark_output_files
 
 
@@ -21,6 +20,8 @@ def list_files(
     local: bool = False,
 ):
     """List all available files for a certain benchmark, version and stage"""
+    from omnibenchmark.io.utils import get_storage, remote_storage_args
+
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
         benchmark = Benchmark(Path(benchmark))
@@ -68,6 +69,8 @@ def download_files(
     overwrite: bool = False,
 ):
     """Download all available files for a certain benchmark, version and stage"""
+    from omnibenchmark.io.utils import get_storage, remote_storage_args
+    from .utils import md5, sizeof_fmt
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
 
@@ -147,7 +150,7 @@ def checksum_files(
     verbose: bool = False,
 ):
     """Compare md5 checksums of available files for a certain benchmark, version and stage with local versions"""
-    # benchmark = "tests/data/Benchmark_003.yaml"
+    from .utils import md5
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
 

@@ -92,7 +92,7 @@ In practical terms, this means:
 
 As an example, we use the `short` tag for tests that we know _should_ run fast. Unit tests, smoke tests etc.
 
-```
+```bash
 pytest -m short
 ```
 

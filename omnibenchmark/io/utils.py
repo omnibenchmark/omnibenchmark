@@ -56,6 +56,7 @@ def md5(fname: str):
 
 
 # from: https://stackoverflow.com/a/1094933
+# TODO: use humanize
 def sizeof_fmt(num: int, suffix: str = "B"):
     if abs(num) < 1024.0:
         return f"{num: 5d}{suffix}"

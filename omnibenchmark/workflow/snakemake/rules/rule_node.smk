@@ -1,11 +1,15 @@
 import os
 import sys
 
+from importlib import resources
+
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
 from omnibenchmark.benchmark import Validator, BenchmarkNode
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
+
+RUN_MODULE = "run_module.py"
 
 def create_node_rule(node, benchmark, config):
     if node.is_initial():
@@ -13,6 +17,12 @@ def create_node_rule(node, benchmark, config):
     else:
         return _create_intermediate_node(benchmark, node, config)
 
+
+def get_script_path(script_name: str) -> str:
+    """Get the filesystem path to a script in the scripts package.
+    """
+    path = Path(resources.files(scripts) / script_name)
+    return str(path)
 
 def _create_initial_node(benchmark, node, config):
     stage_id = node.stage_id
@@ -22,11 +32,6 @@ def _create_initial_node(benchmark, node, config):
     repository = node.get_repository()
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
-
-    SCRIPT_PATH = "/home/b/lab/omnibenchmark/omni/workflow/snakemake/scripts/run_module.py"
-
-    logging.warn("SCRIPT_PATH: %s", SCRIPT_PATH)
-    logging.warn(f"sys.stdout: {type(sys.stdout)}, sys.stderr: {type(sys.stderr)}")
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -55,8 +60,7 @@ def _create_initial_node(benchmark, node, config):
             parameters = node.get_parameters(),
             dataset = module_id,
             keep_module_logs=config['keep_module_logs']
-        #script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)), 'run_module.py')
-        script: SCRIPT_PATH
+        script: get_script_path(RUN_MODULE)
 
 def _create_intermediate_node(benchmark, node, config):
     stage_id = node.stage_id
@@ -74,8 +78,6 @@ def _create_intermediate_node(benchmark, node, config):
     commit_hash = repository.commit if repository else None
 
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
-
-    SCRIPT_PATH = "/home/b/lab/omnibenchmark/omni/workflow/snakemake/scripts/run_module.py"
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -105,8 +107,7 @@ def _create_intermediate_node(benchmark, node, config):
             commit_hash = commit_hash,
             parameters = node.get_parameters(),
             keep_module_logs=config['keep_module_logs']
-        # script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)), 'run_module.py')
-        script: SCRIPT_PATH
+        script: get_script_path(RUN_MODULE)
 
 
 def create_standalone_node_rule(node, config):
@@ -133,7 +134,7 @@ def create_standalone_node_rule(node, config):
                 keep_module_logs=config['keep_module_logs']
             benchmark:
                 node.get_benchmark_path(config)
-            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+            script: get_script_path(RUN_MODULE)
     else:
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -150,7 +151,7 @@ def create_standalone_node_rule(node, config):
                 keep_module_logs=config['keep_module_logs']
             benchmark:
                 node.get_benchmark_path(config)
-            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+            script: get_script_path(RUN_MODULE)
 
 
 def _get_environment_path(benchmark: Benchmark, node: BenchmarkNode, software_backend: SoftwareBackendEnum):

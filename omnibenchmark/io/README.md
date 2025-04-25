@@ -41,9 +41,9 @@ The `0.1.csv` file contains columns `name`,`version_id`,`last_modified`,`size`,`
 
 Create new policy with
 ```
-import omni
+import omnibenchmark
 import json
-policy = omni.io.S3config.benchmarker_access_token_policy(<BENCHMARK>)
+policy = omnibenchmark.io.S3config.benchmarker_access_token_policy(<BENCHMARK>)
 print(json.dumps(policy, indent=2))
 ```
 

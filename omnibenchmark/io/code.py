@@ -1,15 +1,18 @@
 import logging
 import os
 import tarfile
-from pathlib import Path
 
+import requests
+
+from pathlib import Path
+from typing import List
 from filelock import FileLock
 from git import Repo
 from git.exc import InvalidGitRepositoryError
-import requests
-from typing import List
 
-from omni.workflow.snakemake.scripts.utils import generate_unique_repo_folder_name
+from omnibenchmark.workflow.snakemake.scripts.utils import (
+    generate_unique_repo_folder_name,
+)
 
 
 # Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)

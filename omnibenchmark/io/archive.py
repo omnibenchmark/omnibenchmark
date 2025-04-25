@@ -3,14 +3,11 @@ from pathlib import Path
 from typing import List
 import os
 
-from omnibenchmark.benchmark import Benchmark
 from omni_schema.datamodel import omni_schema
 
-# from glob import glob
-# from itertools import chain
-# benchmark = Benchmark(Path("tests/data/Clustering.yaml"))
-# benchmark.get_definition_file()
-# conda_envs = list(chain.from_iterable(map(glob, str(benchmark.get_definition_file()))))
+from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.io.code import clone_module
+from omnibenchmark.io.files import download_files, list_files
 
 
 def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
@@ -23,7 +20,6 @@ def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
     Returns:
         List[Path]: The filenames of all code to archive.
     """
-    from omni.io.code import clone_module
 
     nodes = benchmark.get_nodes()
     repositories = set()
@@ -158,7 +154,6 @@ def prepare_archive_results(benchmark: Benchmark, local: bool = False) -> List[P
         List[Path]: The filenames of all results to archive.
     """
     # get all results, check if exist locally, otherwise download
-    from omni.io.files import download_files, list_files
 
     objectnames, etags = list_files(
         benchmark=benchmark.get_definition_file(),
