@@ -261,6 +261,7 @@ class MinIOStorage(RemoteStorage):
         if self.version not in self.versions:
             raise MinIOStorageBucketManipulationException("Version creation failed")
 
+    # TODO(ben): review if we want this public, it's used in tests
     def _get_objects(self) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(

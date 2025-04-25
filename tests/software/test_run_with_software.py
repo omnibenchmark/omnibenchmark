@@ -1,15 +1,18 @@
 import os
+import os.path as op
 import shutil
 import sys
+
 from pathlib import Path
-import os.path as op
 
 import pytest
+
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
-from omni.benchmark import Benchmark
-from omni.workflow.snakemake import SnakemakeEngine
+from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.workflow.snakemake import SnakemakeEngine
 
+# FIXME: remove this hack
 sys.path.insert(0, op.dirname(__file__))
 
 benchmark_data = Path("..") / "data"

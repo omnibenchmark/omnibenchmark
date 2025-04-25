@@ -4,13 +4,15 @@ import sys
 import minio
 import pytest
 
-import omni.io
-import omni.io.utils as oiu
-from omni.io.MinIOStorage import MinIOStorage
+import omnibenchmark.io
+import omnibenchmark.io.utils as oiu
+from omnibenchmark.io.MinIOStorage import MinIOStorage
+
 from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
+# TODO(ben): use fixture ----
 # setup and start minio container
-minio_testcontainer = MinIOSetup(sys.platform == "linux")
+minio_testcontainer = MinIOSetup()  # sys.platform == "linux")
 
 
 @pytest.mark.skipif(
@@ -24,7 +26,7 @@ def test_get_storage():
             auth_options=tmp.auth_options_readonly,
             benchmark="test",
         )
-        assert isinstance(ss, omni.io.MinIOStorage.MinIOStorage)
+        assert isinstance(ss, omnibenchmark.io.MinIOStorage.MinIOStorage)
 
         with pytest.raises(minio.error.S3Error):
             ss = oiu.get_storage(
@@ -54,6 +56,7 @@ def test_md5():
         oiu.md5("not_existing_file.txt")
 
 
+# TODO: we should use humanize for this, it's already in the deps
 def test_sizeof_fmt():
     assert oiu.sizeof_fmt(0) == "    0B"
     assert oiu.sizeof_fmt(1) == "    1B"

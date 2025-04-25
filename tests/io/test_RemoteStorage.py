@@ -1,10 +1,10 @@
+from packaging.version import Version
 from unittest.mock import patch
 
 import pytest
-from packaging.version import Version
 
-from omni.io.exception import RemoteStorageInvalidInputException
-from omni.io.RemoteStorage import (
+from omnibenchmark.io.exception import RemoteStorageInvalidInputException
+from omnibenchmark.io.RemoteStorage import (
     DEFAULT_STORAGE_OPTIONS,
     RemoteStorage,
     is_valid_version,
@@ -40,7 +40,7 @@ class TestRemoteStorage:
         with pytest.raises(RemoteStorageInvalidInputException):
             for ao in [1, 0.1, [1], (1,), None]:
                 ss._parse_storage_options(ao)
-        assert type(ss.storage_options) == type(DEFAULT_STORAGE_OPTIONS())
+        assert isinstance(ss.storage_options, DEFAULT_STORAGE_OPTIONS)
 
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test__parse_version(self):
@@ -59,18 +59,20 @@ class TestRemoteStorage:
     def test_init_fails_with_invalid_arg_auth_options(self):
         for ao in [1, 1.0, "1", [1], (1,), None]:
             with pytest.raises(RemoteStorageInvalidInputException):
-                ss = RemoteStorage(ao, benchmark="tb")
+                RemoteStorage(ao, benchmark="tb")
 
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test_init_success_with_empty_arg_auth_options(self):
         ss = RemoteStorage({}, benchmark="tb")
-        assert type(ss) == RemoteStorage
+        # XXX I mean, we just instantiated it, there's no way it's gonna
+        # be an instance of something else... :p
+        assert isinstance(ss, RemoteStorage)
 
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test_init_success_with_valid_arg_benchmark(self):
         for ao in ["a", "a0", "A", "A0", "a_", "a_0", "A_", "A_0"]:
             ss = RemoteStorage({}, benchmark="a")
-            assert type(ss) == RemoteStorage
+            assert isinstance(ss, RemoteStorage)
 
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test_set_version_success_with_valid_args(self):

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from omni.benchmark import Benchmark, dag
+from omnibenchmark.benchmark import Benchmark, dag
 
 
 def test_export_computational_to_dot():
@@ -15,13 +15,10 @@ def test_export_computational_to_dot():
     output_file_path = Path(output_file)
 
     try:
-        with open(benchmark_file_path, "r") as file:
-            benchmark = Benchmark(benchmark_file_path)
-            dot = benchmark.export_to_dot()
-            dot.write(output_file)
-            assert (
-                output_file_path.exists()
-            ), f"Output file {output_file} was not created."
+        benchmark = Benchmark(benchmark_file_path)
+        dot = benchmark.export_to_dot()
+        dot.write(output_file)
+        assert output_file_path.exists(), f"Output file {output_file} was not created."
     except Exception as e:
         pytest.fail(f"Plotting benchmark computational graph failed: {e}")
     finally:
@@ -99,10 +96,9 @@ def test_export_topology_to_mermaid():
     """
 
     try:
-        with open(benchmark_file_path, "r") as file:
-            benchmark = Benchmark(benchmark_file_path)
-            mermaid = benchmark.export_to_mermaid()
-            assert clean(mermaid).startswith(clean(expected_mermaid))
+        benchmark = Benchmark(benchmark_file_path)
+        mermaid = benchmark.export_to_mermaid()
+        assert clean(mermaid).startswith(clean(expected_mermaid))
     except Exception as e:
         pytest.fail(f"Exporting benchmark topology to mermaid failed: {e}")
 

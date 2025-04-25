@@ -3,8 +3,8 @@ import shutil
 import stat
 from pathlib import Path
 
-from omni.benchmark import Benchmark
-from omni.workflow.snakemake import SnakemakeEngine
+from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.workflow.snakemake import SnakemakeEngine
 
 TO_CLEANUP = [".snakemake", "out", "Snakefile", "snakemake.log"]
 

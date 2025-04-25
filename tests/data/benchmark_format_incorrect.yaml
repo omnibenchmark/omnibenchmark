@@ -1,4 +1,4 @@
-id: mock_benchmark
+id: incorrect_format 
 description: simple benchmark, user for fast testing
 version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"

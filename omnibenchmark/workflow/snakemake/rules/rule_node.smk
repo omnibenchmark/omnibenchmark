@@ -119,6 +119,7 @@ def create_standalone_node_rule(node, config):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
+    # TODO(ben): can factor out common parts?
     if node.is_initial():
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)

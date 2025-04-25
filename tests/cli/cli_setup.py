@@ -2,13 +2,9 @@ import subprocess
 from typing import List, Optional
 
 
-# from click.testing import CliRunner, Result
-# from omni.cli.main import cli
-
-
 class OmniCLISetup:
     def call(
-        self, args: List[str], input: Optional[str] = None
+        self, args: List[str], input: Optional[str] = None, cwd: Optional[str] = None
     ) -> subprocess.CompletedProcess:
         """
         Call the CLI using subprocess.run.
@@ -19,7 +15,7 @@ class OmniCLISetup:
             A subprocess.CompletedProcess object containing the result of the command.
         """
         # Construct the command to run
-        command = ["python", "-m", "omni.cli.main"] + args
+        command = ["python", "-m", "omnibenchmark.cli.main"] + args
 
         # Run the command using subprocess.run
         result = subprocess.run(
@@ -27,6 +23,7 @@ class OmniCLISetup:
             input=input,
             text=True,  # Ensures input/output are treated as strings
             capture_output=True,  # Captures stdout and stderr
+            cwd=cwd,  # Change working directory
         )
 
         return result

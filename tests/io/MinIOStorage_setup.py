@@ -9,7 +9,8 @@ from testcontainers.minio import MinioContainer
 # TODO(ben): deprecate in favor of pydantic model serializer
 from linkml_runtime.dumpers import yaml_dumper
 
-from omni.benchmark import Benchmark
+from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.io.MinIOStorage import MinIOStorage
 
 MINIO_IMAGE = "minio/minio:RELEASE.2024-06-13T22-53-53Z"
 
@@ -77,6 +78,17 @@ class TmpMinIOStorage:
         os.makedirs(self.out_dir / "envs", exist_ok=True)
         if not os.path.isfile(env_path_after):
             shutil.copyfile(env_path, env_path_after)
+
+    def get_storage_client(self):
+        return MinIOStorage(
+            auth_options={
+                "endpoint": self.endpoint,
+                "access_key": self.access_key,
+                "secret_key": self.secret_key,
+                "secure": False,
+            },
+            benchmark=self.bucket_name,
+        )
 
     def __enter__(self):
         return self

@@ -1,15 +1,16 @@
 import datetime
 import io
 import sys
+from packaging.version import Version
 from pathlib import Path
 
 import pytest
 import yaml
-from packaging.version import Version
 
-from omni.benchmark import Benchmark
-from omni.io.exception import RemoteStorageInvalidInputException
-from omni.io.MinIOStorage import MinIOStorage
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.io.exception import RemoteStorageInvalidInputException
+from omnibenchmark.io.MinIOStorage import MinIOStorage
 from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 if not sys.platform == "linux":
@@ -19,7 +20,8 @@ if not sys.platform == "linux":
     )
 
 # setup and start minio container
-minio_testcontainer = MinIOSetup(sys.platform == "linux")
+# TODO: no please, use session fixture
+minio_testcontainer = MinIOSetup()  # sys.platform == "linux"
 
 
 benchmark_data = Path("..") / "data"
@@ -29,12 +31,12 @@ benchmark_data_path = Path(__file__).parent / benchmark_data
 class TestMinIOStorage:
     def test_init_fail(self):
         with pytest.raises(AssertionError):
-            ss = MinIOStorage(auth_options={}, benchmark="test")
+            MinIOStorage(auth_options={}, benchmark="test")
 
     def test_init_success(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             _ = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
-            client = tmp.minio.get_client()
+            _ = tmp.minio.get_client()
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
             assert ss.benchmark == tmp.bucket_name
 
@@ -94,19 +96,15 @@ class TestMinIOStorage:
             ss.create_new_version()
             assert Version("0.2") in ss.versions
 
-    def test__create_new_version_success_if_version_provided(self):
+    def test__create_new_version_success_if_version_provided2(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
-            ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
+            MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
 
     def test__get_objects(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
-            result = ss.client.put_object(
-                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
-            )
-            result = ss.client.put_object(
-                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
-            )
+            ss.client.put_object(ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
+            ss.client.put_object(ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
             ss.set_version()
             ss._get_objects()
             assert all(
@@ -142,12 +140,8 @@ class TestMinIOStorage:
     def test__get_objects_public(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
-            result = ss.client.put_object(
-                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
-            )
-            result = ss.client.put_object(
-                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
-            )
+            ss.client.put_object(ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
+            ss.client.put_object(ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
             ss = MinIOStorage(
                 auth_options=tmp.auth_options_readonly, benchmark=tmp.bucket_name
             )
@@ -186,12 +180,8 @@ class TestMinIOStorage:
     def test_create_new_version(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
-            result = ss.client.put_object(
-                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
-            )
-            result = ss.client.put_object(
-                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
-            )
+            _ = ss.client.put_object(ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
+            _ = ss.client.put_object(ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
             ss.set_version("0.2")
             ss.create_new_version()
             ss._get_objects()
@@ -214,12 +204,8 @@ class TestMinIOStorage:
     def test_filter_with_benchmark(self):
         with TmpMinIOStorage(minio_testcontainer) as tmp:
             ss = MinIOStorage(auth_options=tmp.auth_options, benchmark=tmp.bucket_name)
-            result = ss.client.put_object(
-                ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0
-            )
-            result = ss.client.put_object(
-                ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0
-            )
+            _ = ss.client.put_object(ss.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
+            _ = ss.client.put_object(ss.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
             ss.set_version("0.2")
             ss.create_new_version()
             ss._get_objects()
@@ -244,7 +230,6 @@ class TestMinIOStorage:
             with open(benchmark, "r") as fh:
                 yaml.safe_load(fh)
                 benchmark = Benchmark(Path(benchmark))
-            from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
             benchmark.converter.model.software_backend = SoftwareBackendEnum("conda")
             ss.set_version("0.3")
