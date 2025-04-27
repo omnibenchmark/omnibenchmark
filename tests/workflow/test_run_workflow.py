@@ -4,6 +4,8 @@ import pandas as pd
 import json
 import os
 
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from omni.benchmark import Benchmark
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
@@ -31,7 +33,9 @@ def test_run_workflow_backends_missing():
         assert benchmark.get_benchmark_name() == "some_backends_missing"
 
         # First run the whole workflow
-        success = setup.workflow.run_workflow(benchmark)
+        success = setup.workflow.run_workflow(
+            benchmark, backend=SoftwareBackendEnum.conda
+        )
 
         assert success
 
@@ -115,7 +119,9 @@ def test_multi_run_workflow_with_parameters():
         benchmark = setup.benchmark
 
         # assert benchmark 1st run is successful
-        success = setup.workflow.run_workflow(benchmark)
+        success = setup.workflow.run_workflow(
+            benchmark, backend=SoftwareBackendEnum.conda
+        )
         assert success
 
         # assert the parameter serialization is correct after 1st run
@@ -124,7 +130,9 @@ def test_multi_run_workflow_with_parameters():
         )
 
         # assert benchmark 2nd run is successful
-        success = setup.workflow.run_workflow(benchmark)
+        success = setup.workflow.run_workflow(
+            benchmark, backend=SoftwareBackendEnum.conda
+        )
         assert success
 
         # assert the parameter serialization is correct after 2nd run
@@ -136,6 +144,7 @@ def test_multi_run_workflow_with_parameters():
 def test_multi_run_workflow_with_parameter_removal():
     benchmark_file = Path("..") / "data" / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
+
     D1_output_folder_path = (
         Path(os.getcwd()) / "out" / "data" / "iris" / "default" / "distances" / "D1"
     )
@@ -144,7 +153,9 @@ def test_multi_run_workflow_with_parameter_removal():
         benchmark = setup.benchmark
 
         # assert benchmark 1st run is successful
-        success = setup.workflow.run_workflow(benchmark)
+        success = setup.workflow.run_workflow(
+            benchmark, backend=SoftwareBackendEnum.conda
+        )
         assert success
 
         expected_param_dict_before_removal = {
@@ -174,7 +185,9 @@ def test_multi_run_workflow_with_parameter_removal():
         benchmark_file_trimmed = Path("..") / "data" / "Clustering_trimmed.yaml"
         benchmark_file_trimmed_path = Path(__file__).parent / benchmark_file_trimmed
         benchmark_without_param = Benchmark(benchmark_file_trimmed_path)
-        success = setup.workflow.run_workflow(benchmark_without_param)
+        success = setup.workflow.run_workflow(
+            benchmark_without_param, backend=SoftwareBackendEnum.conda
+        )
         assert success
 
         expected_param_dict_after_removal = {
