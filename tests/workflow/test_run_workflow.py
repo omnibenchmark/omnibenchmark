@@ -3,6 +3,7 @@ from typing import Dict
 import json
 import os
 
+from omni.benchmark import Benchmark
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 
@@ -168,11 +169,11 @@ def test_multi_run_workflow_with_parameter_removal():
         # remove previous parameters dict
         os.remove(D1_output_folder_path / "parameters_dict.txt")
 
-        node_id_to_remove = "distances-D1-param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3-after_data"
-        benchmark = benchmark.remove_node_and_dependents(node_id_to_remove)
-
         # assert benchmark 2nd run is successful
-        success = setup.workflow.run_workflow(benchmark)
+        benchmark_file_trimmed = Path("..") / "data" / "Clustering_trimmed.yaml"
+        benchmark_file_trimmed_path = Path(__file__).parent / benchmark_file_trimmed
+        benchmark_without_param = Benchmark(benchmark_file_trimmed_path)
+        success = setup.workflow.run_workflow(benchmark_without_param)
         assert success
 
         expected_param_dict_after_removal = {
@@ -182,8 +183,8 @@ def test_multi_run_workflow_with_parameter_removal():
             "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
                 "measure": "manhattan"
             },
-            "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
-                "measure": "euclidean"
+            "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+                "measure": "cosine"
             },
         }
 
