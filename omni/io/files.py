@@ -88,7 +88,7 @@ def download_files(
     ss.set_version(benchmark.get_benchmark_version())
     ss._get_objects()
 
-    logger.debug(f"Checking if files are already downloaded... ")
+    logger.debug("Checking if files are already downloaded... ")
     do_download_file = []
     for filename, etag in tqdm.tqdm(
         zip(filenames, etags), delay=5, disable=not verbose

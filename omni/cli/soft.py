@@ -306,7 +306,7 @@ software.add_command(conda)
 def pin_conda_env(conda_env):
     """Pin all conda env-related dependencies versions using snakedeploy."""
     logger.info(f"Pinning {conda_env} via snakedeploy. It will take some time.")
-    from omni.software import common, conda_backend
+    from omni.software import conda_backend
 
     conda_backend.pin_conda_envs(conda_env)
     logger.info(f"\nDONE: Pinned {conda_env}\n")
@@ -362,7 +362,7 @@ def conda_prepare(benchmark):
 def check(ctx, what):
     """Check whether the component {what} is available."""
     logger.info(
-        f"Checking software stack handlers / backends (singularity, easybuild, etc)."
+        "Checking software stack handlers / backends (singularity, easybuild, etc)."
     )
     from omni.software import common
 

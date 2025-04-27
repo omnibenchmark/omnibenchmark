@@ -1,10 +1,9 @@
 ## omnibenchmark
 
 <p align="center">
-<a href="ttps://github.com/omnibenchmark/omni-py"><img alt="Tests" src="./reports/tests.svg"></a>
-<a href="https://github.com/omnibenchmark/omni-py/actions"><img alt="Actions Status" src="https://github.com/omnibenchmark/omni-py/workflows/Tests/badge.svg"></a>
-<a href="ttps://github.com/omnibenchmark/omni-py"><img alt="Coverage Status" src="./reports/coverage.svg"></a>
-<a href="https://github.com/omnibenchmark/omni-py/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+<a href="https://github.com/omnibenchmark/omnibenchmark/tree/refs/heads/main"><img alt="tests result" src="https://github.com/omnibenchmark/omnibenchmark/workflows/Tests/badge.svg?branch=main"></a>
+<a href="https://github.com/omnibenchmark/omnibenchmark"><img alt="Coverage Status" src="./reports/coverage.svg"></a>
+<a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
@@ -34,7 +33,7 @@ And that omni-schema versions are tagged and pinned at the pytoml level ([exampl
 
 ### Documentation
 
-Omnibenchmark docs are served at https://omnibenchmark.org as generated on [Renku's GitLab](https://gitlab.renkulab.io/omnibenchmark/omni_site) with a [review/staging -> production flow](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/.gitlab-ci.yml?ref_type=heads). 
+Omnibenchmark docs are served at https://omnibenchmark.org as generated on [Renku's GitLab](https://gitlab.renkulab.io/omnibenchmark/omni_site) with a [review/staging -> production flow](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/.gitlab-ci.yml?ref_type=heads).
 
 Documentation includes a CLI reference. This reference is generated/automated [via mkdocs-click](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/docs/reference.md?ref_type=heads) and extracts the current CLI commands from [omnibenchmark's `main` head](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/requirements.txt?ref_type=heads#L7). Hence, changes to omnibenchmark must be merged to `main` and precede changes to omnibenchmark's documentation.
 

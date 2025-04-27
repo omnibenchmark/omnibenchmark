@@ -58,4 +58,4 @@ try:
 
 
 except NameError:
-    raise RuntimeError(f"This script must be run from within a Snakemake workflow")
+    raise RuntimeError("This script must be run from within a Snakemake workflow")

@@ -22,7 +22,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         Serializes & runs benchmark workflow.
@@ -74,7 +74,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", None),
         work_dir: Path = Path(os.getcwd()),
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         Serializes & runs benchmark node workflow.

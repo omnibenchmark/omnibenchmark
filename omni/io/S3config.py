@@ -2,7 +2,6 @@ import json
 import os
 import sys
 
-import click
 
 from omni.cli.utils.logging import logger
 from omni.io.RemoteStorage import DEFAULT_STORAGE_OPTIONS

@@ -54,12 +54,11 @@ class TmpMinIOStorage:
             del self.auth_options_readonly["access_key"]
             del self.auth_options_readonly["secret_key"]
 
-            self.auth_options_readonly[
-                "endpoint"
-            ] = "http://" + self.auth_options_readonly["endpoint"].replace(
-                "http://", ""
-            ).replace(
-                "https://", ""
+            self.auth_options_readonly["endpoint"] = (
+                "http://"
+                + self.auth_options_readonly["endpoint"]
+                .replace("http://", "")
+                .replace("https://", "")
             )
 
             self.bucket_name = testcontainer.bucket_names.pop()

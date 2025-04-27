@@ -30,9 +30,9 @@ def run(ctx):
     type=click.Path(exists=True),
 )
 @click.option(
-    "-p",
-    "--threads",
-    help="The parallelism level for the workflow scheduler.",
+    "-c",
+    "--cores",
+    help="Use at most N CPU cores in parallel. Default is all available CPU cores",
     type=int,
     default=1,
 )
@@ -65,7 +65,7 @@ def run(ctx):
 )
 @click.pass_context
 def run_benchmark(
-    ctx, benchmark, threads, update, dry, local, keep_module_logs, continue_on_error
+    ctx, benchmark, cores, update, dry, local, keep_module_logs, continue_on_error
 ):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
@@ -75,6 +75,10 @@ def run_benchmark(
     from omni.workflow.workflow import WorkflowEngine
 
     benchmark = validate_benchmark(benchmark)
+    if benchmark is None:
+        logger.error("Invalid benchmark")
+        sys.exit(1)
+
     workflow: WorkflowEngine = SnakemakeEngine()
 
     ## it is as --continue_on_error originally
@@ -100,13 +104,18 @@ def run_benchmark(
         storage_options = {}
 
     # Controlling resource allocation with Snakemake is tricky
-    # -c only controls the number of parallelism for the Snakemake scheduler
-    # bioinfo methods are not designed with limited resources in mind (most)
-    # Future: Create yaml for communicating resources for individual methods
+    # -c only controls the number of parallelism for the Snakemake scheduler,
+    # but there's no built-in mechanism in local execution to enforce well-behaved resource
+    # allocation. Adding to that, most bioinformatic tools are not designed with
+    # limited resources in mind.
+    # Use of cgroups will be helpful here.
+    # TODO: add a field in the spec for communicating resources for individual methods,
+    # and try to enforce resource allocation even for the local execution case (use a watchdog spawned
+    # by the parent process, for instance)
     logger.info("Running benchmark...")
     success = workflow.run_workflow(
         benchmark,
-        cores=threads,
+        cores=cores,
         update=update,
         dryrun=dry,
         continue_on_error=continue_on_error,
@@ -194,7 +203,7 @@ def run_module(
             )
             sys.exit(1)  # raise click.Exit(code=1)
         else:
-            logger.info(f"Running module on a local dataset.")
+            logger.info("Running module on a local dataset.")
             benchmark = validate_benchmark(benchmark)
 
             benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)

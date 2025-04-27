@@ -81,12 +81,12 @@ class RemoteStorage(metaclass=ABCMeta):
         self._parse_storage_options(storage_options)
 
     def _parse_benchmark(self, benchmark: str) -> None:
-        if not type(benchmark) is str:
+        if not isinstance(benchmark, str):
             raise RemoteStorageInvalidInputException("benchmark must be a string")
         self.benchmark = benchmark
 
     def _parse_auth_options(self, auth_options: Dict) -> None:
-        if not type(auth_options) is dict:
+        if not isinstance(auth_options, dict):
             raise RemoteStorageInvalidInputException(
                 "auth_options must be a dictionary"
             )

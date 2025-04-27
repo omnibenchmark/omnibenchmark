@@ -1,4 +1,4 @@
-""" General utils functions"""
+"""General utils functions"""
 
 import os
 
@@ -30,7 +30,7 @@ def try_avail_envmodule(module_name: str) -> bool:
         env=env,
     )
 
-    return not "No module(s) or extension(s) found!" in result.stderr
+    return "No module(s) or extension(s) found!" not in result.stderr
 
 
 def as_list(input: Union[List, Any]):

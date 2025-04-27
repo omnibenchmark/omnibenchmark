@@ -1,12 +1,13 @@
 import os.path
-from typing import Dict
+from pathlib import Path
+from typing import Dict, List
 
 import pydot
 
 from omni.benchmark import dag
 from omni.benchmark.converter import LinkMLConverter
 from omni.benchmark.validation import Validator
-from omni.utils import *
+from omni.utils import format_name, format_mc_output
 
 
 class Benchmark:
@@ -158,7 +159,7 @@ class Benchmark:
 
     def export_to_mermaid(self, show_params: bool = True) -> str:
         # Initialize the mermaid diagram syntax
-        mermaid_diagram = f"---\n"
+        mermaid_diagram = "---\n"
         mermaid_diagram += f"title: {self.get_benchmark_name()}\n"
         mermaid_diagram += "---\n"
         mermaid_diagram += "flowchart LR\n"
