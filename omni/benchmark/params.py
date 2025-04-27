@@ -45,6 +45,10 @@ class Params:
         """Return canonical string representation."""
         return self.serialize()
 
+    def __repr__(self):
+        """Return canonical string representation."""
+        return self.__str__()
+
     def hash(self):
         """Generate stable hash of canonical form."""
         canonical = self.serialize()
@@ -88,17 +92,23 @@ class Params:
 
         args = []
         for key, value in self._params.items():
-            if style == "gnu":
-                args.extend([f"--{key}", str(value)])
-            else:  # equals style
-                args.append(f"--{key}={value}")
+            if isinstance(value, bool) and value:
+                args.append(f"--{key}")
+            else:
+                if style == "gnu":
+                    args.extend([f"--{key}", str(value)])
+                else:  # equals style
+                    args.append(f"--{key}={value}")
         return args
 
     @classmethod
     def from_cli_args(cls, args):
         """
         Create Params from command line arguments.
-        Accepts both --key value and --key=value formats.
+        Supports:
+        - Long options: --key value and --key=value
+        - Short options: -k value and -k=value
+        - Implicit flags: --key and -k (True)
 
         Args:
             args (list): List of command line argument strings
@@ -110,26 +120,40 @@ class Params:
         i = 0
         while i < len(args):
             arg = args[i]
-            if not arg.startswith("--"):
+
+            # If arg contains a space inside itself ("-a 0")
+            if " " in arg:
+                first_part, second_part = arg.split(maxsplit=1)
+                if first_part.startswith("--") or first_part.startswith("-"):
+                    prefix_len = 2 if first_part.startswith("--") else 1
+                    key = first_part[prefix_len:]
+                    value = second_part
+                    params[key] = value
                 i += 1
                 continue
 
-            key = arg[2:]  # Remove '--' prefix
+            if arg.startswith("--") or arg.startswith("-"):
+                # Remove -- or - prefix
+                prefix_len = 2 if arg.startswith("--") else 1
+                key = arg[prefix_len:]
 
-            # Handle --key=value format
-            if "=" in key:
-                key, value = key.split("=", 1)
-                params[key] = value
-                i += 1
-                continue
+                # Handle --key=value or -k=value format
+                if "=" in key:
+                    key, value = key.split("=", 1)
+                    params[key] = value
+                    i += 1
+                    continue
 
-            # Handle --key value format
-            if i + 1 < len(args) and not args[i + 1].startswith("--"):
-                params[key] = args[i + 1]
-                i += 2
+                # Handle --key value or -k value format
+                if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                    params[key] = args[i + 1]
+                    i += 2
+                else:
+                    # Implicit flags (no value means True)
+                    params[key] = True
+                    i += 1
             else:
-                # Handle flag-like parameters (no value)
-                params[key] = True
+                # Skip non-option arguments
                 i += 1
 
         return cls(params)

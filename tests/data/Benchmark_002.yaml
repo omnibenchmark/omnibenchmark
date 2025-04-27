@@ -47,7 +47,7 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 5be6a3f
     inputs:
       - entries: [
           data.counts,
@@ -63,12 +63,12 @@ stages:
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 5be6a3f
       - id: seurat
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 5be6a3f
     inputs:
       - entries:
           - data.normalized
@@ -85,13 +85,13 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 5be6a3f
       - id: scran
         exclude: [select_counts]
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 5be6a3f
     inputs:
       - entries:
           - data.normalized

@@ -206,7 +206,7 @@ class Benchmark:
             for module_id, params in module_id_params_dict.items():
                 mermaid_diagram += f"\tsubgraph params_{module_id}\n"
                 for param in params:
-                    mermaid_diagram += f"\t\t{hash(tuple(param))}{str(param)}\n"
+                    mermaid_diagram += f"\t\t{param.hash()}{param.to_cli_args()}\n"
 
                 mermaid_diagram += "\tend\n"
                 mermaid_diagram += f"\tparams_{module_id}:::param --o {module_id}\n"

@@ -1,5 +1,5 @@
 import pytest
-from .params import Params
+from omni.benchmark.params import Params
 
 
 def test_init_empty():
