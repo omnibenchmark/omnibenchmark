@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Dict
+import pandas as pd
 import json
 import os
 
@@ -40,16 +41,16 @@ def test_single_run_workflow_with_parameters():
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     expected_D1_param_dict = {
-        ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+        "7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
             "measure": "chebyshev"
         },
-        ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+        "35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
             "measure": "cosine"
         },
-        ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+        "17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
             "measure": "manhattan"
         },
-        ".fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+        "fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
             "measure": "euclidean"
         },
     }
@@ -96,16 +97,16 @@ def test_multi_run_workflow_with_parameters():
     )
 
     expected_D1_param_dict = {
-        ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+        "7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
             "measure": "chebyshev"
         },
-        ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+        "35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
             "measure": "cosine"
         },
-        ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+        "17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
             "measure": "manhattan"
         },
-        ".fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+        "fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
             "measure": "euclidean"
         },
     }
@@ -147,16 +148,16 @@ def test_multi_run_workflow_with_parameter_removal():
         assert success
 
         expected_param_dict_before_removal = {
-            ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+            "7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
                 "measure": "chebyshev"
             },
-            ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+            "35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
                 "measure": "cosine"
             },
-            ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+            "17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
                 "measure": "manhattan"
             },
-            ".fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+            "fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
                 "measure": "euclidean"
             },
         }
@@ -167,7 +168,7 @@ def test_multi_run_workflow_with_parameter_removal():
         )
 
         # remove previous parameters dict
-        os.remove(D1_output_folder_path / "parameters_dict.txt")
+        os.remove(D1_output_folder_path / "parameters_dict.tsv")
 
         # assert benchmark 2nd run is successful
         benchmark_file_trimmed = Path("..") / "data" / "Clustering_trimmed.yaml"
@@ -177,13 +178,13 @@ def test_multi_run_workflow_with_parameter_removal():
         assert success
 
         expected_param_dict_after_removal = {
-            ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+            "7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
                 "measure": "chebyshev"
             },
-            ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+            "17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
                 "measure": "manhattan"
             },
-            ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+            "35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
                 "measure": "cosine"
             },
         }
@@ -197,32 +198,30 @@ def test_multi_run_workflow_with_parameter_removal():
 def _assert_parameters_output_for_module(
     module_output_path: Path, expected_param_dict: Dict[str, any]
 ):
-    module_param_dict = module_output_path / "parameters_dict.txt"
-    assert module_param_dict.exists(), f"File not found: {module_param_dict}"
+    module_param_tsv = module_output_path / "parameters_dict.tsv"
+    assert module_param_tsv.exists(), f"File not found: {module_param_tsv}"
 
-    with module_param_dict.open("r") as f:
-        param_dict_lines = [line.strip() for line in f if line.strip()]
-
-    actual_param_dict = {}
-    for line in param_dict_lines:
-        key, value = line.split(" ", 1)
-        actual_param_dict[key] = json.loads(value)
-
-    assert (
-        actual_param_dict == expected_param_dict
-    ), f"Mismatch in parameters:\nExpected:\n{expected_param_dict}\n\nGot:\n{actual_param_dict}"
+    module_param_df = pd.read_csv(module_param_tsv, sep="\t")
 
     # check that the content of the subfolder actually contains the parameters specified in the dict
-    for param_folder in actual_param_dict.keys():
-        module_param_file_path = module_output_path / param_folder / "parameters.txt"
+    for _, module_param_row in module_param_df.iterrows():
+        base_path = module_param_row["base_path"]
+        base_param_file_path = Path(base_path) / "parameters.json"
         assert (
-            module_param_file_path.exists()
-        ), f"File not found: {module_param_file_path}"
+            base_param_file_path.exists()
+        ), f"File not found through base path: {base_param_file_path}"
 
-        with module_param_file_path.open("r") as f:
-            param_txt_content = json.loads(f.read())
-
-        expected_content = actual_param_dict.get(param_folder)
+        alias_path = module_param_row["base_path"]
+        alias_param_file_path = Path(alias_path) / "parameters.json"
         assert (
-            expected_content == param_txt_content
-        ), f"Mismatch in {module_param_file_path}:\nExpected: {expected_content}\nGot: {param_txt_content}"
+            alias_param_file_path.exists()
+        ), f"File not found through alias: {alias_param_file_path}"
+
+        param_hash = module_param_row["id"]
+        expected_content = expected_param_dict.get(param_hash)
+        with open(base_param_file_path, "r") as file:
+            actual_content = json.load(file)
+
+        assert (
+            expected_content == actual_content
+        ), f"Mismatch in {base_param_file_path}:\nExpected: {expected_content}\nGot: {actual_content}"

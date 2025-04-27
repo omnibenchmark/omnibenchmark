@@ -1,5 +1,5 @@
-import hashlib
 import os
+import hashlib
 from pathlib import Path
 from typing import Optional
 
@@ -13,7 +13,7 @@ def get_module_name_from_rule_name(rule_name: str) -> str:
 # Create a unique folder name based on the repository URL and commit hash
 def generate_unique_repo_folder_name(repo_url: str, commit_hash: str) -> str:
     unique_string = f"{repo_url}@{commit_hash}"
-    folder_name = hashlib.md5(unique_string.encode()).hexdigest()
+    folder_name = hashlib.sha256(unique_string.encode()).hexdigest()
 
     return folder_name
 
@@ -42,20 +42,29 @@ def dump_parameters_to_file(output_dir: Path, parameters: Params) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
     if parameters:
-        params_file = output_dir / "parameters.txt"
-        with open(params_file, "w") as params_file:
-            params_file.write(f"{parameters}")
+        params_hash = parameters.hash()
 
-        param_dict_file = output_dir.parent / "parameters_dict.txt"
-        basename = os.path.basename(output_dir)
-        if os.path.exists(param_dict_file):
-            with open(param_dict_file, "r") as file:
+        params_file = output_dir / "parameters.json"
+        with open(params_file, "w") as params_file:
+            params_file.write(parameters.serialize())
+
+        params_dict_tsv = output_dir.parent / "parameters_dict.tsv"
+
+        if os.path.exists(params_dict_tsv):
+            with open(params_dict_tsv, "r") as file:
                 existing_lines = file.readlines()
 
-            # If the basename exists, skip writing
-            if any(basename in line for line in existing_lines):
+            # If the params_hash exists, skip writing
+            if any(params_hash in line for line in existing_lines):
                 return
+        else:
+            with open(params_dict_tsv, "w") as file:
+                file.write("id\tbase_path\talias_path\tparameters\n")
 
-        # If not found, write the new entry to parameters_dict.txt
-        with open(param_dict_file, "a") as file:
-            file.write(f"{basename} {parameters}\n")
+        # If not found, write the new entry to parameters_dict.tsv
+        folder_identifier = parameters.generate_folder_identifier()
+        alias_path = output_dir.parent / folder_identifier
+        with open(params_dict_tsv, "a") as file:
+            file.write(
+                f"{params_hash}\t{output_dir}\t{alias_path}\t{parameters.serialize()}\n"
+            )
