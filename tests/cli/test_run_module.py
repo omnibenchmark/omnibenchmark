@@ -3,7 +3,7 @@ from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
 
-benchmark_path = Path(__file__).parent / ".."
+benchmark_path = Path(__file__).parent.parent
 benchmark_data_path = benchmark_path / "data"
 
 

@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from collections.abc import Mapping
+import re
 import json
 import hashlib
 
@@ -75,6 +76,32 @@ class Params:
         """Create new Params instance from serialized string."""
         params = json.loads(serialized)
         return cls(params)
+
+    def generate_folder_identifier(self, max_len=255):
+        """
+        Generate a human-readable folder name from parameters.
+
+        Args:
+            max_len (int): Maximum length of the folder name.
+
+        Returns:
+            str: Folder identifier string.
+        """
+
+        parts = []
+        for key, value in self._params.items():
+            safe_key = re.sub(r"\W+", "", str(key))
+            safe_value = re.sub(r"\W+", "", str(value))
+            parts.append(f"{safe_key}-{safe_value}")
+
+        folder_name = "_".join(parts)
+
+        # If too long, append a short 8 characters hash
+        if len(folder_name) > max_len:
+            short_hash = self.hash()[:8]
+            folder_name = folder_name[: max_len - 9] + "_" + short_hash
+
+        return folder_name
 
     def to_cli_args(self, style="gnu"):
         """

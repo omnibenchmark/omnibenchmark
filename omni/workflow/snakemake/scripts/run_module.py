@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 # WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
 
-import logging
 import os
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from omni.workflow.snakemake.scripts.execution import execution
 from omni.workflow.snakemake.scripts.utils import (
     get_module_name_from_rule_name,
     dump_parameters_to_file,
+    create_parameters_symlink,
 )
 
 
@@ -32,6 +32,9 @@ try:
     output_dir = Path(str(os.path.commonpath(snakemake.output)))
     if len(snakemake.output) == 1:
         output_dir = Path(os.path.dirname(output_dir))
+
+    # Create symlink for parameters folder
+    create_parameters_symlink(output_dir, parameters)
 
     # Create parameters file for outputs
     dump_parameters_to_file(output_dir, parameters)

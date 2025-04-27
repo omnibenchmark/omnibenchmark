@@ -40,16 +40,16 @@ def test_single_run_workflow_with_parameters():
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     expected_D1_param_dict = {
-        "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+        ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
             "measure": "chebyshev"
         },
-        "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+        ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
             "measure": "cosine"
         },
-        "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+        ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
             "measure": "manhattan"
         },
-        "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+        ".fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
             "measure": "euclidean"
         },
     }
@@ -96,16 +96,16 @@ def test_multi_run_workflow_with_parameters():
     )
 
     expected_D1_param_dict = {
-        "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+        ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
             "measure": "chebyshev"
         },
-        "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+        ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
             "measure": "cosine"
         },
-        "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+        ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
             "measure": "manhattan"
         },
-        "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+        ".fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
             "measure": "euclidean"
         },
     }
@@ -147,16 +147,16 @@ def test_multi_run_workflow_with_parameter_removal():
         assert success
 
         expected_param_dict_before_removal = {
-            "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+            ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
                 "measure": "chebyshev"
             },
-            "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+            ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
                 "measure": "cosine"
             },
-            "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+            ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
                 "measure": "manhattan"
             },
-            "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+            ".fbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
                 "measure": "euclidean"
             },
         }
@@ -177,13 +177,13 @@ def test_multi_run_workflow_with_parameter_removal():
         assert success
 
         expected_param_dict_after_removal = {
-            "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+            ".7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
                 "measure": "chebyshev"
             },
-            "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+            ".17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
                 "measure": "manhattan"
             },
-            "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+            ".35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
                 "measure": "cosine"
             },
         }

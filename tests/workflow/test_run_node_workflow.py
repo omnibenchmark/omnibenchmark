@@ -28,7 +28,7 @@ def test_run_node_workflow_001():
             / "default"
             / "process"
             / "P1"
-            / "param317a506603d7cb7f079fcc6a38cdf99e3955e1729540d38b9b0f36bd7c16d2a3"
+            / ".317a506603d7cb7f079fcc6a38cdf99e3955e1729540d38b9b0f36bd7c16d2a3"
         )
         assert os.path.exists(process_P1_output)
         shutil.rmtree(process_P1_output, onerror=setup._remove_readonly)
