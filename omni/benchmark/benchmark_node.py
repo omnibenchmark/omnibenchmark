@@ -11,7 +11,6 @@ class BenchmarkNode:
         parameters,
         inputs,
         outputs,
-        param_id,
         after=None,
     ):
         self.converter = converter
@@ -24,7 +23,9 @@ class BenchmarkNode:
 
         self.stage_id = stage.id
         self.module_id = module.id
-        self.param_id = f"param_{param_id}" if parameters else "default"
+        self.param_id = (
+            "default" if not self.parameters else f"param{self.parameters.hash()}"
+        )
 
     def is_entrypoint(self):
         return not self.inputs or len(self.inputs) == 0

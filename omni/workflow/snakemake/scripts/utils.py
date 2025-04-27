@@ -25,5 +25,15 @@ def dump_parameters_to_file(output_dir: Path, parameters: List[str]) -> None:
             params_file.write(f"{parameters}")
 
         param_dict_file = os.path.join(output_dir, "..", "parameters_dict.txt")
-        with open(param_dict_file, "a") as param_dict_file:
-            param_dict_file.write(f"{os.path.basename(output_dir)} {parameters}\n")
+        basename = os.path.basename(output_dir)
+        if os.path.exists(param_dict_file):
+            with open(param_dict_file, "r") as file:
+                existing_lines = file.readlines()
+
+            # If the basename exists, skip writing
+            if any(basename in line for line in existing_lines):
+                return
+
+        # If not found, write the new entry to parameters_dict.txt
+        with open(param_dict_file, "a") as file:
+            file.write(f"{basename} {parameters}\n")

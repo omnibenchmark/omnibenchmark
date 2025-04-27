@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import Dict
+import json
+import os
 
 from tests.workflow.Snakemake_setup import SnakemakeSetup
-import textwrap
 
 
 def test_run_workflow_001():
@@ -36,13 +38,20 @@ def test_single_run_workflow_with_parameters():
     benchmark_file = Path("..") / "data" / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
-    expected_D1_param_dict = textwrap.dedent(
-        """param_0 ['--measure', 'cosine']
-        param_1 ['--measure', 'euclidean']
-        param_2 ['--measure', 'manhattan']
-        param_3 ['--measure', 'chebyshev']
-    """
-    )
+    expected_D1_param_dict = {
+        "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+            "measure": "chebyshev"
+        },
+        "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+            "measure": "cosine"
+        },
+        "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+            "measure": "manhattan"
+        },
+        "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+            "measure": "euclidean"
+        },
+    }
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
@@ -85,13 +94,20 @@ def test_multi_run_workflow_with_parameters():
         Path(__file__).parent / "out" / "data" / "iris" / "default" / "distances" / "D1"
     )
 
-    expected_D1_param_dict = textwrap.dedent(
-        """param_0 ['--measure', 'cosine']
-        param_1 ['--measure', 'euclidean']
-        param_2 ['--measure', 'manhattan']
-        param_3 ['--measure', 'chebyshev']
-    """
-    )
+    expected_D1_param_dict = {
+        "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+            "measure": "chebyshev"
+        },
+        "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+            "measure": "cosine"
+        },
+        "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+            "measure": "manhattan"
+        },
+        "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+            "measure": "euclidean"
+        },
+    }
 
     with SnakemakeSetup(benchmark_file_path) as setup:
         benchmark = setup.benchmark
@@ -129,32 +145,47 @@ def test_multi_run_workflow_with_parameter_removal():
         success = setup.workflow.run_workflow(benchmark)
         assert success
 
-        expected_param_dict_before_removal = textwrap.dedent(
-            """param_0 ['--measure', 'cosine']
-            param_1 ['--measure', 'euclidean']
-            param_2 ['--measure', 'manhattan']
-            param_3 ['--measure', 'chebyshev']
-        """
-        )
+        expected_param_dict_before_removal = {
+            "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+                "measure": "chebyshev"
+            },
+            "param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3": {
+                "measure": "cosine"
+            },
+            "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+                "measure": "manhattan"
+            },
+            "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+                "measure": "euclidean"
+            },
+        }
 
         # assert the parameter serialization is correct after 1st run
         _assert_parameters_output_for_module(
             D1_output_folder_path, expected_param_dict_before_removal
         )
 
-        node_id_to_remove = "distances-D1-param_1-after_data"
+        # remove previous parameters dict
+        os.remove(D1_output_folder_path / "parameters_dict.txt")
+
+        node_id_to_remove = "distances-D1-param35923507f72ce06b1717bc24a2ed9be2b402465c4216083ea2649dacf4e7cfa3-after_data"
         benchmark = benchmark.remove_node_and_dependents(node_id_to_remove)
 
         # assert benchmark 2nd run is successful
         success = setup.workflow.run_workflow(benchmark)
         assert success
 
-        expected_param_dict_after_removal = textwrap.dedent(
-            """param_0 ['--measure', 'cosine']
-            param_1 ['--measure', 'manhattan']
-            param_2 ['--measure', 'chebyshev']
-        """
-        )
+        expected_param_dict_after_removal = {
+            "param7303dd4b11fc73cda647ecb3f7804e697c7263a96b17f866b3d33b3c61c7616a": {
+                "measure": "chebyshev"
+            },
+            "param17e490053067e42124d830017cf74c8831676bc88fdb744769d12d71b0d91b51": {
+                "measure": "manhattan"
+            },
+            "paramfbc351b86dafa7dc3e6f57558c75811033e0bfe4800932ad7760bbbb3c18853f": {
+                "measure": "euclidean"
+            },
+        }
 
         # assert the parameter serialization is correct after 2nd run
         _assert_parameters_output_for_module(
@@ -163,35 +194,34 @@ def test_multi_run_workflow_with_parameter_removal():
 
 
 def _assert_parameters_output_for_module(
-    module_output_path: Path, expected_module_param_dict: str
+    module_output_path: Path, expected_param_dict: Dict[str, any]
 ):
     module_param_dict = module_output_path / "parameters_dict.txt"
     assert module_param_dict.exists(), f"File not found: {module_param_dict}"
 
     with module_param_dict.open("r") as f:
         param_dict_lines = [line.strip() for line in f if line.strip()]
-        actual_module_param_dict = f.read()
 
-    assert (
-        actual_module_param_dict == expected_module_param_dict
-    ), f"Mismatch in parameters:\nExpected:\n{expected_module_param_dict}\n\nGot:\n{actual_module_param_dict}"
-
-    param_dict = {}
+    actual_param_dict = {}
     for line in param_dict_lines:
         key, value = line.split(" ", 1)
-        param_dict[key] = value
+        actual_param_dict[key] = json.loads(value)
+
+    assert (
+        actual_param_dict == expected_param_dict
+    ), f"Mismatch in parameters:\nExpected:\n{expected_param_dict}\n\nGot:\n{actual_param_dict}"
 
     # check that the content of the subfolder actually contains the parameters specified in the dict
-    for param_folder in param_dict.keys():
+    for param_folder in actual_param_dict.keys():
         module_param_file_path = module_output_path / param_folder / "parameters.txt"
         assert (
             module_param_file_path.exists()
         ), f"File not found: {module_param_file_path}"
 
         with module_param_file_path.open("r") as f:
-            param_txt_content = f.read()
+            param_txt_content = json.loads(f.read())
 
-        expected_content = param_dict.get(param_folder)
+        expected_content = actual_param_dict.get(param_folder)
         assert (
             expected_content == param_txt_content
         ), f"Mismatch in {module_param_file_path}:\nExpected: {expected_content}\nGot: {param_txt_content}"
