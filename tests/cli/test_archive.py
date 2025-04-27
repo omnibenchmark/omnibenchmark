@@ -104,9 +104,7 @@ class TestCLIMinIOStorage:
                     files = f.namelist()
                 print(str(tmp.benchmark_file))
                 print(files)
-                testfile = (
-                    ".snakemake/repos/6f0b9a981e9a3c8329af1e67ce49631e/config.cfg"
-                )
+                testfile = ".snakemake/repos/cc6e274b72f3ef949eae61aaf7ee3b7653f0bbf92aa2ea879a2359acb137dbb4/config.cfg"
                 assert testfile in files
 
     def test_archive_results(self, monkeypatch: pytest.MonkeyPatch):
