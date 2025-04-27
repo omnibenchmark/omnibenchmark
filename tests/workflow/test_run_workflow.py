@@ -74,7 +74,7 @@ def test_single_run_workflow_with_parameters():
         # for each dataset, assert the parameter serialization is correct
         for dataset in datasets:
             D1_output_folder_path = (
-                Path(__file__).parent
+                Path(os.getcwd())
                 / "out"
                 / "data"
                 / dataset
@@ -92,7 +92,7 @@ def test_multi_run_workflow_with_parameters():
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     D1_output_folder_path = (
-        Path(__file__).parent / "out" / "data" / "iris" / "default" / "distances" / "D1"
+        Path(os.getcwd()) / "out" / "data" / "iris" / "default" / "distances" / "D1"
     )
 
     expected_D1_param_dict = {
@@ -136,7 +136,7 @@ def test_multi_run_workflow_with_parameter_removal():
     benchmark_file = Path("..") / "data" / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
     D1_output_folder_path = (
-        Path(__file__).parent / "out" / "data" / "iris" / "default" / "distances" / "D1"
+        Path(os.getcwd()) / "out" / "data" / "iris" / "default" / "distances" / "D1"
     )
 
     with SnakemakeSetup(benchmark_file_path) as setup:
