@@ -11,6 +11,7 @@ from omnibenchmark.io.RemoteStorage import (
 )
 
 
+@pytest.mark.short
 class TestRemoteStorage:
     def test_is_valid_version(self):
         for ao in ["ab", [1], (1,), None, 1]:

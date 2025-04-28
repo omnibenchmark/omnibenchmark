@@ -68,6 +68,7 @@ class MinIOStorage(RemoteStorage):
         self,
         auth_options: Dict,
         benchmark: str,
+        # TODO: fix type problems here.
         storage_options: Dict = S3_DEFAULT_STORAGE_OPTIONS,
     ):
         super().__init__(auth_options, benchmark, storage_options)

@@ -81,14 +81,22 @@ class TmpMinIOStorage:
 
     def get_storage_client(self):
         return MinIOStorage(
-            auth_options={
-                "endpoint": self.endpoint,
-                "access_key": self.access_key,
-                "secret_key": self.secret_key,
-                "secure": False,
-            },
+            auth_options=self.auth_options,
             benchmark=self.bucket_name,
         )
+
+    @property
+    def benchmark(self):
+        return self.bucket_name
+
+    @property
+    def auth_options(self):
+        return {
+            "endpoint": self.endpoint,
+            "access_key": self.access_key,
+            "secret_key": self.secret_key,
+            "secure": False,
+        }
 
     def __enter__(self):
         return self

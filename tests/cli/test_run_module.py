@@ -100,7 +100,7 @@ def test_benchmark_not_found():
         assert_in_output(result.stderr, expected3)
 
 
-def test_benchmark_format_incorrect(capture_logs):
+def test_benchmark_format_incorrect():
     expected_output = """
     Running module on a local dataset.
     Error: Failed to parse YAML as a valid OmniBenchmark: software_backend must be supplied.

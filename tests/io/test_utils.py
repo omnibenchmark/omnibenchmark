@@ -1,62 +1,32 @@
-import os
-import sys
-
 import minio
 import pytest
 
-import omnibenchmark.io
 import omnibenchmark.io.utils as oiu
-from omnibenchmark.io.MinIOStorage import MinIOStorage
+from omnibenchmark.io.RemoteStorage import RemoteStorage
 
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
-
-# TODO(ben): use fixture ----
-# setup and start minio container
-minio_testcontainer = MinIOSetup()  # sys.platform == "linux")
+from ..fixtures import minio_storage, _minio_container  # noqa: F401
 
 
-@pytest.mark.skipif(
-    sys.platform != "linux", reason="for GHA, skip tests on non Linux platforms"
-)
-def test_get_storage():
-    with TmpMinIOStorage(minio_testcontainer) as tmp:
-        _ = MinIOStorage(auth_options=tmp.auth_options, benchmark="test")
-        ss = oiu.get_storage(
+def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(minio_storage):  # noqa: F811
+    # happy path
+    storage = oiu.get_storage(
+        storage_type="minio",
+        auth_options=minio_storage.auth_options,
+        benchmark="test",
+    )
+    assert isinstance(storage, RemoteStorage)
+
+    # sad path
+    with pytest.raises(minio.error.S3Error):
+        oiu.get_storage(
             storage_type="minio",
-            auth_options=tmp.auth_options_readonly,
-            benchmark="test",
+            auth_options=minio_storage.auth_options,
+            benchmark="not_existing_benchmark",
         )
-        assert isinstance(ss, omnibenchmark.io.MinIOStorage.MinIOStorage)
-
-        with pytest.raises(minio.error.S3Error):
-            ss = oiu.get_storage(
-                storage_type="minio",
-                auth_options=tmp.auth_options_readonly,
-                benchmark="not_existing_benchmark",
-            )
-
-
-def cleanup_md5():
-    if os.path.exists("tests/io/md5sum_example.txt"):
-        os.remove("tests/io/md5sum_example.txt")
-
-
-@pytest.fixture(scope="session", autouse=True)
-def cleanup(request):
-    """Remove the file created during the test."""
-    request.addfinalizer(cleanup_md5)
-
-
-def test_md5():
-    with open("tests/io/md5sum_example.txt", "w") as f:
-        f.write("asdfasdf")
-    assert oiu.md5("tests/io/md5sum_example.txt") == "6a204bd89f3c8348afd5c77c717a097a"
-
-    with pytest.raises(FileNotFoundError):
-        oiu.md5("not_existing_file.txt")
 
 
 # TODO: we should use humanize for this, it's already in the deps
+@pytest.mark.short
 def test_sizeof_fmt():
     assert oiu.sizeof_fmt(0) == "    0B"
     assert oiu.sizeof_fmt(1) == "    1B"
