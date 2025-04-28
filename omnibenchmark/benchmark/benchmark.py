@@ -3,6 +3,7 @@ import os.path
 from pathlib import Path
 from typing import Dict, List
 
+from pydantic import ValidationError
 import pydot
 
 from omnibenchmark.benchmark import dag
@@ -19,10 +20,14 @@ class Benchmark:
             os.mkdir(out_dir)
 
         converter = LinkMLConverter(benchmark_yaml)
-        validator = Validator()
-        converter = validator.validate(self.directory, converter)
 
-        self.converter = converter
+        validator = Validator()
+        try:
+            converter = validator.validate(self.directory, converter)
+        except ValidationError:
+            raise ValueError("Invalid benchmark YAML file")
+
+        self.converter: LinkMLConverter = converter
         self.out_dir = out_dir
         self.G = dag.build_benchmark_dag(converter, self.out_dir)
 

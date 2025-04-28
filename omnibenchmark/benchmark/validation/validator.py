@@ -1,7 +1,7 @@
 import os.path
 from collections import Counter
 from pathlib import Path
-from typing import Union, Optional
+from typing import Optional
 from urllib.parse import urlparse
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvironment
@@ -19,7 +19,7 @@ class Validator:
 
     def validate(
         self, benchmark_dir: Path, converter: LinkMLConverter
-    ) -> Union[ValidationError, LinkMLConverter]:
+    ) -> LinkMLConverter:
         # Validate ids are unique
         stage_ids = converter.get_stages().keys()
         duplicate_stage_ids = Validator.find_duplicate(stage_ids)

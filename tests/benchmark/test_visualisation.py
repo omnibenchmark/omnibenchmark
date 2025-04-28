@@ -1,13 +1,15 @@
 import re
 import random
-import networkx as nx
-from pathlib import Path
 
 import pytest
+
+import networkx as nx
+from pathlib import Path
 
 from omnibenchmark.benchmark import Benchmark, dag
 
 
+@pytest.mark.short
 def test_export_computational_to_dot():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -50,6 +52,7 @@ def test_export_computational_to_dot_scaling():
     dot.write("small_graph.dot")
 
 
+@pytest.mark.short
 def test_export_topology_to_mermaid():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -103,6 +106,7 @@ def test_export_topology_to_mermaid():
         pytest.fail(f"Exporting benchmark topology to mermaid failed: {e}")
 
 
+# TODO: get from somewhere else
 def clean(output: str) -> str:
     output = output.strip()
     output = output.replace("    ", "")

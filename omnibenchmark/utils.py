@@ -37,7 +37,7 @@ def as_list(input: Union[List, Any]):
     return input if isinstance(input, List) else [input]
 
 
-def parse_instance(path: Path, target_class):
+def parse_instance(path: Path, target_class) -> Any:
     """Load a model of target_class from a file."""
 
     # Due to a yaml.CLoader issue for Yaml files on Windows, https://github.com/yaml/pyyaml/issues/293
@@ -47,7 +47,6 @@ def parse_instance(path: Path, target_class):
         with path.open("r") as file:
             benchmark_yaml = yaml.load(file, yaml.SafeLoader)
             benchmark = yaml_loader.load(benchmark_yaml, target_class)
-
             return benchmark
     else:
         benchmark = yaml_loader.load(str(path), target_class)
