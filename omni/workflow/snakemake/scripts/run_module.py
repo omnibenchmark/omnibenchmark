@@ -6,12 +6,11 @@ from pathlib import Path
 
 from snakemake.script import Snakemake
 
+from omni.benchmark.symlinks import SymlinkManager
 from omni.io.code import clone_module
 from omni.workflow.snakemake.scripts.execution import execution
 from omni.workflow.snakemake.scripts.utils import (
     get_module_name_from_rule_name,
-    dump_parameters_to_file,
-    create_parameters_symlink,
 )
 
 
@@ -33,11 +32,8 @@ try:
     if len(snakemake.output) == 1:
         output_dir = Path(os.path.dirname(output_dir))
 
-    # Create symlink for parameters folder
-    create_parameters_symlink(output_dir, parameters)
-
-    # Create parameters file for outputs
-    dump_parameters_to_file(output_dir, parameters)
+    manager = SymlinkManager(output_dir.parent)
+    manager.store(parameters)
 
     # Clone git repository
     repositories_dir = Path(".snakemake") / "repos"
