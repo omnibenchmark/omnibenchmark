@@ -7,7 +7,9 @@ from omnibenchmark.io.RemoteStorage import RemoteStorage
 from ..fixtures import minio_storage, _minio_container  # noqa: F401
 
 
+# fmt: off
 def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(minio_storage):  # noqa: F811
+# fmt: on
     # happy path
     storage = oiu.get_storage(
         storage_type="minio",

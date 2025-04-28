@@ -5,6 +5,7 @@ from typing import Optional
 
 from omnibenchmark.benchmark import Benchmark
 from tests.cli.cli_setup import OmniCLISetup
+
 # from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 from .fixtures import minio_storage, _minio_container  # noqa: F401
