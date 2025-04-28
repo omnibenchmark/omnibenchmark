@@ -1,5 +1,7 @@
 """Utility functions to manage dataset handling"""
 
+# TODO: rename module to something more descriptive. E.g., storage
+
 import hashlib
 
 from collections import defaultdict
@@ -9,7 +11,10 @@ from omnibenchmark.io.MinIOStorage import MinIOStorage
 from omnibenchmark.io.S3config import S3_access_config_from_env
 
 
-def get_storage(storage_type: str, auth_options: dict, benchmark: str):
+# XXX revisit this, conceptually. Here we're mixing the storage API with the concrete
+# MinIO implementation. We should use a factory pattern to create the appropriate storage object instead,
+# assuming we support multiple storage types.
+def get_storage(storage_type: str, auth_options: dict, benchmark: str) -> MinIOStorage:
     """
     Selects a remote storage type.
 

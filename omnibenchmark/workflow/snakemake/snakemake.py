@@ -1,5 +1,7 @@
+import logging
 import os
 import tempfile
+
 
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +61,7 @@ class SnakemakeEngine(WorkflowEngine):
         """
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
+
         # Prepare the argv list
         argv = self._prepare_argv(
             snakefile=snakefile,
@@ -75,8 +78,6 @@ class SnakemakeEngine(WorkflowEngine):
 
         if module_path:
             os.environ["MODULEPATH"] = module_path
-
-        import logging
 
         logging.getLogger("snakemake").setLevel(logging.DEBUG)
 
@@ -208,7 +209,6 @@ class SnakemakeEngine(WorkflowEngine):
         # Execute snakemake script
         parser, args = parse_args(argv)
 
-        print(">>> args:", args)
         success = snakemake_cli(args, parser)
 
         return success
@@ -324,7 +324,7 @@ class SnakemakeEngine(WorkflowEngine):
             "--cores",
             str(cores),
             "--directory",
-            str(work_dir),
+            work_dir.as_posix(),
             "--config",
             f"input={str(input_dir)}",
             f"dataset={dataset}",

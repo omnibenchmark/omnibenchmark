@@ -111,3 +111,24 @@ If you need to debug tests, you might want to increase verbosity while capturing
 ```bash
 pytest -s -v --log-cli-level=DEBUG tests/cli/test_run_benchmark.py::test_local
 ```
+
+### Inspecting test outputs
+
+As a general rule, your tests should not touch the filesystem outside of a per-test temp folder.
+
+You're encouraged to use the `tmp_path` fixture to create a temporary directory for your tests. This ensures that each test runs in isolation and does not interfere with other tests.
+
+However, some times it's useful to inspect the output of a test while you're debugging a complex workflow.
+
+There's an example in `tests/workflow/conftest.py` that you can use (if used elsewhere, we should move it to a more central location).
+
+```bash
+pytest -v -s test_run_node_workflow.py --current-dir --keep-files
+```
+
+This ensures two things:
+
+1. We don't use the per-test temp folder, but the current working directory.
+2. We bypass the cleanup.
+
+We might change this in the future to a more generic approach. But for now this should be sufficient to allow debuggability of the test outputs, and good test isolation.

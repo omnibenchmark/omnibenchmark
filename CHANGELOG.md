@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - fix: fixed race conditions at the module repository cloning step
 - refactor: rename --threads parameter to --cores
 - chore: make s3 dependencies optional
+- tests: refactor CLI capture and execution tests
 
 ## [0.1.0-rc.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.3)
 - cli: added dynamic versioning managed by poetry-dynamic-versioning , using a semvar style.
