@@ -110,7 +110,7 @@ jobs:
           # I think lmod should be loadable/installed for tests to run?
           # source "$LMOD_PKG"/init/profile
           # export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
+          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 
@@ -120,7 +120,7 @@ jobs:
       - name: Run tests
         run: |
           ## skip software tests, they're done differently
-          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml
         if: matrix.os == 'windows-latest'
 
       #----------------------------------------------
