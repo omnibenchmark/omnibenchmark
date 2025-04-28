@@ -1,16 +1,12 @@
 #!/usr/bin/env snakemake -s
 
-# import glob
-# import re
 import os
-import os.path as op
-# from shutil import which
-# from omni.software.easybuild_backend import *
-# from omni.software.conda_backend import *
-from omni.software import easybuild_backend as easy
-from omni.software import common
-# from omni.software import common
 import shutil
+
+import os.path as op
+
+from omnibenchmark.software import easybuild_backend as easy
+from omnibenchmark.software import common
 
 LMOD_VERS="8.7"
 
@@ -50,7 +46,7 @@ for eb in easyconfigs:
             singularity build \
                --fakeroot \
                {output.container} \
-               {output.singularity_recipe} &> {log}""")            
+               {output.singularity_recipe} &> {log}""")
     rule:
         name: f"{{easyconfig}}_test".format(easyconfig=eb)
         wildcard_constraints:
@@ -65,6 +61,6 @@ for eb in easyconfigs:
             """
             ld --version > {output}
             """
-            
+
 onsuccess:
     shutil.rmtree(WD)
