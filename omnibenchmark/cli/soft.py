@@ -7,13 +7,11 @@ from pathlib import Path
 import click
 import yaml
 
-# from omnibenchmark.cli.utils.logging import debug_option, logger
 from omnibenchmark.cli.utils.logging import logger
 
 
 @click.group(name="software")
 @click.pass_context
-# @debug_option
 def software(ctx):
     """Manage and install benchmark-specific software."""
     ctx.ensure_object(dict)
@@ -48,9 +46,9 @@ def singularity_build(easyconfig):
     from omnibenchmark.software import easybuild_backend as eb
 
     if common.check_easybuild_status().returncode != 0:
-        raise ("ERROR: Easybuild not installed")
+        raise RuntimeError("ERROR: Easybuild not installed")
     if common.check_singularity_status().returncode != 0:
-        raise ("ERROR: Singularity not installed")
+        raise RuntimeError("ERROR: Singularity not installed")
 
     ## check the easyconfig exists
     try:
@@ -66,7 +64,7 @@ def singularity_build(easyconfig):
         easyconfig=easyconfig,
         singularity_recipe=singularity_recipe,
         envmodule=envmodule_name,
-        nthreads=str(len(os.sched_getaffinity(0))),
+        nthreads=len(os.sched_getaffinity(0)),
     )
 
     logger.info(
@@ -104,9 +102,9 @@ def singularity_prepare(benchmark):
     from omnibenchmark.software import easybuild_backend as eb
 
     if common.check_easybuild_status().returncode != 0:
-        raise ("ERROR: Easybuild not installed")
+        raise RuntimeError("ERROR: Easybuild not installed")
     if common.check_singularity_status().returncode != 0:
-        raise ("ERROR: Singularity not installed")
+        raise RuntimeError("ERROR: Singularity not installed")
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)
@@ -127,7 +125,7 @@ def singularity_prepare(benchmark):
             easyconfig=easyconfig,
             singularity_recipe=singularity_recipe,
             envmodule=envmodule_name,
-            nthreads=str(len(os.sched_getaffinity(0))),
+            nthreads=len(os.sched_getaffinity(0)),
         )
 
         logger.info(
@@ -174,6 +172,7 @@ def singularity_push(docker_username, docker_password, sif, oras):
 
     from omnibenchmark.software import easybuild_backend as eb
 
+    # FIXME, this does not exist
     eb.push_to_registry(
         sif=sif,
         docker_username=docker_username,
@@ -327,7 +326,7 @@ def conda_prepare(benchmark):
     from omnibenchmark.software import common, conda_backend
 
     if common.check_conda_status().returncode != 0:
-        raise ("ERROR: conda not installed")
+        raise RuntimeError("ERROR: conda not installed")
 
     with open(benchmark, "r") as fh:
         yaml.safe_load(fh)

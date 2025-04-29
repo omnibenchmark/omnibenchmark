@@ -25,7 +25,8 @@ class Benchmark:
         try:
             converter = validator.validate(self.directory, converter)
         except ValidationError:
-            raise ValueError("Invalid benchmark YAML file")
+            # Just re-raising the validation error, explicitely
+            raise
 
         self.converter: LinkMLConverter = converter
         self.out_dir = out_dir
