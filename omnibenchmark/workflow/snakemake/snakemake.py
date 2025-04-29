@@ -326,7 +326,7 @@ class SnakemakeEngine(WorkflowEngine):
             "--directory",
             work_dir.as_posix(),
             "--config",
-            f"input={str(input_dir)}",
+            f"input={input_dir.as_posix() if input_dir else ''}",
             f"dataset={dataset}",
             f"keep_module_logs={keep_module_logs}",
         ]
