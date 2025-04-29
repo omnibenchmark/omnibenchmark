@@ -66,7 +66,7 @@ stages:
           - values: ["-a 1", "-b 0.1"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 5be6a3f
+          commit: 3b17081
       - id: P2
         software_environment: "R"
         parameters:
@@ -74,7 +74,7 @@ stages:
           - values: ["-a 1", "-b 0.1"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 5be6a3f
+          commit: 3b17081
     inputs:
       - entries:
           - data.counts

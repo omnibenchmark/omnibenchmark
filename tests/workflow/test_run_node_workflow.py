@@ -1,7 +1,6 @@
 import os.path
 import shutil
 from pathlib import Path
-import pytest
 
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
@@ -23,7 +22,6 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.mark.R
 def test_run_node_workflow_001(snakemake_env, tmp_path):
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
