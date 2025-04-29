@@ -61,11 +61,7 @@ def test_human_readable_naming(manager):
 def test_long_name_fallback(manager):
     """Test that very long parameter names fall back to hash."""
     # Create params with long values
-    long_params = Params(
-        {
-            "key": "a" * 300  # This should create a too-long name
-        }
-    )
+    long_params = Params({"key": "a" * 300})  # This should create a too-long name
 
     info = manager.store(long_params)
     assert len(info["human"]) <= 255
@@ -158,9 +154,7 @@ def test_human_folder_identifier_single_param(manager):
     p = Params({"key1": "value1"})
     info = manager.store(p)
     expected_folder_id = "key1-value1"
-    assert (
-        info["human"] == expected_folder_id
-    ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
+    assert info["human"] == expected_folder_id
 
 
 @pytest.mark.short
@@ -169,9 +163,7 @@ def test_human_folder_identifier_multiple_params(manager):
     p = Params({"key1": "value1", "key2": "value2"})
     info = manager.store(p)
     expected_folder_id = "key1-value1_key2-value2"
-    assert (
-        info["human"] == expected_folder_id
-    ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
+    assert info["human"] == expected_folder_id
 
 
 @pytest.mark.short
@@ -179,9 +171,7 @@ def test_human_folder_identifier_max_len_exceeded(manager):
     """Test folder identifier with max length exceeded."""
     p = Params({"key1": "value1" * 50, "key2": "value2" * 50})
     info = manager.store(p)
-    assert info["human"].endswith(
-        "_" + p.hash()[:8]
-    ), f"Expected folder name to end with hash, but got: {info["human"][-8:]}"
+    assert info["human"].endswith("_" + p.hash()[:8])
 
 
 @pytest.mark.short
@@ -190,9 +180,7 @@ def test_human_folder_identifier_with_numeric_values(manager):
     p = Params({"123": 456, "789": 101112})
     info = manager.store(p)
     expected_folder_id = "123-456_789-101112"
-    assert (
-        info["human"] == expected_folder_id
-    ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
+    assert info["human"] == expected_folder_id
 
 
 @pytest.mark.short
@@ -201,9 +189,7 @@ def test_human_folder_identifier_empty_key_value(manager):
     p = Params({"key1": "", "key2": ""})
     info = manager.store(p)
     expected_folder_id = "key1-_key2-"
-    assert (
-        info["human"] == expected_folder_id
-    ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
+    assert info["human"] == expected_folder_id
 
 
 @pytest.mark.short
@@ -212,6 +198,4 @@ def test_human_folder_identifier_with_boolean_values(manager):
     p = Params({"key1": True, "key2": False})
     info = manager.store(p)
     expected_folder_id = "key1-True_key2-False"
-    assert (
-        info["human"] == expected_folder_id
-    ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
+    assert info["human"] == expected_folder_id

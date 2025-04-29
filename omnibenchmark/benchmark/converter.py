@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Union, Optional, Dict, List
 
 from omni_schema.datamodel import omni_schema
-from pydantic import ValidationError
 
 from omnibenchmark.benchmark import params
 from omnibenchmark.utils import merge_dict_list, parse_instance
@@ -10,13 +9,14 @@ from omnibenchmark.utils import merge_dict_list, parse_instance
 
 class LinkMLConverter:
     def __init__(self, benchmark_file: Path):
+        """
+        The constructor tries to parse the benchmark file and initialize the model.
+        It also validates the model against the schema, and raises a ValidationError if
+        """
         self.benchmark_file = benchmark_file
-        try:
-            self.model: omni_schema.Benchmark = parse_instance(
-                benchmark_file, omni_schema.Benchmark
-            )
-        except ValidationError as e:
-            raise ValueError(f"Invalid benchmark file: {e}")
+        self.model: omni_schema.Benchmark = parse_instance(
+            benchmark_file, omni_schema.Benchmark
+        )
 
     def get_name(self) -> str:
         """Get name of the benchmark"""
