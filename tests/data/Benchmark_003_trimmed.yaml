@@ -61,7 +61,6 @@ stages:
         software_environment: "zlib_old"
         parameters:
           - values: ["-a 0", "-b 0"]
-          - values: ["-a 1", "-b 0.1"]
           - values: ["-a 2", "-b 0.5"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
@@ -70,7 +69,6 @@ stages:
         software_environment: "zlib_new"
         parameters:
           - values: ["-a 0", "-b 0"]
-          - values: ["-a 1", "-b 0.1"]
           - values: ["-a 2", "-b 0.5"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git

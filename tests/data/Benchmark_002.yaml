@@ -27,7 +27,7 @@ stages:
       - id: libd_DLPFC
         software_environment: "R"
         repository:
-          url: https://github.com/omnibenchmark-example/data
+          url: https://github.com/omnibenchmark-example/data.git
           commit: 63b7b36
     outputs:
       - id: data.counts
