@@ -1,7 +1,11 @@
 name: Code Style Check
 
 on:
-  pull_request:
+  # Removed pull_request trigger to avoid duplication with pipeline.yml
+  workflow_dispatch: # Allow manual trigger if needed
+  push:
+    branches:
+      - main # Still run on main branch pushes
 
 jobs:
   code-style:
