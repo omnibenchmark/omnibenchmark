@@ -8,9 +8,9 @@ from snakemake.script import Snakemake
 
 from omnibenchmark.io.code import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
+from omnibenchmark.benchmark.symlinks import SymlinkManager
 from omnibenchmark.workflow.snakemake.scripts.utils import (
     get_module_name_from_rule_name,
-    dump_parameters_to_file,
 )
 
 
@@ -32,8 +32,8 @@ try:
     if len(snakemake.output) == 1:
         output_dir = Path(os.path.dirname(output_dir))
 
-    # Create parameters file for outputs
-    dump_parameters_to_file(output_dir, parameters)
+    manager = SymlinkManager(output_dir.parent)
+    manager.store(parameters)
 
     # Clone git repository
     repositories_dir = Path(".snakemake") / "repos"

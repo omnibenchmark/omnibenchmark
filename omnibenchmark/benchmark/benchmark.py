@@ -85,6 +85,14 @@ class Benchmark:
 
         return nodes
 
+    def get_nodes_by_stage_id(self, stage_id: str) -> List:
+        nodes = []
+        for node in self.G.nodes:
+            if node.stage_id == stage_id:
+                nodes.append(node)
+
+        return nodes
+
     def get_benchmark_datasets(self) -> List[str]:
         datasets = []
         for _, stage in self.converter.get_stages().items():
@@ -197,7 +205,7 @@ class Benchmark:
             for module_id, params in module_id_params_dict.items():
                 mermaid_diagram += f"\tsubgraph params_{module_id}\n"
                 for param in params:
-                    mermaid_diagram += f"\t\t{hash(tuple(param))}{str(param)}\n"
+                    mermaid_diagram += f"\t\t{param.hash()}{param.to_cli_args()}\n"
 
                 mermaid_diagram += "\tend\n"
                 mermaid_diagram += f"\tparams_{module_id}:::param --o {module_id}\n"

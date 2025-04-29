@@ -68,21 +68,21 @@ def tokenize(output_path: Path, file_path: str):
 def read_params(output_path: Path, file_path: str):
     triples = tokenize(output_path, file_path)
     res = ""
-    parent = str(output_path)
+    parent = output_path
     for triple in triples:
-        parent = op.join(parent, triple[0], triple[1], triple[2])
+        parent = parent / triple[0] / triple[1] / triple[2]
         if "default" not in triple[2]:
-            param_file_path = op.join(parent, "parameters.txt")
+            param_file_path = parent / "parameters.json"
             with open(param_file_path) as fh:
-                reader = csv.reader(fh, delimiter="\t")
-                for row in reader:
-                    res = "%s %s %s %s %s;" % (
-                        res,
-                        triple[0],
-                        triple[1],
-                        triple[2],
-                        row[0].strip(),
-                    )
+                params = fh.read()
+                res = "%s %s %s %s %s;" % (
+                    res,
+                    triple[0],
+                    triple[1],
+                    triple[2],
+                    params.strip(),
+                )
+
     return res
 
 

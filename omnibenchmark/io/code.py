@@ -2,13 +2,11 @@ import logging
 import os
 import tarfile
 
-import requests
-
 from pathlib import Path
-from typing import List
 from filelock import FileLock
 from git import Repo
 from git.exc import InvalidGitRepositoryError
+import requests
 
 from omnibenchmark.workflow.snakemake.scripts.utils import (
     generate_unique_repo_folder_name,
@@ -129,16 +127,3 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
             )
 
     return module_dir
-
-
-def dump_parameters_to_file(output_dir: str, parameters: List[str]):
-    os.makedirs(output_dir, exist_ok=True)
-
-    if parameters is not None:
-        params_file = os.path.join(output_dir, "parameters.txt")
-        with open(params_file, "w") as params_file:
-            params_file.write(f"{parameters}")
-
-        param_dict_file = os.path.join(output_dir, "..", "parameters_dict.txt")
-        with open(param_dict_file, "a") as param_dict_file:
-            param_dict_file.write(f"{os.path.basename(output_dir)} {parameters}\n")

@@ -14,8 +14,8 @@ class DEFAULT_STORAGE_OPTIONS:
     tracked_directories = ["out", "versions", "config", "software"]
     results_directories = ["out"]
     extra_files_to_version_not_in_benchmark_yaml = [
-        "out/**/parameters.txt",
-        "out/**/parameters_dict.txt",
+        "out/**/parameters.json",
+        "out/**/parameters_dict.tsv",
     ]  # glob style
 
 

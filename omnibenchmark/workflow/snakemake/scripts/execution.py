@@ -8,6 +8,8 @@ import configparser
 
 from snakemake.script import Snakemake
 
+from omnibenchmark.benchmark.params import Params
+
 
 def mock_execution(inputs: List[str], output: str, snakemake: Snakemake):
     print("Processed", inputs, "to", output, "using threads", snakemake.threads)
@@ -25,7 +27,7 @@ def execution(
     output_dir: Path,
     dataset: str,
     inputs_map: dict[str, str | List[str]],
-    parameters: List[str],
+    parameters: Params,
     keep_module_logs: bool,
 ) -> int:
     config_parser = _read_config(module_dir)
@@ -57,7 +59,7 @@ def execution(
 
     # Adding extra parameters
     if parameters:
-        command.extend(parameters)
+        command.extend(parameters.to_cli_args())
 
     # Prepare stdout and stderr files in the output directory
     stdout_file = output_dir / "stdout.log"

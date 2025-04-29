@@ -34,7 +34,7 @@ def expend_stage_nodes(
         if not parameters or len(parameters) == 0:
             parameters = [None]
 
-        for param_id, param in enumerate(parameters):
+        for param in parameters:
             for inputs in inputs_for_stage:
                 latest_stage = None
                 if inputs:
@@ -62,7 +62,6 @@ def expend_stage_nodes(
                     param,
                     inputs,
                     outputs,
-                    param_id,
                     after=latest_stage,
                 )
                 nodes.append(node)

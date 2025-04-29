@@ -12,11 +12,6 @@ def strip(text):
 
 
 def test_benchmark_computational_plot():
-    # XXX what is this testing, exactly? that cli is calling the right method?
-    # benchmark = Benchmark(benchmark_data_path / "Benchmark_001.yaml")
-    # expected_output = benchmark.export_to_dot().to_string()
-    # I get some serious non-determinism, so I'm not sure how this was working before.
-
     with OmniCLISetup() as omni:
         result = omni.call(
             [
@@ -29,8 +24,14 @@ def test_benchmark_computational_plot():
         )
 
         assert result.returncode == 0
-        assert "process-P1-param_0-after_data" in result.stdout
-        assert "methods-M2-param_1-after_data" in result.stdout
+        assert (
+            "process-P1-.317a506603d7cb7f079fcc6a38cdf99e3955e1729540d38b9b0f36bd7c16d2a3-after_data"
+            in result.stdout
+        )
+        assert (
+            "methods-M2-.3297cc0b9f48521ab602a4a90143602c416f1f5029c70182a62e6092166d3bc9-after_data"
+            in result.stdout
+        )
         assert "metrics-m3-default-after_methods" in result.stdout
 
 
@@ -70,5 +71,3 @@ def test_benchmark_topology_plot():
         print(result.stdout)
         print(expected_output)
         assert strip(expected_methods) in strip(result.stdout)
-        # the output cannot be matched exactly, there's randomness in the layout
-        # assert strip(result.stdout) == strip(expected_output)

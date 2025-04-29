@@ -6,8 +6,6 @@ from typing import Optional
 from omnibenchmark.benchmark import Benchmark
 from tests.cli.cli_setup import OmniCLISetup
 
-# from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
-
 from .fixtures import minio_storage, _minio_container  # noqa: F401
 
 
@@ -123,7 +121,7 @@ def test_archive_code(minio_storage):  # noqa: F811
             files = f.namelist()
 
         # Check for a specific code file in the archive
-        testfile = ".snakemake/repos/6f0b9a981e9a3c8329af1e67ce49631e/config.cfg"
+        testfile = ".snakemake/repos/cc6e274b72f3ef949eae61aaf7ee3b7653f0bbf92aa2ea879a2359acb137dbb4/config.cfg"
         assert testfile in files
 
 

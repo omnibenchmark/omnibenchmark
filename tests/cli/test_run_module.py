@@ -2,7 +2,6 @@ from typing import Optional
 
 from tests.cli.test_run_benchmark import assert_in_output
 
-
 from .asserts import assert_startswith, clean
 from .cli_setup import OmniCLISetup
 from .fixtures import minio_storage, _minio_container  # noqa: F401

@@ -2,6 +2,8 @@ from pathlib import Path
 import pytest
 import os
 
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 from .path import data
@@ -66,7 +68,8 @@ def test_run_workflow_backends_missing(snakemake_env, tmp_path):
         # Run the whole workflow
         success = setup.workflow.run_workflow(
             benchmark,
+            backend=SoftwareBackendEnum.conda,
             work_dir=tmp_path,
         )
 
-        assert success
+        assert success is True

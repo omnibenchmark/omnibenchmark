@@ -50,7 +50,14 @@ def test_run_node_workflow_001(snakemake_env, tmp_path):
 
         # Delete output of process P1 directory
         process_P1_output = (
-            tmp_path / "out" / "data" / "D1" / "default" / "process" / "P1" / "param_1"
+            tmp_path
+            / "out"
+            / "data"
+            / "D1"
+            / "default"
+            / "process"
+            / "P1"
+            / ".317a506603d7cb7f079fcc6a38cdf99e3955e1729540d38b9b0f36bd7c16d2a3"
         )
 
         assert os.path.exists(process_P1_output)

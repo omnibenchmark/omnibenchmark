@@ -3,6 +3,7 @@ from typing import Union, Optional, Dict, List
 
 from omni_schema.datamodel import omni_schema
 
+from omnibenchmark.benchmark import params
 from omnibenchmark.utils import merge_dict_list, parse_instance
 
 
@@ -161,17 +162,19 @@ class LinkMLConverter:
 
     def get_module_parameters(
         self, module: Union[str, omni_schema.Module]
-    ) -> List[str]:
+    ) -> List[params.Params]:
         """Get module parameters by module/module_id"""
 
         if isinstance(module, str):
             module = self.get_modules()[module]
 
-        params = None
+        parameters = None
         if module.parameters is not None:
-            params = [x.values for x in module.parameters]
+            parameters = [
+                params.Params.from_cli_args(x.values) for x in module.parameters
+            ]
 
-        return params
+        return parameters
 
     def get_module_repository(
         self, module: Union[str, omni_schema.Module]
