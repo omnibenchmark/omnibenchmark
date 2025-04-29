@@ -87,7 +87,7 @@ jobs:
 
       - name: Run longer tests (integration)
         run: |
-          poetry run pytest -m "not short" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
+          poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 
@@ -117,7 +117,9 @@ jobs:
         os: [ubuntu-22.04]
         test_group: [1, 2]
         python-version: ["3.12"]
-      fail-fast: false
+      fail-fast: true
+
+    # TODO: run on particular container with conda etc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

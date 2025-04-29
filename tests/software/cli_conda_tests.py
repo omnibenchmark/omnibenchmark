@@ -16,6 +16,7 @@ test_cases = [
 ]
 
 
+@pytest.mark.conda
 @pytest.mark.parametrize("command, expected_output", test_cases)
 def test_click(command, expected_output, capture_logs):
     result = runner.invoke(cli, shlex.split(command))
