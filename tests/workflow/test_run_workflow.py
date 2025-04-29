@@ -4,9 +4,10 @@ import os
 from typing import Dict
 
 import pandas as pd
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
 from omnibenchmark.benchmark import Benchmark
+from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 from .path import data
