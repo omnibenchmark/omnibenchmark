@@ -1,5 +1,4 @@
 from pathlib import Path
-import pytest
 import os
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
@@ -24,7 +23,6 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.mark.R
 def test_run_workflow_001(snakemake_env, tmp_path):
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
@@ -49,7 +47,6 @@ def test_run_workflow_001(snakemake_env, tmp_path):
         assert success
 
 
-@pytest.mark.R
 def test_run_workflow_backends_missing(snakemake_env, tmp_path):
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
