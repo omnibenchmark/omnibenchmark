@@ -1,6 +1,8 @@
 import pytest
-from omnibenchmark.omni.model.module import ModuleMetadata, DerivedSoftware
+
 from pydantic import ValidationError
+
+from omnibenchmark.model.module import ModuleMetadata, DerivedSoftware
 
 VALID_YAML = """
 name: "Test Module"
@@ -15,6 +17,7 @@ license: "MIT"
 """
 
 
+@pytest.mark.short
 def test_valid_module_from_yaml():
     """Test creating a ModuleMetadata from valid YAML"""
     module = ModuleMetadata.from_yaml(VALID_YAML)
@@ -26,6 +29,7 @@ def test_valid_module_from_yaml():
     assert module.derives_from[0].doi == "10.1234/example.doi"
 
 
+@pytest.mark.short
 def test_license_validation():
     """Test that license validation works with known licenses"""
     valid_module = ModuleMetadata(
@@ -48,6 +52,7 @@ def test_license_validation():
         invalid_module.validate_license()
 
 
+@pytest.mark.short
 def test_derived_software_validation():
     """Test validation of DerivedSoftware fields"""
     # Valid case
@@ -69,6 +74,7 @@ def test_derived_software_validation():
         )
 
 
+@pytest.mark.short
 def test_missing_required_fields():
     """Test that required fields are enforced"""
     incomplete_yaml = """
@@ -79,6 +85,7 @@ def test_missing_required_fields():
         ModuleMetadata.from_yaml(incomplete_yaml)
 
 
+@pytest.mark.short
 def test_optional_fields():
     """Test that optional fields work as expected"""
     yaml_with_optionals = """

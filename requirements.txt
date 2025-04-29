@@ -145,7 +145,7 @@ numpy==1.26.4
     #   contourpy
     #   matplotlib
     #   pandas
-omni-schema @ git+https://github.com/omnibenchmark/omni-schema.git@7ececc752159e15ab297e37a7bc2bd79f3398263
+omni-schema==0.0.6
     # via omnibenchmark (pyproject.toml)
 packaging==25.0
     # via

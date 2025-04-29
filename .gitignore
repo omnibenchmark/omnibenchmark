@@ -168,3 +168,10 @@ log/
 .snakemake/
 output_dag.png
 Snakefile
+
+# Editors
+*.swp
+*.swo
+
+# graphs
+*.dot
