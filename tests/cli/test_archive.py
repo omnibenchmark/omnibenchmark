@@ -1,212 +1,233 @@
-import re
-import subprocess
-import sys
-import tempfile
 import zipfile
 from pathlib import Path
+from typing import Optional
 
-import pytest
-import yaml
 
-from omni.benchmark import Benchmark
+from omnibenchmark.benchmark import Benchmark
 from tests.cli.cli_setup import OmniCLISetup
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
-if not sys.platform == "linux":
-    pytest.skip(
-        "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
-        allow_module_level=True,
+# from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+
+from .fixtures import minio_storage, _minio_container  # noqa: F401
+
+
+def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
+    run1 = clisetup.call(
+        [
+            "run",
+            "benchmark",
+            "--benchmark",
+            file,
+        ],
+        cwd=cwd,
     )
-else:
-    tempdir = Path(tempfile.gettempdir()) / "ob_test_benchmark004"
-    # benchmark_data_path = Path("tests/data")
-    # benchmark_path = benchmark_data_path / "Benchmark_004.yaml"
-    benchmark_data = Path("..") / "data"
-    benchmark_data_path = Path(__file__).parent / benchmark_data
-    benchmark_path = str(benchmark_data_path / "Benchmark_004.yaml")
-
-    with open(benchmark_path, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark_obj = Benchmark(Path(benchmark_path))
-
-    minio_testcontainer = MinIOSetup(sys.platform == "linux")
+    assert run1.returncode == 0
 
 
-class TestCLIMinIOStorage:
-    def test_archive_config(self, monkeypatch: pytest.MonkeyPatch):
-        expected_output = """
-        Created archive:
-        """
-        if not sys.platform == "linux":
-            pytest.skip(
-                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
-                allow_module_level=True,
-            )
+def test_archive_config(minio_storage):  # noqa: F811
+    """Test archiving a benchmark configuration."""
+    expected_output = "Created archive:"
 
-        with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
-            monkeypatch.chdir(tmp.out_dir)
-            subprocess.run(
-                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            with OmniCLISetup() as omni:
-                result = omni.call(
-                    [
-                        "storage",
-                        "archive",
-                        "--benchmark",
-                        str(tmp.benchmark_file),
-                    ]
-                )
-                assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
-                outfile = f"{benchmark_obj.get_benchmark_name()}_{benchmark_obj.get_converter().get_version()}.zip"
-                assert Path(outfile).exists()
-                with zipfile.ZipFile(outfile, "r") as f:
-                    files = f.namelist()
-                assert "/".join(tmp.benchmark_file.parts[1:]) in files
+    with OmniCLISetup() as omni:
+        # First run the benchmark to generate data
+        do_first_run(omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir)
 
-    def test_archive_code(self, monkeypatch: pytest.MonkeyPatch):
-        expected_output = """
-        Created archive:
-        """
-        if not sys.platform == "linux":
-            pytest.skip(
-                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
-                allow_module_level=True,
-            )
+        # Create a version which is needed before archiving
+        run2 = omni.call(
+            [
+                "storage",
+                "create-version",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+            ],
+            cwd=minio_storage.out_dir,
+        )
+        assert run2.returncode == 0
 
-        with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
-            monkeypatch.chdir(tmp.out_dir)
-            subprocess.run(
-                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            with OmniCLISetup() as omni:
-                result = omni.call(
-                    ["storage", "archive", "--benchmark", str(tmp.benchmark_file), "-c"]
-                )
-                assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
-                outfile = f"{benchmark_obj.get_benchmark_name()}_{benchmark_obj.get_converter().get_version()}.zip"
-                assert Path(outfile).exists()
-                with zipfile.ZipFile(outfile, "r") as f:
-                    files = f.namelist()
-                print(str(tmp.benchmark_file))
-                print(files)
-                testfile = ".snakemake/repos/cc6e274b72f3ef949eae61aaf7ee3b7653f0bbf92aa2ea879a2359acb137dbb4/config.cfg"
-                assert testfile in files
+        # Now run the archive command
+        run3 = omni.call(
+            [
+                "storage",
+                "archive",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+            ],
+            cwd=minio_storage.out_dir,
+        )
 
-    def test_archive_results(self, monkeypatch: pytest.MonkeyPatch):
-        expected_output = """
-        Created archive:
-        """
-        if not sys.platform == "linux":
-            pytest.skip(
-                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
-                allow_module_level=True,
-            )
+        # Check the results
+        assert run3.returncode == 0
+        assert run3.stdout.startswith(expected_output)
 
-        with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
-            monkeypatch.chdir(tmp.out_dir)
-            subprocess.run(
-                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            with OmniCLISetup() as omni:
-                result = omni.call(
-                    ["storage", "archive", "--benchmark", str(tmp.benchmark_file), "-r"]
-                )
-                assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
-                outfile = f"{benchmark_obj.get_benchmark_name()}_{benchmark_obj.get_converter().get_version()}.zip"
-                assert Path(outfile).exists()
-                with zipfile.ZipFile(outfile, "r") as f:
-                    files = f.namelist()
-                print(str(tmp.benchmark_file))
-                print(files)
-                testfile = "out/data/D2/default/D2.meta.json"
-                assert testfile in files
+        # Get the benchmark name and version to check the archive file
+        benchmark = Benchmark(Path(minio_storage.benchmark_file))
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
 
-    def test_archive_compression(self, monkeypatch: pytest.MonkeyPatch):
-        expected_output = """
-        Created archive:
-        """
-        if not sys.platform == "linux":
-            pytest.skip(
-                "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
-                allow_module_level=True,
-            )
+        # Check that the archive exists and contains the benchmark file
+        archive_path = Path(minio_storage.out_dir) / outfile
+        assert archive_path.exists()
 
-        with TmpMinIOStorage(minio_testcontainer) as tmp:
-            tmp.setup(in_dir=benchmark_data_path, out_dir=tempdir)
-            monkeypatch.chdir(tmp.out_dir)
-            subprocess.run(
-                ["ob", "run", "benchmark", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            subprocess.run(
-                ["ob", "storage", "create-version", "--benchmark", tmp.benchmark_file],
-                cwd=tmp.out_dir,
-            )
-            with OmniCLISetup() as omni:
-                result = omni.call(
-                    [
-                        "storage",
-                        "archive",
-                        "--benchmark",
-                        str(tmp.benchmark_file),
-                        "-r",
-                        "--compression",
-                        "bzip2",
-                    ]
-                )
-                assert result.exit_code == 0
-                assert clean(result.output).startswith(clean(expected_output))
-                outfile = f"{benchmark_obj.get_benchmark_name()}_{benchmark_obj.get_converter().get_version()}.bz2"
-                assert Path(outfile).exists()
-                with zipfile.ZipFile(outfile, "r") as f:
-                    files = f.namelist()
-                print(str(tmp.benchmark_file))
-                print(files)
-                testfile = "out/data/D2/default/D2.meta.json"
-                assert testfile in files
+        with zipfile.ZipFile(archive_path, "r") as f:
+            files = f.namelist()
+
+        # Check that the benchmark file is in the archive
+        relative_benchmark_path = "/".join(Path(minio_storage.benchmark_file).parts[1:])
+        assert relative_benchmark_path in files
 
 
-def clean(output: str) -> str:
-    output = output.strip()
-    output = output.replace("    ", "")
+def test_archive_code(minio_storage):  # noqa: F811
+    """Test archiving a benchmark with code files."""
+    expected_output = "Created archive:"
 
-    # Replace different newline characters with a single '\n'
-    normalized_output = re.sub(r"\r\n|\r", "\n", output)
+    with OmniCLISetup() as omni:
+        # First run the benchmark to generate data
+        do_first_run(omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir)
 
-    # Replace multiple spaces and tabs with a single space
-    normalized_output = re.sub(r"[ \t]+", " ", normalized_output)
+        # Create a version which is needed before archiving
+        run2 = omni.call(
+            [
+                "storage",
+                "create-version",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+            ],
+            cwd=minio_storage.out_dir,
+        )
+        assert run2.returncode == 0
 
-    return normalized_output
+        # Now run the archive command with -c to include code
+        run3 = omni.call(
+            [
+                "storage",
+                "archive",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+                "-c",  # Include code
+            ],
+            cwd=minio_storage.out_dir,
+        )
+
+        # Check the results
+        assert run3.returncode == 0
+        assert run3.stdout.startswith(expected_output)
+
+        # Get the benchmark name and version to check the archive file
+        benchmark = Benchmark(Path(minio_storage.benchmark_file))
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
+
+        # Check that the archive exists and contains the benchmark file
+        archive_path = Path(minio_storage.out_dir) / outfile
+        assert archive_path.exists()
+
+        with zipfile.ZipFile(archive_path, "r") as f:
+            files = f.namelist()
+
+        # Check for a specific code file in the archive
+        testfile = ".snakemake/repos/6f0b9a981e9a3c8329af1e67ce49631e/config.cfg"
+        assert testfile in files
 
 
-def cleanup_buckets_on_exit():
-    """Cleanup a testing directory once we are finished."""
-    TmpMinIOStorage(minio_testcontainer).cleanup_buckets()
+def test_archive_results(minio_storage):  # noqa: F811
+    """Test archiving benchmark results."""
+    expected_output = "Created archive:"
+
+    with OmniCLISetup() as omni:
+        # First run the benchmark to generate data
+        do_first_run(omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir)
+
+        # Create a version which is needed before archiving
+        run2 = omni.call(
+            [
+                "storage",
+                "create-version",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+            ],
+            cwd=minio_storage.out_dir,
+        )
+        assert run2.returncode == 0
+
+        # Now run the archive command with -r to include results
+        run3 = omni.call(
+            [
+                "storage",
+                "archive",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+                "-r",  # Include results
+            ],
+            cwd=minio_storage.out_dir,
+        )
+
+        # Check the results
+        assert run3.returncode == 0
+        assert run3.stdout.startswith(expected_output)
+
+        # Get the benchmark name and version to check the archive file
+        benchmark = Benchmark(Path(minio_storage.benchmark_file))
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.zip"
+
+        # Check that the archive exists and contains the benchmark file
+        archive_path = Path(minio_storage.out_dir) / outfile
+        assert archive_path.exists()
+
+        with zipfile.ZipFile(archive_path, "r") as f:
+            files = f.namelist()
+
+        # Check for a specific results file in the archive
+        testfile = "out/data/D2/default/D2.meta.json"
+        assert testfile in files
 
 
-@pytest.fixture(scope="session", autouse=True)
-def cleanup(request):
-    """Cleanup a testing directory once we are finished."""
-    request.addfinalizer(cleanup_buckets_on_exit)
+def test_archive_compression(minio_storage):  # noqa: F811
+    """Test archiving with different compression."""
+    expected_output = "Created archive:"
+
+    with OmniCLISetup() as omni:
+        # First run the benchmark to generate data
+        do_first_run(omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir)
+
+        # Create a version which is needed before archiving
+        run2 = omni.call(
+            [
+                "storage",
+                "create-version",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+            ],
+            cwd=minio_storage.out_dir,
+        )
+        assert run2.returncode == 0
+
+        # Now run the archive command with -r and --compression
+        run3 = omni.call(
+            [
+                "storage",
+                "archive",
+                "--benchmark",
+                str(minio_storage.benchmark_file),
+                "-r",  # Include results
+                "--compression",
+                "bzip2",
+            ],
+            cwd=minio_storage.out_dir,
+        )
+
+        # Check the results
+        assert run3.returncode == 0
+        assert run3.stdout.startswith(expected_output)
+
+        # Get the benchmark name and version to check the archive file
+        benchmark = Benchmark(Path(minio_storage.benchmark_file))
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}.bz2"
+
+        # Check that the archive exists and contains the benchmark file
+        archive_path = Path(minio_storage.out_dir) / outfile
+        assert archive_path.exists()
+
+        with zipfile.ZipFile(archive_path, "r") as f:
+            files = f.namelist()
+
+        # Check for a specific results file in the archive
+        testfile = "out/data/D2/default/D2.meta.json"
+        assert testfile in files

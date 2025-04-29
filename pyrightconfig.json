@@ -1,5 +1,5 @@
 {
-  "include": ["omni"],
+  "include": ["omnibenchmark"],
   "exclude": ["**/__pycache__", "**/.mypy_cache"],
   "pythonVersion": "3.12",
   "typeCheckingMode": "basic", // in an ideal world, switch to strict at some point

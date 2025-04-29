@@ -1,24 +1,48 @@
 import json
 import os
 import shutil
-import sys
-from pathlib import Path
-import os.path as op
-from typing import Dict
+import functools
 
+from pathlib import Path
+
+from typing import Dict
 import pandas as pd
 import pytest
+
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
-from omni.benchmark import Benchmark
-from omni.workflow.snakemake import SnakemakeEngine
+from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.workflow.snakemake import SnakemakeEngine
 
-sys.path.insert(0, op.dirname(__file__))
+
+def skip_if_no_conda(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if shutil.which("conda") is None:
+            pytest.skip("conda not found in system path")
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def skip_if_no_envmodules(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if shutil.which("module") is None:
+            pytest.skip("envmodules not found in system path")
+        return func(*args, **kwargs)
+
+    return wrapper
+
 
 benchmark_data = Path("..") / "data"
 benchmark_data_path = Path(__file__).parent / benchmark_data
 
+
+# TODO: use tmp_path, no need to cleanup
 TO_CLEANUP = [".snakemake", "out", "Snakefile", "snakemake.log"]
+
+# TODO(ben): reuse flags in tests/io to inject --current-dir and --keep-files
 
 
 def _cleanup_snakemake():
@@ -38,6 +62,7 @@ def _remove_readonly(func, path, _):
     func(path)
 
 
+@skip_if_no_envmodules
 def test_run_benchmark_with_software_envmodules():
     benchmark_file = benchmark_data_path / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -64,11 +89,13 @@ def test_run_benchmark_with_software_envmodules():
 
         assert success
 
+        # TODO: use tmp_path
         _cleanup_snakemake()
     else:
         raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")
 
 
+@skip_if_no_conda
 def test_run_benchmark_with_software_conda():
     benchmark_file = benchmark_data_path / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -84,6 +111,7 @@ def test_run_benchmark_with_software_conda():
 
         assert success
 
+        # TODO: use tmp_path
         _cleanup_snakemake()
     else:
         raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")
@@ -105,11 +133,13 @@ def test_run_benchmark_with_software_apptainer():
 
         assert success
 
+        # TODO: use tmp_path
         _cleanup_snakemake()
     else:
         raise FileNotFoundError(f"Benchmark file {benchmark_file} does not exist.")
 
 
+@skip_if_no_conda
 def test_single_run_workflow_with_parameters():
     benchmark_file = Path("..") / "data" / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -165,6 +195,7 @@ def test_single_run_workflow_with_parameters():
         _cleanup_snakemake()
 
 
+@skip_if_no_conda
 def test_multi_run_workflow_with_parameters():
     benchmark_file = Path("..") / "data" / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -213,6 +244,7 @@ def test_multi_run_workflow_with_parameters():
         _cleanup_snakemake()
 
 
+@skip_if_no_conda
 def test_multi_run_workflow_with_parameter_removal():
     benchmark_file = Path("..") / "data" / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file

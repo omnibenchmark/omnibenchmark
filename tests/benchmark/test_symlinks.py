@@ -3,8 +3,8 @@ import pytest
 import shutil
 from pathlib import Path
 
-from omni.benchmark.params import Params
-from omni.benchmark.symlinks import SymlinkManager
+from omnibenchmark.benchmark.params import Params
+from omnibenchmark.benchmark.symlinks import SymlinkManager
 
 
 @pytest.fixture
@@ -21,6 +21,7 @@ def manager(test_dir):
     return SymlinkManager(base_dir=test_dir)
 
 
+@pytest.mark.short
 def test_basic_storage(manager):
     """Test basic parameter storage and retrieval."""
     params = Params({"a": 1, "b": 2})
@@ -36,6 +37,7 @@ def test_basic_storage(manager):
     assert retrieved == params
 
 
+@pytest.mark.short
 def test_human_readable_naming(manager):
     """Test the human-readable naming format."""
     test_cases = [
@@ -55,6 +57,7 @@ def test_human_readable_naming(manager):
         assert retrieved == params
 
 
+@pytest.mark.short
 def test_long_name_fallback(manager):
     """Test that very long parameter names fall back to hash."""
     # Create params with long values
@@ -72,12 +75,14 @@ def test_long_name_fallback(manager):
     assert retrieved == long_params
 
 
+@pytest.mark.short
 def test_invalid_retrieval(manager):
     """Test error handling for non-existent parameters."""
     with pytest.raises(FileNotFoundError):
         manager.get_params("nonexistent_params")
 
 
+@pytest.mark.short
 def test_update_existing(manager):
     """Test updating parameters with same human-readable name."""
     params1 = Params({"a": 1})
@@ -91,6 +96,7 @@ def test_update_existing(manager):
     assert retrieved == params2
 
 
+@pytest.mark.short
 def test_multiple_params(manager):
     """Test storing multiple parameter sets."""
     params_list = [Params({"a": 1}), Params({"b": 2}), Params({"c": 3})]
@@ -106,6 +112,7 @@ def test_multiple_params(manager):
         assert retrieved == info["params"]
 
 
+@pytest.mark.short
 def test_symlink_points_to_correct_location(manager):
     """Test that symlinks point to the correct storage location."""
     params = Params({"a": 1})
@@ -121,6 +128,7 @@ def test_symlink_points_to_correct_location(manager):
     assert actual_target == expected_target
 
 
+@pytest.mark.short
 def test_symlink_relative_path(manager):
     """Test that symlinks use correct relative paths."""
     params = Params({"a": 1})
@@ -144,6 +152,7 @@ def test_symlink_relative_path(manager):
     assert Params.deserialize(data) == params
 
 
+@pytest.mark.short
 def test_human_folder_identifier_single_param(manager):
     """Test folder identifier with a single parameter."""
     p = Params({"key1": "value1"})
@@ -154,6 +163,7 @@ def test_human_folder_identifier_single_param(manager):
     ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
 
 
+@pytest.mark.short
 def test_human_folder_identifier_multiple_params(manager):
     """Test folder identifier with multiple parameters."""
     p = Params({"key1": "value1", "key2": "value2"})
@@ -164,6 +174,7 @@ def test_human_folder_identifier_multiple_params(manager):
     ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
 
 
+@pytest.mark.short
 def test_human_folder_identifier_max_len_exceeded(manager):
     """Test folder identifier with max length exceeded."""
     p = Params({"key1": "value1" * 50, "key2": "value2" * 50})
@@ -173,6 +184,7 @@ def test_human_folder_identifier_max_len_exceeded(manager):
     ), f"Expected folder name to end with hash, but got: {info["human"][-8:]}"
 
 
+@pytest.mark.short
 def test_human_folder_identifier_with_numeric_values(manager):
     """Test folder identifier with numeric values in keys and values."""
     p = Params({"123": 456, "789": 101112})
@@ -183,6 +195,7 @@ def test_human_folder_identifier_with_numeric_values(manager):
     ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
 
 
+@pytest.mark.short
 def test_human_folder_identifier_empty_key_value(manager):
     """Test folder identifier with empty key-value pairs."""
     p = Params({"key1": "", "key2": ""})
@@ -193,6 +206,7 @@ def test_human_folder_identifier_empty_key_value(manager):
     ), f"Expected '{expected_folder_id}' but got: {info["human"]}"
 
 
+@pytest.mark.short
 def test_human_folder_identifier_with_boolean_values(manager):
     """Test folder identifier with boolean values."""
     p = Params({"key1": True, "key2": False})
