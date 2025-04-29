@@ -174,7 +174,7 @@ def test_single_run_workflow_with_parameters():
         assert len(D1_params_unique) == 4
 
         # assert benchmark run is successful
-        success = workflow.run_workflow(benchmark)
+        success = workflow.run_workflow(benchmark, backend=SoftwareBackendEnum.conda)
         assert success
 
         # for each dataset, assert the parameter serialization is correct

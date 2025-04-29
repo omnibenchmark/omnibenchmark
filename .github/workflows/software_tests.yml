@@ -35,7 +35,6 @@ jobs:
         os: [ubuntu-22.04]
         test_group: [1, 2]
         python-version: ["3.12"]
-        r-version: ["4.4.1"]
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -119,7 +118,6 @@ jobs:
         os: [macos-14] # [macos-14, macos-13]
         test_group: [1, 2]
         python-version: ["3.12"]
-        r-version: ["4.4.1"]
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
