@@ -8,7 +8,7 @@ import configparser
 
 from snakemake.script import Snakemake
 
-from omni.benchmark.params import Params
+from omnibenchmark.benchmark.params import Params
 
 
 def mock_execution(inputs: List[str], output: str, snakemake: Snakemake):

@@ -103,7 +103,7 @@ def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
     """
     # prepare conda, as in snakemake archive (https://github.com/snakemake/snakemake/blob/76d53290a003891c5ee41f81e8eb4821c406255d/snakemake/deployment/conda.py#L316) maybe?
     # return all files
-    # from omni.software.conda_backend import pin_conda_envs
+    # from omnibenchmark.software.conda_backend import pin_conda_envs
     # pin_conda_envs(benchmark.get_definition_file())
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
