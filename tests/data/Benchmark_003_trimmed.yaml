@@ -1,11 +1,11 @@
-id: Benchmark_003
-description: simple benchmark, somewhat explicit, simple params
+id: Benchmark_003_trimmed
+description: simple benchmark, somewhat explicit, simple params, compared to Benchmark_003, it contains only 2 (instead of 3) parameter sets for process module
 version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
 storage: https://storage.github.com/
 benchmark_yaml_spec: 0.01
 storage_api: S3
-storage_bucket_name: benchmark003
+storage_bucket_name: benchmark003trimmed
 software_backend: host
 software_environments:
   zlib_old:
@@ -49,7 +49,6 @@ stages:
         software_environment: "zlib_old"
         parameters:
           - values: ["-a 0", "-b 0"]
-          - values: ["-a 1", "-b 0.1"]
           - values: ["-a 2", "-b 0.5"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
@@ -58,7 +57,6 @@ stages:
         software_environment: "zlib_new"
         parameters:
           - values: ["-a 0", "-b 0"]
-          - values: ["-a 1", "-b 0.1"]
           - values: ["-a 2", "-b 0.5"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
