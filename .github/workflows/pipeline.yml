@@ -69,7 +69,6 @@ jobs:
         with:
           path: |
             .venv
-            ${{ env.R_LIBS_USER }}
           key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies with poetry
@@ -90,11 +89,6 @@ jobs:
           poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-
-      - name: Run tests (Windows)
-        run: |
-          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml
-        if: matrix.os == 'windows-latest'
 
       - name: Generate tests & coverage badges
         run: |
@@ -237,7 +231,6 @@ jobs:
                source /usr/local/opt/lmod/init/profile
           fi
           eval "$(micromamba shell hook --shell bash)"
-          export R_LIBS=~/work/Rlib
           EOF
 
           cat <<'EOF' >>~/.bash_profile
