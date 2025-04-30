@@ -6,7 +6,9 @@ from itertools import chain
 from pathlib import Path
 
 import click
+import humanfriendly
 
+from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.utils import get_storage_from_benchmark
@@ -37,7 +39,7 @@ def run(ctx):
 @click.option(
     "-c",
     "--cores",
-    help="Use at most N CPU cores in parallel. Default is all available CPU cores",
+    help="Use at most N CPU cores in parallel. Default is 1.",
     type=int,
     default=1,
 )
@@ -68,15 +70,34 @@ def run(ctx):
     default=False,
     help="Keep module-specific log files after execution.",
 )
+@click.option(
+    "--task-timeout",
+    type=str,
+    default=DEFAULT_TIMEOUT_HUMAN,
+    help="Timeout for each separate task execution (local only). Do note that total runtime is not additive.",
+)
 @click.pass_context
 def run_benchmark(
-    ctx, benchmark, cores, update, dry, local, keep_module_logs, continue_on_error
+    ctx,
+    benchmark,
+    cores,
+    update,
+    dry,
+    local,
+    keep_module_logs,
+    continue_on_error,
+    task_timeout,
 ):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
+    try:
+        timeout_s = int(humanfriendly.parse_timespan(task_timeout))
+    except humanfriendly.InvalidTimespan:
+        logger.error(f"Invalid timeout value: {task_timeout}")
+        sys.exit(1)
 
     benchmark = validate_benchmark(benchmark)
     if benchmark is None:
@@ -126,6 +147,7 @@ def run_benchmark(
         keep_module_logs=keep_module_logs,
         backend=benchmark.get_benchmark_software_backend(),
         debug=debug,
+        resources={"runtime": timeout_s},
         **storage_options,
     )
 
@@ -183,6 +205,7 @@ def run_module(
     """
     behaviours = {"input": input_dir, "example": None, "all": None}
 
+    # TODO(ben): fix cyclomatic complexity in this function
     non_none_behaviours = {
         key: value for key, value in behaviours.items() if value is not None
     }
@@ -209,12 +232,20 @@ def run_module(
             sys.exit(1)  # raise click.Exit(code=1)
         else:
             logger.info("Running module on a local dataset.")
-            benchmark = validate_benchmark(benchmark)
 
-            benchmark_nodes = benchmark.get_nodes_by_module_id(module_id=module)
+            b = validate_benchmark(benchmark)
+            if b is None:
+                logger.error("Error: Invalid benchmark file.")
+                sys.exit(1)
+
+            benchmark_nodes = b.get_nodes_by_module_id(module_id=module)
+
             is_entrypoint_module = all(
                 [node.is_entrypoint() for node in benchmark_nodes]
             )
+
+            # TODO(ben): refactor the if/else blocks to bail out early
+            # and reduce indentation and complexity.
             if len(benchmark_nodes) > 0:
                 logger.info(
                     f"Found {len(benchmark_nodes)} workflow nodes for module {module}."
@@ -232,7 +263,7 @@ def run_module(
 
                 # Check if input path exists and is a directory
                 if os.path.exists(input_dir) and os.path.isdir(input_dir):
-                    benchmark_datasets = benchmark.get_benchmark_datasets()
+                    benchmark_datasets = b.get_benchmark_datasets()
 
                     # Check available files in input to figure out what dataset are we processing
                     # if we're given the initial dataset module to process, then we know
@@ -281,7 +312,7 @@ def run_module(
                                     dryrun=dry,
                                     continue_on_error=continue_on_error,
                                     keep_module_logs=keep_module_logs,
-                                    backend=benchmark.get_benchmark_software_backend(),
+                                    backend=b.get_benchmark_software_backend(),
                                 )
 
                                 if success:

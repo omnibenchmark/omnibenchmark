@@ -96,7 +96,9 @@ hbreader==0.9.1
     #   jsonasobj2
     #   linkml-runtime
 humanfriendly==10.0
-    # via snakemake
+    # via
+    #   omnibenchmark (pyproject.toml)
+    #   snakemake
 idna==3.10
     # via
     #   requests

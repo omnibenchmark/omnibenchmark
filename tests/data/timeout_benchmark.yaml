@@ -1,8 +1,8 @@
-id: mock_benchmark
+id: timeout_benchmark
 description: simple benchmark, used for fast testing
 version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: 0.1
 software_backend: host
 software_environments:
   python:
@@ -32,12 +32,15 @@ stages:
       - id: P1
         software_environment: "python"
         parameters:
-          - values: [ "-a 0", "-b 0.1" ]
-          - values: [ "-a 1", "-b 0.1" ]
+          - values: ["--a 0", "--b 0.1", "--sleep", "2"]
+          - values: ["--a 1", "--b 0.1", "--sleep", "2"]
         repository:
-          url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          url: https://github.com/btraven00/omnibenchmark-testing-process.git
+          commit: 8bd3e12
     inputs:
       - entries:
           - data.counts
           - data.meta
+    outputs:
+      - id: filtered
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"

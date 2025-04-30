@@ -35,10 +35,11 @@ class SnakemakeEngine(WorkflowEngine):
         dryrun: bool = False,
         continue_on_error: bool = False,
         keep_module_logs: bool = False,
-        work_dir: Path = Path(os.getcwd()),
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
         debug: bool = False,
+        work_dir: Path = Path(os.getcwd()),
+        resources: Optional[dict] = None,
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -54,11 +55,15 @@ class SnakemakeEngine(WorkflowEngine):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
+            resources(dict): optional dict of resources to be passed to snakemake execution
+
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
         - Status code (bool) of the workflow run.
         """
+        resources = resources or {}
+
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
 
@@ -73,6 +78,7 @@ class SnakemakeEngine(WorkflowEngine):
             backend=backend,
             work_dir=work_dir,
             debug=debug,
+            resources=resources,
             **snakemake_kwargs,
         )
 
@@ -315,6 +321,7 @@ class SnakemakeEngine(WorkflowEngine):
         input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
         debug: bool = False,
+        resources: Optional[dict] = None,
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
@@ -352,6 +359,12 @@ class SnakemakeEngine(WorkflowEngine):
             argv.append("--use-envmodules")
         elif backend == SoftwareBackendEnum.conda:
             argv.append("--use-conda")
+
+        # Add resources if any
+        if resources:
+            argv.extend(
+                ["--resources", ",".join(f"{k}={v}" for k, v in resources.items())]
+            )
 
         for key, value in snakemake_kwargs.items():
             if isinstance(value, bool):

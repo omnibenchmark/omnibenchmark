@@ -6,16 +6,11 @@ from importlib import resources
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
 from omnibenchmark.benchmark import Validator, BenchmarkNode
+from omnibenchmark.benchmark import constants
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
 
 RUN_MODULE = "run_module.py"
-
-def create_node_rule(node, benchmark, config):
-    if node.is_initial():
-        return _create_initial_node(benchmark, node, config)
-    else:
-        return _create_intermediate_node(benchmark, node, config)
 
 
 def get_script_path(script_name: str) -> str:
@@ -23,6 +18,13 @@ def get_script_path(script_name: str) -> str:
     """
     path = Path(resources.files(scripts) / script_name)
     return str(path)
+
+def create_node_rule(node, benchmark, config):
+    if node.is_initial():
+        return _create_initial_node(benchmark, node, config)
+    else:
+        return _create_intermediate_node(benchmark, node, config)
+
 
 def _create_initial_node(benchmark, node, config):
     stage_id = node.stage_id
@@ -32,6 +34,10 @@ def _create_initial_node(benchmark, node, config):
     repository = node.get_repository()
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
+
+    # this can be overriden by timeout set in global resources object,
+    # but we need to explicitely set a value for it to be overriden
+    timeout = constants.DEFAULT_TIMEOUT_SECONDS
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -60,7 +66,10 @@ def _create_initial_node(benchmark, node, config):
             parameters = node.get_parameters(),
             dataset = module_id,
             keep_module_logs=config['keep_module_logs']
+        resources:
+            runtime=timeout
         script: get_script_path(RUN_MODULE)
+
 
 def _create_intermediate_node(benchmark, node, config):
     stage_id = node.stage_id
@@ -78,6 +87,8 @@ def _create_intermediate_node(benchmark, node, config):
     commit_hash = repository.commit if repository else None
 
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
+    timeout = constants.DEFAULT_TIMEOUT_SECONDS
+
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -107,6 +118,8 @@ def _create_intermediate_node(benchmark, node, config):
             commit_hash = commit_hash,
             parameters = node.get_parameters(),
             keep_module_logs=config['keep_module_logs']
+        resources:
+            runtime=timeout
         script: get_script_path(RUN_MODULE)
 
 
@@ -120,6 +133,8 @@ def create_standalone_node_rule(node, config):
     commit_hash = repository.commit if repository else None
 
     # TODO(ben): can factor out common parts?
+    timeout = constants.DEFAULT_TIMEOUT_SECONDS
+
     if node.is_initial():
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -132,9 +147,11 @@ def create_standalone_node_rule(node, config):
                 commit_hash = commit_hash,
                 parameters=node.get_parameters(),
                 dataset=config['dataset'],
-                keep_module_logs=config['keep_module_logs']
+                keep_module_logs=config['keep_module_logs'],
             benchmark:
                 node.get_benchmark_path(config)
+            resources:
+                runtime=timeout
             script: get_script_path(RUN_MODULE)
     else:
         rule:
@@ -152,6 +169,8 @@ def create_standalone_node_rule(node, config):
                 keep_module_logs=config['keep_module_logs']
             benchmark:
                 node.get_benchmark_path(config)
+            resources:
+                runtime=timeout
             script: get_script_path(RUN_MODULE)
 
 

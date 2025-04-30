@@ -10,7 +10,7 @@ from omnibenchmark.cli.utils.logging import logger
 
 
 ## to validate the YAML
-def validate_benchmark(benchmark_file: str, echo: bool = True):
+def validate_benchmark(benchmark_file: str, echo: bool = True) -> Benchmark | None:
     if benchmark_file.endswith(".yaml") or benchmark_file.endswith(".yml"):
         try:
             with open(benchmark_file, "r") as file:

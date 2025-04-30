@@ -6,6 +6,7 @@ from pathlib import Path
 
 from snakemake.script import Snakemake
 
+from omnibenchmark.benchmark import constants
 from omnibenchmark.io.code import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 from omnibenchmark.benchmark.symlinks import SymlinkManager
@@ -42,6 +43,11 @@ try:
     # Execute module code
     module_name = get_module_name_from_rule_name(snakemake.rule)
 
+    resources = dict(snakemake.resources) if hasattr(snakemake, "resources") else {}
+    # For now we're handling timeout in seconds as runtime.
+    # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
+    timeout = resources.get("runtime", constants.DEFAULT_TIMEOUT_SECONDS)
+
     # TODO(ben): we don't do anything with this exit_code?
     exit_code = execution(
         module_dir,
@@ -51,6 +57,7 @@ try:
         inputs_map=inputs_map,
         parameters=parameters,
         keep_module_logs=keep_module_logs,
+        timeout=timeout,
     )
 
 

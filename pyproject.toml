@@ -33,6 +33,7 @@ dependencies = [
     "pydantic",
     "spdx-license-list>=3.19",
     "PyYAML",
+    "humanfriendly",
 
     # DAG & Visualization
     "networkx>=3.3",     # this might be overkill for the DAG
@@ -104,3 +105,9 @@ profile = "black"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.ruff]
+line-length = 88 # Match Black's default line length
+
+[tool.ruff.lint]
+ignore = ["E203"] # Ignore E203
