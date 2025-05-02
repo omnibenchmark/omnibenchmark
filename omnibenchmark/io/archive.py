@@ -156,20 +156,20 @@ def prepare_archive_results(benchmark: Benchmark, local: bool = False) -> List[P
     # get all results, check if exist locally, otherwise download
 
     objectnames, etags = list_files(
-        benchmark=benchmark.get_definition_file(),
+        benchmark.get_definition_file().as_posix(),
         type="all",
-        stage=None,
-        module=None,
-        file_id=None,
+        stage="",
+        module="",
+        file_id="",
         local=local,
     )
     if not local:
         download_files(
-            benchmark=benchmark.get_definition_file(),
+            benchmark.get_definition_file().as_posix(),
             type="all",
-            stage=None,
-            module=None,
-            file_id=None,
+            stage="",
+            module="",
+            file_id="",
             overwrite=True,
         )
     return objectnames

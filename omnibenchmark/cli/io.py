@@ -3,6 +3,7 @@
 import json
 import sys
 import zipfile
+
 from pathlib import Path
 
 import click
@@ -16,8 +17,8 @@ from omnibenchmark.io.files import checksum_files
 from omnibenchmark.io.files import list_files
 from omnibenchmark.io.files import download_files
 from omnibenchmark.io.S3config import benchmarker_access_token_policy
-from omnibenchmark.io.utils import tree_string_from_list
-from omnibenchmark.io.utils import get_storage, remote_storage_args
+from omnibenchmark.io.tree import tree_string_from_list
+from omnibenchmark.io.storage import get_storage, remote_storage_args
 
 from .debug import add_debug_option
 
@@ -47,7 +48,6 @@ def create_benchmark_version(benchmark: str):
         benchmark = Benchmark(Path(benchmark))
 
     auth_options = remote_storage_args(benchmark)
-    # auth_options = {"endpoint": benchmark.converter.model.storage, "secure": False}
 
     # setup storage
     ss = get_storage(
@@ -90,9 +90,9 @@ def create_benchmark_version(benchmark: str):
 def list_all_files(
     benchmark: str,
     type: str = "all",
-    stage: str = None,
-    module: str = None,
-    file_id: str = None,
+    stage: str = "",
+    module: str = "",
+    file_id: str = "",
 ):
     """List all or specific files for a benchmark."""
     if file_id is not None:
@@ -102,9 +102,7 @@ def list_all_files(
         logger.error("--type is not implemented")
         sys.exit(1)
 
-    objectnames, etags = list_files(
-        benchmark=benchmark, type=type, stage=stage, module=module, file_id=file_id
-    )
+    objectnames, etags = list_files(benchmark, type, stage, module, file_id)
     if len(objectnames) > 0:
         for objectname, etag in zip(objectnames, etags):
             logger.info(f"{etag} {objectname}")
@@ -147,9 +145,9 @@ def list_all_files(
 def download_all_files(
     benchmark: str,
     type: str = "all",
-    stage: str = None,
-    module: str = None,
-    file_id: str = None,
+    stage: str = "",
+    module: str = "",
+    file_id: str = "",
     overwrite: bool = False,
 ):
     """Download all or specific files for a benchmark."""
@@ -161,11 +159,11 @@ def download_all_files(
         raise click.Abort()
 
     download_files(
-        benchmark=benchmark,
-        type=type,
-        stage=stage,
-        module=module,
-        file_id=file_id,
+        benchmark,
+        type,
+        stage,
+        module,
+        file_id,
         verbose=True,
         overwrite=overwrite,
     )

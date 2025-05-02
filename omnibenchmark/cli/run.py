@@ -11,8 +11,8 @@ import humanfriendly
 from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
-from omnibenchmark.io.utils import get_storage_from_benchmark
-from omnibenchmark.io.utils import remote_storage_snakemake_args
+from omnibenchmark.io.storage import get_storage_from_benchmark
+from omnibenchmark.io.storage import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
