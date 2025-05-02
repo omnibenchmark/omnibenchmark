@@ -31,7 +31,7 @@ theme:
         - search.suggest
     logo: images/omb.png
     locale: en
-    favicon: docs/docs/images/omb.png
+    favicon: images/omb.png
     palette:
         primary: blue
 extra:
