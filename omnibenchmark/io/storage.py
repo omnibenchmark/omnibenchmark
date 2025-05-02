@@ -31,8 +31,6 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str) -> MinIOS
     """
     if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
         return MinIOStorage(auth_options, benchmark)
-    else:
-        raise ValueError("Invalid storage type")
 
 
 def get_storage_from_benchmark(benchmark: Benchmark):
@@ -78,7 +76,7 @@ def remote_storage_args(benchmark: Benchmark) -> dict:
 
         return {**base_dic, **auth_dic}
     else:
-        raise ValueError("Invalid storage api")
+        return {}
 
 
 def remote_storage_snakemake_args(benchmark: Benchmark) -> dict:
@@ -95,4 +93,4 @@ def remote_storage_snakemake_args(benchmark: Benchmark) -> dict:
             "storage-s3-secret-key": auth_options["secret_key"],
         }
     else:
-        raise ValueError("Invalid storage api")
+        return {}

@@ -2,7 +2,7 @@ import hashlib
 
 
 # https://stackoverflow.com/a/3431838
-def md5(fname: str):
+def checksum(fname: str):
     hash_md5 = hashlib.md5()
     with open(fname, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):

@@ -70,7 +70,7 @@ def download_files(
 ):
     """Download all available files for a certain benchmark, version and stage"""
     from .storage import get_storage, remote_storage_args
-    from .hash import md5
+    from .hash import checksum
     from .sizeof import sizeof_fmt
 
     objectnames, etags = list_files(benchmark_path, type, stage, module, file_id)
@@ -98,7 +98,7 @@ def download_files(
         zip(filenames, etags), delay=5, disable=not verbose
     ):
         if Path(filename).is_file():
-            if etag.replace('"', "") == md5(filename.as_posix()):
+            if etag.replace('"', "") == checksum(filename.as_posix()):
                 do_download_file.append(False)
             else:
                 if overwrite:
@@ -133,7 +133,7 @@ def download_files(
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):
-        md5sum_val = md5(filename)
+        md5sum_val = checksum(filename)
         if not etag.replace('"', "") == md5sum_val:
             warnings.warn(f"MD5 checksum failed for {filename}", Warning)
     if verbose:
@@ -151,7 +151,7 @@ def checksum_files(
     verbose: bool = False,
 ):
     """Compare md5 checksums of available files for a certain benchmark, version and stage with local versions"""
-    from .hash import md5
+    from .hash import checksum
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
 
@@ -161,7 +161,7 @@ def checksum_files(
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):
-        md5sum_val = md5(filename.as_posix())
+        md5sum_val = checksum(filename.as_posix())
         if not etag.replace('"', "") == md5sum_val:
             failed_checksums.append(filename)
     return failed_checksums
