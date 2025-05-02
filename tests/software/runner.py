@@ -14,7 +14,15 @@ def check_cmd_zero_exit(cmd_string):
 
 def run_snmk_conda(Snakefile, produced, expected):
     completed_process = subprocess.run(
-        ["snakemake", "-s", Snakefile, "--use-conda", "--cores", "1"]
+        [
+            "snakemake",
+            "-s",
+            Snakefile,
+            "--software-deployment-method",
+            "conda",
+            "--cores",
+            "1",
+        ]
     )
     assert completed_process.returncode == 0
     with open(expected, "r") as exp_fh, open(produced, "r") as prod_fh:
@@ -23,7 +31,15 @@ def run_snmk_conda(Snakefile, produced, expected):
 
 def run_snmk_apptainer(Snakefile, produced, expected):
     completed_process = subprocess.run(
-        ["snakemake", "-s", Snakefile, "--use-singularity", "--cores", "1"]
+        [
+            "snakemake",
+            "-s",
+            Snakefile,
+            "--software-deployment-method",
+            "apptainer",
+            "--cores",
+            "1",
+        ]
     )
     assert completed_process.returncode == 0
     with open(expected, "r") as exp_fh, open(produced, "r") as prod_fh:

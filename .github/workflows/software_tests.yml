@@ -110,10 +110,11 @@ jobs:
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
           # invoke pytest
+          # TODO(ben): use pytest markers instead
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
+              test_pin_conda.py test_apptainer_cli.py test_envmodules_build.py \
+              test_conda.py test_apptainer.py test_envmodules.py test_run_with_software.py
 
   software_testing_mac:
     permissions: write-all
@@ -147,7 +148,7 @@ jobs:
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
@@ -157,7 +158,7 @@ jobs:
           eval "$(micromamba shell hook --shell bash)"
           micromamba create -n omnibenchmark
           micromamba activate omnibenchmark
-          micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
+          micromamba install -f test-environment-${{ matrix.python-version }}.yml
 
       - name: Modify bashrc
         env:
@@ -172,7 +173,6 @@ jobs:
                source /usr/local/opt/lmod/init/profile
           fi
           eval "$(micromamba shell hook --shell bash)"
-          export R_LIBS=~/work/Rlib
           EOF
 
           cat <<'EOF' >>~/.bash_profile
@@ -207,5 +207,6 @@ jobs:
 
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
-               conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
+               test_pin_conda.py test_apptainer_cli.py test_envmodules_build.py \
+               test_conda.py test_apptainer.py test_envmodules.py test_run_with_software.py \
                -k 'not test_easybuild_sys_toolchain_build'

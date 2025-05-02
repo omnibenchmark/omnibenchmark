@@ -23,6 +23,7 @@ requires-python = "~=3.12"
 dynamic = ["version"]
 
 dependencies = [
+    "omni-schema>=0.0.6",
     "click>=8.1.7",
     "aiohttp>=3.9.5",
     "async>=0.6.2",
@@ -44,14 +45,13 @@ dependencies = [
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake>=8.0",      # modify constraints.txt if you need stricter pinning
+    "snakemake>=8.26",      # modify constraints.txt if you need stricter pinning
     "snakedeploy>=0.10.0",
 
     # Build tools
+    # TODO: make them optional too
     "easybuild>=5.0.0",
     "easybuild-easyblocks>=5.0.0",
-    "omni-schema>=0.0.6",
-
 ]
 
 [project.optional-dependencies]
