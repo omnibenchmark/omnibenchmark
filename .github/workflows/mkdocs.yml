@@ -1,6 +1,8 @@
 name: Publish mkdocs via GitHub Pages
 on:
   workflow_dispatch: # Allow manual trigger if needed
+  pull_request:
+    branches: [ "dev" ]
 
 jobs:
   build:
@@ -33,6 +35,7 @@ jobs:
         run: |
             pip install -r docs/requirements.txt
 
+            ## CNAME
             echo "${CUSTOM_DOMAIN}" > "${GITHUB_WORKSPACE}/docs/CNAME"
 
             remote_repo="https://x-access-token:${GITHUB_TOKEN}@${GITHUB_DOMAIN:-"github.com"}/${GITHUB_REPOSITORY}.git"
@@ -48,4 +51,4 @@ jobs:
             git remote rm origin
             git remote add origin "${remote_repo}"
             
-            mkdocs gh-deploy --config-file "${CONFIG_FILE}" --force --theme material
+            mkdocs gh-deploy --config-file "${CONFIG_FILE}" --force # --theme material
