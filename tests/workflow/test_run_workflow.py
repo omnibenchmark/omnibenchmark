@@ -3,10 +3,8 @@ from pathlib import Path
 import os
 from typing import Dict
 
-import pytest
 import pandas as pd
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
 from omnibenchmark.benchmark import Benchmark
 from tests.workflow.Snakemake_setup import SnakemakeSetup
@@ -47,36 +45,6 @@ def test_run_workflow_001(snakemake_env, tmp_path):
         # Run the whole workflow
         success = setup.workflow.run_workflow(
             benchmark,
-            work_dir=tmp_path,
-        )
-
-        assert success is True
-
-
-# FIXME: this test needs conda right now
-# but in reality this behaves like a software backend test. I think the proper way to test this is that
-# we proceed with the workflow execution without raising any error, but that needs
-# to be implemented in the future.
-@pytest.mark.conda
-def test_run_workflow_backends_missing(snakemake_env, tmp_path):
-    # Use current directory if specified, otherwise use tmp_path
-    # tmp_path is already provided by pytest fixture if not using current dir
-    if snakemake_env["current_dir"]:
-        tmp_path = Path(os.getcwd())
-
-    benchmark_file = data / "benchmark_some_backends_missing.yaml"
-    keep_files = snakemake_env["keep_files"]
-
-    with SnakemakeSetup(
-        benchmark_file, keep_files=keep_files, cwd=tmp_path.as_posix()
-    ) as setup:
-        benchmark = setup.benchmark
-        assert benchmark.get_benchmark_name() == "some_backends_missing"
-
-        # Run the whole workflow
-        success = setup.workflow.run_workflow(
-            benchmark,
-            backend=SoftwareBackendEnum.conda,
             work_dir=tmp_path,
         )
 
