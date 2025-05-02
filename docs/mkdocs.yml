@@ -29,9 +29,9 @@ theme:
         - navigation.instant
         - navigation.prune 
         - search.suggest
-    logo: docs/images/omb.png
+    logo: images/omb.png
     locale: en
-    favicon: docs/images/omb.png
+    favicon: docs/docs/images/omb.png
     palette:
         primary: blue
 extra:
