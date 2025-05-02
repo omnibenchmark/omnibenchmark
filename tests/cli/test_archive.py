@@ -158,6 +158,7 @@ def test_archive_results(minio_storage):  # noqa: F811
         )
 
         # Check the results
+        #
         assert run3.returncode == 0
         assert run3.stdout.startswith(expected_output)
 

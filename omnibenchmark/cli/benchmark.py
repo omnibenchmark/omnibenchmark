@@ -12,7 +12,7 @@ from difflib import unified_diff
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
-from omnibenchmark.io.utils import get_storage, remote_storage_args
+from omnibenchmark.io.storage import get_storage, remote_storage_args
 
 
 @click.group(name="info")

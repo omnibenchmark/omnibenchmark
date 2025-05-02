@@ -21,9 +21,10 @@ from . import templates
 
 HOME = op.expanduser("~")
 ## careful, 'all' will be prepended unless exported, shell-wise, the MODULEPATH/all path as MODULEPATH
-##   when running omb
-# MODULEPATH=op.join(HOME, 'micromamba', 'envs', 'omnibenchmark', 'modulefiles', 'Core')
+## when running omb
 MODULEPATH = op.join(HOME, ".local", "easybuild", "modules")
+
+# FIXME: this is a hack, do not hardcode paths
 ROBOTPATH = op.join(
     HOME, "micromamba", "envs", "omnibenchmark", "easybuild", "easyconfigs"
 )

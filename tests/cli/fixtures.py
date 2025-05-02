@@ -28,7 +28,6 @@ def _minio_container():
         )
 
     # Initialize a MinIO test container with a lifetime of this test session
-    print(">>> init minio container!!!")
     minio = MinIOSetup()
 
     # Yield the container for use in tests

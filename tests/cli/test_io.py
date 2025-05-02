@@ -46,6 +46,7 @@ def test_create_version(minio_storage):  # noqa: F811
         store = minio_storage.get_storage_client()
         store.set_version("1.0")
         store._get_objects()
+
         assert "versions/1.0.csv" in store.files.keys()
 
 
@@ -74,6 +75,7 @@ def test_list_files(minio_storage):  # noqa: F811
             ],
             cwd=minio_storage.out_dir,
         )
+
         assert run2.returncode == 0
 
         # retrieve the stored files
@@ -130,6 +132,7 @@ def test_download_files(minio_storage):  # noqa: F811
             ],
             cwd=minio_storage.out_dir,
         )
+
         assert run3.returncode == 0
 
         # Verify downloaded files exist by comparing with remote files

@@ -12,19 +12,19 @@ from omnibenchmark.io.versioning import get_expected_benchmark_output_files
 
 
 def list_files(
-    benchmark: str,
-    type: str = None,
-    stage: str = None,
-    module: str = None,
-    file_id: str = None,
+    benchmark_path: str,
+    type: str,
+    stage: str,
+    module: str,
+    file_id: str,
     local: bool = False,
 ):
     """List all available files for a certain benchmark, version and stage"""
-    from omnibenchmark.io.utils import get_storage, remote_storage_args
+    from .storage import get_storage, remote_storage_args
 
-    with open(benchmark, "r") as fh:
+    with open(benchmark_path, "r") as fh:
         yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
+        benchmark = Benchmark(Path(benchmark_path))
 
     expected_files = get_expected_benchmark_output_files(benchmark)
 
@@ -60,26 +60,27 @@ def list_files(
 
 
 def download_files(
-    benchmark: str,
-    type: str = None,
-    stage: str = None,
-    module: str = None,
-    file_id: str = None,
+    benchmark_path: str,
+    type: str,
+    stage: str,
+    module: str,
+    file_id: str,
     verbose: bool = False,
     overwrite: bool = False,
 ):
     """Download all available files for a certain benchmark, version and stage"""
-    from omnibenchmark.io.utils import get_storage, remote_storage_args
-    from .utils import md5, sizeof_fmt
+    from .storage import get_storage, remote_storage_args
+    from .hash import md5
+    from .sizeof import sizeof_fmt
 
-    objectnames, etags = list_files(benchmark, type, stage, module, file_id)
+    objectnames, etags = list_files(benchmark_path, type, stage, module, file_id)
 
     # storage path locally, TODO: maybe add as argument
     filenames = objectnames
 
-    with open(benchmark, "r") as fh:
+    with open(benchmark_path, "r") as fh:
         yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
+        benchmark = Benchmark(Path(benchmark_path))
 
     auth_options = remote_storage_args(benchmark)
 
@@ -97,7 +98,7 @@ def download_files(
         zip(filenames, etags), delay=5, disable=not verbose
     ):
         if Path(filename).is_file():
-            if etag.replace('"', "") == md5(filename):
+            if etag.replace('"', "") == md5(filename.as_posix()):
                 do_download_file.append(False)
             else:
                 if overwrite:
@@ -143,14 +144,14 @@ def download_files(
 
 def checksum_files(
     benchmark: str,
-    type: str = None,
-    stage: str = None,
-    module: str = None,
-    file_id: str = None,
+    type: str,
+    stage: str,
+    module: str,
+    file_id: str,
     verbose: bool = False,
 ):
     """Compare md5 checksums of available files for a certain benchmark, version and stage with local versions"""
-    from .utils import md5
+    from .hash import md5
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
 
@@ -160,7 +161,7 @@ def checksum_files(
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):
-        md5sum_val = md5(filename)
+        md5sum_val = md5(filename.as_posix())
         if not etag.replace('"', "") == md5sum_val:
             failed_checksums.append(filename)
     return failed_checksums
