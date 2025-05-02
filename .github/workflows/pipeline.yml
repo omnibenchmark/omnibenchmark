@@ -84,6 +84,22 @@ jobs:
           poetry run pytest -m short
         if: matrix.os == 'ubuntu-latest'
 
+      # Build wheel after short tests pass
+      - name: Build wheel
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          pip install build
+          python -m build .
+
+      # Upload the wheel as an artifact
+      - name: Upload wheel artifact
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v3
+        with:
+          name: omnibenchmark-wheel
+          path: dist/*.whl
+          retention-days: 7
+
       - name: Run longer tests (integration)
         run: |
           poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
