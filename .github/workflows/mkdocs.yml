@@ -1,12 +1,10 @@
 name: Publish mkdocs via GitHub Pages
 on:
-  push:
-    branches:
-      - mkdocs
+  workflow_dispatch: # Allow manual trigger if needed
 
 jobs:
   build:
-    name: Deploy docs
+    name: Render and deploy docs via mkdocs
     runs-on: ubuntu-latest
     steps:
       - name: Install sys deps
