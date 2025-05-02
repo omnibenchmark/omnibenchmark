@@ -6,4 +6,4 @@ mkdocs-click
 boto3
 minio
 mike
-omnibenchmark @ git+https://github.com/omnibenchmark/omnibenchmark.git@dev
+. # that is, this very omnibenchmark version
