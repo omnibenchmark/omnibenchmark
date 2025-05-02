@@ -132,3 +132,20 @@ This ensures two things:
 2. We bypass the cleanup.
 
 We might change this in the future to a more generic approach. But for now this should be sufficient to allow debuggability of the test outputs, and good test isolation.
+
+## Internal project dependencies
+
+### omni-schema
+
+Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) dependency. Benchmark YAML schemas are updated by:
+
+```
+- Update src/omni_schema/schema/omni_schema.yaml manually
+- `make all`
+- Consider `make deploy`
+```
+
+And that omni-schema versions are tagged and pinned at the pytoml level ([example](https://github.com/omnibenchmark/omnibenchmark/blob/2ce768bb2cfb693f3e555f751979093964eef63b/pyproject.toml#L38)), so omni-schema changes must be in sync with omnibenchmark changes.
+
+Before investing too much time, do note that we're planning to phase out the external omni-schema package.
+

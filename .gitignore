@@ -183,3 +183,6 @@ Snakefile
 
 # graphs
 *.dot
+
+# docs
+docs/site/*
