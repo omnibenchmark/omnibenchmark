@@ -1,0 +1,706 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Omnibenchmark is a platform for open, continuous community-driven scientific benchmarking.">
+      
+      
+      
+        <link rel="canonical" href="https://omnibenchmark.org/philosophy/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../tutorial/">
+      
+      
+      <link rel="icon" href="../images/omb.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.28">
+    
+    
+      
+        <title>Philosophy - omnibenchmark</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#community" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="omnibenchmark" class="md-header__button md-logo" aria-label="omnibenchmark" data-md-component="logo">
+      
+  <img src="../images/omb.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            omnibenchmark
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Philosophy
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/omnibenchmark/omnibenchmark" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    omnibenchmark
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+    
+  
+  omnibenchmark
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+    
+  
+  Philosophy
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../tutorial/" class="md-tabs__link">
+        
+  
+    
+  
+  Tutorials
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../howto/" class="md-tabs__link">
+        
+  
+    
+  
+  How-to guides
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/" class="md-tabs__link">
+        
+  
+    
+  
+  CLI reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../news/" class="md-tabs__link">
+        
+  
+    
+  
+  News
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../team/" class="md-tabs__link">
+        
+  
+    
+  
+  Contact
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="omnibenchmark" class="md-nav__button md-logo" aria-label="omnibenchmark" data-md-component="logo">
+      
+  <img src="../images/omb.png" alt="logo">
+
+    </a>
+    omnibenchmark
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/omnibenchmark/omnibenchmark" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    omnibenchmark
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    omnibenchmark
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Philosophy
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Philosophy
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#community" class="md-nav__link">
+    <span class="md-ellipsis">
+      Community
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#software" class="md-nav__link">
+    <span class="md-ellipsis">
+      Software
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Software">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reproducible-software-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reproducible software environments
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tutorials
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How-to guides
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CLI reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../news/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    News
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contact
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+  <h1>Philosophy</h1>
+
+<p>Omnibenchmark is an automated benchmarking system.</p>
+<p>What actually is a benchmark, precisely? Here, a benchmark is thought of as a conceptual entity that roughly encompasses all the components of a study to understand the performance of a set of (computational) methods for a given task (here, the primary context is computational methods, but the concept can be applied to a broader scope, e.g., evaluation of laboratory-based methods). </p>
+<p>A <strong>benchmark</strong> requires a well-defined task, such as inferring what set of genes are differentially expressed from a certain type of data (e.g., gene expression from RNA sequencing counts) or whether a high-dimensional dataset can be clustered into the 'correct' cell types (the definition of this correctness, or ground-truth, should be precisely defined in advance). Given a well-defined task, a benchmark consists of benchmark <strong>components</strong> (datasets, preprocessing steps, methods, metrics) and ideally a benchmark system is used to organize and orchestrate the running of the benchmark, and create the <strong>benchmark artifacts</strong> (code snapshots, file outputs that will be shared, results tables). Ultimately, the downstream results and interpretations, which may involve rankings and various additional analyses, will be derived from these artifacts. Such a system should be public, open and allow contributions. Importantly, at the outset of a benchmark, a <strong>benchmark definition</strong> could be envisioned, which could give a formal specification of the entire set of components (and the pattern of artifacts to be generated). The benchmark definition can be expressed as a single YAML file that specifies the scope and topology of components to include, details of the repositories (code implementations with versions), the instructions to create software environments (accessible across compute architectures), and the parameters used.</p>
+<p>Similarly, a benchmark definition in terms of layers and their corresponding challenges and opportunities within each layer can be imagined.</p>
+<p>There are various ways to structure the running of a benchmark study: a benchmark can be <strong>run by a single person on a laptop (or a server)</strong>, it can be organized as a <strong>challenge</strong> or within a <strong>hackathon</strong> (typically a group of people that come together to competitively assess their approaches and/or populate benchmark components).</p>
+<h2 id="community">Community</h2>
+<p>Different roles and ways that people can contribute to or interact with a benchmark system have been defined. </p>
+<p>The <strong>benchmarker</strong> is responsible for planning and coordinating a benchmark, defining the task, possibly splitting it into subtasks or processing stages, and defining the data formats across the stages; the benchmarker also brings an authority role of how to review and approve contributions. </p>
+<p>The <strong>contributors</strong> curate and add content to the benchmark, which could be new datasets, analysis methods or evaluation metrics, adhering to the guidelines set up by the benchmarker. Finally, the viewers of benchmark results are users who retrieve one or more of the artifacts (datasets, intermediate results, or metric scores). This could span a range of use cases, including the data analyst choosing which method to use for a specific application, an instructor retrieving a curated dataset for teaching purposes, or a methods researcher prototyping their method.</p>
+<h2 id="software">Software</h2>
+<p>Software plays an important role in the current scientific landscape, since it is widely used throughout the scientific process, including data collection, simulation, analysis and reporting. Researchers are encouraged to publish their data and code to enhance <strong>transparency and reproducibility</strong> in their work. Ideally, this would increase the adoption rate by the wider scientific community. In practice, however, it is sometimes easier to develop new code than to reuse existing software. This leads to the phenomenon of <strong>academic abandonware</strong>, where projects are forgotten in code repositories, exacerbating the reproducibility crisis in research. One common reason for these abandoned projects is their failure to adhere to the <strong>FAIR</strong> (Findable, Accessible, Interoperable, Reusable) principles <sup id="fnref:wilkinson2016fair"><a class="footnote-ref" href="#fn:wilkinson2016fair">1</a></sup>. Another common cause is the life cycle inherent to academic practice: after delivering a research output, there are often no resources to maintain a software package in the longer term; left alone, the likelihood of a particular library compiling or being able to run after 5-10 years will drastically decrease.</p>
+<p>Operational costs are given by the expected compute and storage requirements. In the context of benchmarking, predicting CPU and memory usage is challenging. The methods under evaluation typically have variable workloads, and their performance can fluctuate significantly. Benchmark designers could impose resource limits, thereby evaluating the methods under different constraints. Storage costs, on the other hand, are more predictable and can be directly influenced by design decisions of the benchmark (e.g., low retention for re-generatable artifacts, cold storage (i.e. Amazon Glacier, Azure Archive Storage) for code archives and software images, public repositories for method performance artifacts). Cold storage, in particular, is a cost-effective solution for the long-term storage of infrequently accessed data. Developments in IT infrastructure have led to the rise of cloud service providers and the commoditization of standardized compute and storage solutions, enabling these cost optimizations. </p>
+<p>Storage costs for a benchmarking system can be efficiently managed by implementing specific storage and retention policies for different types of data. First, datasets and intermediary artifacts, which are often not the primary focus, can be managed with a low retention policy. Since these items are typically not crucial in the long term and can be easily recomputed, this approach helps reduce storage costs. Second, code archives and software environment images can be stored in cold storage, ensuring they remain archived and accessible when needed without incurring high costs. Although retaining method code and software environments may seem unnecessary, taking snapshots of benchmark dependencies helps mitigate issues related to deadlinks and ensures mid-term reproducibility. Finally, benchmark artifacts can be managed in several ways: they can be stored for the long term, or alternatively, signed with a cryptographic key for later verification, with the responsibility for long-term storage delegated to the end user.</p>
+<h3 id="reproducible-software-environments">Reproducible software environments</h3>
+<p>Software reproducibility comes from controlling the triad of data, code, and environment. Computationally, a benchmark executes code that transforms input data into outputs: this execution takes place and is affected by the execution environment; the environment encompasses the base system (OS, compiler toolchains, libraries) and a set of configurations. The benchmark definition should control as much as possible of the execution environment.</p>
+<p>Leaving data aside, it can be useful to divide the codebase used into three distinct categories:</p>
+<ul>
+<li>The benchmark system itself has an impact on operational costs, such as storage needs, execution platform, etc. For example, it imposes a certain tech stack and base dependencies, and orchestrates the execution of a benchmark plan; usually, the system mandates the choice of a particular workflow manager. At this level, any requirements for input/output formats and shapes are defined; different systems can impose different constraints.</li>
+<li>Contributions related to individual benchmark components (e.g., datasets, methods, metrics) are expected to be small, typically short scripts that process data and wrap functionality by importing external libraries (where the component implementation itself is developed). Even so, imposing good practices at this level (output validation, testing for abnormal termination, ability to run with a subset of input data) can be beneficial to increase the quality and maintainability of the contributions. The toolset can also enforce validation of metadata annotations (authorship, versioning) for each contributed module.</li>
+<li>The software dependencies have easily the biggest impact on replicability and maintainability: archiving all combinations of a large dependency tree, across an arbitrary number of base OS images, will exponentially increase retention and maintenance costs. Turning the long-term replicability of a benchmark into a tractable problem is linked to choosing a sane software management system. Several software management systems have emerged to address these problems, from containerization (i.e. <a href="https://apptainer.org/">apptainer</a>) and automating reproducible and efficient software management (i.e. <a href="https://easybuild.io">easybuild</a> <sup id="fnref:hoste2012easybuild"><a class="footnote-ref" href="#fn:hoste2012easybuild">2</a></sup>, <a href="https://spack.io">Spack</a> <sup id="fnref:gamblin2015spack"><a class="footnote-ref" href="#fn:gamblin2015spack">3</a></sup>), to software distribution (<a href="https://cernvm.cern.ch/fs/">CernVM-FS</a>) <sup id="fnref:blomer2013cernvm"><a class="footnote-ref" href="#fn:blomer2013cernvm">4</a></sup> and comprehensive initiatives to both build and distribute software (<a href="https://github.com/ComputeCanada/software-stack">computecanada</a> <sup id="fnref:boissonneault2019providing"><a class="footnote-ref" href="#fn:boissonneault2019providing">5</a></sup>, <a href="https://www.eessi.io/">EESSI</a> <sup id="fnref:droge2023eessi"><a class="footnote-ref" href="#fn:droge2023eessi">6</a></sup>).</li>
+</ul>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:wilkinson2016fair">
+<p>Mark D Wilkinson, Michel Dumontier, IJsbrand Jan Aalbersberg, Gabrielle Appleton, Myles Axton, Arie Baak, Niklas Blomberg, Jan-Willem Boiten, Luiz Bonino da Silva Santos, Philip E Bourne, and others. The fair guiding principles for scientific data management and stewardship. <em>Scientific data</em>, 3(1):1–9, 2016.&#160;<a class="footnote-backref" href="#fnref:wilkinson2016fair" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="fn:hoste2012easybuild">
+<p>Kenneth Hoste, Jens Timmerman, Andy Georges, and Stijn De Weirdt. Easybuild: building software with ease. In <em>2012 SC Companion: High Performance Computing, Networking Storage and Analysis</em>, 572–582. IEEE, 2012.&#160;<a class="footnote-backref" href="#fnref:hoste2012easybuild" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+<li id="fn:gamblin2015spack">
+<p>Todd Gamblin, Matthew LeGendre, Michael R Collette, Gregory L Lee, Adam Moody, Bronis R De Supinski, and Scott Futral. The spack package manager: bringing order to hpc software chaos. In <em>Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis</em>, 1–12. 2015.&#160;<a class="footnote-backref" href="#fnref:gamblin2015spack" title="Jump back to footnote 3 in the text">&#8617;</a></p>
+</li>
+<li id="fn:blomer2013cernvm">
+<p>Jakob Blomer, Predrag Buncic, and René Meusel. The cernvm file system. <em>CERN, Geneva, Switzerland, Tech. Rep</em>, pages 2–1, 2013.&#160;<a class="footnote-backref" href="#fnref:blomer2013cernvm" title="Jump back to footnote 4 in the text">&#8617;</a></p>
+</li>
+<li id="fn:boissonneault2019providing">
+<p>Maxime Boissonneault, Bart E Oldeman, and Ryan P Taylor. Providing a unified software environment for canada's national advanced computing centers. In <em>Proceedings of the Practice and Experience in Advanced Research Computing on Rise of the Machines (learning)</em>, pages 1–6. 2019.&#160;<a class="footnote-backref" href="#fnref:boissonneault2019providing" title="Jump back to footnote 5 in the text">&#8617;</a></p>
+</li>
+<li id="fn:droge2023eessi">
+<p>Bob Dröge, Victor Holanda Rusu, Kenneth Hoste, Caspar van Leeuwen, Alan O'Cais, and Thomas Röblitz. Eessi: a cross-platform ready-to-use optimised scientific software stack. <em>Software: Practice and Experience</em>, 53(1):176–210, 2023.&#160;<a class="footnote-backref" href="#fnref:droge2023eessi" title="Jump back to footnote 6 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1-2.1-2M12.5 7v5.2l4 2.4-1 1L11 13V7h1.5M11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2v1.8Z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 2, 2025</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "toc.integrate", "content.code.copy", "content.code.annotate", "navigation.instant", "navigation.prune", "search.suggest"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
+      
+    
+  </body>
+</html>

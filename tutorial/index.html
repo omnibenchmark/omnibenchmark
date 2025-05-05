@@ -1,0 +1,1969 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Omnibenchmark is a platform for open, continuous community-driven scientific benchmarking.">
+      
+      
+      
+        <link rel="canonical" href="https://omnibenchmark.org/tutorial/">
+      
+      
+        <link rel="prev" href="../philosophy/">
+      
+      
+        <link rel="next" href="../howto/">
+      
+      
+      <link rel="icon" href="../images/omb.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.28">
+    
+    
+      
+        <title>Tutorials - omnibenchmark</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#install-omnibenchmark" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="omnibenchmark" class="md-header__button md-logo" aria-label="omnibenchmark" data-md-component="logo">
+      
+  <img src="../images/omb.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            omnibenchmark
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tutorials
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/omnibenchmark/omnibenchmark" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    omnibenchmark
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+    
+  
+  omnibenchmark
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../philosophy/" class="md-tabs__link">
+        
+  
+    
+  
+  Philosophy
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+    
+  
+  Tutorials
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../howto/" class="md-tabs__link">
+        
+  
+    
+  
+  How-to guides
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/" class="md-tabs__link">
+        
+  
+    
+  
+  CLI reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../news/" class="md-tabs__link">
+        
+  
+    
+  
+  News
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../team/" class="md-tabs__link">
+        
+  
+    
+  
+  Contact
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="omnibenchmark" class="md-nav__button md-logo" aria-label="omnibenchmark" data-md-component="logo">
+      
+  <img src="../images/omb.png" alt="logo">
+
+    </a>
+    omnibenchmark
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/omnibenchmark/omnibenchmark" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    omnibenchmark
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    omnibenchmark
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Philosophy
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Tutorials
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Tutorials
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-omnibenchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      Install omnibenchmark
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Install omnibenchmark">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#full-install-micromamba" class="md-nav__link">
+    <span class="md-ellipsis">
+      Full install (micromamba)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Full install (micromamba)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#apt-based-linux-on-amd64-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      apt-based Linux on amd64 architecture
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="apt-based Linux on amd64 architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#install-singularity-debootstrap-and-fakeroot" class="md-nav__link">
+    <span class="md-ellipsis">
+      Install singularity, debootstrap and fakeroot
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#macos" class="md-nav__link">
+    <span class="md-ellipsis">
+      MacOS
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slim-install-python-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      Slim install (python package)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Slim install (python package)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-pip" class="md-nav__link">
+    <span class="md-ellipsis">
+      With pip
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-poetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      With poetry
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-software-using-envmodules" class="md-nav__link">
+    <span class="md-ellipsis">
+      Install software using envmodules
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-software-using-singularity" class="md-nav__link">
+    <span class="md-ellipsis">
+      Install software using singularity
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-a-benchmark-yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      Design a benchmark YAML
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Design a benchmark YAML">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-yaml-header" class="md-nav__link">
+    <span class="md-ellipsis">
+      Benchmark YAML header
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-yaml-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      Benchmark YAML body
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metric-collectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      Metric collectors
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validate-a-benchmark-yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validate a benchmark YAML
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-a-module-suitable-to-be-used-in-omnibenchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create a module suitable to be used in omnibenchmark
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-a-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run a benchmark
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-an-initial-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run an initial module
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-a-module-specifying-the-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Run a module specifying the inputs
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-storage-s3-aws-or-minio" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remote storage - S3 (AWS or MinIO)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Remote storage - S3 (AWS or MinIO)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-new-access-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create new access key
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Create new access key">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#minio" class="md-nav__link">
+    <span class="md-ellipsis">
+      MinIO
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aws" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-access-key-information-locally-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      Save access key information locally (Optional)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      Versioning
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How-to guides
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CLI reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../news/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    News
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contact
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+  <h1>Tutorials</h1>
+
+<h2 id="install-omnibenchmark">Install omnibenchmark</h2>
+<p>Omnibenchmark runs on different operating systems (OS) and architectures. The installation procedure impacts omnibenchmark capabilities to manage software during benchmarking. We recommend installing using micromamba.</p>
+<table>
+<thead>
+<tr>
+<th>capabilities</th>
+<th><code>system</code></th>
+<th><code>singularity</code></th>
+<th><code>lmod</code></th>
+<th><code>conda</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>poetry</code></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span></td>
+</tr>
+<tr>
+<td><code>pip</code></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span></td>
+</tr>
+<tr>
+<td><code>mamba (e.g. micromamba)</code></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+</tr>
+</tbody>
+</table>
+<h3 id="full-install-micromamba">Full install (micromamba)</h3>
+<h4 id="apt-based-linux-on-amd64-architecture">apt-based Linux on amd64 architecture</h4>
+<p>First, install <a href="https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html">micromamba</a>, a faster conda manager and package solver.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Shell</label><label for="__tabbed_1_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><span class="s2">&quot;</span><span class="si">${</span><span class="nv">SHELL</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>&lt;<span class="o">(</span>curl<span class="w"> </span>-L<span class="w"> </span>micro.mamba.pm/install.sh<span class="o">)</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100  3059  100  3059    0     0   7059      0 --:--:-- --:--:-- --:--:--  7059
+Micromamba binary folder? [~/.local/bin] 
+Init shell (bash)? [Y/n] Y
+Configure conda-forge? [Y/n] n
+Prefix location? [~/micromamba] 
+Modifying RC file &quot;/home/user/.bashrc&quot;
+Generating config for root prefix &quot;/home/user/micromamba&quot;
+Setting mamba executable to: &quot;/home/user/.local/bin/micromamba&quot;
+Adding (or replacing) the following in your &quot;/home/user/.bashrc&quot; file
+
+# &gt;&gt;&gt; mamba initialize &gt;&gt;&gt;
+# !! Contents within this block are managed by &#39;mamba init&#39; !!
+export MAMBA_EXE=&#39;/home/user/.local/bin/micromamba&#39;;
+export MAMBA_ROOT_PREFIX=&#39;/home/user/micromamba&#39;;
+__mamba_setup=&quot;$(&quot;$MAMBA_EXE&quot; shell hook --shell bash --root-prefix &quot;$MAMBA_ROOT_PREFIX&quot; 2&gt; /dev/null)&quot;
+if [ $? -eq 0 ]; then
+    eval &quot;$__mamba_setup&quot;
+else
+    alias micromamba=&quot;$MAMBA_EXE&quot;  # Fallback on help from mamba activate
+fi
+unset __mamba_setup
+# &lt;&lt;&lt; mamba initialize &lt;&lt;&lt;
+
+Please restart your shell to activate micromamba or run the following:\n
+source ~/.bashrc (or ~/.zshrc, ~/.xonshrc, ~/.config/fish/config.fish, ...)
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Then, clone omnibenchmark and install it in a new micromamba environment.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Shell</label><label for="__tabbed_2_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:omnibenchmark/omnibenchmark.git
+
+<span class="nb">cd</span><span class="w"> </span>omnibenchmark
+
+micromamba<span class="w"> </span>activate
+micromamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>omnibenchmark
+micromamba<span class="w"> </span>activate<span class="w"> </span>omnibenchmark
+micromamba<span class="w"> </span>install<span class="w"> </span>-f<span class="w"> </span>test-environment.yml
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>micromamba create -n omnibenchmark
+micromamba activate omnibenchmark
+micromamba install -f test-environment.yaml
+Empty environment created at prefix: /home/user/micromamba/envs/omnibenchmark
+info     libmamba ****************** Backtrace Start ******************
+debug    libmamba Loading configuration
+trace    libmamba Compute configurable &#39;create_base&#39;
+trace    libmamba Compute configurable &#39;no_env&#39;
+trace    libmamba Compute configurable &#39;no_rc&#39;
+trace    libmamba Compute configurable &#39;rc_files&#39;
+trace    libmamba Compute configurable &#39;root_prefix&#39;
+
+[snip]
+
+  + conda-libmamba-solver          24.7.0  pyhd8ed1ab_0           conda-forge     Cached
+  + mamba                           1.5.8  py312h9460a1c_0        conda-forge     Cached
+
+  Summary:
+
+  Install: 93 packages
+
+  Total download: 0 B
+
+──────────────────────────────────────────────────────────────────────────────────────────
+
+
+Confirm changes: [Y/n] y
+
+[snip]
+
+Successfully built omnibenchmark omni-schema
+Installing collected packages: toposort, throttler, stopit, sortedcontainers, pytz, plac, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, distlib, connection-pool, async, appdirs, wrapt, tzdata, typing-extensions, traitlets, tabulate, soupsieve, smmap, six, shellingham, rpds-py, reretry, pyyaml, pytrie, pyparsing, pyjwt, pygments, pycryptodome, pulp, psutil, numpy, nodeenv, multidict, mdurl, MarkupSafe, lxml, jmespath, isort, iniconfig, immutables, identify, humanfriendly, hbreader, frozenlist, filelock, execnet, easybuild, dpath, docutils, datrie, coverage, configargparse, click, cfgv, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, virtualenv, snakemake-interface-common, smart-open, referencing, python-swiftclient, python-dateutil, pytest, pynacl, pydantic-core, markdown-it-py, jupyter-core, jsonasobj2, json-flattener, jinja2, isodate, gitdb, docker, deprecated, cryptography, conda-inject, beautifulsoup4, argon2-cffi-bindings, aiosignal, testcontainers, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-executor-plugins, rich, rdflib, pytest-xdist, pytest-split, pytest-logging, pytest-cov, pydantic, pre-commit, pandas, jsonschema-specifications, gitpython, bs4, botocore, argon2-cffi, aiohttp, typer, s3transfer, pygithub, prefixcommons, minio, jsonschema, curies, snakedeploy, prefixmaps, nbformat, boto3, snakemake, linkml-runtime, omni-schema, omnibenchmark
+Successfully installed MarkupSafe-2.1.5 aiohappyeyeballs-2.3.7 aiohttp-3.10.4 aiosignal-1.3.1 annotated-types-0.7.0 appdirs-1.4.4 argon2-cffi-23.1.0 argon2-cffi-bindings-21.2.0 argparse-dataclass-2.0.0 async-0.6.2 attrs-24.2.0 beautifulsoup4-4.12.3 boto3-1.35.0 botocore-1.35.0 bs4-0.0.2 cfgv-3.4.0 click-8.1.7 conda-inject-1.3.2 configargparse-1.7 connection-pool-0.0.3 coverage-7.6.1 cryptography-43.0.0 curies-0.7.10 datrie-0.8.2 deprecated-1.2.14 distlib-0.3.8 docker-7.1.0 docutils-0.21.2 dpath-2.2.0 easybuild-4.9.2 easybuild-easyblocks-4.9.2 easybuild-easyconfigs-4.9.2 easybuild-framework-4.9.2 execnet-2.1.1 fastjsonschema-2.20.0 filelock-3.15.4 frozenlist-1.4.1 gitdb-4.0.11 gitpython-3.1.43 hbreader-0.9.1 humanfriendly-10.0 identify-2.6.0 immutables-0.20 iniconfig-2.0.0 isodate-0.6.1 isort-5.13.2 jinja2-3.1.4 jmespath-1.0.1 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.23.0 jsonschema-specifications-2023.12.1 jupyter-core-5.7.2 linkml-runtime-1.8.1 lxml-5.3.0 markdown-it-py-3.0.0 mdurl-0.1.2 minio-7.2.8 multidict-6.0.5 nbformat-5.10.4 nodeenv-1.9.1 numpy-2.1.0 omni-schema-0.0.1 omnibenchmark-0.1.0 pandas-2.2.2 plac-1.4.3 pre-commit-3.8.0 prefixcommons-0.1.12 prefixmaps-0.2.5 psutil-6.0.0 pulp-2.8.0 pycryptodome-3.20.0 pydantic-2.8.2 pydantic-core-2.20.1 pygithub-2.3.0 pygments-2.18.0 pyjwt-2.9.0 pynacl-1.5.0 pyparsing-3.1.2 pytest-8.3.2 pytest-cov-4.1.0 pytest-logging-2015.11.4 pytest-split-0.9.0 pytest-xdist-3.6.1 python-dateutil-2.9.0.post0 python-swiftclient-4.6.0 pytrie-0.4.0 pytz-2024.1 pyyaml-6.0.2 rdflib-7.0.0 referencing-0.35.1 reretry-0.11.8 rich-13.7.1 rpds-py-0.20.0 s3transfer-0.10.2 shellingham-1.5.4 six-1.16.0 smart-open-7.0.4 smmap-5.0.1 snakedeploy-0.10.0 snakemake-8.18.1 snakemake-interface-common-1.17.3 snakemake-interface-executor-plugins-9.2.0 snakemake-interface-report-plugins-1.0.0 snakemake-interface-storage-plugins-3.3.0 sortedcontainers-2.4.0 soupsieve-2.6 stopit-1.1.2 tabulate-0.9.0 testcontainers-4.8.0 throttler-1.2.2 toposort-1.10 traitlets-5.14.3 typer-0.12.4 typing-extensions-4.12.2 tzdata-2024.1 virtualenv-20.26.3 wrapt-1.16.0 yarl-1.9.4 yte-1.5.4
+</code></pre></div>
+</div>
+</div>
+</div>
+<h5 id="install-singularity-debootstrap-and-fakeroot">Install singularity, debootstrap and fakeroot</h5>
+<p>Before proceeding, make sure to install <a href="https://apptainer.org/docs/admin/main/installation.html">apptainer</a> (formerly singularity) as the containerization solution, as well as some other system-wide dependencies.</p>
+<p>After checking that apptainer is available, you should ensure <strong>debootstrap</strong> is available for building debian-based containers, and make sure to configure <strong>fakeroot</strong> with <a href="https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot"><code>singularity config fakeroot</code></a> to allow non-root users to simulate root privileges while managing containers.</p>
+<p>Do note that you will need <code>debootstrap</code> even if you're using a non-debian based linux.</p>
+<p>The following should get you covered:</p>
+<p>Finally, install <a href="https://apptainer.org/docs/admin/main/installation.html">apptainer</a> (singularity) and further system dependencies. If apptainer is already installed, make sure <strong>debootstrap</strong> is also installed and <strong>fakeroot</strong> configured with <a href="https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot"><code>singularity config fakeroot</code></a>.</p>
+<div class="highlight"><pre><span></span><code>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>lua5.2<span class="w"> </span>liblua5.2-dev<span class="w"> </span>lua-filesystem<span class="w"> </span>lua-posix<span class="w"> </span>tcl<span class="w"> </span>tcl-dev<span class="w"> </span>wget<span class="w"> </span>debootstrap<span class="w"> </span>software-properties-common
+sudo<span class="w"> </span>add-apt-repository<span class="w"> </span>-y<span class="w"> </span>ppa:apptainer/ppa
+sudo<span class="w"> </span>apt<span class="w"> </span>update
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>openmpi-bin<span class="w"> </span>libopenmpi-dev<span class="w"> </span>apptainer
+</code></pre></div>
+<p>Check everything works with:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">Shell</label><label for="__tabbed_3_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>singularity
+ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>conda
+ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>easybuild
+ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>module
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;singularity&#39;, &#39;--version&#39;], returncode=0, stdout=&#39;singularity version 3.5.2\n&#39;, std  err=&#39;&#39;)
+
+Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;conda&#39;, &#39;--version&#39;], returncode=0, stdout=&#39;conda 24.7.1\n&#39;, stderr=&#39;&#39;)
+
+Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;eb&#39;, &#39;--version&#39;], returncode=0, stdout=&#39;This is EasyBuild 4.9.2 (framework: 4.9.2, easyblocks: 4.9.2) on host imlssherborne.\n&#39;, stderr=&#39;&#39;)
+
+Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;type&#39;, &#39;module&#39;], returncode=0, stdout=&#39;&#39;, stderr=&#39;&#39;)
+</code></pre></div>
+</div>
+</div>
+</div>
+<h4 id="macos">MacOS</h4>
+<p>We assume your user has sudo power.</p>
+<p>First, install homebrew.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:2"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">Shell</label><label for="__tabbed_4_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>bash
+/bin/bash<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh<span class="k">)</span><span class="s2">&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span>/opt/homebrew/bin:<span class="nv">$PATH</span>
+brew<span class="w"> </span>--version
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>[snip]
+Homebrew 4.3.17
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Then, install omnibenchmark dependencies, including lmod and micromamba.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="5:2"><input checked="checked" id="__tabbed_5_1" name="__tabbed_5" type="radio" /><input id="__tabbed_5_2" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="__tabbed_5_1">Shell</label><label for="__tabbed_5_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>brew<span class="w"> </span>upgrade
+brew<span class="w"> </span>install<span class="w"> </span>coreutils
+brew<span class="w"> </span>install<span class="w"> </span>gcc
+brew<span class="w"> </span>install<span class="w"> </span>python
+brew<span class="w"> </span>install<span class="w"> </span>git
+brew<span class="w"> </span>install<span class="w"> </span>git-lfs
+brew<span class="w"> </span>install<span class="w"> </span>lmod<span class="w">             </span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-f<span class="w"> </span>/usr/local/opt/lmod/init/profile<span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">source</span><span class="w"> </span>/usr/local/opt/lmod/init/profile
+<span class="k">fi</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-f<span class="w"> </span>/opt/homebrew/opt/lmod/init/profile<span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">source</span><span class="w"> </span>/opt/homebrew/opt/lmod/init/profile
+<span class="k">fi</span>
+
+brew<span class="w"> </span>install<span class="w"> </span>wget
+brew<span class="w"> </span>reinstall<span class="w"> </span>cmake
+brew<span class="w"> </span>install<span class="w"> </span>micromamba
+module<span class="w"> </span>--version
+micromamba<span class="w"> </span>--version
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Modules based on Lua: Version ---
+   by Robert McLay mclay@tacc.utexas.edu
+
+1.5.8
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Clone omnibenchmark.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="6:2"><input checked="checked" id="__tabbed_6_1" name="__tabbed_6" type="radio" /><input id="__tabbed_6_2" name="__tabbed_6" type="radio" /><div class="tabbed-labels"><label for="__tabbed_6_1">Shell</label><label for="__tabbed_6_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>git clone https://github.com/omnibenchmark/omnibenchmark/
+
+cd omnibenchmark
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>(no output)
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Using micromamba, install omnibenchmark.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="7:2"><input checked="checked" id="__tabbed_7_1" name="__tabbed_7" type="radio" /><input id="__tabbed_7_2" name="__tabbed_7" type="radio" /><div class="tabbed-labels"><label for="__tabbed_7_1">Shell</label><label for="__tabbed_7_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>micromamba<span class="w"> </span>shell<span class="w"> </span>hook<span class="w"> </span>--shell<span class="w"> </span>bash<span class="k">)</span><span class="s2">&quot;</span>
+micromamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>omnibenchmark
+micromamba<span class="w"> </span>activate<span class="w"> </span>omnibenchmark
+micromamba<span class="w"> </span>install<span class="w"> </span>-f<span class="w"> </span>mac-test-environment.yml
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>[snip]
+    Successfully built omnibenchmark omni-schema
+Installing collected packages: toposort, throttler, stopit, sortedcontainers, pytz, plac, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, distlib, connection-pool, async, appdirs, wrapt, tzdata, typing-extensions, traitlets, tabulate, soupsieve, smmap, six, shellingham, rpds-py, reretry, pyyaml, pytrie, pyparsing, pyjwt, pygments, pycryptodome, pulp, psutil, numpy, nodeenv, multidict, mdurl, MarkupSafe, lxml, jmespath, isort, iniconfig, immutables, identify, humanfriendly, hbreader, frozenlist, filelock, execnet, easybuild, dpath, docutils, datrie, coverage, configargparse, click, cfgv, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, virtualenv, snakemake-interface-common, smart-open, referencing, python-swiftclient, python-dateutil, pytest, pynacl, pydantic-core, markdown-it-py, jupyter-core, jsonasobj2, json-flattener, jinja2, isodate, gitdb, docker, deprecated, cryptography, conda-inject, beautifulsoup4, argon2-cffi-bindings, aiosignal, testcontainers, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-executor-plugins, rich, rdflib, pytest-xdist, pytest-split, pytest-logging, pytest-cov, pydantic, pre-commit, pandas, jsonschema-specifications, gitpython, bs4, botocore, argon2-cffi, aiohttp, typer, s3transfer, pygithub, prefixcommons, minio, jsonschema, curies, snakedeploy, prefixmaps, nbformat, boto3, snakemake, linkml-runtime, omni-schema, omnibenchmark
+Successfully installed MarkupSafe-2.1.5 aiohappyeyeballs-2.3.7 aiohttp-3.10.4 aiosignal-1.3.1 annotated-types-0.7.0 appdirs-1.4.4 argon2-cffi-23.1.0 argon2-cffi-bindings-21.2.0 argparse-dataclass-2.0.0 async-0.6.2 attrs-24.2.0 beautifulsoup4-4.12.3 boto3-1.35.0 botocore-1.35.0 bs4-0.0.2 cfgv-3.4.0 click-8.1.7 conda-inject-1.3.2 configargparse-1.7 connection-pool-0.0.3 coverage-7.6.1 cryptography-43.0.0 curies-0.7.10 datrie-0.8.2 deprecated-1.2.14 distlib-0.3.8 docker-7.1.0 docutils-0.21.2 dpath-2.2.0 easybuild-4.9.2 easybuild-easyblocks-4.9.2 easybuild-easyconfigs-4.9.2 easybuild-framework-4.9.2 execnet-2.1.1 fastjsonschema-2.20.0 filelock-3.15.4 frozenlist-1.4.1 gitdb-4.0.11 gitpython-3.1.43 hbreader-0.9.1 humanfriendly-10.0 identify-2.6.0 immutables-0.20 iniconfig-2.0.0 isodate-0.6.1 isort-5.13.2 jinja2-3.1.4 jmespath-1.0.1 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.23.0 jsonschema-specifications-2023.12.1 jupyter-core-5.7.2 linkml-runtime-1.8.1 lxml-5.3.0 markdown-it-py-3.0.0 mdurl-0.1.2 minio-7.2.8 multidict-6.0.5 nbformat-5.10.4 nodeenv-1.9.1 numpy-2.1.0 omni-schema-0.0.1 omnibenchmark-0.1.0 pandas-2.2.2 plac-1.4.3 pre-commit-3.8.0 prefixcommons-0.1.12 prefixmaps-0.2.5 psutil-6.0.0 pulp-2.8.0 pycryptodome-3.20.0 pydantic-2.8.2 pydantic-core-2.20.1 pygithub-2.3.0 pygments-2.18.0 pyjwt-2.9.0 pynacl-1.5.0 pyparsing-3.1.2 pytest-8.3.2 pytest-cov-4.1.0 pytest-logging-2015.11.4 pytest-split-0.9.0 pytest-xdist-3.6.1 python-dateutil-2.9.0.post0 python-swiftclient-4.6.0 pytrie-0.4.0 pytz-2024.1 pyyaml-6.0.2 rdflib-7.0.0 referencing-0.35.1 reretry-0.11.8 rich-13.7.1 rpds-py-0.20.0 s3transfer-0.10.2 shellingham-1.5.4 six-1.16.0 smart-open-7.0.4 smmap-5.0.1 snakedeploy-0.10.0 snakemake-8.18.1 snakemake-interface-common-1.17.3 snakemake-interface-executor-plugins-9.2.0 snakemake-interface-report-plugins-1.0.0 snakemake-interface-storage-plugins-3.3.0 sortedcontainers-2.4.0 soupsieve-2.6 stopit-1.1.2 tabulate-0.9.0 testcontainers-4.8.0 throttler-1.2.2 toposort-1.10 traitlets-5.14.3 typer-0.12.4 typing-extensions-4.12.2 tzdata-2024.1 virtualenv-20.26.3 wrapt-1.16.0 yarl-1.9.4 yte-1.5.4
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Check everything except singularity works with:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="8:2"><input checked="checked" id="__tabbed_8_1" name="__tabbed_8" type="radio" /><input id="__tabbed_8_2" name="__tabbed_8" type="radio" /><div class="tabbed-labels"><label for="__tabbed_8_1">Shell</label><label for="__tabbed_8_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>singularity<span class="w"> </span><span class="c1">## should fail</span>
+ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>conda
+ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>easybuild
+ob<span class="w"> </span>software<span class="w"> </span>check<span class="w"> </span>--what<span class="w"> </span>module
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Checking software stack handlers / backends (singularity, easybuild, etc).
+FAILED
+
+Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;conda&#39;, &#39;--version&#39;], returncode=0, stdout=&#39;conda 24.7.1\n&#39;, stderr=&#39;&#39;)
+
+Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;eb&#39;, &#39;--version&#39;], returncode=0, stdout=&#39;This is EasyBuild 4.9.2 (framework: 4.9.2, easyblocks: 4.9.2) on host imlssherborne.\n&#39;, stderr=&#39;&#39;)
+
+Checking software stack handlers / backends (singularity, easybuild, etc).
+OK: CompletedProcess(args=[&#39;type&#39;, &#39;module&#39;], returncode=0, stdout=&#39;&#39;, stderr=&#39;&#39;)
+</code></pre></div>
+</div>
+</div>
+</div>
+<h3 id="slim-install-python-package">Slim install (python package)</h3>
+<p>You can install omnibenchmark as a python package. For that, you could use pip or poetry. To be able to run benchmarks you'll have to install <code>lmod</code> in your system. To be able to run benchmarks using singularity, you'll have to install <code>singularity</code> (apptainer) and <code>debootstrap</code> yourself.</p>
+<h4 id="with-pip">With pip</h4>
+<p>You might want to configure a virtualenv. Omnibenchmark requires python &gt;= 3.12.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="9:1"><input checked="checked" id="__tabbed_9_1" name="__tabbed_9" type="radio" /><div class="tabbed-labels"><label for="__tabbed_9_1">Shell</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>git clone https://github.com/omnibenchmark/omnibenchmark
+cd omnibenchmark
+pip install .
+</code></pre></div>
+</div>
+</div>
+</div>
+<h4 id="with-poetry">With poetry</h4>
+<p>Omnibenchmark requires python &gt;= 3.12.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="10:1"><input checked="checked" id="__tabbed_10_1" name="__tabbed_10" type="radio" /><div class="tabbed-labels"><label for="__tabbed_10_1">Shell</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>git clone https://github.com/omnibenchmark/omnibenchmark
+cd omnibenchmark
+poetry install
+poetry shell
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="install-software-using-envmodules">Install software using envmodules</h2>
+<p>Omnibenchmark wraps easybuild to install easyconfigs.</p>
+<p>First search an appropriate <a href="https://docs.easybuild.io/">easyconfig</a>. We suggest installing <code>zlib-1.3</code> with the system toolchain - it should be quick. First, we make sure we can find an easyconfig named <code>zlib-1.3.1.eb</code>.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="11:2"><input checked="checked" id="__tabbed_11_1" name="__tabbed_11" type="radio" /><input id="__tabbed_11_2" name="__tabbed_11" type="radio" /><div class="tabbed-labels"><label for="__tabbed_11_1">Shell</label><label for="__tabbed_11_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>eb<span class="w"> </span>--search<span class="w"> </span>zlib-1.3
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>== found valid index for /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs, so using it...
+ * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1-GCCcore-13.3.0.eb
+ * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1-GCCcore-14.1.0.eb
+ * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1.eb
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Then, we install it with omnibenchmark.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="12:2"><input checked="checked" id="__tabbed_12_1" name="__tabbed_12" type="radio" /><input id="__tabbed_12_2" name="__tabbed_12" type="radio" /><div class="tabbed-labels"><label for="__tabbed_12_1">Shell</label><label for="__tabbed_12_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>software<span class="w"> </span>module<span class="w"> </span>build<span class="w"> </span>-e<span class="w"> </span>zlib-1.3.1.eb
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Installing software for zlib-1.3.1.eb using easybuild. It will take some time.
+== found valid index for /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs, so using it...
+== Temporary log file in case of crash /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2/easybuild-7my819c_.log
+== found valid index for /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs, so using it...
+== resolving dependencies ...
+== processing EasyBuild easyconfig /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1.eb
+== building and installing zlib/1.3.1...
+== fetching files...
+== ... (took 2 secs)
+== creating build dir, resetting environment...
+== unpacking...
+== patching...
+== preparing...
+== configuring...
+== ... (took 1 secs)
+== building...
+== ... (took 6 secs)
+== testing...
+== installing...
+== ... (took 14 secs)
+== taking care of extensions...
+== restore after iterating...
+== postprocessing...
+== sanity checking...
+== cleaning up...
+== creating module...
+== permissions...
+== packaging...
+== COMPLETED: Installation ended successfully (took 26 secs)
+== Results of the build can be found in the log file(s) /home/user/.local/easybuild/software/zlib/1.3.1/easybuild/easybuild-zlib-1.3.1-20240820.082959.log
+
+== Build succeeded for 1 out of 1
+== Temporary log file(s) /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2/easybuild-7my819c_.log* have been removed.
+== Temporary directory /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2 has been removed.
+DONE
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>Then, we check whether we can find the associated module to this easyconfig.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="13:2"><input checked="checked" id="__tabbed_13_1" name="__tabbed_13" type="radio" /><input id="__tabbed_13_2" name="__tabbed_13" type="radio" /><div class="tabbed-labels"><label for="__tabbed_13_1">Shell</label><label for="__tabbed_13_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><span class="nb">source</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$LMOD_PKG</span><span class="s2">&quot;</span>/init/profile
+module<span class="w"> </span>use<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">&quot;</span>/.local/easybuild/modules/all
+module<span class="w"> </span>spider<span class="w"> </span>zlib
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>module use &quot;$HOME&quot;/.local/easybuild/modules/all
+module spider zlib
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+  zlib: zlib/1.3.1
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Description:
+      zlib is designed to be a free, general-purpose, legally unencumbered -- that is, not covered by any patents -- lossless data-compression library
+      for use on virtually any computer hardware and operating system. 
+
+
+    This module can be loaded directly: module load zlib/1.3.1
+
+    Help:
+
+      Description
+      ===========
+      zlib is designed to be a free, general-purpose, legally unencumbered -- that
+       is, not covered by any patents -- lossless data-compression library for use
+       on virtually any computer hardware and operating system.
+
+
+      More information
+      ================
+       - Homepage: https://www.zlib.net/
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+  lib/zlib: lib/zlib/1.3.1
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Description:
+      zlib is designed to be a free, general-purpose, legally unencumbered -- that is, not covered by any patents -- lossless data-compression library
+      for use on virtually any computer hardware and operating system. 
+
+
+    This module can be loaded directly: module load lib/zlib/1.3.1
+
+    Help:
+
+      Description
+      ===========
+      zlib is designed to be a free, general-purpose, legally unencumbered -- that
+       is, not covered by any patents -- lossless data-compression library for use
+       on virtually any co
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>To load the module, we have to guess the module name from the easyconfig name. We are using a <code>flat</code> module naming known as <a href="https://tutorial.easybuild.io/2021-lust/module_naming_schemes/">EasyBuildMNS</a>. So the module name is <code>zlib/1.3.1</code>.</p>
+<div class="highlight"><pre><span></span><code>module<span class="w"> </span>load<span class="w"> </span>zlib/1.3.1
+module<span class="w"> </span>list
+</code></pre></div>
+<p>We can unload the module with</p>
+<div class="highlight"><pre><span></span><code>module unload zlib/1.3.1
+</code></pre></div>
+<h2 id="install-software-using-singularity">Install software using singularity</h2>
+<p>To install software with easybuild inside a container, you can use <code>ob software singularity</code> commands.</p>
+<p>First search an appropriate <a href="https://docs.easybuild.io/">easyconfig</a>. We suggest installing <code>cowsay</code>, which is a nice say of saying hello world in the terminal, with the system toolchain. First, we make sure we can find an easyconfig named <code>cowsay</code>:</p>
+<div class="highlight"><pre><span></span><code>eb<span class="w"> </span>--search<span class="w"> </span>cowsay
+</code></pre></div>
+<p>As of this writing, there is only one version of the application, namely <code>cowsay-3.04.eb</code>.</p>
+<p>Then, we install it with omnibenchmark (do note that we'll be pinning the version too). This will generate a Singularity Image File (SIF), named <code>cowsay-3.04.eb.sif</code>:</p>
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>software<span class="w"> </span>singularity<span class="w"> </span>build<span class="w"> </span>-e<span class="w"> </span>cowsay-3.04.eb
+</code></pre></div>
+<p>Now that we have built the SIF image, we can execute commands inside the singularity container. Let's do that as a way to verify that the image was correctly created.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="14:2"><input checked="checked" id="__tabbed_14_1" name="__tabbed_14" type="radio" /><input id="__tabbed_14_2" name="__tabbed_14" type="radio" /><div class="tabbed-labels"><label for="__tabbed_14_1">Shell</label><label for="__tabbed_14_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>singularity<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>cowsay-3.04.eb.sif<span class="w"> </span>cowsay<span class="w"> </span>hello<span class="w"> </span>from<span class="w"> </span>singularity!
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code> _________________________
+&lt; hello from singularity! &gt;
+ -------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="design-a-benchmark-yaml">Design a benchmark YAML</h2>
+<p>Benchmark specification files are written in YAML. They specify the formal
+dependencies of benchmark components, as well as some metadata (e.g. the
+repository containing their implementation, parameters to be run with, etc.).</p>
+<p>Let's construct a simple example benchmark, shaped as follows:</p>
+<ul>
+<li><code>D1</code> is a single (starting) dataset. (In real life, datasets will have meaningful
+  names, e.g. <code>semisimulation_smith_2019</code>).</li>
+<li><code>M1</code> and <code>M2</code> are methods. They process the dataset <code>D1</code> directly.
+  (Similarly, methods would also have proper names, e.g. <code>limma</code> or <code>linreg</code>).</li>
+<li><code>m1</code> and <code>m2</code> are metrics. They process the output of the methods <code>M1</code> and <code>M2</code> 
+  directly. (Again, naming is flexible, we're keeping it short for clarity.)</li>
+</ul>
+<pre class="mermaid"><code>flowchart LR
+  subgraph data
+    D1
+  end
+  subgraph methods
+    D1 --&gt; M1
+    D1 --&gt; M2
+  end
+  subgraph metrics
+    M1 --&gt; m1
+    M1 --&gt; m2
+    M2 --&gt; m1
+    M2 --&gt; m2
+  end</code></pre>
+<p>Benchmark specification files have a header and a body.</p>
+<h3 id="benchmark-yaml-header">Benchmark YAML header</h3>
+<p>Let's start with the header. </p>
+<div class="highlight"><pre><span></span><code><span class="nn">---</span>
+<span class="c1">## benchmark shortname</span>
+<span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bench1</span>
+
+<span class="c1">## benchmark description</span>
+<span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">a simple benchmark</span>
+
+<span class="c1">## Benchmark version. `1.0`. This is our first attempt, so let&#39;s call it major version 1, minor version 0: `1.0`.</span>
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">                                           </span>
+
+<span class="c1">## Benchmark builder/contact person</span>
+<span class="nt">benchmarker</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Mary</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">Benchmarker,</span><span class="nv"> </span><span class="s">mary@uzh.ch&quot;</span>
+
+<span class="c1">## Storage flavour for sharing results: currently only S3</span>
+<span class="nt">storage_api</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">S3</span>
+
+<span class="c1">## S3 endpoint to share our benchmark results. </span>
+<span class="c1">##   `https://s3_object_storage_url.ch` does not exist, and we don&#39;t mind - </span>
+<span class="c1">##   not sharing results from our benchmark yet.</span>
+<span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://s3_object_storage_url.ch</span><span class="w">              </span>
+
+<span class="c1">## Benchmark YAML schema/specification version. Currently `0.01`.</span>
+<span class="nt">benchmark_yaml_spec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+
+<span class="c1">## License</span>
+<span class="c1">## license: MIT  # not yet part of the schema</span>
+
+<span class="c1">## The software backend used to run the benchmark</span>
+<span class="nt">software_backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apptainer</span>
+
+<span class="c1">## Software environment recipes associated to this benchmark. </span>
+<span class="c1">##  Suffice to say they are singularity images in some ORAS-compatible registry.</span>
+<span class="nt">software_environments</span><span class="p">:</span><span class="w">                                 </span>
+<span class="w">  </span><span class="nt">R</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R</span><span class="nv"> </span><span class="s">4.3.3</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">gfbf-2023</span><span class="nv"> </span><span class="s">toolchain&quot;</span>
+<span class="w">    </span><span class="nt">apptainer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://registry.ch/R_4.3.3-gfbf-2023b.sif</span>
+<span class="w">  </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Python3.12.0</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">gfbf-2023</span><span class="nv"> </span><span class="s">toolchain&quot;</span>
+<span class="w">    </span><span class="nt">apptainer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://registry.ch/python_vX-gfbf-2023b.sif</span>
+</code></pre></div>
+<p>Hence, the header acts as a preamble, defining general attributes of the benchmark. The body contains the individual benchmark components (methods, metrics, etc) and their linking to each other.</p>
+<h3 id="benchmark-yaml-body">Benchmark YAML body</h3>
+<p>The benchmark body is structured in stages grouping benchmarking components that produce similarly shaped outputs and ingest similarly shaped inputs. That is: </p>
+<pre class="mermaid"><code>flowchart LR
+    classDef thing fill:#f96
+    D1 -- produces --&gt; image
+    image:::thing -- "is ingested by" --&gt; M1
+    image:::thing -- "is ingested by" --&gt; M2
+    M1 -- produces --&gt; matrix1
+    M2 -- produces --&gt; matrix2
+    matrix1:::thing  -- "is ingested by" --&gt; m1
+    matrix1:::thing  -- "is ingested by" --&gt; m2
+    matrix2:::thing  -- "is ingested by" --&gt; m1
+    matrix2:::thing  -- "is ingested by" --&gt; m2  </code></pre>
+<p>In this example, <code>matrix1</code> and <code>matrix2</code> are similarly shaped, e.g. might be tab-separated files with some constraints, such as having a header and a rownames; and different from <code>image</code>, which might be a raster image in PNG format. We require <code>D1</code> to be part of a stage where modules <em>produce images, and ingest no inputs</em>; <code>M1</code> and <code>M2</code> to belong to a stage of <em>image-ingesting, matrix-producing</em> modules; and <code>m1</code> and <code>m2</code> to be part of a last stage of <em>matrix-ingesting</em> modules.</p>
+<p>Let's start with the first stage, containing <code>D1</code>. We will call it <code>data</code> (naming is flexible).</p>
+<div class="highlight"><pre><span></span><code><span class="nt">stages</span><span class="p">:</span>
+<span class="w">    </span><span class="c1">## the stage name</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data</span>
+<span class="w">    </span><span class="c1">##  here we have a single data stage with one single module, </span>
+<span class="w">    </span><span class="c1">##  that outputs a single shape for the `data` stage.</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span><span class="w">                                               </span>
+<span class="w">        </span><span class="c1">## unique module id</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">D1</span>
+<span class="w">        </span><span class="c1">## module name in a longer form</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Dataset</span><span class="nv"> </span><span class="s">1&quot;</span>
+<span class="w">        </span><span class="c1">## software environment to run this module; maps to the header `software_environments`</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="c1">## the git-compatible remote, and a particular pinned commit</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/data.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">41aaa0a</span>
+<span class="w">    </span><span class="c1">## output file paths for this stage members. In this simple case, the output from D1.</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">        </span><span class="c1">## output id</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.image</span>
+<span class="w">        </span><span class="c1">## output path. Wildcards will get dynamicly resoved to:</span>
+<span class="w">        </span><span class="c1">##   input: the project root working directory</span>
+<span class="w">        </span><span class="c1">##   stage: `data` (current stage id)</span>
+<span class="w">        </span><span class="c1">##   module: `D1` (the only module in the `data` stage)</span>
+<span class="w">        </span><span class="c1">##   params: `empty` (no parameters added)</span>
+<span class="w">        </span><span class="c1">##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only</span>
+<span class="w">        </span><span class="c1">##     generating outputs, are reused as `dataset` wildcards)</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.png&quot;</span>
+</code></pre></div>
+<p>Let's add another stage, for the modules <code>M1</code> and <code>M2</code>.
+This stage is not initial: its modules have both inputs and outputs.</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="c1">## the stage name</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">methods</span>
+<span class="w">    </span><span class="c1">## a list of modules and their repositories, as above</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">M1</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/method.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1004cdd</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">M2</span>
+<span class="w">        </span><span class="c1">## notice this method runs in a container offering some R capabilities</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/method2.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10sg4cdd</span>
+<span class="w">    </span><span class="c1">## input identifiers, refering to the `data stage` outputs</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.image</span>
+<span class="w">    </span><span class="c1">## stage-specific outputs</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">methods.matrix</span>
+<span class="w">        </span><span class="c1">## output path. Wildcards will get dynamicly resoved to:</span>
+<span class="w">        </span><span class="c1">##   input: not the project root anymore, but the path to the deepest file input</span>
+<span class="w">        </span><span class="c1">##   stage: `methods` (current stage id)</span>
+<span class="w">        </span><span class="c1">##   module: `M1` or `M2`</span>
+<span class="w">        </span><span class="c1">##   params: `empty` (no parameters added)</span>
+<span class="w">        </span><span class="c1">##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz&quot;</span>
+</code></pre></div>
+<p>You might be wondering: what does the wildcard <code>{input}</code> mean? The directory name (relative or full path) of <code>data.image</code>. This doesn't have to be modified by the user when writing the YAML; omnibenchmark will substitute paths appropriately. As a consequence, running module <code>D1</code> will generate files under the path template <code>{input}/{stage}/{module}/{params}/{dataset}.png</code>, that is:</p>
+<div class="highlight"><pre><span></span><code>./data/D1/default/D1.png
+</code></pre></div>
+<p>Hence, running modules <code>M1</code> and <code>M2</code> will produce files templated as <code>{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz</code>, which, given there is only one dataset <code>D1</code> available, will result in:</p>
+<div class="highlight"><pre><span></span><code>./data/D1/default/methods/M1/default/D1.matrix.tsv.gz
+./data/D1/default/methods/M2/default/D1.matrix.tsv.gz
+</code></pre></div>
+<p>Finally, we add the metrics stage containing modules <code>m1</code> and <code>m2</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="c1">## the stage name</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metrics</span>
+<span class="w">    </span><span class="c1">## a list of modules and their repositories, as above</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">m1</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/metric.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4504cdd</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">m2</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/metric2.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7sg4cdd</span>
+<span class="w">    </span><span class="c1">## input identifiers, refering to the `data stage` outputs</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">methods.matrix</span>
+<span class="w">    </span><span class="c1">## stage specific-outputs</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metrics.json</span>
+<span class="w">        </span><span class="c1">## output path. Wildcards will get dynamicly resoved to:</span>
+<span class="w">        </span><span class="c1">##   input: not the project root anymore, but the path to the deepest file input (a method&#39;s output)</span>
+<span class="w">        </span><span class="c1">##   stage: `metrics` (current stage id)</span>
+<span class="w">        </span><span class="c1">##   module: `m1` or `m2`</span>
+<span class="w">        </span><span class="c1">##   params: `empty` (no parameters added)</span>
+<span class="w">        </span><span class="c1">##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.json&quot;</span>
+</code></pre></div>
+<p>Hence, running modules <code>m1</code> and <code>m2</code> will produce files templated as <code>{input}/{stage}/{module}/{params}/{dataset}.json</code>; given there is only one dataset <code>D1</code> and two methods <code>M1</code> and <code>M2</code> available, will result in the following outputs:</p>
+<div class="highlight"><pre><span></span><code>./data/D1/default/methods/M1/default/metrics/m1/default/D1.json
+./data/D1/default/methods/M2/default/metrics/m1/default/D1.json
+./data/D1/default/methods/M1/default/metrics/m2/default/D1.json
+./data/D1/default/methods/M2/default/metrics/m2/default/D1.json
+</code></pre></div>
+<p>The full benchmark YAML looks like this:</p>
+<div class="highlight"><pre><span></span><code><span class="nn">---</span>
+<span class="c1">## benchmark shortname</span>
+<span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bench1</span>
+
+<span class="c1">## benchmark description</span>
+<span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">a simple benchmark</span>
+
+<span class="c1">## Benchmark version. `1.0`. This is our first attempt, so let&#39;s call it major version 1, minor version 0: `1.0`.</span>
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+
+<span class="c1">## Benchmark builder/contact person</span>
+<span class="nt">benchmarker</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Mary</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">Benchmarker,</span><span class="nv"> </span><span class="s">mary@uzh.ch&quot;</span>
+
+<span class="c1">## Storage flavour for sharing results: currently only S3</span>
+<span class="nt">storage_api</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">S3</span>
+
+<span class="c1">## S3 endpoint to share our benchmark results. </span>
+<span class="c1">##   `https://s3_object_storage_url.ch` does not exist, and we don&#39;t mind - </span>
+<span class="c1">##   not sharing results from our benchmark yet.</span>
+<span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://s3_object_storage_url.ch</span>
+
+<span class="c1">## Benchmark YAML schema/specification version. Currently `0.01`.</span>
+<span class="nt">benchmark_yaml_spec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+
+<span class="c1">## License</span>
+<span class="c1"># license: MIT # not yet part of the schema</span>
+
+<span class="nt">software_backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apptainer</span>
+
+<span class="c1">## Software environment recipes associated to this benchmark. </span>
+<span class="c1">## Suffice to say they are singularity images in some ORAS-compatible registry.</span>
+<span class="nt">software_environments</span><span class="p">:</span><span class="w">                                 </span>
+<span class="w">  </span><span class="nt">R</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R</span><span class="nv"> </span><span class="s">4.3.3</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">gfbf-2023</span><span class="nv"> </span><span class="s">toolchain&quot;</span>
+<span class="w">    </span><span class="nt">apptainer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://registry.ch/R_4.3.3-gfbf-2023b.sif</span>
+<span class="w">  </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Python3.12.0</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">gfbf-2023</span><span class="nv"> </span><span class="s">toolchain&quot;</span>
+<span class="w">    </span><span class="nt">apptainer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://registry.ch/python_vX-gfbf-2023b.sif</span>
+
+<span class="nt">stages</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span><span class="w">                                               </span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">D1</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Dataset</span><span class="nv"> </span><span class="s">1&quot;</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/data.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">41aaa0a</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.image</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.png&quot;</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">methods</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">M1</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/method.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1004cdd</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">M2</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/method2.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10sg4cdd</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.image</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">methods.matrix</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz&quot;</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metrics</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">m1</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/metric.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4504cdd</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">m2</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/metric2.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7sg4cdd</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">methods.matrix</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metrics.json</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.json&quot;</span>
+</code></pre></div>
+<h3 id="metric-collectors">Metric collectors</h3>
+<p>The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within <code>{input}/{stage}/{module}/{params}</code> are produced by a given module <code>id</code> (and its associated <code>repository</code> and <code>software_environment</code>). These files can be further processed by other modules, i.e. <code>module_next</code>, so new files will be stored within <code>{input}/{stage}/{module}/{params}/{stage_next}/{module_next}/{params_next}</code>. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.</p>
+<p>An independent syntax allows collecting <em>multiple inputs across multiple folders and lineages</em> to process them jointly. This usecase is typically needed when collecting metrics, that is, gathering all output files from some stage(s) to build a final aggregated report. Graphically, collection means adding the rightmost step  (<code>is collected by</code>) to the benchmarking workflow to produce <code>c1</code> (again, naming is flexible):</p>
+<pre class="mermaid"><code>flowchart LR
+    classDef thing fill:#f96
+    D1 -- produces --&gt; image
+    image:::thing -- "is ingested by" --&gt; M1
+    image:::thing -- "is ingested by" --&gt; M2
+    M1 -- produces --&gt; matrix1
+    M2 -- produces --&gt; matrix2
+    matrix1:::thing  -- "is ingested by" --&gt; m1
+    matrix1:::thing  -- "is ingested by" --&gt; m2
+    matrix2:::thing  -- "is ingested by" --&gt; m1
+    matrix2:::thing  -- "is ingested by" --&gt; m2
+    m1 -- produces --&gt; M1_m1
+    m1 -- produces --&gt; M2_m1
+    m2 -- produces --&gt; M1_m2
+    m2 -- produces --&gt; M2_m2
+    M1_m1:::thing -- "is collected by\n(metric collector)" --&gt; c1
+    M1_m2:::thing -- "is collected by\n(metric collector)" --&gt; c1
+    M2_m1:::thing -- "is collected by\n(metric collector)" --&gt; c1
+    M2_m2:::thing -- "is collected by\n(metric collector)" --&gt; c1
+    c1 -- "renders" --&gt; report
+    report:::thing</code></pre>
+<p>The <code>is collected by</code> capability is specified within the benchmarking header (that is, before the <code>stages</code> stanzas) as a member of <code>metric_collectors</code> enumeration. (So multiple metric collectors can exist, if more than one stanza are added.) To specify a single metric collector reading all <code>metrics.json</code> outputs (while tracking their lineages, that is, their original dataset, methods, metric, parameters, etc): </p>
+<div class="highlight"><pre><span></span><code><span class="nt">metric_collectors</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">multiple_to_one</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Single-backend</span><span class="nv"> </span><span class="s">(multiple)</span><span class="nv"> </span><span class="s">method</span><span class="nv"> </span><span class="s">outputs</span><span class="nv"> </span><span class="s">collector.&quot;</span>
+<span class="w">    </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">    </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/imallona/clustering_report</span>
+<span class="w">      </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">f1a5876</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metrics.json</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plotting.html</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{name}/plotting_report.html&quot;</span>
+</code></pre></div>
+<p>Similarly to any other module, the associated code to run the processing is stored as a git-compatible remote (with <code>url</code> and <code>commit id</code>). In the example above, <code>multiple_to_one</code> only generates one output, a report named <code>plotting.html</code> collecting all computed <code>metrics.json</code> files.</p>
+<h2 id="validate-a-benchmark-yaml">Validate a benchmark YAML</h2>
+<p>Let's save the benchmark above as a file named <code>benchmark_test.yaml</code>. Then we validate it with:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="15:2"><input checked="checked" id="__tabbed_15_1" name="__tabbed_15" type="radio" /><input id="__tabbed_15_2" name="__tabbed_15" type="radio" /><div class="tabbed-labels"><label for="__tabbed_15_1">Shell</label><label for="__tabbed_15_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>run<span class="w"> </span>validate<span class="w"> </span>-b<span class="w"> </span>benchmark_test.yaml
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Validating a benchmark yaml.
+Benchmark YAML file integrity check passed.
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="create-a-module-suitable-to-be-used-in-omnibenchmark">Create a module suitable to be used in omnibenchmark</h2>
+<p>Any accesible git repository can host an omnibenchmark module. If it's convenient, you might want to push them to a remote in GitHub, Bitbucket, GitLab, etc. In reality, <code>omnibenchmark</code> just needs to be able to access the remote (clone or fetch), and be able to checkout your specified commit (so anything that works for your global git config should work for <code>omnibenchmark</code>).</p>
+<p>We provide an example set of modules for the benchmark example file at <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml"><code>tests/data/Benchmark_001.yaml</code></a>.</p>
+<p>As shown below, module D1 points to the GitHub repository <a href="https://github.com/omnibenchmark-example/data.git">example data</a> at the commit <code>63b7b36</code>. (Incidentally, in theory you should also be able to specify any valid dynamic git reference, like <code>HEAD</code> or a <code>tag</code> or <code>branch</code> name).</p>
+<div class="highlight"><pre><span></span><code><span class="nt">stages</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">D1</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Dataset</span><span class="nv"> </span><span class="s">1&quot;</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;python&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/data.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">63b7b36</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">        </span><span class="c1">## output id</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.image</span>
+<span class="w">        </span><span class="c1">## output path. Wildcards will get dynamicly resoved to:</span>
+<span class="w">        </span><span class="c1">##   input: the project root working directory</span>
+<span class="w">        </span><span class="c1">##   stage: `data` (current stage id)</span>
+<span class="w">        </span><span class="c1">##   module: `D1` (the only module `data stage` has)</span>
+<span class="w">        </span><span class="c1">##   params: `empty` (no parameters added)</span>
+<span class="w">        </span><span class="c1">##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only</span>
+<span class="w">        </span><span class="c1">##     generating outputs, are reused as `dataset` wildcards)</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.png&quot;</span>
+</code></pre></div>
+<p>Hence, the git repository implementing module <code>D1</code> doesn't have any input, but generates one output. In this case, the repository implementing <code>D1</code> has <a href="https://github.com/omnibenchmark-example/data/blob/main/config.cfg">a config file</a> indicating the entrypoint is a python script named <code>entrypoint_data.py</code>:</p>
+<div class="highlight"><pre><span></span><code>[DEFAULT]
+SCRIPT=entrypoint_data.py
+</code></pre></div>
+<p><code>entrypoint_data.py</code> uses the python library <code>argparse</code> to receive two arguments when called from the command line:</p>
+<div class="highlight"><pre><span></span><code><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--output_dir&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;output directory where dataset files will be saved.&#39;</span><span class="p">))</span> 
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--name&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;name of the dataset&#39;</span><span class="p">)</span>
+</code></pre></div>
+<p>That is, the output directory where the <code>data.image</code> output is generated, and the dataset (<code>D1</code>) name.</p>
+<p>Argument parsing aside, the <code>entrypoint_data.py</code> script structure is free: in this case, it materializes files with a dummy content.</p>
+<p>Let's inspect another module, this time running in R and also receiving inputs.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">stages</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">some_intermediate_step</span>
+<span class="w">    </span><span class="nt">modules</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">process</span>
+<span class="w">        </span><span class="nt">exclude</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">select_counts</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">software_environment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;R&quot;</span>
+<span class="w">        </span><span class="nt">repository</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/omnibenchmark-example/process.git</span>
+<span class="w">          </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aeec1db</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entries</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.meta</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data.counts</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">select_lognorm.selected</span>
+<span class="w">        </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{input}/{stage}/{module}/{params}/{dataset}.txt.gz&quot;</span>
+</code></pre></div>
+<p>So, in this case, the module <code>process</code> is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at <a href="https://github.com/omnibenchmark-example/process.git">https://github.com/omnibenchmark-example/process.git</a>. There, the <a href="https://github.com/omnibenchmark-example/process/blob/main/config.cfg">config file</a> indicates:</p>
+<div class="highlight"><pre><span></span><code>[DEFAULT]
+SCRIPT=entrypoint_process.R
+</code></pre></div>
+<p>so the script to be executed is named <code>entrypoint_process.R</code>. In this case, <a href="https://github.com/omnibenchmark-example/process/blob/aeec1db790542d447899d6ac4cb8564a9172b6e0/entrypoint_process.R#L3C1-L13C1">the script</a> uses the R library <code>argparse</code> to provide a commandline interface:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Define argument parser</span>
+<span class="n">parser</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="nf">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s">&quot;Process dataset files&quot;</span><span class="p">)</span>
+
+<span class="c1"># Add arguments</span>
+<span class="n">parser</span><span class="o">$</span><span class="nf">add_argument</span><span class="p">(</span><span class="s">&quot;--output_dir&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;-o&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">dest</span><span class="o">=</span><span class="s">&quot;output_dir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">type</span><span class="o">=</span><span class="s">&quot;character&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">help</span><span class="o">=</span><span class="s">&quot;output directory where files will be saved&quot;</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">$</span><span class="nf">add_argument</span><span class="p">(</span><span class="s">&quot;--name&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;-n&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">dest</span><span class="o">=</span><span class="s">&quot;name&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">type</span><span class="o">=</span><span class="s">&quot;character&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">help</span><span class="o">=</span><span class="s">&quot;name of the dataset&quot;</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">$</span><span class="nf">add_argument</span><span class="p">(</span><span class="s">&quot;--data.counts&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">dest</span><span class="o">=</span><span class="s">&quot;data_counts&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">type</span><span class="o">=</span><span class="s">&quot;character&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">help</span><span class="o">=</span><span class="s">&quot;input file #1&quot;</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">$</span><span class="nf">add_argument</span><span class="p">(</span><span class="s">&quot;--data.meta&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">dest</span><span class="o">=</span><span class="s">&quot;data_meta&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">type</span><span class="o">=</span><span class="s">&quot;character&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">help</span><span class="o">=</span><span class="s">&quot;input file #2&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Notice these arguments match the YAML's: <code>data.counts</code> and <code>data.meta</code> are specified as inputs in the benchmark YAML; as before, <code>name</code> refers to the dataset name and <code>output_dir</code> to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and write outputs in a way compatible to the benchmark YAML specification.</p>
+<h2 id="run-a-benchmark">Run a benchmark</h2>
+<p>The benchmark <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml"><code>tests/data/Benchmark_001.yaml</code></a> above is a complex benchmark - but it runs quick enough. Let's try a dry run and inspect the rules that will be run:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="16:2"><input checked="checked" id="__tabbed_16_1" name="__tabbed_16" type="radio" /><input id="__tabbed_16_2" name="__tabbed_16" type="radio" /><div class="tabbed-labels"><label for="__tabbed_16_1">Shell</label><label for="__tabbed_16_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>run<span class="w"> </span>benchmark<span class="w"> </span>--benchmark<span class="w"> </span>tests/data/Benchmark_001.yaml<span class="w">  </span>--cores<span class="w"> </span><span class="m">1</span><span class="w"> </span>--local<span class="w"> </span>--dry
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>[snip]
+
+INFO:snakemake.logging:
+Job stats:
+job                   count
+------------------  -------
+all                       1
+data_D1_default           1
+data_D2_default           1
+methods_M1_default        5
+methods_M2_param_0        5
+methods_M2_param_1        5
+metrics_m1_default       15
+metrics_m2_default       15
+metrics_m3_default       15
+process_P1_param_0        2
+process_P1_param_1        2
+process_P2_param_0        2
+process_P2_param_1        2
+total                    71
+
+[snip]
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it will take less than two minutes in most machines):</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="17:2"><input checked="checked" id="__tabbed_17_1" name="__tabbed_17" type="radio" /><input id="__tabbed_17_2" name="__tabbed_17" type="radio" /><div class="tabbed-labels"><label for="__tabbed_17_1">Shell</label><label for="__tabbed_17_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>run<span class="w"> </span>benchmark<span class="w"> </span>--benchmark<span class="w"> </span>tests/data/Benchmark_001.yaml<span class="w">  </span>--cores<span class="w"> </span><span class="m">1</span><span class="w"> </span>--local
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>[snip]
+
+resources: tmpdir=/home/imallona/tmp/eb-ge9tbg43
+
+INFO:snakemake.logging:
+[Thu Aug 29 10:23:23 2024]
+INFO:snakemake.logging:[Thu Aug 29 10:23:23 2024]
+Finished job 0.
+INFO:snakemake.logging:Finished job 0.
+71 of 71 steps (100%) done
+INFO:snakemake.logging:71 of 71 steps (100%) done
+Complete log: .snakemake/log/2024-08-29T102204.875104.snakemake.log
+WARNING:snakemake.logging:Complete log: .snakemake/log/2024-08-29T102204.875104.snakemake.log
+Benchmark run has finished successfully.
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="run-an-initial-module">Run an initial module</h2>
+<p>The benchmark <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml"><code>tests/data/Benchmark_001.yaml</code></a> contains several initial steps which generate datasets and don't receive any input. To run these, we have to use the <code>ob run module</code> verb.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="18:2"><input checked="checked" id="__tabbed_18_1" name="__tabbed_18" type="radio" /><input id="__tabbed_18_2" name="__tabbed_18" type="radio" /><div class="tabbed-labels"><label for="__tabbed_18_1">Shell</label><label for="__tabbed_18_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>run<span class="w"> </span>module<span class="w"> </span>--benchmark<span class="w"> </span>tests/data/Benchmark_001.yaml<span class="w"> </span>--module<span class="w"> </span>D1
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Running module on a dataset provided in a custom directory.
+Benchmark YAML file integrity check passed.
+Found 1 workflow nodes for module D1.
+Running module benchmark...
+Assuming unrestricted shared filesystem usage.
+WARNING:snakemake.logging:Assuming unrestricted shared filesystem usage.
+Building DAG of jobs...
+WARNING:snakemake.logging:Building DAG of jobs...
+Using shell: /usr/bin/bash
+WARNING:snakemake.logging:Using shell: /usr/bin/bash
+Provided cores: 1 (use --cores to define parallelism)
+WARNING:snakemake.logging:Provided cores: 1 (use --cores to define parallelism)
+Rules claiming more threads will be scaled down.
+WARNING:snakemake.logging:Rules claiming more threads will be scaled down.
+Job stats:
+job                count
+---------------  -------
+all                    1
+data_D1_default        1
+total                  2
+
+reason: Missing output files: out/data/D1/default/D1.txt.gz, out/data/D1/default/D1_params.txt, out/data/D1/default/D1.meta.json; Code has changed since last execution
+resources: tmpdir=/home/imallona/tmp/eb-w7lf3kqk
+INFO:snakemake.logging:localrule data_D1_default:
+
+[snip]
+
+INFO:snakemake.logging:
+[Fri Sep  6 12:26:23 2024]
+INFO:snakemake.logging:[Fri Sep  6 12:26:23 2024]
+Finished job 0.
+INFO:snakemake.logging:Finished job 0.
+2 of 2 steps (100%) done
+INFO:snakemake.logging:2 of 2 steps (100%) done
+Complete log: .snakemake/log/2024-09-06T122622.173281.snakemake.log
+WARNING:snakemake.logging:Complete log: .snakemake/log/2024-09-06T122622.173281.snakemake.log
+Module run has finished successfully.
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="run-a-module-specifying-the-inputs">Run a module specifying the inputs</h2>
+<p>The benchmark <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml"><code>tests/data/Benchmark_001.yaml</code></a> contains some data processing steps (e.g. <code>P1</code>) which take data inputs and produce outputs. To run only module <code>P1</code> only on data inputs already available locally at <code>out/data/D1/default/</code>, so results will be generated at <code>out/data/D1/default/process/P1/params/</code>, first double check the inputs are already where expected:</p>
+<div class="highlight"><pre><span></span><code>$ ls out/data/D1/default/
+D1.meta.json  D1_params.txt  D1.txt.gz
+</code></pre></div>
+<p>If not, run the whole benchmark first (with <a href="https://omnibenchmark.org/tutorial/#run-a-benchmark"><code>ob run benchmark</code></a>). Once the input files are at <code>out/data/D1/default/</code>,
+run <code>ob run module</code> with:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="19:2"><input checked="checked" id="__tabbed_19_1" name="__tabbed_19" type="radio" /><input id="__tabbed_19_2" name="__tabbed_19" type="radio" /><div class="tabbed-labels"><label for="__tabbed_19_1">Shell</label><label for="__tabbed_19_2">Output</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>ob<span class="w"> </span>run<span class="w"> </span>module<span class="w"> </span>--benchmark<span class="w"> </span>tests/data/Benchmark_001.yaml<span class="w"> </span>--module<span class="w"> </span>P1<span class="w"> </span>--input<span class="w"> </span>out/data/D1/default
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>Running module on a dataset provided in a custom directory.
+Benchmark YAML file integrity check passed.
+Found 2 workflow nodes for module P1.
+Running module benchmark...
+Assuming unrestricted shared filesystem usage.
+
+input: out/data/D1/default/D1.txt.gz, out/data/D1/default/D1.meta.json
+[snip]
+
+localrule all:
+input: out/data/D1/default/D1.txt.gz, out/data/D1/default/D1.meta.json, out/data/D1/default/process/P1/param_0/D1.txt.gz
+jobid: 0
+reason: Input files updated by another job: out/data/D1/default/process/P1/param_0/D1.txt.gz
+resources: tmpdir=/home/imallona/tmp/eb-unlssiuj
+INFO:snakemake.logging:localrule all:
+input: out/data/D1/default/D1.txt.gz, out/data/D1/default/D1.meta.json, out/data/D1/default/process/P1/param_0/D1.txt.gz
+jobid: 0
+reason: Input files updated by another job: out/data/D1/default/process/P1/param_0/D1.txt.gz
+resources: tmpdir=/home/imallona/tmp/eb-unlssiuj
+
+INFO:snakemake.logging:
+[Fri Sep  6 12:35:15 2024]
+
+INFO:snakemake.logging:[Fri Sep  6 12:35:15 2024]
+Finished job 0.
+INFO:snakemake.logging:Finished job 0.
+2 of 2 steps (100%) done
+INFO:snakemake.logging:2 of 2 steps (100%) done
+Complete log: .snakemake/log/2024-09-06T123513.568197.snakemake.log
+WARNING:snakemake.logging:Complete log: .snakemake/log/2024-09-06T123513.568197.snakemake.log
+Module run has finished successfully.
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="remote-storage-s3-aws-or-minio">Remote storage - S3 (AWS or MinIO)</h2>
+<p>To restrict access to a dedicated bucket an access key with a specific policy have to generated.</p>
+<h3 id="create-policy">Create policy</h3>
+<p>Create new policy with
+<div class="highlight"><pre><span></span><code>ob storage create-policy --benchmark tests/data/Benchmark_001.yaml
+</code></pre></div>
+The output of this command needs to be added to either MinIO or AWS as described below.</p>
+<h3 id="create-new-access-key">Create new access key</h3>
+<h4 id="minio">MinIO</h4>
+<p>In the MinIO Console navigate to 'Access Keys' and click 'Create access key'. Set 'Restrict beyond user policy' to 'ON'. Replace the displayed policy with the output of the above command.
+Optionally enter a name and a description. Click on <code>Create</code> and copy the access key and secret key.</p>
+<h4 id="aws">AWS</h4>
+<p>Create a new user. Create a new policy with the output of the above command. Attach policy to user. Create access key for user.</p>
+<h3 id="save-access-key-information-locally-optional">Save access key information locally (Optional)</h3>
+<p>Save the access key and secret key in a <code>&lt;CONFIG&gt;.json</code> file somewhere with the following format:</p>
+<div class="highlight"><pre><span></span><code>{&quot;access_key&quot;: &quot;&lt;ACCESS_KEY&gt;&quot;, &quot;secret_key&quot;: &quot;&lt;SECRET_KEY&gt;&quot;}
+</code></pre></div>
+<h3 id="usage">Usage</h3>
+<p>To use the credentials to write to the remote storage the access key and secret key are passed to omnibenchmark with environment variables. If the credentials have been stored as described above the environment variable <code>OB_STORAGE_S3_CONFIG</code> can be set which is the name of the config file. For example:</p>
+<div class="highlight"><pre><span></span><code>OB_STORAGE_S3_CONFIG=&lt;CONFIG&gt;.json ob run benchmark -b tests/data/Benchmark_003.yaml
+</code></pre></div>
+<p>alternatively <code>OB_STORAGE_S3_ACCESS_KEY</code> and <code>OB_STORAGE_S3_SECRET_KEY</code> can be set. For example:</p>
+<div class="highlight"><pre><span></span><code>OB_STORAGE_S3_ACCESS_KEY=&lt;ACCESS_KEY&gt; OB_STORAGE_S3_SECRET_KEY=&lt;SECRET_KEY&gt; ob run benchmark -b tests/data/Benchmark_003.yaml
+</code></pre></div>
+<h3 id="versioning">Versioning</h3>
+<p>To version currently stored data in the remote (i.e. make it read-only) run the following:
+<div class="highlight"><pre><span></span><code>ob storage create-version -b tests/data/Benchmark_003.yaml
+</code></pre></div></p>
+<p>A second execution will result in an error since this version now already exists. To create a new version, first update the version in the Benchmark.yaml file and then rerun the above command.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1-2.1-2M12.5 7v5.2l4 2.4-1 1L11 13V7h1.5M11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2v1.8Z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date">May 5, 2025</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "toc.integrate", "content.code.copy", "content.code.annotate", "navigation.instant", "navigation.prune", "search.suggest"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
+      
+    
+  </body>
+</html>
