@@ -125,48 +125,36 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04]
-        test_group: [1, 2]
+        # test_group: [1, 2]
         python-version: ["3.12"]
       fail-fast: true
 
-    # TODO: run on particular container with conda etc
     runs-on: ${{ matrix.os }}
+    container:
+      image: ghcr.io/omnibenchmark/omnibenchmark-docker:latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Modify python version in test env
-        shell: bash -el {0}
-        run: |
-          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
-          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
+      # - name: Modify python version in test env
+      #  shell: bash -el {0}
+      #  run: |
+      #    cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
+      #    sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
 
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
-          environment-file: test-environment-${{ matrix.python-version }}.yml
+          # environment-file: test-environment-${{ matrix.python-version }}.yml
+          # XXX simplifying python version for now, stick to 3.12
+          environment-file: test-environment.yml
           environment-name: omb
           cache-environment: false
 
-      - name: install OS & Python packages
-        run: |
-          sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt-get update
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev
-          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
-          fi
-          sudo apt-get install libopenmpi-dev openmpi-bin
-          pip install pep8 python-graph-core python-graph-dot
-
-      - name: Extra OS / apt (apptainer)
-        run: |
-          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
-
-      - name: Test
+      - name: Test Software Backends
         env:
-          CI: false
+          CI: true
         shell: bash -el {0}
         run: |
           pip install -e ".[s3]"
@@ -184,10 +172,11 @@ jobs:
 
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          pytest -v -x --show-capture=stderr \
-              --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
+          pytest -v -x --show-capture=stderr tests/software
+
+        #--splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+        #cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
+        #conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
   software-tests-mac:
     name: Software Tests (macOS)
@@ -222,7 +211,7 @@ jobs:
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
@@ -278,3 +267,6 @@ jobs:
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
                -k 'not test_easybuild_sys_toolchain_build'
+
+  # Step 4: Build documentation only if integration tests pass
+  # TODO: also push to GitHub Pages only if documentation build is successful, and we're in a target branch.
