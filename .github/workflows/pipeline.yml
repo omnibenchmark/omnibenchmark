@@ -117,78 +117,60 @@ jobs:
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
 
-  # Step 3: Run software tests only if regular tests pass
-  software-tests-linux:
-    name: Software Tests (Linux)
-    # XXX TODO: re-enable the dependency in the pipeline!
-    # needs: tests
+  # Step 3: prepare repository as artifact
+  prepare-repo:
+    name: Prepare Repository
+    runs-on: ubuntu-24.04
     needs: lint
-    permissions: write-all
-    strategy:
-      matrix:
-        os: [ubuntu-22.04]
-        # test_group: [1, 2]
-        python-version: ["3.12"]
-      fail-fast: true
-
-    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Create repository artifact
+        uses: actions/upload-artifact@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          name: repo-source
+          path: .
+          retention-days: 1
+
+  # Step 4: un software tests only if regular tests pass
+  # https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/running-jobs-in-a-container
+  software-tests-linux:
+    name: Software Tests (Linux)
+    needs: prepare-repo
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/omnibenchmark/omnibenchmark-docker:main
+    steps:
+      - name: Download repository artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: repo-source
+          path: /github/workspace
 
       - name: Run tests in container
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/github/workspace \
-            -w /github/workspace \
-            -e CI=true \
-            -e GITHUB_WORKSPACE=/github/workspace \
-            ghcr.io/omnibenchmark/omnibenchmark-docker:main \
-            bash -c "
-              # set -ex
-              echo in container
+          # Run the test script
+          cd /github/workspace
+          ./scripts/run-software-tests.sh
 
-              # Setup micromamba environment
-              micromamba env create -f test-environment.yml -n omb
-              eval \"\$(micromamba shell hook --shell bash)\"
-              micromamba activate omb
+  #software-tests-linux2:
+  #  name: Software Tests (Linux)
+  #  runs-on: ubuntu-22.04
+  #  steps:
+  #    - name: Checkout repository
+  #      uses: actions/checkout@v4
+  #      with:
+  #        fetch-depth: 0
 
-              # Install dependencies
-              # pip install -e \".[s3]\"
-              # pip install -e \".[test]\"
-              # pip install numpy pandas scikit-learn scipy
-
-              # Setup modules
-              source \"\$LMOD_PKG\"/init/profile
-              export MODULEPATH=\"\$HOME\"/.local/easybuild/modules/all:\"/github/workspace\"/tests/data/envs
-              module use \$MODULEPATH
-
-              # Validate modules
-              module spider 3.6.3-foss-2017b
-
-              # Set PYTHONPATH
-              # export PYTHONPATH=\${PYTHONPATH}:\$LMOD_DIR/../init
-
-              # Run tests
-              # cd tests/software
-              # pytest -v -x --show-capture=stderr tests/software
-            "
-
-        #--splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-        #cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-        #conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
+  #    - name: Run tests in container
+  #      uses: docker://ghcr.io/omnibenchmark/omnibenchmark-docker:main
+  #      with:
+  #        args: /github/workspace/scripts/run-software-tests.sh
+  #      env:
+  #        GITHUB_WORKSPACE: /github/workspace
 
   software-tests-mac:
     name: Software Tests (macOS)
