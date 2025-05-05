@@ -120,7 +120,9 @@ jobs:
   # Step 3: Run software tests only if regular tests pass
   software-tests-linux:
     name: Software Tests (Linux)
-    needs: tests
+    # XXX TODO: re-enable the dependency in the pipeline!
+    # needs: tests
+    needs: lint
     permissions: write-all
     strategy:
       matrix:
