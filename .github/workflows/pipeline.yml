@@ -158,7 +158,7 @@ jobs:
             ghcr.io/omnibenchmark/omnibenchmark-docker:main \
             bash -c "
               # set -ex
-              echo 'in container'
+              echo in container
 
               # Setup micromamba environment
               micromamba env create -f test-environment.yml -n omb
@@ -184,7 +184,6 @@ jobs:
               # Run tests
               # cd tests/software
               # pytest -v -x --show-capture=stderr tests/software
-            "
             "
 
         #--splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
