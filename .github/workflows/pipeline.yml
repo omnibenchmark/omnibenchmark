@@ -137,6 +137,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      # test
+
       # - name: Modify python version in test env
       #  shell: bash -el {0}
       #  run: |
