@@ -134,19 +134,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     container:
       image: ghcr.io/omnibenchmark/omnibenchmark-docker:main
-      # options: --user root # not super happy about this, but the runner needs to write on /__w apparently
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       # test
-
-      # - name: Modify python version in test env
-      #  shell: bash -el {0}
-      #  run: |
-      #    cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
-      #    sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
 
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
