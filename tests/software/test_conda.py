@@ -13,9 +13,12 @@
 
 import os.path as op
 
+import pytest
+
 from .runner import run
 
 
+@pytest.mark.conda
 def test_conda():
     run(
         Snakefile=op.join("00_conda", "Snakefile"),
