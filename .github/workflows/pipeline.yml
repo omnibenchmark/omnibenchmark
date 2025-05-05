@@ -134,6 +134,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     container:
       image: ghcr.io/omnibenchmark/omnibenchmark-docker:nightly
+      options: --user root # not super happy about this, but the runner needs to write on /__w apparently
     steps:
       - uses: actions/checkout@v4
         with:
