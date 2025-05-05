@@ -1,9 +1,10 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+
 repos:
--   repo: https://github.com/psf/black
-    rev: 24.8.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
     hooks:
-      - id: black
-        name: Black Linter
-        language_version: python3.12
+      - id: ruff-format # Black-style formatting
+      - id: ruff # Linting + autofix
+        args: [--fix]

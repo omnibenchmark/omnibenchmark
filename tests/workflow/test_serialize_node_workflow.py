@@ -1,9 +1,12 @@
 import os.path
 from pathlib import Path
 
+import pytest
+
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 
+@pytest.mark.short
 def test_serialize_node_workflow_001():
     benchmark_file = Path("..") / "data" / "Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
@@ -20,6 +23,7 @@ def test_serialize_node_workflow_001():
         assert os.path.exists(path)
 
 
+@pytest.mark.short
 def test_serialize_node_workflow_002():
     benchmark_file = Path("..") / "data" / "Benchmark_002.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file

@@ -1,0 +1,9 @@
+mkdocs>=1.6.0
+mkdocs-material==9.5.28
+mkdocs-git-revision-date-localized-plugin==1.2.6
+mkdocs-bibtex>=2.16.0
+mkdocs-click
+boto3
+minio
+mike
+. # that is, this very omnibenchmark version

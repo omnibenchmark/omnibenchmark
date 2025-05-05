@@ -3,8 +3,7 @@ import shlex
 import pytest
 from click.testing import CliRunner
 
-import omni.cli.main
-from omni.cli.main import cli
+from omnibenchmark.cli.main import cli
 
 runner = CliRunner()
 

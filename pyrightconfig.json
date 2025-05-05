@@ -1,0 +1,20 @@
+{
+  "include": ["omnibenchmark"],
+  "exclude": ["**/__pycache__", "**/.mypy_cache"],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic", // in an ideal world, switch to strict at some point
+  "reportMissingTypeArgument": "none",
+  "reportUnknownMemberType": "none",
+  "reportUntypedFunctionDecorator": "none",
+  "reportUntypedClassDecorator": "none",
+  "reportUntypedBaseClass": "none",
+  "reportUntypedNamedTuple": "none",
+  "reportMissingParameterType": "none",
+  "reportMissingTypeStubs": "none",
+  "reportGeneralTypeIssues": "error",
+  "reportOptionalSubscript": "error",
+  "reportOptionalMemberAccess": "error",
+  "reportOptionalCall": "error",
+  "reportOptionalIterable": "error",
+  "reportOptionalOperand": "error"
+}
