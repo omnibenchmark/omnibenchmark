@@ -2,7 +2,7 @@ name: Publish mkdocs via GitHub Pages
 on:
   workflow_dispatch: # Allow manual trigger if needed
   pull_request:
-    branches: [ "dev" ]
+    branches: [ "main" ]
 
 jobs:
   build:
