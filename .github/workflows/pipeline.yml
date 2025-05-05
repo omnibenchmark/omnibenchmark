@@ -132,48 +132,58 @@ jobs:
       fail-fast: true
 
     runs-on: ${{ matrix.os }}
-    container:
-      image: ghcr.io/omnibenchmark/omnibenchmark-docker:main
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # test 2
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
 
-      - name: Setup omnibenchmark environment
-        uses: mamba-org/setup-micromamba@v1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          # environment-file: test-environment-${{ matrix.python-version }}.yml
-          # XXX simplifying python version for now, stick to 3.12
-          environment-file: test-environment.yml
-          environment-name: omb
-          cache-environment: false
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Test Software Backends
-        env:
-          CI: true
-        shell: bash -el {0}
+      - name: Run tests in container
         run: |
-          pip install -e ".[s3]"
-          pip install -e ".[test]"
-          pip install numpy pandas scikit-learn scipy
+          docker run --rm \
+            -v ${{ github.workspace }}:/github/workspace \
+            -w /github/workspace \
+            -e CI=true \
+            -e GITHUB_WORKSPACE=/github/workspace \
+            ghcr.io/omnibenchmark/omnibenchmark-docker:main \
+            bash -c "
+              set -ex
 
-          cd tests/software
+              # Setup micromamba environment
+              micromamba env create -f test-environment.yml -n omb
+              eval \"\$(micromamba shell hook --shell bash)\"
+              micromamba activate omb
 
-          source "$LMOD_PKG"/init/profile
+              # Install dependencies
+              pip install -e \".[s3]\"
+              pip install -e \".[test]\"
+              pip install numpy pandas scikit-learn scipy
 
-          export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
-          module use $MODULEPATH
+              # Setup modules
+              source \"\$LMOD_PKG\"/init/profile
+              export MODULEPATH=\"\$HOME\"/.local/easybuild/modules/all:\"/github/workspace\"/tests/data/envs
+              module use \$MODULEPATH
 
-          module spider 3.6.3-foss-2017b
+              # Validate modules
+              module spider 3.6.3-foss-2017b
 
-          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+              # Set PYTHONPATH
+              export PYTHONPATH=\${PYTHONPATH}:\$LMOD_DIR/../init
 
-          pytest -v -x --show-capture=stderr tests/software
+              # Run tests
+              cd tests/software
+              pytest -v -x --show-capture=stderr tests/software
+            "
 
         #--splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
         #cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
