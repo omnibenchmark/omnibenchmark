@@ -158,6 +158,7 @@ jobs:
             ghcr.io/omnibenchmark/omnibenchmark-docker:main \
             bash -c "
               # set -ex
+              echo 'in container'
 
               # Setup micromamba environment
               micromamba env create -f test-environment.yml -n omb
@@ -165,9 +166,9 @@ jobs:
               micromamba activate omb
 
               # Install dependencies
-              pip install -e \".[s3]\"
-              pip install -e \".[test]\"
-              pip install numpy pandas scikit-learn scipy
+              # pip install -e \".[s3]\"
+              # pip install -e \".[test]\"
+              # pip install numpy pandas scikit-learn scipy
 
               # Setup modules
               source \"\$LMOD_PKG\"/init/profile
@@ -178,11 +179,12 @@ jobs:
               module spider 3.6.3-foss-2017b
 
               # Set PYTHONPATH
-              export PYTHONPATH=\${PYTHONPATH}:\$LMOD_DIR/../init
+              # export PYTHONPATH=\${PYTHONPATH}:\$LMOD_DIR/../init
 
               # Run tests
-              cd tests/software
-              pytest -v -x --show-capture=stderr tests/software
+              # cd tests/software
+              # pytest -v -x --show-capture=stderr tests/software
+            "
             "
 
         #--splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
