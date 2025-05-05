@@ -1,8 +1,7 @@
-#!/usr/bin/env python
-##
 ## Izaskun Mallona
 ## 22th July 2024
 
+import difflib
 import subprocess
 import os
 
@@ -26,7 +25,22 @@ def run_snmk_conda(Snakefile, produced, expected):
     )
     assert completed_process.returncode == 0
     with open(expected, "r") as exp_fh, open(produced, "r") as prod_fh:
-        assert prod_fh.read() == exp_fh.read()
+        expected_content = exp_fh.read()
+        produced_content = prod_fh.read()
+
+        if expected_content != produced_content:
+            # Generate a unified diff format
+            diff = difflib.unified_diff(
+                expected_content.splitlines(),
+                produced_content.splitlines(),
+                fromfile="expected",
+                tofile="produced",
+                lineterm="",
+            )
+            diff_text = "\n".join(diff)
+            assert False, f"Files differ:\n{diff_text}"
+    # with open(expected, "r") as exp_fh, open(produced, "r") as prod_fh:
+    #    assert cleaned(prod_fh.read()) == cleaned(exp_fh.read())
 
 
 def run_snmk_apptainer(Snakefile, produced, expected):
