@@ -142,7 +142,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # test
+      # test 2
 
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
