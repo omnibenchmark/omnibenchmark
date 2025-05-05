@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# First we copy to a temporary directory.
+# This is done to avoid permission issues when running tests.
 TEMP_WORKSPACE="/tmp/repo"
 echo "Copying workspace to temporary directory with full user permissions..."
 mkdir -p "$TEMP_WORKSPACE"
@@ -30,28 +32,31 @@ fi
 
 # Setup micromamba environment
 micromamba env create -f test-environment.yml -n omb --yes
+
 eval "$(micromamba shell hook --shell bash)"
+
+micromamba activate omb
 
 # Install extra dependencies
 pip install -e ".[s3]"
 pip install -e ".[test]"
 
-# These seem a bit heavy for testing, we could use lighter alternatives in tests
+# FIXME These seem a bit heavy for testing, we could use lighter alternatives in integration tests
 pip install numpy pandas scikit-learn scipy
 
 # Setup modules
 source "$LMOD_PKG"/init/profile
-export MODULEPATH="$HOME/.local/easybuild/modules/all:${REPO_ROOT}/tests/data/envs"
+export MODULEPATH="/home/user/workspace/tests/data/envs"
 module use $MODULEPATH
 
 # Validate modules
-module spider 3.6.3-foss-2017b
+module avail 3.6.3-foss-2017b
 
 # Set PYTHONPATH
 export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
 # Run tests
 cd tests/software
-pytest -v -x --show-capture=stderr .
+pytest -v -x -s -m "conda"
 
 echo "Tests completed successfully!"
