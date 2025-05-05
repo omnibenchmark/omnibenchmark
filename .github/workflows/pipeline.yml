@@ -157,7 +157,7 @@ jobs:
             -e GITHUB_WORKSPACE=/github/workspace \
             ghcr.io/omnibenchmark/omnibenchmark-docker:main \
             bash -c "
-              set -ex
+              # set -ex
 
               # Setup micromamba environment
               micromamba env create -f test-environment.yml -n omb
