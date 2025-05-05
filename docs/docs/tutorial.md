@@ -976,7 +976,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --threads 1 --local --dry
+    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local --dry
     ```
 
 === "Output"
@@ -1010,7 +1010,7 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --threads 1 --local
+    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local
     ```
 
 === "Output"
