@@ -4,7 +4,11 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  pull_request:
+  # Removed pull_request trigger to avoid duplication with pipeline.yml
+  workflow_dispatch: # Allow manual trigger if needed
+  push:
+    branches:
+      - main # Still run on main branch pushes
 
 jobs:
   run-tests:
@@ -68,16 +72,6 @@ jobs:
           key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       #----------------------------------------------
-      # Setup conda (macos only)
-      #----------------------------------------------
-      - name: Set up conda for macOS
-        if: matrix.os == 'macos-latest'
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          miniconda-version: "latest"
-          auto-activate-base: false
-
-      #----------------------------------------------
       # install your root project, if required
       #----------------------------------------------
       - name: Install library
@@ -88,9 +82,6 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          # I think lmod should be loadable/installed for tests to run?
-          # source "$LMOD_PKG"/init/profile
-          # export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
           poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'

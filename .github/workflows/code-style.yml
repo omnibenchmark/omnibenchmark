@@ -1,7 +1,11 @@
 name: Code Style Check
 
 on:
-  pull_request:
+  # Removed pull_request trigger to avoid duplication with pipeline.yml
+  workflow_dispatch: # Allow manual trigger if needed
+  push:
+    branches:
+      - main # Still run on main branch pushes
 
 jobs:
   code-style:
@@ -15,18 +19,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install Linters
-        run: pip install black ruff
+        run: pip install ruff
 
-      # For the time being, let's keep the black check as the
-      # only mandatory step.
-      - name: Check coding style
-        run: black --check .
-
-      # Optional Ruff check (allowed to fail)
-      # Ruff if faster, but it's throwing a wider variety of errors that still need
-      # work to be fixed.
-      - name: Lint with Ruff (optional)
-        continue-on-error: true # 👈 This makes the job pass even if Ruff fails
+      # Ruff check
+      - name: Lint with Ruff
+        continue-on-error: false
         run: |
           ruff check .
-          echo "Note: Ruff failures are non-blocking for now"

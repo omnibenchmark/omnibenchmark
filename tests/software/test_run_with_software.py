@@ -93,6 +93,7 @@ def test_run_benchmark_with_software_envmodules():
 
 
 @skip_if_no_conda
+@pytest.mark.conda
 def test_run_benchmark_with_software_conda():
     benchmark_file = benchmark_data_path / "Clustering.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
