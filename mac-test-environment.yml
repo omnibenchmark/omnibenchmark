@@ -4,7 +4,7 @@ channels:
   - nodefaults
 dependencies:
   - conda-forge::python == 3.12
-  - conda-forge::mamba == 1.5.8
+  - conda-forge::mamba == 1.5.10
   - conda-forge::pip >= 24.1.2
   - conda-forge::conda >= 24.9.1 # this is not a typo, we install conda with micromamba
   - pip:

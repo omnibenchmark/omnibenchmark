@@ -195,7 +195,7 @@ jobs:
 
           # eval "$(micromamba shell hook --shell bash)"
           micromamba activate
-          micromamba activate omnibenchmark
+          micromamba activate omb
           
           cd tests/software
 
