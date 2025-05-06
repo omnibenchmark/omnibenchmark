@@ -17,7 +17,7 @@ jobs:
             build-essential
 
           python --version
-          
+
       - name: Checkout
         uses: actions/checkout@v2
         with:
@@ -48,5 +48,5 @@ jobs:
 
             git remote rm origin
             git remote add origin "${remote_repo}"
-            
+
             mkdocs gh-deploy --config-file "${CONFIG_FILE}" --force # --theme material

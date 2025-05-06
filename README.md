@@ -12,37 +12,34 @@
 
 ## Install
 
-With poetry or pip. With micromamba if handling software with conda. See [the tutorial](https://omnibenchmark.org/tutorial/).
+Recent versions of omnibenchmark should be installable via pip:
+
+```
+pip install omnibenchmark
+```
+
+Do note that if you plan to use `conda` as a software execution backend, you will want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend micromamba. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
 
 ### Releases
 
 See [our tags](https://github.com/omnibenchmark/omnibenchmark/tags).
 
+
+### User documentation
+
+[Live documentation](https://omnibenchmark.github.io/omnibenchmark/) is built for every change to the dev branch.
+
+Documentation includes a CLI reference. This reference is automated [via mkdocs-click](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/docs/reference.md?ref_type=heads) and extracts the current CLI commands from the built branch (dev, for now).
+
 ## Developer notes
 
-### omni-schema
-
-Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) dependency. Benchmark YAML schemas are updated by:
-
-```
-- Update src/omni_schema/schema/omni_schema.yaml manually
-- `make all`
-- Consider `make deploy`
-```
-
-And that omni-schema versions are tagged and pinned at the pytoml level ([example](https://github.com/omnibenchmark/omnibenchmark/blob/2ce768bb2cfb693f3e555f751979093964eef63b/pyproject.toml#L38)), so omni-schema changes must precede omnibenchmark changes.
-
-### Documentation
-
-Omnibenchmark docs are served at https://omnibenchmark.org as generated on [Renku's GitLab](https://gitlab.renkulab.io/omnibenchmark/omni_site) with a [review/staging -> production flow](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/.gitlab-ci.yml?ref_type=heads). 
-
-Documentation includes a CLI reference. This reference is generated/automated [via mkdocs-click](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/docs/reference.md?ref_type=heads) and extracts the current CLI commands from [omnibenchmark's `main` head](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/requirements.txt?ref_type=heads#L7). Hence, changes to omnibenchmark must be merged to `main` and precede changes to omnibenchmark's documentation.
+Check the `CONTRIBUTING.md` doc.
 
 ## Acknowledgements
 
-Omnibenchmark incorporates great FOSS components, including but not limited to: Snakemake, easybuild, apptainer, lmod, LinkML, git. Thank you!
+Omnibenchmark incorporates great FOSS components, including but not limited to: [snakemake](https://snakemake.readthedocs.io/en/stable/), [easybuild](https://easybuild.io/), [apptainer](https://apptainer.org/), [lmod](https://lmod.readthedocs.io/en/latest/) and [git](https://git-scm.com/). Thank you!
 
-## Preprints
+## Pre-prints
 
 - [Omnibenchmark (alpha) for continuous and open benchmarking in bioinformatics](https://arxiv.org/abs/2409.17038) (2024)
 - [Building a continuous benchmarking ecosystem in bioinformatics](https://arxiv.org/abs/2409.15472) (2024)
