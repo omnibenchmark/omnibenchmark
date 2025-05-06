@@ -22,8 +22,7 @@ style = "semver"
 
 
 [tool.poetry.dependencies]
-python = "^3.12"
-#setuptools="^72.1.0"
+python = "3.12.*"
 
 click="^8.1.7"
 typing-extensions = "^4.11.0"
