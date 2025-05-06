@@ -78,7 +78,7 @@ class SnakemakeEngine(WorkflowEngine):
             backend=backend,
             work_dir=work_dir,
             debug=debug,
-            resources=resources,
+            # resources=resources,
             **snakemake_kwargs,
         )
 
@@ -360,11 +360,11 @@ class SnakemakeEngine(WorkflowEngine):
         elif backend == SoftwareBackendEnum.conda:
             argv.append("--use-conda")
 
-        # Add resources if any
-        if resources:
-            argv.extend(
-                ["--resources", ",".join(f"{k}={v}" for k, v in resources.items())]
-            )
+        # # Add resources if any
+        # if resources:
+        #     argv.extend(
+        #         ["--resources", ",".join(f"{k}={v}" for k, v in resources.items())]
+        #     )
 
         for key, value in snakemake_kwargs.items():
             if isinstance(value, bool):

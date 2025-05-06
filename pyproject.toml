@@ -1,113 +1,80 @@
-[project]
+[tool.poetry]
 name = "omnibenchmark"
-description = "A tool for automated scientific benchmarking"
-authors = [
-    { name = "Almut Lütge", email = "almut.lue@gmail.com" },
-    { name = "Izaskun Mallona", email = "izaskun.mallona@gmail.com" },
-    { name = "Daniel Incicau", email = "daniel.incicau@gmail.com" },
-    { name = "Reto Gerber" },
-    { name = "Ben Carrillo" },
-]
+version = "0.0.0" # Placeholder, managed by poetry-dynamic-versioning
+description = "An tool for automated scientific benchmarking"
+authors = ["almutlue <almut.lue@gmail.com>", "Izaskun Mallona <izaskun.mallona@gmail.com>", "Daniel Incicau <daniel.incicau@gmail.com>", "Reto Gerber", "Ben Carrillo"]
 readme = "README.md"
-homepage = "https://github.com/omnibenchmark/omnibenchmark"
-repository = "https://github.com/omnibenchmark/omnibenchmark"
+packages = [{include = "omnibenchmark"}]
+homepage = "https://github.com/omnibenchmark/omni-py"
+repository = "https://github.com/omnibenchmark/omni-py"
 classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python",
+    "Programming Language :: Python"
 ]
-requires-python = "~=3.12"
-
-dynamic = ["version"]
-
-dependencies = [
-    "click>=8.1.7",
-    "aiohttp>=3.9.5",
-    "async>=0.6.2",
-    "tqdm>=4.66.4",
-    "requests>=2.31.0",
-    "python-dateutil>=2.9.0.post0",
-    "filelock>=3.4.0",
-    "pydantic",
-    "spdx-license-list>=3.19",
-    "PyYAML",
-    "humanfriendly",
-
-    # DAG & Visualization
-    "networkx>=3.3",     # this might be overkill for the DAG
-    "matplotlib==3.8.0",
-    "pydot>=3.0.2",
-
-    # Cloning modules
-    "GitPython>=3.1.0",
-
-    # Workflow
-    "snakemake>=8.0",      # modify constraints.txt if you need stricter pinning
-    "snakedeploy>=0.10.0",
-
-    # Build tools
-    "easybuild>=5.0.0",
-    "easybuild-easyblocks>=5.0.0",
-    "omni-schema>=0.0.6",
-
-]
-
-[project.optional-dependencies]
-s3 = ["minio>=7.2.7", "boto3>=1.34.102", "snakemake-storage-plugin-s3>=0.2.12"]
-test = [
-    "pytest-cov>=4.1.0",
-    "pytest-split>=0.9.0",
-    "pytest-xdist>=3.6.1",
-    "testcontainers>=4.5.1",
-    "pytest-timeout",
-]
-dev = [
-    "ipython",
-    "poetry",
-    "pre-commit",
-    "ruff",
-    "typing-extensions",
-    "isort",
-    "pyright",
-]
-
-[project.scripts]
-ob = 'omnibenchmark.cli.main:cli'
-
-[build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.8.2,<2.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"
-
-[tool.poetry]
-packages = [{ include = "omnibenchmark" }]
-version = "0.0.0"                          # changed dynamically by plugin
-
-[tool.poetry.requires-plugins]
-poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
 
 [tool.poetry-dynamic-versioning]
 enable = true
+vcs = "git"
+style = "semver"
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+#setuptools="^72.1.0"
+
+click="^8.1.7"
+typing-extensions = "^4.11.0"
+aiohttp = "^3.9.5"
+async = "^0.6.2"
+tqdm = "^4.66.4"
+requests = "^2.31.0"
+python-dateutil = "^2.9.0.post0"
+minio = "^7.2.7"
+boto3 = {version = "^1.34.102", optional = true}
+pre-commit = "^3.7.1"
+isort = "^5.13.2"
+
+matplotlib = "3.8.0"
+networkx = "^3.3"
+
+omni-schema = {git = "https://github.com/omnibenchmark/omni-schema.git", rev = "version/0.0.6"}
+snakemake = "8.25.1"
+
+easybuild="^4.9.2"
+easybuild-easyblocks="^4.9.2"
+snakedeploy="^0.10.0"
+snakemake-storage-plugin-s3 = "^0.2.12"
+
+pydot = "^3.0.2"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.6.0"
+black = "^23.12.0"
+
 
 [tool.poetry.group.test.dependencies]
-genbadge = { extras = ["coverage", "tests"], version = "^1.1.1" }
+pytest-cov = "^4.1.0"
+pytest-split = "^0.9.0"
+pytest-xdist = "^3.6.1"
+genbadge = {extras = ["coverage", "tests"], version = "^1.1.1"}
 argparse = "^1.4.0"
+testcontainers = "^4.5.1"
 
-s3fs = { extras = ["boto3"], version = ">=2023.12.0" }
+s3fs = {extras = ["boto3"], version = ">=2023.12.0"}
 boto3 = "*"
 botocore = "*"
 pytest-timeout = "^2.3.1"
 
+[tool.poetry.scripts]
+ob = 'omnibenchmark.cli.main:cli'
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+
 [tool.isort]
 profile = "black"
-
-[tool.pyright]
-venvPath = "."
-venv = ".venv"
-
-[tool.ruff]
-line-length = 88 # Match Black's default line length
-
-[tool.ruff.lint]
-ignore = ["E203"] # Ignore E203

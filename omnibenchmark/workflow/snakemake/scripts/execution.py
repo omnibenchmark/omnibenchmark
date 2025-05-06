@@ -76,7 +76,7 @@ def execution(
                 stdout=stdout_f,
                 stderr=stderr_f,
                 text=True,
-                timeout=timeout,
+                # timeout=timeout,
             )
             exit_code = result.returncode
             logging.info(f"{executable} ran successfully with return code {exit_code}.")

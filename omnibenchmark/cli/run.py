@@ -302,12 +302,11 @@ def run_module(
                         if len(missing_files) == 0:
                             workflow: WorkflowEngine = SnakemakeEngine()
                             for benchmark_node in benchmark_nodes:
-                                # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
                                 success = workflow.run_node_workflow(
                                     node=benchmark_node,
                                     input_dir=Path(input_dir),
                                     dataset=dataset,
-                                    cores=1,
+                                    cores=cores,
                                     update=update,
                                     dryrun=dry,
                                     continue_on_error=continue_on_error,
