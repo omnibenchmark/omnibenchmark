@@ -1,0 +1,65 @@
+site_name: omnibenchmark
+site_url: https://omnibenchmark.org
+repo_url: https://github.com/omnibenchmark/omnibenchmark
+repo_name: omnibenchmark
+site_description: Omnibenchmark is a platform for open, continuous community-driven scientific benchmarking.
+docs_dir: src
+ 
+nav:
+    - omnibenchmark: index.md
+    - Philosophy: philosophy.md
+    - Tutorials: tutorial.md
+    - How-to guides: howto.md
+    - CLI reference: reference.md
+    - News: news.md
+    - Contact: team.md
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+
+theme:
+    name: material 
+    # custom_dir: overrides
+    features:
+        - navigation.tabs
+        - toc.integrate 
+        - content.code.copy
+        - content.code.annotate
+        - navigation.instant
+        - navigation.prune 
+        - search.suggest
+    logo: images/omb.png
+    locale: en
+    favicon: images/omb.png
+    palette:
+        primary: blue
+extra:
+  version: 
+    provider: mike
+
+plugins:
+  - search:
+      enabled: true
+  - git-revision-date-localized:
+      type: date
+      enable_creation_date: false
+  - bibtex:
+      bib_file: "docs/refs.bib"
+
+markdown_extensions:
+  - mkdocs-click
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - footnotes
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - mkdocs-click
