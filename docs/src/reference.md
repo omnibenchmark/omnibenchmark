@@ -1,5 +1,5 @@
 ::: mkdocs-click
-    :module: omnibenchmark.cli.main
+    :module: omni.cli.main
     :command: cli
     :prog_name: ob
     :list_subcommands: True
