@@ -32,7 +32,7 @@ jobs:
     permissions: write-all
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-20.04]
+        os: [ubuntu-22.04]
         test_group: [1,2]
         python-version: ["3.12"]
         r-version: ["4.4.1"]
