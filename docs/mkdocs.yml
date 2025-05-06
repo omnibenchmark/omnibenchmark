@@ -3,6 +3,7 @@ site_url: https://omnibenchmark.org
 repo_url: https://github.com/omnibenchmark/omnibenchmark
 repo_name: omnibenchmark
 site_description: Omnibenchmark is a platform for open, continuous community-driven scientific benchmarking.
+docs_dir: src
  
 nav:
     - omnibenchmark: index.md
