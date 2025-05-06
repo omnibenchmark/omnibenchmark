@@ -8,7 +8,7 @@ storage_bucket_name: mock_benchmark
 benchmark_yaml_spec: 0.01
 software_backend:
 software_environments:
-steps:
+stages:
   - id: data
     modules:
       - id: D1
