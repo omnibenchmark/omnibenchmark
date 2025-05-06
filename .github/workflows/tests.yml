@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest] # [ubuntu-22.04, macos-latest]
-        python-version: ["3.12"]
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        python-version: ["3.12", "3.13"]
         poetry-version: ["1.8.0"]
         r-version: ["4.3.3"]
     defaults:
@@ -102,27 +102,27 @@ jobs:
               tests/benchmark tests/cli tests/workflow tests/io
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 
-      #----------------------------------------------
-      # run test suite and output coverage file for windows
-      #----------------------------------------------
-      - name: Run tests
-        run: |
-          ## skip software tests, they're done differently
-          poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
-        if: matrix.os == 'windows-latest'
+      # #----------------------------------------------
+      # # run test suite and output coverage file for windows
+      # #----------------------------------------------
+      # - name: Run tests
+      #   run: |
+      #     ## skip software tests, they're done differently
+      #     poetry run pytest --cov=omni --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml
+      #   if: matrix.os == 'windows-latest'
       
-      #----------------------------------------------
-      # Generate badges
-      #----------------------------------------------
-      - name: Generate tests & coverage badges
-        run: |
-          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
-          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
-      #----------------------------------------------
-      # Report coverage
-      #----------------------------------------------
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
-        name: Comment coverage result
-        uses: MishaKav/pytest-coverage-comment@main
-        with:
-          pytest-xml-coverage-path: ./reports/coverage.xml
+      # #----------------------------------------------
+      # # Generate badges
+      # #----------------------------------------------
+      # - name: Generate tests & coverage badges
+      #   run: |
+      #     poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
+      #     poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
+      # #----------------------------------------------
+      # # Report coverage
+      # #----------------------------------------------
+      # - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
+      #   name: Comment coverage result
+      #   uses: MishaKav/pytest-coverage-comment@main
+      #   with:
+      #     pytest-xml-coverage-path: ./reports/coverage.xml

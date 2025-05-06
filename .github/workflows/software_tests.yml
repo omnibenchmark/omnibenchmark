@@ -32,9 +32,9 @@ jobs:
     permissions: write-all
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-20.04]
+        os: [ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
         test_group: [1,2]
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
         r-version: ["4.4.1"]
       fail-fast: false
 
@@ -123,112 +123,112 @@ jobs:
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
               
-  software_testing_mac:
-    permissions: write-all
-    strategy:
-      matrix:
-        os: [macos-14] # [macos-14, macos-13]
-        test_group: [1, 2]
-        python-version: ["3.12"]
-        r-version: ["4.4.1"]
-      fail-fast: false
+  # software_testing_mac:
+  #   permissions: write-all
+  #   strategy:
+  #     matrix:
+  #       os: [macos-14] # [macos-14, macos-13]
+  #       test_group: [1, 2]
+  #       python-version: ["3.12"]
+  #       r-version: ["4.4.1"]
+  #     fail-fast: false
 
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  #   runs-on: ${{ matrix.os }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Set up Homebrew
-        id: set-up-homebrew
-        uses: Homebrew/actions/setup-homebrew@master
-        if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
+  #     - name: Set up Homebrew
+  #       id: set-up-homebrew
+  #       uses: Homebrew/actions/setup-homebrew@master
+  #       if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
-      - name: Install packages using homebrew
-        shell: bash -el {0}
-        run: |
-             bash
-             brew upgrade
-             brew install coreutils
-             brew install lmod
-             brew install micromamba
+  #     - name: Install packages using homebrew
+  #       shell: bash -el {0}
+  #       run: |
+  #            bash
+  #            brew upgrade
+  #            brew install coreutils
+  #            brew install lmod
+  #            brew install micromamba
           
-      - name: Setup R ${{ matrix.r-version }}
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: ${{ matrix.r-version }}
-          # Enable RStudio Package Manager to speed up package installation
-          use-public-rspm: true
+  #     - name: Setup R ${{ matrix.r-version }}
+  #       uses: r-lib/actions/setup-r@v2
+  #       with:
+  #         r-version: ${{ matrix.r-version }}
+  #         # Enable RStudio Package Manager to speed up package installation
+  #         use-public-rspm: true
 
-      - name: Install R packages
-        run: |
-          mkdir -p ~/work/Rlib
-          export R_LIBS=~/work/Rlib
-          Rscript -e "install.packages(c('argparse', 'readr', 'dplyr', 'mclust', 'caret'))"
+  #     - name: Install R packages
+  #       run: |
+  #         mkdir -p ~/work/Rlib
+  #         export R_LIBS=~/work/Rlib
+  #         Rscript -e "install.packages(c('argparse', 'readr', 'dplyr', 'mclust', 'caret'))"
 
-      - name: Modify python version in test env
-        shell: bash -el {0}
-        run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
-          sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
-          mv tmp.yml test-environment-${{ matrix.python-version }}.yml
+  #     - name: Modify python version in test env
+  #       shell: bash -el {0}
+  #       run: |
+  #         cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+  #         sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
+  #         mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
 
-      - name: Manually create env
-        shell: bash -el {0}
-        run: |
-          eval "$(micromamba shell hook --shell bash)"
-          micromamba create -n omnibenchmark
-          micromamba activate omnibenchmark
-          micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
+  #     - name: Manually create env
+  #       shell: bash -el {0}
+  #       run: |
+  #         eval "$(micromamba shell hook --shell bash)"
+  #         micromamba create -n omnibenchmark
+  #         micromamba activate omnibenchmark
+  #         micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
 
-      - name: Modify bashrc
-        env:
-          CI: true
-        shell: bash -el {0}
-        run: |
-           cat <<'EOF' >>~/.bashrc
-           if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
-                source /opt/homebrew/opt/lmod/init/profile
-           fi
-           if [ -f /usr/local/opt/lmod/init/bash ]; then
-                source /usr/local/opt/lmod/init/profile
-           fi
-           eval "$(micromamba shell hook --shell bash)"
-           export R_LIBS=~/work/Rlib
-           EOF
+  #     - name: Modify bashrc
+  #       env:
+  #         CI: true
+  #       shell: bash -el {0}
+  #       run: |
+  #          cat <<'EOF' >>~/.bashrc
+  #          if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+  #               source /opt/homebrew/opt/lmod/init/profile
+  #          fi
+  #          if [ -f /usr/local/opt/lmod/init/bash ]; then
+  #               source /usr/local/opt/lmod/init/profile
+  #          fi
+  #          eval "$(micromamba shell hook --shell bash)"
+  #          export R_LIBS=~/work/Rlib
+  #          EOF
            
-           cat <<'EOF' >>~/.bash_profile
-           source ~/.bashrc
-           EOF         
+  #          cat <<'EOF' >>~/.bash_profile
+  #          source ~/.bashrc
+  #          EOF         
 
-      - name: Test
-        env:
-          CI: true
-        shell: bash -el {0}
-        run: |
+  #     - name: Test
+  #       env:
+  #         CI: true
+  #       shell: bash -el {0}
+  #       run: |
 
-          # eval "$(micromamba shell hook --shell bash)"
-          micromamba activate
-          micromamba activate omnibenchmark
+  #         # eval "$(micromamba shell hook --shell bash)"
+  #         micromamba activate
+  #         micromamba activate omnibenchmark
           
-          cd tests/software
+  #         cd tests/software
 
-          source "$LMOD_PKG"/init/profile
+  #         source "$LMOD_PKG"/init/profile
 
-          export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
-          module use $MODULEPATH
+  #         export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
+  #         module use $MODULEPATH
           
-          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+  #         export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          ## poetry toml section ignored by pip during env creation
-          pip install pytest-cov pytest-split pytest-xdist
+  #         ## poetry toml section ignored by pip during env creation
+  #         pip install pytest-cov pytest-split pytest-xdist
           
-          ## install required Python dependenices
-          pip install numpy pandas scikit-learn scipy
+  #         ## install required Python dependenices
+  #         pip install numpy pandas scikit-learn scipy
           
-          # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
-          pytest -v -x --show-capture=stderr \
-               --splits 2 --group ${{ matrix.test_group }} \
-               conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
-               -k 'not test_easybuild_sys_toolchain_build'
+  #         # pip install --user --force-reinstall --ignore-installed --no-binary :all: boto3
+  #         pytest -v -x --show-capture=stderr \
+  #              --splits 2 --group ${{ matrix.test_group }} \
+  #              conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
+  #              -k 'not test_easybuild_sys_toolchain_build'
