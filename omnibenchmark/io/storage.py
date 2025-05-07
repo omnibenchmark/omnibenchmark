@@ -1,4 +1,7 @@
 import logging
+
+from typing import Optional
+
 from omnibenchmark.benchmark import Benchmark
 
 try:
@@ -17,7 +20,9 @@ except ImportError:
 # XXX revisit this, conceptually. Here we're mixing the storage API with the concrete
 # MinIO implementation. We should use a factory pattern to create the appropriate storage object instead,
 # assuming we support multiple storage types.
-def get_storage(storage_type: str, auth_options: dict, benchmark: str) -> MinIOStorage:
+def get_storage(
+    storage_type: str, auth_options: dict, benchmark: str
+) -> Optional["MinIOStorage"]:
     """
     Selects a remote storage type.
 
@@ -27,7 +32,7 @@ def get_storage(storage_type: str, auth_options: dict, benchmark: str) -> MinIOS
     - benchmark (str): The benchmark name.
 
     Returns:
-    - RemoteStorage: The remote storage object.
+    - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
     """
     if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
         return MinIOStorage(auth_options, benchmark)
