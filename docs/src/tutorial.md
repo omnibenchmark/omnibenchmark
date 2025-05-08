@@ -3,9 +3,8 @@
 Omnibenchmark runs on different operating systems (OS) and architectures. The installation procedure impacts omnibenchmark capabilities to manage software during benchmarking. We recommend installing using micromamba.
 
 
-| capabilities              |  `system`           | `singularity`      |     `lmod`        |      `conda`         | 
-| -----------               |  -------------------| ----------------   | ----------------- |  ----------------    | 
-| `poetry`                  |  :material-check:   | :material-close:   | :material-close:  | :material-close:     |
+| capabilities              |  `system`           | `singularity`      |     `lmod`        |      `conda`         |
+| -----------               |  -------------------| ----------------   | ----------------- |  ----------------    |
 | `pip`                     |  :material-check:   | :material-close:   | :material-close:  | :material-close:     |
 | `mamba (e.g. micromamba)` |  :material-check:   | :material-check:   | :material-check:  | :material-check:     |
 
@@ -16,7 +15,7 @@ Omnibenchmark runs on different operating systems (OS) and architectures. The in
 #### apt-based Linux on amd64 architecture
 
 First, install [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html), a faster conda manager and package solver.
-    
+
 === "Shell"
 
     ```shell
@@ -30,15 +29,15 @@ First, install [micromamba](https://mamba.readthedocs.io/en/latest/installation/
                                      Dload  Upload   Total   Spent    Left  Speed
       0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
     100  3059  100  3059    0     0   7059      0 --:--:-- --:--:-- --:--:--  7059
-    Micromamba binary folder? [~/.local/bin] 
+    Micromamba binary folder? [~/.local/bin]
     Init shell (bash)? [Y/n] Y
     Configure conda-forge? [Y/n] n
-    Prefix location? [~/micromamba] 
+    Prefix location? [~/micromamba]
     Modifying RC file "/home/user/.bashrc"
     Generating config for root prefix "/home/user/micromamba"
     Setting mamba executable to: "/home/user/.local/bin/micromamba"
     Adding (or replacing) the following in your "/home/user/.bashrc" file
-    
+
     # >>> mamba initialize >>>
     # !! Contents within this block are managed by 'mamba init' !!
     export MAMBA_EXE='/home/user/.local/bin/micromamba';
@@ -51,33 +50,27 @@ First, install [micromamba](https://mamba.readthedocs.io/en/latest/installation/
     fi
     unset __mamba_setup
     # <<< mamba initialize <<<
-    
+
     Please restart your shell to activate micromamba or run the following:\n
     source ~/.bashrc (or ~/.zshrc, ~/.xonshrc, ~/.config/fish/config.fish, ...)
     ```
-    
+
 Then, clone omnibenchmark and install it in a new micromamba environment.
 
 === "Shell"
 
     ```shell
     git clone git@github.com:omnibenchmark/omnibenchmark.git
-    
     cd omnibenchmark
-    
     micromamba activate
     micromamba create -n omnibenchmark
     micromamba activate omnibenchmark
-    micromamba install -f test-environment.yml
+    micromamba install -f conda-test-environment.yaml
     ```
-    
+
 === "Output"
 
     ```
-    
-    micromamba create -n omnibenchmark
-    micromamba activate omnibenchmark
-    micromamba install -f test-environment.yaml
     Empty environment created at prefix: /home/user/micromamba/envs/omnibenchmark
     info     libmamba ****************** Backtrace Start ******************
     debug    libmamba Loading configuration
@@ -86,29 +79,29 @@ Then, clone omnibenchmark and install it in a new micromamba environment.
     trace    libmamba Compute configurable 'no_rc'
     trace    libmamba Compute configurable 'rc_files'
     trace    libmamba Compute configurable 'root_prefix'
-    
+
     [snip]
-    
+
       + conda-libmamba-solver          24.7.0  pyhd8ed1ab_0           conda-forge     Cached
       + mamba                           1.5.8  py312h9460a1c_0        conda-forge     Cached
-    
+
       Summary:
-    
+
       Install: 93 packages
-    
+
       Total download: 0 B
-    
+
     ──────────────────────────────────────────────────────────────────────────────────────────
-    
-    
+
+
     Confirm changes: [Y/n] y
-    
+
     [snip]
-    
+
     Successfully built omnibenchmark omni-schema
     Installing collected packages: toposort, throttler, stopit, sortedcontainers, pytz, plac, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, distlib, connection-pool, async, appdirs, wrapt, tzdata, typing-extensions, traitlets, tabulate, soupsieve, smmap, six, shellingham, rpds-py, reretry, pyyaml, pytrie, pyparsing, pyjwt, pygments, pycryptodome, pulp, psutil, numpy, nodeenv, multidict, mdurl, MarkupSafe, lxml, jmespath, isort, iniconfig, immutables, identify, humanfriendly, hbreader, frozenlist, filelock, execnet, easybuild, dpath, docutils, datrie, coverage, configargparse, click, cfgv, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, virtualenv, snakemake-interface-common, smart-open, referencing, python-swiftclient, python-dateutil, pytest, pynacl, pydantic-core, markdown-it-py, jupyter-core, jsonasobj2, json-flattener, jinja2, isodate, gitdb, docker, deprecated, cryptography, conda-inject, beautifulsoup4, argon2-cffi-bindings, aiosignal, testcontainers, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-executor-plugins, rich, rdflib, pytest-xdist, pytest-split, pytest-logging, pytest-cov, pydantic, pre-commit, pandas, jsonschema-specifications, gitpython, bs4, botocore, argon2-cffi, aiohttp, typer, s3transfer, pygithub, prefixcommons, minio, jsonschema, curies, snakedeploy, prefixmaps, nbformat, boto3, snakemake, linkml-runtime, omni-schema, omnibenchmark
     Successfully installed MarkupSafe-2.1.5 aiohappyeyeballs-2.3.7 aiohttp-3.10.4 aiosignal-1.3.1 annotated-types-0.7.0 appdirs-1.4.4 argon2-cffi-23.1.0 argon2-cffi-bindings-21.2.0 argparse-dataclass-2.0.0 async-0.6.2 attrs-24.2.0 beautifulsoup4-4.12.3 boto3-1.35.0 botocore-1.35.0 bs4-0.0.2 cfgv-3.4.0 click-8.1.7 conda-inject-1.3.2 configargparse-1.7 connection-pool-0.0.3 coverage-7.6.1 cryptography-43.0.0 curies-0.7.10 datrie-0.8.2 deprecated-1.2.14 distlib-0.3.8 docker-7.1.0 docutils-0.21.2 dpath-2.2.0 easybuild-4.9.2 easybuild-easyblocks-4.9.2 easybuild-easyconfigs-4.9.2 easybuild-framework-4.9.2 execnet-2.1.1 fastjsonschema-2.20.0 filelock-3.15.4 frozenlist-1.4.1 gitdb-4.0.11 gitpython-3.1.43 hbreader-0.9.1 humanfriendly-10.0 identify-2.6.0 immutables-0.20 iniconfig-2.0.0 isodate-0.6.1 isort-5.13.2 jinja2-3.1.4 jmespath-1.0.1 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.23.0 jsonschema-specifications-2023.12.1 jupyter-core-5.7.2 linkml-runtime-1.8.1 lxml-5.3.0 markdown-it-py-3.0.0 mdurl-0.1.2 minio-7.2.8 multidict-6.0.5 nbformat-5.10.4 nodeenv-1.9.1 numpy-2.1.0 omni-schema-0.0.1 omnibenchmark-0.1.0 pandas-2.2.2 plac-1.4.3 pre-commit-3.8.0 prefixcommons-0.1.12 prefixmaps-0.2.5 psutil-6.0.0 pulp-2.8.0 pycryptodome-3.20.0 pydantic-2.8.2 pydantic-core-2.20.1 pygithub-2.3.0 pygments-2.18.0 pyjwt-2.9.0 pynacl-1.5.0 pyparsing-3.1.2 pytest-8.3.2 pytest-cov-4.1.0 pytest-logging-2015.11.4 pytest-split-0.9.0 pytest-xdist-3.6.1 python-dateutil-2.9.0.post0 python-swiftclient-4.6.0 pytrie-0.4.0 pytz-2024.1 pyyaml-6.0.2 rdflib-7.0.0 referencing-0.35.1 reretry-0.11.8 rich-13.7.1 rpds-py-0.20.0 s3transfer-0.10.2 shellingham-1.5.4 six-1.16.0 smart-open-7.0.4 smmap-5.0.1 snakedeploy-0.10.0 snakemake-8.18.1 snakemake-interface-common-1.17.3 snakemake-interface-executor-plugins-9.2.0 snakemake-interface-report-plugins-1.0.0 snakemake-interface-storage-plugins-3.3.0 sortedcontainers-2.4.0 soupsieve-2.6 stopit-1.1.2 tabulate-0.9.0 testcontainers-4.8.0 throttler-1.2.2 toposort-1.10 traitlets-5.14.3 typer-0.12.4 typing-extensions-4.12.2 tzdata-2024.1 virtualenv-20.26.3 wrapt-1.16.0 yarl-1.9.4 yte-1.5.4
-    
+
     ```
 
 ##### Install singularity, debootstrap and fakeroot
@@ -142,17 +135,17 @@ Check everything works with:
     ```
 
 === "Output"
-    
+
     ```
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['singularity', '--version'], returncode=0, stdout='singularity version 3.5.2\n', std  err='')
-    
+
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['conda', '--version'], returncode=0, stdout='conda 24.7.1\n', stderr='')
-    
+
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['eb', '--version'], returncode=0, stdout='This is EasyBuild 4.9.2 (framework: 4.9.2, easyblocks: 4.9.2) on host imlssherborne.\n', stderr='')
-    
+
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['type', 'module'], returncode=0, stdout='', stderr='')
     ```
@@ -171,7 +164,7 @@ First, install homebrew.
     export PATH=/opt/homebrew/bin:$PATH
     brew --version
     ```
-    
+
 === "Output"
 
     ```
@@ -190,7 +183,7 @@ Then, install omnibenchmark dependencies, including lmod and micromamba.
     brew install python
     brew install git
     brew install git-lfs
-    brew install lmod             
+    brew install lmod
     if [ -f /usr/local/opt/lmod/init/profile ]; then
         source /usr/local/opt/lmod/init/profile
     fi
@@ -204,13 +197,13 @@ Then, install omnibenchmark dependencies, including lmod and micromamba.
     module --version
     micromamba --version
     ```
-    
+
 === "Output"
 
     ```
     Modules based on Lua: Version ---
        by Robert McLay mclay@tacc.utexas.edu
-    
+
     1.5.8
     ```
 
@@ -220,10 +213,9 @@ Clone omnibenchmark.
 
     ```
     git clone https://github.com/omnibenchmark/omnibenchmark/
-    
     cd omnibenchmark
     ```
-    
+
 === "Output"
 
     ```
@@ -240,7 +232,7 @@ Using micromamba, install omnibenchmark.
     micromamba activate omnibenchmark
     micromamba install -f mac-test-environment.yml
     ```
-    
+
 === "Output"
 
     ```
@@ -263,49 +255,44 @@ Check everything except singularity works with:
     ```
 
 === "Output"
-    
+
     ```
     Checking software stack handlers / backends (singularity, easybuild, etc).
     FAILED
-    
+
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['conda', '--version'], returncode=0, stdout='conda 24.7.1\n', stderr='')
-    
+
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['eb', '--version'], returncode=0, stdout='This is EasyBuild 4.9.2 (framework: 4.9.2, easyblocks: 4.9.2) on host imlssherborne.\n', stderr='')
-    
+
     Checking software stack handlers / backends (singularity, easybuild, etc).
     OK: CompletedProcess(args=['type', 'module'], returncode=0, stdout='', stderr='')
     ```
 
 ### Slim install (python package)
 
-You can install omnibenchmark as a python package. For that, you could use pip or poetry. To be able to run benchmarks you'll have to install `lmod` in your system. To be able to run benchmarks using singularity, you'll have to install `singularity` (apptainer) and `debootstrap` yourself.
+You can install omnibenchmark as a python package with `pip`. Depending on the backend for the benchmark you intend to run, you want different backends installed and configured: for the `envmodules` backend you'll have to install `lmod` in your system. To be able to run benchmarks using apptainer, you'll have to install `apptainer` and `debootstrap` yourself.
 
 #### With pip
 
-You might want to configure a virtualenv. Omnibenchmark requires python >= 3.12.
+You might want to configure a virtualenv. Omnibenchmark requires `python == 3.12`.
 
 === "Shell"
 
+    ```shell
+    pip install omnibenchmark
     ```
+
+Or, to install the development branch:
+
+=== "Shell"
+
+    ```shell
     git clone https://github.com/omnibenchmark/omnibenchmark
     cd omnibenchmark
+    git checkout dev
     pip install .
-    ```
-
-
-#### With poetry
-
-Omnibenchmark requires python >= 3.12.
- 
-=== "Shell"
-
-    ```
-    git clone https://github.com/omnibenchmark/omnibenchmark
-    cd omnibenchmark
-    poetry install
-    poetry shell
     ```
 
 ## Install software using envmodules
@@ -319,7 +306,7 @@ First search an appropriate [easyconfig](https://docs.easybuild.io/). We suggest
     ```shell
     eb --search zlib-1.3
     ```
-    
+
 === "Output"
 
     ```
@@ -327,9 +314,9 @@ First search an appropriate [easyconfig](https://docs.easybuild.io/). We suggest
      * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1-GCCcore-13.3.0.eb
      * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1-GCCcore-14.1.0.eb
      * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1.eb
-    
+
     ```
-    
+
 Then, we install it with omnibenchmark.
 
 === "Shell"
@@ -337,7 +324,7 @@ Then, we install it with omnibenchmark.
     ```shell
     ob software module build -e zlib-1.3.1.eb
     ```
-    
+
 === "Output"
 
     ```
@@ -371,74 +358,74 @@ Then, we install it with omnibenchmark.
     == packaging...
     == COMPLETED: Installation ended successfully (took 26 secs)
     == Results of the build can be found in the log file(s) /home/user/.local/easybuild/software/zlib/1.3.1/easybuild/easybuild-zlib-1.3.1-20240820.082959.log
-    
+
     == Build succeeded for 1 out of 1
     == Temporary log file(s) /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2/easybuild-7my819c_.log* have been removed.
     == Temporary directory /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2 has been removed.
     DONE
     ```
-    
+
 
 Then, we check whether we can find the associated module to this easyconfig.
 
 === "Shell"
-    
+
     ```shell
     source "$LMOD_PKG"/init/profile
     module use "$HOME"/.local/easybuild/modules/all
     module spider zlib
     ```
-    
+
 === "Output"
 
     ```
     module use "$HOME"/.local/easybuild/modules/all
     module spider zlib
-    
+
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
       zlib: zlib/1.3.1
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Description:
           zlib is designed to be a free, general-purpose, legally unencumbered -- that is, not covered by any patents -- lossless data-compression library
-          for use on virtually any computer hardware and operating system. 
-    
-    
+          for use on virtually any computer hardware and operating system.
+
+
         This module can be loaded directly: module load zlib/1.3.1
-    
+
         Help:
-          
+
           Description
           ===========
           zlib is designed to be a free, general-purpose, legally unencumbered -- that
            is, not covered by any patents -- lossless data-compression library for use
            on virtually any computer hardware and operating system.
-          
-          
+
+
           More information
           ================
            - Homepage: https://www.zlib.net/
-          
-    
-    
+
+
+
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
       lib/zlib: lib/zlib/1.3.1
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
         Description:
           zlib is designed to be a free, general-purpose, legally unencumbered -- that is, not covered by any patents -- lossless data-compression library
-          for use on virtually any computer hardware and operating system. 
-    
-    
+          for use on virtually any computer hardware and operating system.
+
+
         This module can be loaded directly: module load lib/zlib/1.3.1
-    
+
         Help:
-          
+
           Description
           ===========
           zlib is designed to be a free, general-purpose, legally unencumbered -- that
            is, not covered by any patents -- lossless data-compression library for use
            on virtually any co
     ```
-    
+
 To load the module, we have to guess the module name from the easyconfig name. We are using a `flat` module naming known as [EasyBuildMNS](https://tutorial.easybuild.io/2021-lust/module_naming_schemes/). So the module name is `zlib/1.3.1`.
 
 ```shell
@@ -477,7 +464,7 @@ Now that we have built the SIF image, we can execute commands inside the singula
     ```bash
     singularity exec cowsay-3.04.eb.sif cowsay hello from singularity!
     ```
- 
+
 === "Output"
 
     ```
@@ -505,7 +492,7 @@ Let's construct a simple example benchmark, shaped as follows:
   names, e.g. `semisimulation_smith_2019`).
 - `M1` and `M2` are methods. They process the dataset `D1` directly.
   (Similarly, methods would also have proper names, e.g. `limma` or `linreg`).
-- `m1` and `m2` are metrics. They process the output of the methods `M1` and `M2` 
+- `m1` and `m2` are metrics. They process the output of the methods `M1` and `M2`
   directly. (Again, naming is flexible, we're keeping it short for clarity.)
 
 ```mermaid
@@ -530,7 +517,7 @@ Benchmark specification files have a header and a body.
 
 ### Benchmark YAML header
 
-Let's start with the header. 
+Let's start with the header.
 
 ```yaml
 ---
@@ -541,7 +528,7 @@ id: bench1
 description: a simple benchmark
 
 ## Benchmark version. `1.0`. This is our first attempt, so let's call it major version 1, minor version 0: `1.0`.
-version: 1.0                                           
+version: 1.0
 
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
@@ -549,10 +536,10 @@ benchmarker: "Mary the Benchmarker, mary@uzh.ch"
 ## Storage flavour for sharing results: currently only S3
 storage_api: S3
 
-## S3 endpoint to share our benchmark results. 
-##   `https://s3_object_storage_url.ch` does not exist, and we don't mind - 
+## S3 endpoint to share our benchmark results.
+##   `https://s3_object_storage_url.ch` does not exist, and we don't mind -
 ##   not sharing results from our benchmark yet.
-storage: https://s3_object_storage_url.ch              
+storage: https://s3_object_storage_url.ch
 
 ## Benchmark YAML schema/specification version. Currently `0.01`.
 benchmark_yaml_spec: 0.01
@@ -563,9 +550,9 @@ benchmark_yaml_spec: 0.01
 ## The software backend used to run the benchmark
 software_backend: apptainer
 
-## Software environment recipes associated to this benchmark. 
+## Software environment recipes associated to this benchmark.
 ##  Suffice to say they are singularity images in some ORAS-compatible registry.
-software_environments:                                 
+software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
@@ -573,12 +560,12 @@ software_environments:
     description: "Python3.12.0 with gfbf-2023 toolchain"
     apptainer: http://registry.ch/python_vX-gfbf-2023b.sif
 ```
- 
+
 Hence, the header acts as a preamble, defining general attributes of the benchmark. The body contains the individual benchmark components (methods, metrics, etc) and their linking to each other.
 
 ### Benchmark YAML body
 
-The benchmark body is structured in stages grouping benchmarking components that produce similarly shaped outputs and ingest similarly shaped inputs. That is: 
+The benchmark body is structured in stages grouping benchmarking components that produce similarly shaped outputs and ingest similarly shaped inputs. That is:
 
 ```mermaid
 flowchart LR
@@ -591,20 +578,20 @@ flowchart LR
     matrix1:::thing  -- "is ingested by" --> m1
     matrix1:::thing  -- "is ingested by" --> m2
     matrix2:::thing  -- "is ingested by" --> m1
-    matrix2:::thing  -- "is ingested by" --> m2  
+    matrix2:::thing  -- "is ingested by" --> m2
 ```
 
 In this example, `matrix1` and `matrix2` are similarly shaped, e.g. might be tab-separated files with some constraints, such as having a header and a rownames; and different from `image`, which might be a raster image in PNG format. We require `D1` to be part of a stage where modules *produce images, and ingest no inputs*; `M1` and `M2` to belong to a stage of *image-ingesting, matrix-producing* modules; and `m1` and `m2` to be part of a last stage of *matrix-ingesting* modules.
 
 Let's start with the first stage, containing `D1`. We will call it `data` (naming is flexible).
-    
+
 ```yaml
 stages:
     ## the stage name
   - id: data
-    ##  here we have a single data stage with one single module, 
+    ##  here we have a single data stage with one single module,
     ##  that outputs a single shape for the `data` stage.
-    modules:                                               
+    modules:
         ## unique module id
       - id: D1
         ## module name in a longer form
@@ -736,8 +723,8 @@ benchmarker: "Mary the Benchmarker, mary@uzh.ch"
 ## Storage flavour for sharing results: currently only S3
 storage_api: S3
 
-## S3 endpoint to share our benchmark results. 
-##   `https://s3_object_storage_url.ch` does not exist, and we don't mind - 
+## S3 endpoint to share our benchmark results.
+##   `https://s3_object_storage_url.ch` does not exist, and we don't mind -
 ##   not sharing results from our benchmark yet.
 storage: https://s3_object_storage_url.ch
 
@@ -749,9 +736,9 @@ benchmark_yaml_spec: 0.01
 
 software_backend: apptainer
 
-## Software environment recipes associated to this benchmark. 
+## Software environment recipes associated to this benchmark.
 ## Suffice to say they are singularity images in some ORAS-compatible registry.
-software_environments:                                 
+software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
     apptainer: http://registry.ch/R_4.3.3-gfbf-2023b.sif
@@ -761,7 +748,7 @@ software_environments:
 
 stages:
   - id: data
-    modules:                                               
+    modules:
       - id: D1
         name: "Dataset 1"
         software_environment: "python"
@@ -839,7 +826,7 @@ flowchart LR
     report:::thing
 ```
 
-The `is collected by` capability is specified within the benchmarking header (that is, before the `stages` stanzas) as a member of `metric_collectors` enumeration. (So multiple metric collectors can exist, if more than one stanza are added.) To specify a single metric collector reading all `metrics.json` outputs (while tracking their lineages, that is, their original dataset, methods, metric, parameters, etc): 
+The `is collected by` capability is specified within the benchmarking header (that is, before the `stages` stanzas) as a member of `metric_collectors` enumeration. (So multiple metric collectors can exist, if more than one stanza are added.) To specify a single metric collector reading all `metrics.json` outputs (while tracking their lineages, that is, their original dataset, methods, metric, parameters, etc):
 
 ```yaml
 metric_collectors:
@@ -870,7 +857,7 @@ Let's save the benchmark above as a file named `benchmark_test.yaml`. Then we va
 
 === "Output"
 
- 
+
     ```
     Validating a benchmark yaml.
     Benchmark YAML file integrity check passed.
@@ -918,7 +905,7 @@ SCRIPT=entrypoint_data.py
 `entrypoint_data.py` uses the python library `argparse` to receive two arguments when called from the command line:
 
 ```python
-parser.add_argument('--output_dir', type=str, help='output directory where dataset files will be saved.')) 
+parser.add_argument('--output_dir', type=str, help='output directory where dataset files will be saved.'))
 parser.add_argument('--name', type=str, help='name of the dataset')
 ```
 
@@ -983,7 +970,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
 
     ```
     [snip]
-    
+
     INFO:snakemake.logging:
     Job stats:
     job                   count
@@ -1002,7 +989,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
     process_P2_param_0        2
     process_P2_param_1        2
     total                    71
-    
+
     [snip]
     ```
 So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it will take less than two minutes in most machines):
@@ -1017,9 +1004,9 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 
     ```
     [snip]
-    
+
     resources: tmpdir=/home/imallona/tmp/eb-ge9tbg43
-    
+
     INFO:snakemake.logging:
     [Thu Aug 29 10:23:23 2024]
     INFO:snakemake.logging:[Thu Aug 29 10:23:23 2024]
@@ -1113,7 +1100,7 @@ run `ob run module` with:
 
     input: out/data/D1/default/D1.txt.gz, out/data/D1/default/D1.meta.json
     [snip]
-    
+
     localrule all:
     input: out/data/D1/default/D1.txt.gz, out/data/D1/default/D1.meta.json, out/data/D1/default/process/P1/param_0/D1.txt.gz
     jobid: 0

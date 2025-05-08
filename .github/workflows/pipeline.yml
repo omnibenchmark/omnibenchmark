@@ -139,7 +139,7 @@ jobs:
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp conda-test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
 
       - name: Setup omnibenchmark environment
