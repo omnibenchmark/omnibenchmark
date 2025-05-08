@@ -5362,4 +5362,4 @@ test = ["pytest-cov", "pytest-split", "pytest-timeout", "pytest-xdist", "testcon
 [metadata]
 lock-version = "2.1"
 python-versions = "~=3.12"
-content-hash = "b10762204011f0897e59839b4a6941615c7afc4ba8827e1515fcedb03afa2d67"
+content-hash = "aebffa45076519e0b62f07ee02d897bf6af664311f46494ab26825535d84d842"

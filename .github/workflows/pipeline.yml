@@ -117,77 +117,60 @@ jobs:
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
 
-  # Step 3: Run software tests only if regular tests pass
-  software-tests-linux:
-    name: Software Tests (Linux)
-    needs: tests
-    permissions: write-all
-    strategy:
-      matrix:
-        os: [ubuntu-22.04]
-        test_group: [1, 2]
-        python-version: ["3.12"]
-      fail-fast: true
-
-    # TODO: run on particular container with conda etc
-    runs-on: ${{ matrix.os }}
+  # Step 3: prepare repository as artifact
+  prepare-repo:
+    name: Prepare Repository
+    runs-on: ubuntu-24.04
+    needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Modify python version in test env
-        shell: bash -el {0}
-        run: |
-          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
-          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
-
-      - name: Setup omnibenchmark environment
-        uses: mamba-org/setup-micromamba@v1
+      - name: Create repository artifact
+        uses: actions/upload-artifact@v4
         with:
-          environment-file: test-environment-${{ matrix.python-version }}.yml
-          environment-name: omb
-          cache-environment: false
+          name: repo-source
+          path: .
+          retention-days: 1
 
-      - name: install OS & Python packages
+  # Step 4: un software tests only if regular tests pass
+  # https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/running-jobs-in-a-container
+  software-tests-linux:
+    name: Software Tests (Linux)
+    needs: prepare-repo
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/omnibenchmark/omnibenchmark-docker:main
+    steps:
+      - name: Download repository artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: repo-source
+          path: /github/workspace
+
+      - name: Run tests in container
         run: |
-          sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt-get update
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev
-          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
-          fi
-          sudo apt-get install libopenmpi-dev openmpi-bin
-          pip install pep8 python-graph-core python-graph-dot
+          # Run the test script
+          cd /github/workspace
+          ./scripts/run-software-tests.sh
 
-      - name: Extra OS / apt (apptainer)
-        run: |
-          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
+  #software-tests-linux2:
+  #  name: Software Tests (Linux)
+  #  runs-on: ubuntu-22.04
+  #  steps:
+  #    - name: Checkout repository
+  #      uses: actions/checkout@v4
+  #      with:
+  #        fetch-depth: 0
 
-      - name: Test
-        env:
-          CI: false
-        shell: bash -el {0}
-        run: |
-          pip install -e ".[s3]"
-          pip install -e ".[test]"
-          pip install numpy pandas scikit-learn scipy
-
-          cd tests/software
-
-          source "$LMOD_PKG"/init/profile
-
-          export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
-          module use $MODULEPATH
-
-          module spider 3.6.3-foss-2017b
-
-          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-
-          pytest -v -x --show-capture=stderr \
-              --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
+  #    - name: Run tests in container
+  #      uses: docker://ghcr.io/omnibenchmark/omnibenchmark-docker:main
+  #      with:
+  #        args: /github/workspace/scripts/run-software-tests.sh
+  #      env:
+  #        GITHUB_WORKSPACE: /github/workspace
 
   software-tests-mac:
     name: Software Tests (macOS)
@@ -222,7 +205,7 @@ jobs:
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
@@ -278,3 +261,6 @@ jobs:
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
                -k 'not test_easybuild_sys_toolchain_build'
+
+  # Step 4: Build documentation only if integration tests pass
+  # TODO: also push to GitHub Pages only if documentation build is successful, and we're in a target branch.

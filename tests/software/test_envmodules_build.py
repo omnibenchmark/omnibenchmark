@@ -11,11 +11,8 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import sys
 import os.path as op
-from utils.run import run
-
-sys.path.insert(0, op.dirname(__file__))
+from .runner import run
 
 
 ## this won't work on Mac

@@ -11,12 +11,9 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import sys
 import os.path as op
 import pytest
-from utils.run import run, check_cmd_zero_exit
-
-sys.path.insert(0, op.dirname(__file__))
+from .runner import run, check_cmd_zero_exit
 
 
 def test_singularity():

@@ -53,8 +53,6 @@ curies==0.10.12
     #   prefixmaps
 cycler==0.12.1
     # via matplotlib
-datrie==0.8.2
-    # via snakemake
 deprecated==1.2.18
     # via
     #   linkml-runtime
@@ -254,7 +252,7 @@ smmap==5.0.2
     # via gitdb
 snakedeploy==0.11.0
     # via omnibenchmark (pyproject.toml)
-snakemake==8.25.1
+snakemake==9.3.3
     # via
     #   -c constraints.txt
     #   omnibenchmark (pyproject.toml)
@@ -262,13 +260,16 @@ snakemake-interface-common==1.17.4
     # via
     #   snakemake
     #   snakemake-interface-executor-plugins
+    #   snakemake-interface-logger-plugins
     #   snakemake-interface-report-plugins
     #   snakemake-interface-storage-plugins
 snakemake-interface-executor-plugins==9.3.5
     # via snakemake
+snakemake-interface-logger-plugins==1.2.3
+    # via snakemake
 snakemake-interface-report-plugins==1.1.0
     # via snakemake
-snakemake-interface-storage-plugins==3.5.0
+snakemake-interface-storage-plugins==4.2.1
     # via snakemake
 sortedcontainers==2.4.0
     # via pytrie
