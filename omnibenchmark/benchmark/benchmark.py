@@ -13,24 +13,29 @@ from omnibenchmark.utils import format_name, format_mc_output
 
 
 class Benchmark:
+    # TODO(ben): review the constructor. Also the validation function is acting as a de-facto
+    # constructor, we should unify into a classmethod.
+    # Right now, there are multiple invocations of Benchmark. Not all of them have the knowledge
+    # of the execution config readily available.
+    # 1. A benchmark is an abstract data structure - it should have no knowledge of paths etc.
+    # 2. ExecutionEnvironment can have paths etc. We should not tie the two things.
+    # 3. User should be able to specify a relative or absolute output "folder" - no matter what the yaml
+    # is living (yaml could in principle be any URI, not necessarily on the FS)
     def __init__(self, benchmark_yaml: Path, out_dir: Path = Path("out")):
-        self.directory = benchmark_yaml.parent.absolute()
-
-        if not os.path.exists(out_dir):
-            os.mkdir(out_dir)
+        os.makedirs(out_dir, exist_ok=True)
+        self.out_dir = out_dir
 
         converter = LinkMLConverter(benchmark_yaml)
+        self.converter: LinkMLConverter = converter
+        self.directory = benchmark_yaml.parent.absolute()
 
-        validator = Validator()
+        self.G = dag.build_benchmark_dag(converter, self.out_dir)
+
         try:
-            converter = validator.validate(self.directory, converter)
+            converter = Validator().validate(self.directory, converter)
         except ValidationError:
             # Just re-raising the validation error, explicitely
             raise
-
-        self.converter: LinkMLConverter = converter
-        self.out_dir = out_dir
-        self.G = dag.build_benchmark_dag(converter, self.out_dir)
 
         self.execution_paths = None
 

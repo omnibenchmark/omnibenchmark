@@ -78,9 +78,11 @@ def format_input_templates_to_be_expanded(
     stage_ids = benchmark.get_stage_ids()
 
     pre_stages = _extract_stages_from_path(pre, stage_ids)
-    after_stage_id, _, _ = (
-        _match_node_format(pre_stages[-1]) if len(pre_stages) > 0 else None
-    )
+
+    matched = _match_node_format(pre_stages[-1]) if len(pre_stages) > 0 else None
+    if matched is None:
+        return {} if return_as_dict else []
+    after_stage_id, _, _ = matched
 
     stage_id, module_id, param_id = _match_node_format(post)
 
@@ -91,7 +93,6 @@ def format_input_templates_to_be_expanded(
 
         inputs = _match_inputs(node_inputs, pre_stages, pre, dataset)
 
-        # print(f'Inputs: {stage_id} {module_id} {param_id}: {inputs}')
         if return_as_dict:
             return inputs
         else:

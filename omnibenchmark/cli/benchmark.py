@@ -17,7 +17,6 @@ from omnibenchmark.io.storage import get_storage, remote_storage_args
 
 @click.group(name="info")
 @click.pass_context
-# @debug_option
 def info(ctx):
     """List benchmarks and/or information about them."""
     ctx.ensure_object(dict)
@@ -136,6 +135,8 @@ def list_versions(ctx, benchmark):
         auth_options,
         str(benchmark.converter.model.storage_bucket_name),
     )
+    if ss is None:
+        raise ValueError("Storage is not available")
 
     if len(ss.versions) > 0:
         if len(ss.versions) > 1:
@@ -157,7 +158,7 @@ def list_versions(ctx, benchmark):
 def computational_graph(ctx, benchmark: str):
     """Export computational graph to dot format."""
 
-    b = validate_benchmark(benchmark, echo=False)
+    b = validate_benchmark(benchmark, "/tmp", echo=False)
     if b is not None:
         dot = b.export_to_dot()
         click.echo(dot.to_string())
@@ -176,7 +177,7 @@ def computational_graph(ctx, benchmark: str):
 def plot_topology(ctx, benchmark: str):
     """Export benchmark topology to mermaid diagram format."""
 
-    b = validate_benchmark(benchmark, echo=False)
+    b = validate_benchmark(benchmark, "/tmp", echo=False)
     if b is not None:
         mermaid = b.export_to_mermaid()
         click.echo(mermaid)

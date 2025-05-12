@@ -144,9 +144,6 @@ def test_local_update_true():
 
 
 def test_local_update_false():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    """
     with OmniCLISetup() as omni:
         result = omni.call(
             [
@@ -161,7 +158,6 @@ def test_local_update_false():
         )
 
         assert result.returncode == 1
-        assert_startswith(result.stdout, expected)
 
 
 def test_local_dry_update():

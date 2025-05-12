@@ -39,6 +39,7 @@ class SnakemakeEngine(WorkflowEngine):
         module_path: str = os.environ.get("MODULEPATH", ""),
         debug: bool = False,
         work_dir: Path = Path(os.getcwd()),
+        out_dir: str = "out",
         resources: Optional[dict] = None,
         **snakemake_kwargs,
     ) -> bool:
@@ -85,10 +86,17 @@ class SnakemakeEngine(WorkflowEngine):
         if module_path:
             os.environ["MODULEPATH"] = module_path
 
+        out_dir_path = Path(work_dir / out_dir).as_posix()
+        os.environ["OB_OUT_DIR"] = out_dir_path
+
         logging.getLogger("snakemake").setLevel(logging.DEBUG)
 
         # Execute snakemake script
+        logger = logging.getLogger(__file__)
+        logger.info("Executing snakemake")
         parser, args = parse_args(argv)
+        # snakemake api returns True if no exception was raised,
+        # False otherwise.
         return snakemake_cli(args, parser)
 
     def serialize_workflow(
@@ -214,7 +222,6 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Execute snakemake script
         parser, args = parse_args(argv)
-
         success = snakemake_cli(args, parser)
 
         return success
