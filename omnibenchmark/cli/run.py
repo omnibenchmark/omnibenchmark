@@ -147,7 +147,7 @@ def run_benchmark(
         keep_module_logs=keep_module_logs,
         backend=benchmark.get_benchmark_software_backend(),
         debug=debug,
-        resources={LOCAL_TIMEOUT_VAR: timeout_s},
+        local_timeout=timeout_s,
         **storage_options,
     )
 

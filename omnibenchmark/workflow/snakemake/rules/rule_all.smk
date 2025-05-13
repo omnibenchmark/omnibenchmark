@@ -14,7 +14,7 @@ import logging
 logging.getLogger('snakemake').setLevel(logging.DEBUG)
 
 
-def create_all_rule(paths: List[str], aggregate_performance: bool = False):
+def create_all_rule(paths: List[str], aggregate_performance: bool = False, local_task_timeout=3000):
     if not aggregate_performance:
         rule all:
             input: paths,
@@ -22,11 +22,15 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
             # "out/data/D2/default/process/P1/default/D2.txt.gz",
             # "out/data/D1/default/process/P2/default/methods/M2/default/D1.model.out.gz"
             # "out/data/D1/default/process/P2/default/methods/M2/default/m1/default/D1.results.txt"
+            params:
+                local_task_timeout = local_task_timeout
     else:
         rule all:
             input: paths
             output:
                 f"{benchmark.out_dir}/performances.tsv"
+            params:
+                local_task_timeout = local_task_timeout
             run:
                 result = glob_wildcards(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt")
                 performances = expand(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
