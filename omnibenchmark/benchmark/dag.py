@@ -1,9 +1,6 @@
 from pathlib import Path
 from typing import List, Tuple
 
-import networkx as nx
-import pydot
-
 import omni_schema.datamodel.omni_schema
 
 from omnibenchmark.benchmark.converter import LinkMLConverter
@@ -69,7 +66,9 @@ def expend_stage_nodes(
     return nodes
 
 
-def build_benchmark_dag(converter: LinkMLConverter, out_dir: Path) -> nx.DiGraph:
+def build_benchmark_dag(converter: LinkMLConverter, out_dir: Path):
+    import networkx as nx
+
     g = nx.DiGraph()
 
     G_stages = build_stage_dag(converter)
@@ -92,7 +91,9 @@ def build_benchmark_dag(converter: LinkMLConverter, out_dir: Path) -> nx.DiGraph
     return g
 
 
-def build_stage_dag(converter: LinkMLConverter) -> nx.DiGraph:
+def build_stage_dag(converter: LinkMLConverter):
+    import networkx as nx
+
     g = nx.DiGraph()
 
     for stage_id, stage in converter.get_stages().items():
@@ -106,7 +107,7 @@ def build_stage_dag(converter: LinkMLConverter) -> nx.DiGraph:
 
 
 def find_initial_and_terminal_nodes(
-    graph: nx.DiGraph,
+    graph,
 ) -> Tuple[List[BenchmarkNode], List[BenchmarkNode]]:
     initial_nodes = [node for node, in_degree in graph.in_degree() if in_degree == 0]
     terminal_nodes = [
@@ -115,7 +116,9 @@ def find_initial_and_terminal_nodes(
     return initial_nodes, terminal_nodes
 
 
-def list_all_paths(graph: nx.DiGraph, source: BenchmarkNode, target: BenchmarkNode):
+def list_all_paths(graph, source: BenchmarkNode, target: BenchmarkNode):
+    import networkx as nx
+
     all_paths = list(nx.all_simple_paths(graph, source=source, target=target))
     return all_paths
 
@@ -140,7 +143,9 @@ def exclude_paths(paths, path_exclusions):
     return updated_paths
 
 
-def compute_stage_order(stage_dag: nx.DiGraph) -> List:
+def compute_stage_order(stage_dag) -> List:
+    import networkx as nx
+
     try:
         topological_order = list(nx.topological_sort(stage_dag))
 
@@ -153,10 +158,12 @@ def compute_stage_order(stage_dag: nx.DiGraph) -> List:
 
 
 def export_to_dot(
-    G: nx.DiGraph,
-    title: str = None,
+    G,
+    title: str = "",
 ):
     import matplotlib.pyplot as plt
+    import pydot
+    import networkx as nx
 
     # Dynamically scale the node size based on node count
     nodes_count = len(G.nodes)

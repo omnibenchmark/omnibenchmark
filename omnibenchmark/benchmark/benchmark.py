@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Dict, List
 
 from pydantic import ValidationError
-import pydot
 
 from omnibenchmark.benchmark import dag
 from omnibenchmark.benchmark.converter import LinkMLConverter
@@ -156,13 +155,11 @@ class Benchmark:
     def get_metric_collectors(self):
         return self.converter.get_metric_collectors()
 
-    def export_to_dot(self) -> pydot.Dot:
-        pydot_graph = dag.export_to_dot(
+    def export_to_dot(self):
+        return dag.export_to_dot(
             self.G,
             title=self.get_benchmark_name(),
         )
-
-        return pydot_graph
 
     def export_to_mermaid(self, show_params: bool = True) -> str:
         # Initialize the mermaid diagram syntax
