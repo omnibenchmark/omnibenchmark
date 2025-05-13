@@ -35,10 +35,6 @@ def _create_initial_node(benchmark, node, config):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
-    # this can be overriden by timeout set in global resources object,
-    # but we need to explicitely set a value for it to be overriden
-    timeout = constants.DEFAULT_TIMEOUT_SECONDS
-
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
         wildcard_constraints:
@@ -66,8 +62,6 @@ def _create_initial_node(benchmark, node, config):
             parameters = node.get_parameters(),
             dataset = module_id,
             keep_module_logs=config['keep_module_logs']
-        resources:
-            runtime=timeout
         script: get_script_path(RUN_MODULE)
 
 
@@ -87,8 +81,6 @@ def _create_intermediate_node(benchmark, node, config):
     commit_hash = repository.commit if repository else None
 
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
-    timeout = constants.DEFAULT_TIMEOUT_SECONDS
-
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -99,7 +91,7 @@ def _create_intermediate_node(benchmark, node, config):
         input:
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         benchmark:
-         formatter.format_performance_file(node)
+            formatter.format_performance_file(node)
         output:
             formatter.format_output_templates_to_be_expanded(node)
 
@@ -118,8 +110,6 @@ def _create_intermediate_node(benchmark, node, config):
             commit_hash = commit_hash,
             parameters = node.get_parameters(),
             keep_module_logs=config['keep_module_logs']
-        resources:
-            runtime=timeout
         script: get_script_path(RUN_MODULE)
 
 
@@ -133,7 +123,6 @@ def create_standalone_node_rule(node, config):
     commit_hash = repository.commit if repository else None
 
     # TODO(ben): can factor out common parts?
-    timeout = constants.DEFAULT_TIMEOUT_SECONDS
 
     if node.is_initial():
         rule:
@@ -150,8 +139,6 @@ def create_standalone_node_rule(node, config):
                 keep_module_logs=config['keep_module_logs'],
             benchmark:
                 node.get_benchmark_path(config)
-            resources:
-                runtime=timeout
             script: get_script_path(RUN_MODULE)
     else:
         rule:
@@ -169,8 +156,6 @@ def create_standalone_node_rule(node, config):
                 keep_module_logs=config['keep_module_logs']
             benchmark:
                 node.get_benchmark_path(config)
-            resources:
-                runtime=timeout
             script: get_script_path(RUN_MODULE)
 
 
