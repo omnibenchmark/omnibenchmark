@@ -5,6 +5,7 @@ from typing import List
 
 from omni_schema.datamodel.omni_schema import MetricCollector, SoftwareBackendEnum
 
+from omnibenchmark.benchmark.contants import DEFAULT_TIMEOUT_SECONDS
 from omnibenchmark.benchmark import Benchmark, Validator
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
@@ -14,7 +15,7 @@ import logging
 logging.getLogger('snakemake').setLevel(logging.DEBUG)
 
 
-def create_all_rule(paths: List[str], aggregate_performance: bool = False, local_task_timeout=3000):
+def create_all_rule(paths: List[str], aggregate_performance: bool = False, local_task_timeout=DEFAULT_TIMEOUT_SECONDS):
     if not aggregate_performance:
         rule all:
             input: paths,
