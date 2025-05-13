@@ -67,6 +67,7 @@ def execution(
     stderr_file = output_dir / "stderr.log"
 
     logging.info(f"Seting timeout to {timeout} seconds")
+    print(">>> timeout", timeout)
 
     try:
         with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
