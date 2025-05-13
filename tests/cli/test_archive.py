@@ -174,7 +174,7 @@ def test_archive_results(minio_storage):  # noqa: F811
             files = f.namelist()
 
         # Check for a specific results file in the archive
-        testfile = "out/data/D2/default/D2.meta.json"
+        testfile = "tmp/data/D2/default/D2.meta.json"
         assert testfile in files
 
 
@@ -228,5 +228,5 @@ def test_archive_compression(minio_storage):  # noqa: F811
             files = f.namelist()
 
         # Check for a specific results file in the archive
-        testfile = "out/data/D2/default/D2.meta.json"
+        testfile = "tmp/data/D2/default/D2.meta.json"
         assert testfile in files

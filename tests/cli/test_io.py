@@ -90,7 +90,7 @@ def test_list_files(minio_storage):  # noqa: F811
         assert run3.returncode == 0
 
         # compare the md5 hash
-        expected = f"{hash} out/data/D1/default/D1.meta.json"
+        expected = f"{hash} /tmp/data/D1/default/D1.meta.json"
         assert_in_output(run3.stdout, expected)
 
 

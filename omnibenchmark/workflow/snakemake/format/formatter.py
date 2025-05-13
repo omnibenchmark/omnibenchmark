@@ -79,10 +79,9 @@ def format_input_templates_to_be_expanded(
 
     pre_stages = _extract_stages_from_path(pre, stage_ids)
 
-    matched = _match_node_format(pre_stages[-1]) if len(pre_stages) > 0 else None
-    if matched is None:
-        return {} if return_as_dict else []
-    after_stage_id, _, _ = matched
+    after_stage_id, _, _ = (
+        _match_node_format(pre_stages[-1]) if len(pre_stages) > 0 else None
+    )
 
     stage_id, module_id, param_id = _match_node_format(post)
 
