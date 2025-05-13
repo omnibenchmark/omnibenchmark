@@ -5,7 +5,7 @@ from typing import List
 
 from omni_schema.datamodel.omni_schema import MetricCollector, SoftwareBackendEnum
 
-from omnibenchmark.benchmark.contants import DEFAULT_TIMEOUT_SECONDS
+from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_SECONDS
 from omnibenchmark.benchmark import Benchmark, Validator
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
