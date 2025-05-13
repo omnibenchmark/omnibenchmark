@@ -44,9 +44,12 @@ try:
     module_name = get_module_name_from_rule_name(snakemake.rule)
 
     resources = dict(snakemake.resources) if hasattr(snakemake, "resources") else {}
+
     # For now we're handling timeout in seconds as runtime.
     # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
-    timeout = resources.get("runtime", constants.DEFAULT_TIMEOUT_SECONDS)
+    timeout = resources.get(
+        constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS
+    )
 
     # TODO(ben): we don't do anything with this exit_code?
     exit_code = execution(
@@ -60,6 +63,7 @@ try:
         timeout=timeout,
     )
 
+    # TODO: Handle exit_code
 
 except NameError:
     raise RuntimeError("This script must be run from within a Snakemake workflow")
