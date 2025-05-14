@@ -25,7 +25,6 @@ def create_node_rule(node, benchmark, config):
     else:
         return _create_intermediate_node(benchmark, node, config)
 
-
 def _create_initial_node(benchmark, node, config):
     stage_id = node.stage_id
     module_id = node.module_id
@@ -72,6 +71,7 @@ def _create_intermediate_node(benchmark, node, config):
 
     outputs = node.get_outputs()
 
+
     post = stage_id + '/' + module_id
     if any(['{params}' in o for o in outputs]):
         post += '/' + param_id
@@ -81,6 +81,13 @@ def _create_intermediate_node(benchmark, node, config):
     commit_hash = repository.commit if repository else None
 
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
+
+    keep_going = config.get("keep_going", False)
+    # just for intermediate notes, we allow the rules to touch their expected
+    # outputs. the logic is that for initial nodes we want to fail hard,
+    # but we want the collectors to meet the preconditions for execution.
+
+    fmt_fn = formatter.format_output_templates_to_be_expanded
 
     rule:
         name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
@@ -92,8 +99,7 @@ def _create_intermediate_node(benchmark, node, config):
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         benchmark:
             formatter.format_performance_file(node)
-        output:
-            formatter.format_output_templates_to_be_expanded(node)
+        output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
 
         # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
         # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow

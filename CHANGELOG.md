@@ -3,6 +3,9 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.1) (May 20th 2025)
+
+- bugfix for `--continue-on-error` flag.
 
 ## [0.2.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.0) (May 20th 2025)
 - workflow parameters: Fix parameter instability, use human-friendly symlinks to reference stable, hashed parameter folders.
@@ -13,6 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: rename --threads parameter to --cores
 - chore: make s3 dependencies optional
 - tests: refactor CLI capture and execution tests
+- tests: add bundled repositories for self-contained tests
 
 ### Known Bugs
 
@@ -39,7 +43,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - workflow: added benchmark layout exporting to a graph or plot via `mermaid`
 - workflow: decoupled workflow rule setup software backends (e.g. adding `conda`, `envmodules` etc to rules) from execution (e.g. `--use conda` during the snmk syscall)
 
-## [0.1.0-rc.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.1) 
+## [0.1.0rc.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.1) 
 - Snakemake-based workflow dynamic generation
 - Snakemake execution: benchmarks or modules
 - Local and remote (s3) storage handling
