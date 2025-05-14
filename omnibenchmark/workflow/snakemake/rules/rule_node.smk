@@ -93,7 +93,7 @@ def _create_intermediate_node(benchmark, node, config):
         benchmark:
             formatter.format_performance_file(node)
         output:
-            formatter.format_output_templates_to_be_expanded(node)
+            touch(formatter.format_output_templates_to_be_expanded(node))
 
         # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
         # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
