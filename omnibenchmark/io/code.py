@@ -105,9 +105,6 @@ def clone_git_repo(output_dir: Path, repository_url: str, commit_hash: str) -> P
         repository_url: URL of the git repository
         commit_hash: Specific commit hash to checkout
     """
-    print(">>> cloning", repository_url)
-    print(">>> CWD", os.getcwd())
-
     repo = Repo.clone_from(repository_url, output_dir.as_posix(), no_checkout=True)
     repo.git.checkout(commit_hash)
     return output_dir
