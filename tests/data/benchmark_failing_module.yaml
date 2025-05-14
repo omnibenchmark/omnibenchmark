@@ -1,0 +1,35 @@
+id: mock_benchmark
+description: simple benchmark, used for fast testing
+version: 1.0
+benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
+benchmark_yaml_spec: 0.01
+software_backend: host
+software_environments:
+  python:
+    description: "Ppython3.12.0 with gfbf-2023 toolchain"
+    easyconfig: Python-3.9.6-GCCcore-11.2.0.eb
+    envmodule: "3.9.6-GCCcore-11.2.0"
+    conda: envs/python_vX_test.yaml
+    apptainer: http://registry.ch/Python-3.9.6-GCCcore-11.2.0.eb.sif
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: bundles/dummymodule_dfbd1f8.bundle
+          commit: dfbd1f8
+        parameters:
+          - values: [ "--ok", "1" ]
+      - id: D2
+        name: "Dataset 2"
+        software_environment: "python"
+        repository:
+          url: bundles/dummymodule_dfbd1f8.bundle
+          commit: dfbd1f8
+        parameters:
+          - values: [ "--fail", "hard" ]
+    outputs:
+      - id: data.one
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
