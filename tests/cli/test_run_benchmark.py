@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from tests.cli.cli_setup import OmniCLISetup
 
 from .asserts import assert_startswith, assert_in_output
@@ -186,7 +189,30 @@ def test_local_dry_update():
         assert_startswith(result.stdout, expected)
 
 
-def test_benchmark_does_not_fail_if_one_module_fails(tmp_path):
+def test_benchmark_does_fail_if_one_module_fails(bundled_repos, tmp_path):  # noqa: F811
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                (data / "benchmark_failing_module.yaml").as_posix(),
+                "--local",
+            ],
+            input="y",
+            cwd=tmp_path,
+        )
+
+        failed_msg = "Benchmark run has failed"
+
+        assert failed_msg in result.stdout
+        assert result.returncode == 1
+
+
+def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos):  # noqa: F811
+    """
+    This test checks that the benchmark does not fail if one module fails with continue-on-error.
+    """
     with OmniCLISetup() as omni:
         result = omni.call(
             [
@@ -205,3 +231,9 @@ def test_benchmark_does_not_fail_if_one_module_fails(tmp_path):
 
         assert failed_msg not in result.stdout
         assert result.returncode == 0
+
+        assert os.path.exists(
+            Path(tmp_path)
+            / "out"
+            / "data/D1/output-D1.txt/process/P1/ok-1/analyze/A1/ok-1_output-analyzed.txt"
+        )
