@@ -184,3 +184,24 @@ def test_local_dry_update():
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected)
+
+
+def test_benchmark_does_not_fail_if_one_module_fails(tmp_path):
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                (data / "benchmark_failing_module.yaml").as_posix(),
+                "--local",
+                "--continue-on-error",
+            ],
+            input="y",
+            cwd=tmp_path,
+        )
+
+        failed_msg = "Benchmark run has failed"
+
+        assert failed_msg not in result.stdout
+        assert result.returncode == 0
