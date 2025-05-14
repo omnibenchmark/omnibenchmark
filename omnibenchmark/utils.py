@@ -64,7 +64,10 @@ def merge_dict_list(list_of_dicts):
 
 def format_name(path, prefix):
     pattern = rf"{prefix}/.+?/([^/]+)/.+?$"
-    dataset = re.match(pattern, path)[1]
+    matched = re.match(pattern, path)
+    if matched is None:
+        return ""
+    dataset = matched[1]
     new_path = path.format(dataset=dataset)
 
     return new_path
