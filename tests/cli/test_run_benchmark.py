@@ -4,7 +4,7 @@ from .asserts import assert_startswith, assert_in_output
 from .path import data
 
 # TODO: deprecate fixtures in this module
-from ..fixtures import minio_storage, _minio_container  # noqa: F401
+from ..fixtures import minio_storage, _minio_container, bundled_repos  # noqa: F401
 
 
 # TODO: mark as integration
@@ -186,7 +186,7 @@ def test_local_dry_update():
         assert_startswith(result.stdout, expected)
 
 
-def test_benchmark_does_not_fail_if_one_module_fails(tmp_path):
+def test_benchmark_does_not_fail_if_one_module_fails(bundled_repos, tmp_path):  # noqa: F811
     with OmniCLISetup() as omni:
         result = omni.call(
             [
