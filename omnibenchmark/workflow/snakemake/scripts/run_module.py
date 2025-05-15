@@ -1,7 +1,9 @@
-#! /usr/bin/env python
 # WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
-
+import logging
 import os
+import sys
+import traceback
+
 from pathlib import Path
 
 from snakemake.script import Snakemake
@@ -14,44 +16,45 @@ from omnibenchmark.workflow.snakemake.scripts.utils import (
     get_module_name_from_rule_name,
 )
 
-
 try:
     snakemake: Snakemake = snakemake
-    params = dict(snakemake.params)
+except NameError:
+    raise RuntimeError("This script must be run from within a Snakemake workflow")
 
-    repository_url = params["repository_url"]
-    commit_hash = params["commit_hash"]
-    parameters = params.get("parameters")
-    inputs_map = params.get("inputs_map")
-    dataset = params.get("dataset")
-    if dataset is None:
-        dataset = getattr(snakemake.wildcards, "dataset", "unknown")
+params = dict(snakemake.params)
 
-    keep_module_logs = params.get("keep_module_logs", False)
+repository_url = params["repository_url"]
+commit_hash = params["commit_hash"]
+parameters = params.get("parameters")
+inputs_map = params.get("inputs_map")
+dataset = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
 
-    output_dir = Path(str(os.path.commonpath(snakemake.output)))
-    if len(snakemake.output) == 1:
-        output_dir = Path(os.path.dirname(output_dir))
+keep_module_logs = params.get("keep_module_logs", False)
+keep_going = snakemake.config.get("keep_going", False)
 
-    manager = SymlinkManager(output_dir.parent)
-    manager.store(parameters)
+output_dir = Path(str(os.path.commonpath(snakemake.output)))
+if len(snakemake.output) == 1:
+    output_dir = Path(os.path.dirname(output_dir))
 
-    # Clone git repository
-    repositories_dir = Path(".snakemake") / "repos"
-    module_dir = clone_module(repositories_dir, repository_url, commit_hash)
+manager = SymlinkManager(output_dir.parent)
+manager.store(parameters)
 
-    # Execute module code
-    module_name = get_module_name_from_rule_name(snakemake.rule)
+# Clone git repository
+repositories_dir = Path(".snakemake") / "repos"
+module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 
-    resources = dict(snakemake.resources) if hasattr(snakemake, "resources") else {}
+# Execute module code
+module_name = get_module_name_from_rule_name(snakemake.rule)
 
-    # For now we're handling timeout in seconds as runtime.
-    # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
-    timeout = resources.get(
-        constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS
-    )
+resources = dict(snakemake.resources) if hasattr(snakemake, "resources") else {}
 
-    # TODO(ben): we don't do anything with this exit_code?
+# For now we're handling timeout in seconds as runtime.
+# When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
+timeout = resources.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
+
+logger = logging.getLogger("SNAKEMAKE_RUNNER")
+
+try:
     exit_code = execution(
         module_dir,
         module_name=module_name,
@@ -62,8 +65,16 @@ try:
         keep_module_logs=keep_module_logs,
         timeout=timeout,
     )
+except Exception as e:
+    traceback.print_exc()
+    logger.error(f"CRITICAL: {e}")
+    if not keep_going:
+        # explicit raise will leave a clearer traceback
+        raise
 
-    # TODO: Handle exit_code
+if exit_code != 0:
+    logger.warning(f"Module execution failed with exit code {exit_code}")
+    if not keep_going:
+        sys.exit(1)
 
-except NameError:
-    raise RuntimeError("This script must be run from within a Snakemake workflow")
+sys.exit(0)

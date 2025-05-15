@@ -78,26 +78,27 @@ def format_input_templates_to_be_expanded(
     stage_ids = benchmark.get_stage_ids()
 
     pre_stages = _extract_stages_from_path(pre, stage_ids)
-    after_stage_id, _, _ = (
-        _match_node_format(pre_stages[-1]) if len(pre_stages) > 0 else None
-    )
+    matched = _match_node_format(pre_stages[-1]) if len(pre_stages) > 0 else []
 
+    if len(matched) != 3:
+        return {} if return_as_dict else []
+
+    after_stage_id, _, _ = matched
     stage_id, module_id, param_id = _match_node_format(post)
 
     node_hash = hash(BenchmarkNode.to_id(stage_id, module_id, param_id, after_stage_id))
     matching_node = next((node for node in nodes if hash(node) == node_hash), None)
-    if matching_node:
-        node_inputs = matching_node.get_inputs_dict()
-
-        inputs = _match_inputs(node_inputs, pre_stages, pre, dataset)
-
-        # print(f'Inputs: {stage_id} {module_id} {param_id}: {inputs}')
-        if return_as_dict:
-            return inputs
-        else:
-            return inputs.values()
-    else:
+    if not matching_node:
         return {} if return_as_dict else []
+
+    node_inputs = matching_node.get_inputs_dict()
+
+    inputs = _match_inputs(node_inputs, pre_stages, pre, dataset)
+
+    if return_as_dict:
+        return inputs
+    else:
+        return inputs.values()
 
 
 def _extract_stages_from_path(
@@ -142,21 +143,24 @@ def _match_input_module(input: str, stages: List[Tuple[str]], dataset: str) -> s
     matching_stage = next(
         (tup for tup in stages if tup[0] == expected_input_module), None
     )
-
-    if matching_stage:
-        matched_module = matching_stage[1]
-
-        input = input.replace("{module}", matched_module)
-        input = input.replace("{dataset}", dataset)
-        if "{params}" in input:
-            matched_params = next(
-                (x for x in matching_stage[2:] if "param" or "default" in x), None
-            )
-            input = input.replace("{params}", matched_params)
-
-        return input
-    else:
+    if not matching_stage:
         raise RuntimeError(f"Could not find matching stage for {input} in {stages}")
+
+    if len(matching_stage) < 3:
+        raise RuntimeError(f"{stages} has wrong length")
+
+    assert len(matching_stage) >= 3
+    matched_module = matching_stage[1]
+
+    input = input.replace("{module}", matched_module)
+    input = input.replace("{dataset}", dataset)
+    if "{params}" in input:
+        matched_params = next(
+            (x for x in matching_stage[2:] if "param" or "default" in x), None
+        )
+        input = input.replace("{params}", matched_params)
+
+    return input
 
 
 def _match_input_prefix(input: str, pre: str) -> str:
