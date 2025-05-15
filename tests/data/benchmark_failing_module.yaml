@@ -30,6 +30,3 @@ stages:
           commit: dfbd1f8
         parameters:
           - values: [ "--fail", "hard" ]
-    outputs:
-      - id: data.one
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
