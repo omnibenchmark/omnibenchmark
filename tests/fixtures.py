@@ -44,3 +44,23 @@ def _minio_container():
     # But since this is an ephemeral container, we can save the hassle
     # until we really do need it. Just have this in mind and avoid abusing
     # the test s3 storage for the time being.
+
+
+@pytest.fixture
+def bundled_repos(tmp_path):
+    """
+    Creates a symlink from tmp_path/bundles to tests/data/bundles.
+
+    This allows tests to access predefined bundle files through a path that appears
+    to be in the temporary directory used for each test.
+    """
+    # Get the source directory (tests/data/bundles)
+    source_dir = data / "bundles"
+
+    # Create the target directory in tmp_path
+    target_dir = tmp_path / "bundles"
+
+    # Create the symlink
+    target_dir.symlink_to(source_dir, target_is_directory=True)
+
+    return target_dir

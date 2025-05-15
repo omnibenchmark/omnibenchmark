@@ -7,7 +7,7 @@ from .asserts import assert_startswith, assert_in_output
 from .path import data
 
 # TODO: deprecate fixtures in this module
-from ..fixtures import minio_storage, _minio_container  # noqa: F401
+from ..fixtures import minio_storage, _minio_container, bundled_repos  # noqa: F401
 
 
 # TODO: mark as integration
