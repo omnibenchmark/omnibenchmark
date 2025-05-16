@@ -1,7 +1,9 @@
 # Test run benchmark with different timeouts
-from tests.cli.cli_setup import OmniCLISetup
-
 import shutil
+
+import pytest
+
+from tests.cli.cli_setup import OmniCLISetup
 
 from .path import get_benchmark_data_path
 
@@ -10,6 +12,7 @@ envs = data / "envs"
 timeout_benchmark = "timeout_benchmark.yaml"
 
 
+@pytest.mark.skip("local timeout is disabled")
 def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
     """Test that benchmark run with no timeout does not fail"""
 
@@ -31,6 +34,7 @@ def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
     assert result.returncode == 0
 
 
+@pytest.mark.skip("local timeout is disabled")
 def test_benchmark_run_with_timeout_less_than_task_fails(tmp_path):
     """Test that benchmark run with a timeout lower than the task duration fails"""
 
@@ -54,6 +58,7 @@ def test_benchmark_run_with_timeout_less_than_task_fails(tmp_path):
     assert result.returncode != 0
 
 
+@pytest.mark.skip("local timeout is disabled")
 def test_benchmark_run_high_timeout(tmp_path):
     shutil.copy(data / timeout_benchmark, tmp_path / timeout_benchmark)
     shutil.copytree(envs, tmp_path / "envs")

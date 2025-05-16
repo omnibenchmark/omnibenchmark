@@ -52,6 +52,13 @@ def run(ctx):
 )
 @click.option("-d", "--dry", help="Dry run.", is_flag=True, default=False)
 @click.option(
+    "-y",
+    "--yes",
+    help="Automatically confirm all prompts.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
     "-k",
     "--continue-on-error",
     help="Go on with independent jobs if a job fails (--keep-going in snakemake).",
@@ -83,6 +90,7 @@ def run_benchmark(
     cores,
     update,
     dry,
+    yes,
     local,
     keep_module_logs,
     continue_on_error,
@@ -108,18 +116,21 @@ def run_benchmark(
 
     ## it is as --continue_on_error originally
     if continue_on_error:
-        keepgoing_prompt = click.confirm(
-            "Are you sure you want to run the full benchmark even if some jobs fail?",
-            abort=True,
-        )
-        if not keepgoing_prompt:
-            raise click.Abort()
+        if not yes:
+            keepgoing_prompt = click.confirm(
+                "Are you sure you want to run the full benchmark even if some jobs fail?",
+                abort=True,
+            )
+            if not keepgoing_prompt:
+                raise click.Abort()
+
     if update and not dry:
-        update_prompt = click.confirm(
-            "Are you sure you want to re-run the entire workflow?", abort=True
-        )
-        if not update_prompt:
-            raise click.Abort()
+        if not yes:
+            update_prompt = click.confirm(
+                "Are you sure you want to re-run the entire workflow?", abort=True
+            )
+            if not update_prompt:
+                raise click.Abort()
 
     if not local:
         storage_options = remote_storage_snakemake_args(benchmark)
@@ -137,6 +148,7 @@ def run_benchmark(
     # TODO: add a field in the spec for communicating resources for individual methods,
     # and try to enforce resource allocation even for the local execution case (use a watchdog spawned
     # by the parent process, for instance)
+
     logger.info("Running benchmark...")
     success = workflow.run_workflow(
         benchmark,
@@ -156,7 +168,7 @@ def run_benchmark(
     else:
         logger.error("Benchmark run has failed.")
 
-    sys.exit(0 if success else 1)  # click.Exit(code=0 if success else 1)
+    sys.exit(0 if success else 1)
 
 
 @run.command(name="module")
