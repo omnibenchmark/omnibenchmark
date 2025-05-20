@@ -6,7 +6,6 @@ from linkml_runtime.loaders import yaml_loader
 import subprocess
 from pathlib import Path
 from typing import List, Union, Any
-import re
 import yaml
 import platform
 
@@ -60,17 +59,6 @@ def merge_dict_list(list_of_dicts):
     }
 
     return merged_dict
-
-
-def format_name(path, prefix):
-    pattern = rf"{prefix}/.+?/([^/]+)/.+?$"
-    matched = re.match(pattern, path)
-    if matched is None:
-        return ""
-    dataset = matched[1]
-    new_path = path.format(dataset=dataset)
-
-    return new_path
 
 
 def format_mc_output(output: IOFile, out_dir: Path, collector_id: str):
