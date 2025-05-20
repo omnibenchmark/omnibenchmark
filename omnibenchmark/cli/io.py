@@ -288,7 +288,7 @@ def archive_benchmark(
     ctx, benchmark, code, software, results, compression, compresslevel, dry_run, local
 ):
     """Archive a benchmark"""
-    benchmark = validate_benchmark(benchmark, echo=False)
+    benchmark = validate_benchmark(benchmark, "/tmp", echo=False)
 
     match compression:
         case "none":

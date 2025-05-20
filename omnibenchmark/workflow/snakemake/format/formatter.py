@@ -15,12 +15,12 @@ class Wildcards(NamedTuple):
     dataset: str
 
 
-def format_performance_file(node: BenchmarkNode) -> str:
+def format_performance_file(node: BenchmarkNode, out_dir: str) -> str:
     """Provides a benchmark performance path for a node"""
 
     is_initial = node.is_initial()
     if is_initial:
-        return "out/{stage}/{module}/{params}/{dataset}_performance.txt"
+        return out_dir + "/{stage}/{module}/{params}/{dataset}_performance.txt"
     else:
         return "{pre}/{post}/{dataset}_performance.txt"
 
