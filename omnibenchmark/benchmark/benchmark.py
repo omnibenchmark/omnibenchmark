@@ -1,7 +1,8 @@
+import re
 import os.path
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from pydantic import ValidationError
 import pydot
@@ -9,7 +10,7 @@ import pydot
 from omnibenchmark.benchmark import dag
 from omnibenchmark.benchmark.converter import LinkMLConverter
 from omnibenchmark.benchmark.validation.validator import Validator
-from omnibenchmark.utils import format_name, format_mc_output
+from omnibenchmark.utils import format_mc_output
 
 
 class Benchmark:
@@ -111,11 +112,11 @@ class Benchmark:
 
         return self.execution_paths
 
-    def get_output_paths(self):
+    def get_output_paths(self) -> Set[str]:
         execution_paths = self.get_execution_paths()
 
         output_paths = [
-            format_name(output, self.out_dir)
+            _normalize_dataset_path(output, self.out_dir)
             for path in execution_paths
             for output in self._construct_output_paths(prefix=self.out_dir, nodes=path)
         ]
@@ -245,6 +246,7 @@ class Benchmark:
 
     def _construct_output_paths(self, prefix, nodes):
         if nodes is None or len(nodes) == 0:
+            # TODO: assert len >= 2
             return []
         else:
             head = nodes[0]
@@ -268,3 +270,31 @@ class Benchmark:
             ]
 
             return paths + self._construct_output_paths(new_prefix, tail)
+
+
+def _normalize_dataset_path(path: str, prefix: Path) -> str:
+    """Normalizes a benchmark output path by extracting and formatting the dataset identifier.
+
+    Takes a path string containing a dataset identifier segment and formats it consistently.
+    The path is expected to follow the structure: {prefix}/.../{dataset}/...
+
+    Args:
+        path: The output path string containing a dataset identifier
+        prefix: The base directory Path object where outputs are stored
+
+    Returns:
+        A formatted path string with the dataset identifier properly substituted.
+        Returns empty string if the path doesn't match the expected structure.
+
+    Example:
+        >>> normalize_dataset_path("out/stage1/dataset123/results", Path("out"))
+        'out/stage1/dataset123/results'
+    """
+    pattern = rf"{prefix.as_posix()}/.+?/([^/]+)/.+?$"
+    matched = re.match(pattern, path)
+    if matched is None:
+        # we probably should raise a ValueError here, but
+        # this is better than an IndexError
+        return ""
+    dataset = matched[1]
+    return path.format(dataset=dataset)
