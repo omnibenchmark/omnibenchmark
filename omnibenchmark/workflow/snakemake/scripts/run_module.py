@@ -27,11 +27,15 @@ except NameError:
 
 params = dict(snakemake.params)
 
-repository_url = params["repository_url"]
-commit_hash = params["commit_hash"]
+repository_url = params.get("repository_url")
+commit_hash = params.get("commit_hash")
 parameters = params.get("parameters")
 inputs_map = params.get("inputs_map")
 dataset = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
+# For now we're handling timeout in seconds.
+# When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
+timeout = params.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
+
 keep_module_logs = params.get("keep_module_logs", False)
 keep_going = snakemake.config.get("keep_going", False)
 
