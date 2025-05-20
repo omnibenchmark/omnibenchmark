@@ -1,7 +1,7 @@
 ## omnibenchmark
 
 <p align="center">
-<a href="https://github.com/omnibenchmark/omnibenchmark/tree/refs/heads/main"><img alt="tests result" src="https://github.com/omnibenchmark/omnibenchmark/workflows/Tests/badge.svg?branch=main"></a>
+<a href="https://github.com/omnibenchmark/omnibenchmark/tree/refs/heads/main"><img alt="tests result" src="https://github.com/omnibenchmark/omnibenchmark/workflows/tests.yml/badge.svg?branch=main"></a>
 <a href="https://github.com/omnibenchmark/omnibenchmark"><img alt="Coverage Status" src="./reports/coverage.svg"></a>
 <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
 </p>
@@ -13,7 +13,7 @@
 
 ## Install
 
-Recent versions of omnibenchmark should be installable via pip:
+Recent versions of omnibenchmark should be installable [from pypi](https://pypi.org/project/omnibenchmark/):
 
 ```
 pip install omnibenchmark
@@ -28,13 +28,13 @@ See [our tags](https://github.com/omnibenchmark/omnibenchmark/tags).
 
 ### User documentation
 
-[Live documentation](https://omnibenchmark.github.io/omnibenchmark/) is built for every change to the dev branch.
+[Live documentation](https://docs.omnibenchmark.org/latest) is avilable for every published release and the main branch.
 
-Documentation includes a CLI reference. This reference is automated [via mkdocs-click](https://gitlab.renkulab.io/omnibenchmark/omni_site/-/blob/master/docs/reference.md?ref_type=heads) and extracts the current CLI commands from the built branch (dev, for now).
+Documentation includes a [CLI reference](https://docs.omnibenchmark.org/latest/reference/).
 
 ## Developer notes
 
-Check the `CONTRIBUTING.md` doc.
+Check [CONTRIBUTING.md](https://github.com/omnibenchmark/omnibenchmark/blob/main/CONTRIBUTING.md).
 
 ## Acknowledgements
 
