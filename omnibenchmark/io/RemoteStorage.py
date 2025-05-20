@@ -10,21 +10,21 @@ from packaging.version import Version
 from omnibenchmark.io.exception import RemoteStorageInvalidInputException
 
 
-class DEFAULT_STORAGE_OPTIONS:
-    tracked_directories = ["out", "versions", "config", "software"]
-    results_directories = ["out"]
-    extra_files_to_version_not_in_benchmark_yaml = [
-        "out/**/parameters.json",
-        "out/**/parameters_dict.tsv",
-    ]  # glob style
+class StorageOptions:
+    def __init__(self, out_dir: str):
+        self.tracked_directories = [out_dir, "versions", "config", "software"]
+        self.results_directories = [out_dir]
+        self.extra_files_to_version_not_in_benchmark_yaml = [
+            f"{out_dir}/**/parameters.json",
+            f"{out_dir}/**/parameters_dict.tsv",
+        ]  # glob style
 
-
-assert all(
-    [
-        isinstance(i, str) and i in DEFAULT_STORAGE_OPTIONS().tracked_directories
-        for i in DEFAULT_STORAGE_OPTIONS().results_directories
-    ]
-)
+        assert all(
+            [
+                isinstance(i, str) and i in self.tracked_directories
+                for i in self.results_directories
+            ]
+        )
 
 
 def is_valid_version(version: str):
@@ -71,7 +71,7 @@ class RemoteStorage(metaclass=ABCMeta):
         self,
         auth_options: Dict,
         benchmark: str,
-        storage_options: DEFAULT_STORAGE_OPTIONS = DEFAULT_STORAGE_OPTIONS(),
+        storage_options: StorageOptions,
     ):
         self.version = None
         self.versions = list()
@@ -93,13 +93,13 @@ class RemoteStorage(metaclass=ABCMeta):
             )
         self.auth_options = auth_options
 
-    def _parse_storage_options(self, storage_options: DEFAULT_STORAGE_OPTIONS) -> None:
+    def _parse_storage_options(self, storage_options: StorageOptions) -> None:
         expected_attributes = [
-            t for t in dir(DEFAULT_STORAGE_OPTIONS()) if not t.startswith("_")
+            t for t in dir(storage_options) if not t.startswith("_")
         ]
         if not all([hasattr(storage_options, t) for t in expected_attributes]):
             raise RemoteStorageInvalidInputException(
-                "storage_options must be a DEFAULT_STORAGE_OPTIONS object"
+                "storage_options must be a StorageOptions object"
             )
         self.storage_options = storage_options
 

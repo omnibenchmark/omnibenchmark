@@ -5,8 +5,9 @@ import os
 
 from omni_schema.datamodel import omni_schema
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.io.RemoteStorage import StorageOptions
 from omnibenchmark.io.code import clone_module
+from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.io.files import download_files, list_files
 
 
@@ -143,7 +144,9 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
     return files
 
 
-def prepare_archive_results(benchmark: Benchmark, local: bool = False) -> List[Path]:
+def prepare_archive_results(
+    benchmark: Benchmark, results_dir: str, local: bool = False
+) -> List[Path]:
     """
     Prepare the results to archive and return list of all filenames.
 
@@ -162,6 +165,7 @@ def prepare_archive_results(benchmark: Benchmark, local: bool = False) -> List[P
         module="",
         file_id="",
         local=local,
+        storage_options=StorageOptions(out_dir=results_dir),
     )
     if not local:
         download_files(
@@ -182,6 +186,7 @@ def archive_version(
     code: bool = False,
     software: bool = False,
     results: bool = False,
+    results_dir: str = "out",
     compression=zipfile.ZIP_STORED,
     compresslevel: int = None,
     dry_run: bool = False,
@@ -214,7 +219,7 @@ def archive_version(
     ## results (results files)
     ### check if results match remote, if not download
     if results:
-        filenames += prepare_archive_results(benchmark, local)
+        filenames += prepare_archive_results(benchmark, results_dir, local)
 
     if dry_run:
         return filenames
