@@ -4,7 +4,7 @@ import pytest
 import logging
 
 from pathlib import Path
-from .git import GitBundleManager
+from .git_bundle import GitBundleManager
 
 
 @pytest.fixture
