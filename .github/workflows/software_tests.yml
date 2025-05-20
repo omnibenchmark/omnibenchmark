@@ -56,7 +56,7 @@ jobs:
       - name: Setup omnibenchmark environment
         uses: mamba-org/setup-micromamba@v1
         with:
-          environment-file: test-environment.yml
+          environment-file: conda-test-environment.yml
           environment-name: omb
           cache-environment: false
 
