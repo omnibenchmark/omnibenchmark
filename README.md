@@ -1,7 +1,7 @@
 ## omnibenchmark
 
 <p align="center">
-<a href="https://github.com/omnibenchmark/omnibenchmark/tree/refs/heads/main"><img alt="tests result" src="https://github.com/omnibenchmark/omnibenchmark/workflows/tests.yml/badge.svg?branch=main"></a>
+<a href="https://github.com/omnibenchmark/omnibenchmark/tree/refs/heads/main"><img alt="tests result" src="https://github.com/omnibenchmark/omnibenchmark/actions/workflows/tests.yml/badge.svg?branch=main"></a>
 <a href="https://github.com/omnibenchmark/omnibenchmark"><img alt="Coverage Status" src="./reports/coverage.svg"></a>
 <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
 </p>
