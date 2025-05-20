@@ -16,6 +16,8 @@ from omnibenchmark.workflow.snakemake.scripts.utils import (
     get_module_name_from_rule_name,
 )
 
+logger = logging.getLogger("SNAKEMAKE_RUNNER")
+
 try:
     snakemake: Snakemake = snakemake
 except NameError:
@@ -23,11 +25,14 @@ except NameError:
 
 params = dict(snakemake.params)
 
-repository_url = params["repository_url"]
-commit_hash = params["commit_hash"]
+repository_url = params.get("repository_url")
+commit_hash = params.get("commit_hash")
 parameters = params.get("parameters")
 inputs_map = params.get("inputs_map")
 dataset = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
+# For now we're handling timeout in seconds.
+# When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
+timeout = params.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
 
 keep_module_logs = params.get("keep_module_logs", False)
 keep_going = snakemake.config.get("keep_going", False)
@@ -46,13 +51,6 @@ module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 # Execute module code
 module_name = get_module_name_from_rule_name(snakemake.rule)
 
-resources = dict(snakemake.resources) if hasattr(snakemake, "resources") else {}
-
-# For now we're handling timeout in seconds as runtime.
-# When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
-timeout = resources.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
-
-logger = logging.getLogger("SNAKEMAKE_RUNNER")
 
 try:
     exit_code = execution(
@@ -65,16 +63,16 @@ try:
         keep_module_logs=keep_module_logs,
         timeout=timeout,
     )
+    if exit_code != 0:
+        logger.warning(f"Module execution failed with exit code {exit_code}")
+        if not keep_going:
+            sys.exit(1)
+
 except Exception as e:
     traceback.print_exc()
     logger.error(f"CRITICAL: {e}")
     if not keep_going:
         # explicit raise will leave a clearer traceback
         raise
-
-if exit_code != 0:
-    logger.warning(f"Module execution failed with exit code {exit_code}")
-    if not keep_going:
-        sys.exit(1)
 
 sys.exit(0)
