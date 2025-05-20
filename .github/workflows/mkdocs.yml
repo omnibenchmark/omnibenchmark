@@ -1,6 +1,8 @@
 name: Publish mkdocs via GitHub Pages
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allow manual trigger if needed
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:

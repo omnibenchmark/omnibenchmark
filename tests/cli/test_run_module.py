@@ -1,258 +1,224 @@
-import re
-from pathlib import Path
+from typing import Optional
 
-from tests.cli.cli_setup import OmniCLISetup
+from tests.cli.test_run_benchmark import assert_in_output
 
-benchmark_path = Path(__file__).parent / ".."
-benchmark_data_path = benchmark_path / "data"
+from .asserts import assert_startswith, clean
+from .cli_setup import OmniCLISetup
+from .fixtures import minio_storage, _minio_container  # noqa: F401
+from .path import get_benchmark_data_path
 
 
-def test_default_entry_module(capture_logs):
-    expected_output = """
+def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
+    run1 = clisetup.call(
+        [
+            "run",
+            "benchmark",
+            "--benchmark",
+            file,
+        ],
+        cwd=cwd,
+    )
+    assert run1.returncode == 0
+
+
+def test_default_entry_module():
+    expected = """
         Running module on a local dataset.
         Benchmark YAML file integrity check passed.
         Found 1 workflow nodes for module D1.
         Running module benchmark...
         """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
             ]
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 0
-        assert clean(log_output).startswith(clean(expected_output))
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected)
 
 
-def test_default_nonentry_module(capture_logs):
-    expected_output = """
+def test_default_nonentry_module_fails():
+    """Test running a non-entry module without specifying required options"""
+    expected = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Found 2 workflow nodes for module P1.
     Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "P1",
             ]
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 1
-        assert clean(log_output) == clean(expected_output)
-
-
-# def test_multiple_behaviours_set():
-#     expected_output = """
-#     Error: Only one of '--input_dir', '--example', or '--all' should be set. Please choose only one option.
-#     """
-#     with OmniCLISetup() as omni:
-#         result = omni.call(
-#             [
-#                 "run",
-#                 "module",
-#                 "--benchmark",
-#                 str(benchmark_data_path / "mock_benchmark.yaml"),
-#                 "--module",
-#                 "D1",
-#                 "--all",
-#                 "--example",
-#             ]
-#         )
-#         assert result.exit_code == 1
-#         assert clean(result.output) == clean(expected_output)
-
-
-# def test_behaviour_example():
-#     expected_output = """
-#     Running module on a predefined remote example dataset.
-#     Error: Remote execution is not supported yet. Workflows can only be run in local mode.
-#     """
-#     with OmniCLISetup() as omni:
-#         result = omni.call(
-#             [
-#                 "run",
-#                 "module",
-#                 "--benchmark",
-#                 str(benchmark_data_path / "mock_benchmark.yaml"),
-#                 "--module",
-#                 "D1",
-#                 "--example",
-#             ]
-#         )
-#         assert result.exit_code == 1
-#         assert clean(result.output) == clean(expected_output)
-
-
-# def test_behaviour_all():
-#     expected_output = """
-#     Running module on all available remote datasets.
-#     Error: Remote execution is not supported yet. Workflows can only be run in local mode.
-#     """
-#     with OmniCLISetup() as omni:
-#         result = omni.call(
-#             [
-#                 "run",
-#                 "module",
-#                 "--benchmark",
-#                 str(benchmark_data_path / "mock_benchmark.yaml"),
-#                 "--module",
-#                 "D1",
-#                 "--all",
-#             ]
-#         )
-#         assert result.exit_code == 1
-#         assert clean(result.output) == clean(expected_output)
+        assert result.returncode == 1
+        assert clean(result.stdout) == clean(expected)
 
 
 def test_benchmark_not_found():
-    expected_output = """
-    Usage: cli run module [OPTIONS]\nTry 'cli run module --help' for help.\n\nError: Invalid value for '-b' / '--benchmark': Path
-    """
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "does_not_exist.yaml"),
+                str(path / "does_not_exist.yaml"),
                 "--module",
                 "D1",
             ]
         )
-        assert result.exit_code == 2
-        assert clean(result.output).startswith(clean(expected_output))
+
+        # XXX this is too brittle. Should capture exception raised by the module instead.
+        expected1 = "Usage: "
+        expected2 = "run module --help' for help"
+        expected3 = "Error: Invalid value for '-b' / '--benchmark': Path"
+        assert result.returncode == 2
+        assert_in_output(result.stderr, expected1)
+        assert_in_output(result.stderr, expected2)
+        assert_in_output(result.stderr, expected3)
 
 
-def test_benchmark_format_incorrect(capture_logs):
+def test_benchmark_format_incorrect():
     expected_output = """
     Running module on a local dataset.
     Error: Failed to parse YAML as a valid OmniBenchmark: software_backend must be supplied.
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "benchmark_format_incorrect.yaml"),
+                str(path / "benchmark_format_incorrect.yaml"),
                 "--module",
                 "D1",
             ]
         )
-
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 1
-        assert clean(log_output) == clean(expected_output)
+        assert result.returncode == 1
+        assert clean(result.stdout) == clean(expected_output)
 
 
-def test_module_not_found(capture_logs):
+def test_module_not_found():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Error: Could not find module with id `not-existing` in benchmark definition
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "not-existing",
                 "--input_dir",
-                str(benchmark_path),
+                str(path),
             ]
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 1
-        assert clean(log_output) == clean(expected_output)
+        assert result.returncode == 1
+        assert clean(result.stdout) == clean(expected_output)
 
 
-def test_behaviour_input(capture_logs):
+def test_behaviour_input():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
             ]
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 0
-        assert clean(log_output).startswith(clean(expected_output))
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected_output)
 
 
-def test_behaviour_input_dry(capture_logs):
+def test_behaviour_input_dry():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--dry",
             ]
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 0
-        assert clean(log_output).startswith(clean(expected_output))
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected_output)
 
 
-def test_behaviour_input_update_true(capture_logs):
+def test_behaviour_input_update_true():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--update",
@@ -260,48 +226,27 @@ def test_behaviour_input_update_true(capture_logs):
             input="y",
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 0
-        assert clean(log_output).startswith(clean(expected_output))
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected_output)
 
 
-# def test_behaviour_input_update_false():
-#     expected_output = """
-#     Running module on a local dataset.
-#     Benchmark YAML file integrity check passed.
-#     """
-#     with OmniCLISetup() as omni:
-#         result = omni.call(
-#             [
-#                 "run",
-#                 "module",
-#                 "--benchmark",
-#                 str(benchmark_data_path / "mock_benchmark.yaml"),
-#                 "--module",
-#                 "D1",
-#                 "--update",
-#             ],
-#             input="N",
-#         )
-#         assert result.exit_code == 1
-#         assert clean(result.output).startswith(clean(expected_output))
-
-
-def test_behaviour_input_update_dry(capture_logs):
+def test_behaviour_input_update_dry():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Found 1 workflow nodes for module D1.
     Running module benchmark...
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "mock_benchmark.yaml"),
+                str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
                 "--update",
@@ -310,36 +255,39 @@ def test_behaviour_input_update_dry(capture_logs):
             input="y",
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 0
-        assert clean(log_output).startswith(clean(expected_output))
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected_output)
 
 
 def test_behaviour_input_missing_input_dir():
-    expected_output = """
-    Usage: cli run module [OPTIONS]\nTry 'cli run module --help' for help.\n\nError: Invalid value for '-i' / '--input_dir': Path
-    """
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "Benchmark_001.yaml"),
+                str(path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
                 "--input_dir",
-                str(benchmark_path / "data" / "D1" / "default" / "methods"),
+                str(path / "D1" / "default" / "methods"),
             ],
             input="y",
         )
 
-        assert result.exit_code == 2
-        assert clean(result.output).startswith(clean(expected_output))
+        expected1 = "Usage: "
+        expected2 = "run module --help' for help"
+        expected3 = "Invalid value for '-i' / '--input_dir': Path"
+
+        assert result.returncode == 2
+        assert_in_output(result.stderr, expected1)
+        assert_in_output(result.stderr, expected2)
+        assert_in_output(result.stderr, expected3)
 
 
-def test_behaviour_input_missing_input_files(capture_logs):
+def test_behaviour_input_missing_input_files():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
@@ -347,64 +295,53 @@ def test_behaviour_input_missing_input_files(capture_logs):
     Running module benchmark...
     Error: The following required input files are missing from the input directory: ['D1.meta.json']
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "Benchmark_001.yaml"),
+                str(path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
                 "--input_dir",
-                str(benchmark_path / "data" / "D1" / "missing_files"),
+                str(path / "D1" / "missing_files"),
             ],
             input="y",
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 1
-        assert clean(log_output).startswith(clean(expected_output))
+        assert result.returncode == 1
+        assert_startswith(result.stdout, expected_output)
 
 
-def test_behaviour_input_nested_module_dry(capture_logs):
+def test_behaviour_input_nested_module_dry():
     expected_output = """
     Running module on a local dataset.
     Benchmark YAML file integrity check passed.
     Found 2 workflow nodes for module M1.
     Running module benchmark...
     """
+
+    path = get_benchmark_data_path()
+
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
                 "module",
                 "--benchmark",
-                str(benchmark_data_path / "Benchmark_001.yaml"),
+                str(path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
                 "--input_dir",
-                str(benchmark_path / "data" / "D1" / "default"),
+                str(path / "D1" / "default"),
                 "--dry",
             ],
             input="y",
         )
 
-        log_output = capture_logs.getvalue()
-
-        assert result.exit_code == 0
-        assert clean(log_output).startswith(clean(expected_output))
-
-
-def clean(output: str) -> str:
-    output = output.strip()
-    output = output.replace("    ", "")
-
-    # Replace different newline characters with a single '\n'
-    normalized_output = re.sub(r"\r\n|\r", "\n", output)
-
-    # Replace multiple spaces and tabs with a single space
-    normalized_output = re.sub(r"[ \t]+", " ", normalized_output)
-
-    return normalized_output
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected_output)

@@ -1,7 +1,7 @@
 import io
 import json
 
-from omni.io.MinIOStorage import MinIOStorage
+from omnibenchmark.io.MinIOStorage import MinIOStorage
 
 with open("<CONFIG>.json", "r") as file:
     auth_options = json.load(file)

@@ -27,7 +27,7 @@ stages:
       - id: libd_DLPFC
         software_environment: "R"
         repository:
-          url: https://github.com/omnibenchmark-example/data
+          url: https://github.com/omnibenchmark-example/data.git
           commit: 63b7b36
     outputs:
       - id: data.counts
@@ -47,7 +47,7 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 3b17081
     inputs:
       - entries: [
           data.counts,
@@ -63,12 +63,12 @@ stages:
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 3b17081
       - id: seurat
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 3b17081
     inputs:
       - entries:
           - data.normalized
@@ -85,13 +85,13 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 3b17081
       - id: scran
         exclude: [select_counts]
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: aeec1db
+          commit: 3b17081
     inputs:
       - entries:
           - data.normalized
