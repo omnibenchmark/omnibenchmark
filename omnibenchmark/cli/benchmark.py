@@ -157,7 +157,7 @@ def list_versions(ctx, benchmark):
 def computational_graph(ctx, benchmark: str):
     """Export computational graph to dot format."""
 
-    b = validate_benchmark(benchmark, echo=False)
+    b = validate_benchmark(benchmark, "/tmp", echo=False)
     if b is not None:
         dot = b.export_to_dot()
         click.echo(dot.to_string())
@@ -176,7 +176,7 @@ def computational_graph(ctx, benchmark: str):
 def plot_topology(ctx, benchmark: str):
     """Export benchmark topology to mermaid diagram format."""
 
-    b = validate_benchmark(benchmark, echo=False)
+    b = validate_benchmark(benchmark, "/tmp", echo=False)
     if b is not None:
         mermaid = b.export_to_mermaid()
         click.echo(mermaid)
