@@ -1,12 +1,9 @@
-import os
-import sys
-
 from importlib import resources
+from pathlib import Path
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
 
 from omnibenchmark.benchmark import Validator, BenchmarkNode
-from omnibenchmark.benchmark import constants
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
 
@@ -30,6 +27,8 @@ def _create_initial_node(benchmark, node, config):
     module_id = node.module_id
     param_id = node.param_id
 
+    out_dir = config['out_dir']
+
     repository = node.get_repository()
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
@@ -42,7 +41,7 @@ def _create_initial_node(benchmark, node, config):
             params=param_id,
             dataset=module_id
         benchmark:
-            formatter.format_performance_file(node)
+            formatter.format_performance_file(node, out_dir)
         output:
             formatter.format_output_templates_to_be_expanded(node)
 
@@ -71,6 +70,7 @@ def _create_intermediate_node(benchmark, node, config):
 
     outputs = node.get_outputs()
 
+    out_dir = config['out_dir']
 
     post = stage_id + '/' + module_id
     if any(['{params}' in o for o in outputs]):
@@ -98,7 +98,7 @@ def _create_intermediate_node(benchmark, node, config):
         input:
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         benchmark:
-            formatter.format_performance_file(node)
+            formatter.format_performance_file(node, out_dir)
         output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
 
         # Snakemake 8.25.2 introduced changes that no longer allow None for environment values

@@ -10,12 +10,14 @@ from omnibenchmark.cli.utils.logging import logger
 
 
 ## to validate the YAML
-def validate_benchmark(benchmark_file: str, echo: bool = True) -> Benchmark | None:
+def validate_benchmark(
+    benchmark_file: str, out_dir: str, echo: bool = True
+) -> Benchmark | None:
     if benchmark_file.endswith(".yaml") or benchmark_file.endswith(".yml"):
         try:
             with open(benchmark_file, "r") as file:
                 yaml.safe_load(file)
-                benchmark = Benchmark(Path(benchmark_file))
+                benchmark = Benchmark(Path(benchmark_file), Path(out_dir))
 
                 if echo:
                     logger.info("Benchmark YAML file integrity check passed.")
