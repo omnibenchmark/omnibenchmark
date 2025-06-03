@@ -123,7 +123,7 @@ class MinIOStorage(RemoteStorage):
         except MinIOStorageConnectionException as e:
             raise e
 
-    def _create_benchmark(self, benchmark) -> None:
+    def _create_benchmark(self, benchmark: str) -> None:
         if self.client.bucket_exists(benchmark):
             raise MinIOStorageBucketManipulationException(
                 f"Benchmark {benchmark} already exists."

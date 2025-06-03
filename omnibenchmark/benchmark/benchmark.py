@@ -26,7 +26,7 @@ class Benchmark:
         try:
             converter = validator.validate(self.directory, converter)
         except ValidationError:
-            # Just re-raising the validation error, explicitely
+            # Just re-raising the validation error, explicitly
             raise
 
         self.converter: LinkMLConverter = converter

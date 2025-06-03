@@ -128,9 +128,9 @@ def run_benchmark(
         abort_if_user_does_not_confirm(msg, logger)
 
     if not local:
-        storage_options = remote_storage_snakemake_args(benchmark)
+        storage_options = remote_storage_snakemake_args(b)
         # creates bucket if it doesn't exist
-        _ = get_storage_from_benchmark(benchmark)
+        _ = get_storage_from_benchmark(b)
     else:
         storage_options = {}
 
