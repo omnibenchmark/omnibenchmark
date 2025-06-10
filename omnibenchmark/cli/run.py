@@ -109,6 +109,11 @@ def run_benchmark(
         logger.error(f"Invalid timeout value: {task_timeout}")
         sys.exit(1)
 
+    # Validate out_dir usage
+    if not local and out_dir != "out":
+        logger.error("-Invalid arguments: --out-dir can only be used with --local")
+        sys.exit(1)
+
     b = validate_benchmark(benchmark, out_dir)
     if b is None:
         # this should not happen, because validate raises, but that's not proper behavior.
