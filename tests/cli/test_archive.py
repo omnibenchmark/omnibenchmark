@@ -19,8 +19,6 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
         ],
         cwd=cwd,
     )
-    print(run1.stdout)
-    print(run1.stderr)
     assert run1.returncode == 0
 
 

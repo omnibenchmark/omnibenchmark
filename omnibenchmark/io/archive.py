@@ -4,9 +4,8 @@ from typing import List
 import os
 
 from omni_schema.datamodel import omni_schema
-
-from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.io.code import clone_module
+from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.io.files import download_files, list_files
 
 

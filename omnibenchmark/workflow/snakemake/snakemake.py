@@ -67,7 +67,7 @@ class SnakemakeEngine(WorkflowEngine):
         resources = resources or {}
 
         # Serialize Snakefile for workflow
-        snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=True)
+        snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
 
         # Prepare the argv list
         argv = self._prepare_argv(
@@ -81,7 +81,7 @@ class SnakemakeEngine(WorkflowEngine):
             work_dir=work_dir,
             debug=debug,
             resources=resources,
-            out_dir=Path(work_dir / out_dir),
+            out_dir=out_dir,
             **snakemake_kwargs,
         )
 
@@ -325,7 +325,7 @@ class SnakemakeEngine(WorkflowEngine):
         dataset: Optional[str] = None,
         debug: bool = False,
         resources: Optional[dict] = None,
-        out_dir: Optional[Path] = None,
+        out_dir: Optional[str] = None,
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
@@ -346,7 +346,7 @@ class SnakemakeEngine(WorkflowEngine):
             argv.extend([f"input={input_dir.as_posix()}"])
 
         if out_dir:
-            argv.extend([f"out_dir={out_dir.as_posix()}"])
+            argv.extend([f"out_dir={out_dir}"])
 
         if debug:
             argv.extend(["--verbose", "--debug"])

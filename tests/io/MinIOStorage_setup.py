@@ -11,6 +11,7 @@ from linkml_runtime.dumpers import yaml_dumper
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.io.MinIOStorage import MinIOStorage
+from omnibenchmark.io.RemoteStorage import StorageOptions
 
 MINIO_IMAGE = "minio/minio:RELEASE.2024-06-13T22-53-53Z"
 
@@ -72,6 +73,8 @@ class TmpMinIOStorage:
         self.benchmark_file = benchmark_file
         yaml_dumper.dump(benchmark_obj.converter.model, benchmark_file)
 
+        self.storage_options = StorageOptions(out_dir="out")
+
         # Copy environment file
         env_path = in_dir / "envs" / "python_vX_test.yaml"
         env_path_after = self.out_dir / "envs" / "python_vX_test.yaml"
@@ -82,6 +85,7 @@ class TmpMinIOStorage:
     def get_storage_client(self):
         return MinIOStorage(
             auth_options=self.auth_options,
+            storage_options=self.storage_options,
             benchmark=self.bucket_name,
         )
 
