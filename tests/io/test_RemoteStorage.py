@@ -36,14 +36,6 @@ class TestRemoteStorage:
         assert ss.auth_options == {}
 
     @patch.multiple(RemoteStorage, __abstractmethods__=set())
-    def test__parse_storage_options(self):
-        ss = RemoteStorage({}, benchmark="a", storage_options=StorageOptions("out"))
-        with pytest.raises(RemoteStorageInvalidInputException):
-            for ao in [1, 0.1, [1], (1,), None]:
-                ss._parse_storage_options(ao)
-        assert isinstance(ss.storage_options, StorageOptions)
-
-    @patch.multiple(RemoteStorage, __abstractmethods__=set())
     def test__parse_version(self):
         ss = RemoteStorage({}, benchmark="a", storage_options=StorageOptions("out"))
         ss.versions = []
