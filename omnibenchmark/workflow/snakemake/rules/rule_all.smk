@@ -16,60 +16,60 @@ from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
 from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
 
+logger = logging.getLogger("snakemake")
+logger.setLevel(logging.INFO)
 
-logger = logging.getLogger('snakemake')
-logger.setLevel(logging.DEBUG)
-
-# Only add handler once
 if not logger.handlers:
-    fh = logging.FileHandler("snakemake_run.jsonl")
-    formatter = logging.Formatter('%(message)s')  # raw JSON
+    fh = logging.FileHandler("snakemake_tasks.jsonl")
+    formatter = logging.Formatter('%(message)s')
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
+# Track start time per job
+job_start_times = {}
 
-job_start_times = defaultdict(float)
+# Helper to flatten job metadata
+def job_metadata(job, event, duration=None):
+    flat = {
+        "event": event,
+        "timestamp": datetime.now().isoformat(),
+        "rule": job.rule,
+        "job_id": id(job),
+        "duration": duration,
+    }
+
+    # Flatten wildcards
+    for k, v in dict(job.wildcards).items():
+        flat[f"wildcard__{k}"] = v
+
+    # Flatten params
+    for k, v in dict(job.params).items():
+        flat[f"param__{k}"] = v
+
+    # Flatten resources
+    for k, v in dict(job.resources).items():
+        flat[f"resource__{k}"] = v
+
+    # Inputs / outputs as flat comma strings
+    flat["input__files"] = ",".join(map(str, job.input))
+    flat["output__files"] = ",".join(map(str, job.output))
+
+    # Log file if defined
+    flat["log__file"] = str(job.log[0]) if job.log else None
+
+    return flat
 
 def onstart(job):
-    job_start_times[job] = time.time()
-    logger.info(json.dumps({
-        "event": "start",
-        "timestamp": datetime.now().isoformat(),
-        "rule": job.rule,
-        "wildcards": dict(job.wildcards),
-        "input": list(map(str, job.input)),
-        "output": list(map(str, job.output)),
-        "params": dict(job.params),
-        "resources": dict(job.resources),
-        "log": job.log if hasattr(job, 'log') else None
-    }))
-
+    job_start_times[id(job)] = time.time()
+    logger.info(json.dumps(job_metadata(job, "start")))
 
 def onsuccess(job):
-    end = time.time()
-    start = job_start_times.pop(job, end)
-    logger.info(json.dumps({
-        "event": "success",
-        "timestamp": datetime.now().isoformat(),
-        "rule": job.rule,
-        "duration": end - start,
-        "wildcards": dict(job.wildcards),
-        "output": list(map(str, job.output)),
-    }))
-
+    duration = time.time() - job_start_times.pop(id(job), time.time())
+    logger.info(json.dumps(job_metadata(job, "success", duration)))
 
 def onerror(job):
-    end = time.time()
-    start = job_start_times.pop(job, end)
-    logger.info(json.dumps({
-        "event": "error",
-        "timestamp": datetime.now().isoformat(),
-        "rule": job.rule,
-        "duration": end - start,
-        "wildcards": dict(job.wildcards),
-        "output": list(map(str, job.output)),
-        "log": job.log if hasattr(job, 'log') else None
-    }))
+    duration = time.time() - job_start_times.pop(id(job), time.time())
+    logger.info(json.dumps(job_metadata(job, "error", duration)))
 
 onsuccess: onsuccess
 onerror: onerror
