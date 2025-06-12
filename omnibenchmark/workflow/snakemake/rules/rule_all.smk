@@ -21,8 +21,9 @@ logger.setLevel(logging.INFO)
 
 if not logger.handlers:
     fh = logging.FileHandler("snakemake_tasks.jsonl")
-    formatter = logging.Formatter('%(message)s')
-    fh.setFormatter(formatter)
+    #formatter = logging.Formatter('%(message)s')
+    json_log_formatter = logging.Formatter('%(message)s')
+    fh.setFormatter(json_log_formatter)
     logger.addHandler(fh)
 
 # Track start time per job
