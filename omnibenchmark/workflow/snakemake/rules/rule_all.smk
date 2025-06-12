@@ -1,5 +1,11 @@
+import logging
+import json
 import os
 import re
+import time
+
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -10,9 +16,64 @@ from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
 from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
 
-import logging
-logging.getLogger('snakemake').setLevel(logging.DEBUG)
 
+logger = logging.getLogger('snakemake')
+logger.setLevel(logging.DEBUG)
+
+# Only add handler once
+if not logger.handlers:
+    fh = logging.FileHandler("snakemake_run.jsonl")
+    formatter = logging.Formatter('%(message)s')  # raw JSON
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+
+job_start_times = defaultdict(float)
+
+def onstart(job):
+    job_start_times[job] = time.time()
+    logger.info(json.dumps({
+        "event": "start",
+        "timestamp": datetime.now().isoformat(),
+        "rule": job.rule,
+        "wildcards": dict(job.wildcards),
+        "input": list(map(str, job.input)),
+        "output": list(map(str, job.output)),
+        "params": dict(job.params),
+        "resources": dict(job.resources),
+        "log": job.log if hasattr(job, 'log') else None
+    }))
+
+
+def onsuccess(job):
+    end = time.time()
+    start = job_start_times.pop(job, end)
+    logger.info(json.dumps({
+        "event": "success",
+        "timestamp": datetime.now().isoformat(),
+        "rule": job.rule,
+        "duration": end - start,
+        "wildcards": dict(job.wildcards),
+        "output": list(map(str, job.output)),
+    }))
+
+
+def onerror(job):
+    end = time.time()
+    start = job_start_times.pop(job, end)
+    logger.info(json.dumps({
+        "event": "error",
+        "timestamp": datetime.now().isoformat(),
+        "rule": job.rule,
+        "duration": end - start,
+        "wildcards": dict(job.wildcards),
+        "output": list(map(str, job.output)),
+        "log": job.log if hasattr(job, 'log') else None
+    }))
+
+onsuccess: onsuccess
+onerror: onerror
+onstart: onstart
 
 def create_all_rule(paths: List[str], aggregate_performance: bool = False, local_task_timeout=3000):
     if not aggregate_performance:
