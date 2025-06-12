@@ -1,13 +1,10 @@
 ## Install omnibenchmark
 
-Omnibenchmark runs on different operating systems (OS) and architectures. The installation procedure impacts omnibenchmark capabilities to manage software during benchmarking. We recommend installing using micromamba.
+Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/project/omnibenchmark/), [source code](https://github.com/omnibenchmark/omnibenchmark)). However, omnibenchmark aims to facilitate benchmarking using different software backends, including `conda`, `apptainer` (formerly `singularity`), or `easybuild`-built envmodules. Hence, extra steps to install some requirements (e.g., `apptainer`, `envmodules`, and so on) are required.
 
+Omnibenchmark has been tested under GNU/Linux.
 
-| capabilities              |  `system`           | `singularity`      |     `lmod`        |      `conda`         |
-| -----------               |  -------------------| ----------------   | ----------------- |  ----------------    |
-| `pip`                     |  :material-check:   | :material-close:   | :material-close:  | :material-close:     |
-| `mamba (e.g. micromamba)` |  :material-check:   | :material-check:   | :material-check:  | :material-check:     |
-
+We recommend installing omnibenchmark using conda, because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.  We recommend managing `conda` with [miniforge](https://conda-forge.org/download/) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html). Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.
 
 
 ### Full install (micromamba)
@@ -55,7 +52,7 @@ First, install [micromamba](https://mamba.readthedocs.io/en/latest/installation/
     source ~/.bashrc (or ~/.zshrc, ~/.xonshrc, ~/.config/fish/config.fish, ...)
     ```
 
-Then, clone omnibenchmark and install it in a new micromamba environment.
+Then, clone the omnibenchmark source code and install it in a new conda environment.
 
 === "Shell"
 
@@ -111,10 +108,6 @@ Before proceeding, make sure to install [apptainer](https://apptainer.org/docs/a
 After checking that apptainer is available, you should ensure **debootstrap** is available for building debian-based containers, and make sure to configure **fakeroot** with [`singularity config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot) to allow non-root users to simulate root privileges while managing containers.
 
 Do note that you will need `debootstrap` even if you're using a non-debian based linux.
-
-The following should get you covered:
-
-Finally, install [apptainer](https://apptainer.org/docs/admin/main/installation.html) (singularity) and further system dependencies. If apptainer is already installed, make sure **debootstrap** is also installed and **fakeroot** configured with [`singularity config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot).
 
 ```shell
 sudo apt install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget debootstrap software-properties-common

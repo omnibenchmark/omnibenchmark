@@ -63,35 +63,11 @@ software_environments:
 
 ## Choosing the right software backend (lmod, singularity, conda)
 
-Omnibenchmark is written in python and depends only on pypi packages. Some of its dependencies, namely those related to (reproducible) software stack management, are OS-specific.
+Omnibenchmark itself is a python package. Some of its dependencies, namely those related to (reproducible) software stack management, are OS-specific.
 
-
-| OS                 |  `envmodules`           | `singularity`          |      `conda`          |      `cernvmfs`        |
-| -----------        |  -------------------    | ----------------       |  ----------------     | ---------------        |
-| `Linux`            |  :material-check-all:   | :material-check-all:   |  :material-check-all: | (:material-check-all:) |
-| `MacOS`            |  :material-check:       | :material-close:       |  :material-check-all: | (:material-check-all:) |
-| `Windows`          |  :material-close:       | :material-close:       |    :material-help:    |   :material-help:     |
-
-
-
-On Linux, software can be managed:
+Software can be managed:
 
 - Using the host's binaries. If relevant interpreters/software are in your $PATH (perhaps using a virtual environment, or directly), they're accessible to omnibenchmark.
-- Using conda. For that [mamba](https://github.com/mamba-org/mamba) is required. We provide an `environment.yaml` to help building the environment. 
-- Using singularity. For that, apptainer is needed.
+- Using conda. For that `conda` is required. We provide a conda environment YAML to help installing all dependencies. 
+- Using apptainer. For that, apptainer is needed.
 - Using environment modules (lmod). For that, lmod is needed.
-
-Similarly, on MacOS:
-
-- Using the host's binaries. If relevant interpreters/software are in your $PATH (perhaps using a virtual environment, or directly), they're accessible to omnibenchmark.
-- Using conda. For that [mamba](https://github.com/mamba-org/mamba) is required. We provide an `environment.yaml` to help building the environment. 
-- Using singularity. It won't work unless using a virtual machine to provide a Linux-friendly host to singularity.
-- Using environment modules (lmod). For that, lmod needs to be installed.
-
-We haven't fully tested omnibenchmark on Windows, but we would recommend using the  Windows Subsystem for Linux (WSL).
-
-
-
-## Enabling networking in singularity containers
-
-(Updating)
