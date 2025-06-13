@@ -83,7 +83,9 @@ def run(ctx):
     default=DEFAULT_TIMEOUT_HUMAN,
     help="Timeout for each separate task execution (local only). Do note that total runtime is not additive.",
 )
-@click.option("--out-dir", type=str, default="out", help="Output folder name")
+@click.option(
+    "--out-dir", type=str, default="out", help="Output folder name (local only)."
+)
 @click.pass_context
 def run_benchmark(
     ctx,
