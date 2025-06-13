@@ -5,17 +5,24 @@
 
 **Authors**: ben, ...
 **Date**: 2025-06-18
+<<<<<<< HEAD
 **Status**: Approved
 **Version**: 0.1.0
 **Supersedes**: N/A
 **Reviewed-by**: dincicau, csoneson, imallona
+=======
+**Status**: Review
+**Version**: 0.1.0
+**Supersedes**: N/A
+**Reviewed-by**: dincicau, csoneson
+>>>>>>> dffe4e6 (docs: add template and README for design docs)
 **Related Issues**: #145
 
 ## Changes
 
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
-| 0.1 | 2025-06-13 | Initial draft | ben |
+| 0.1.0 | 2025-06-18 | Initial draft | ben |
 
 
 ## 1. Problem statement
@@ -29,7 +36,9 @@ We also rely on a `config.cfg` file to be [present at the root of a valid omnibe
 SCRIPT=run_fcps.R
 ```
 
-It has also been noted in the past that the `1:1` relation between module and entrypoint leads to a perhaps unnecessary proliferation of repos. As a secondary goal, being able to expose more than one entrypoint could allow to reuse a repo for different benchmark stage (it's just a namespace.)
+### Non-Goals
+
+Tangentially related, it has also been noted in the past that the `1:1` relation between module and entrypoint leads to a perhaps unnecessary proliferation of repos. I'm noting in here that allowing more than one entry point could allow to reuse a repo for different benchmark stages, since it's just a namespace that can be selected in the benchmark yaml. But objections were raised to "breaking the atomicity paradigm", so we'll not consider the multiple entrypoints in scope for this design document.
 
 
 ### Design Goals
@@ -47,6 +56,7 @@ Current spec expose both citation (attribution) metadata and execution details (
 
 ```YAML
 entrypoints:
+  # just a default entrypoint is permitted for the time being
   default: shuffler.run
 environments:
   conda: this-environment.yaml
@@ -143,7 +153,7 @@ In omnibenchmark, one or more commands should:
 - Adopt the hybrid approach.
 - Make a bare minimum of fields mandatory (entrypoint, URL, author, LICENSE)
 - Update docs to guide module contributors, including best practices for generating citation metadata (e.g. using online tools).
-- Explicitely address differences between metadata about code, algorithms, datasets and publications.
+- Explicitely address differences, if any found relevant after further analysis, between metadata about code, algorithms, datasets and publications. Separating attribution for distinct named entities might be relevant to automate, e.g. download or discovery of datasets or code (just to mention a plausible use case.)
 - Provide templates for both files in module scaffolding generation.
 - Consider adding a tool to guide module contributers to generate CITATION.cff via a text-wizard.
 - Watch the ecosystem in case new CFF spec are released that we want to incorporate.
