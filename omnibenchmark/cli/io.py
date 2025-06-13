@@ -283,12 +283,29 @@ def create_policy(benchmark: str):
     is_flag=True,
     default=False,
 )
+@click.option(
+    "--out-dir", type=str, default="out", help="Output folder name (local only)."
+)
 @click.pass_context
 def archive_benchmark(
-    ctx, benchmark, code, software, results, compression, compresslevel, dry_run, local
+    ctx,
+    benchmark,
+    code,
+    software,
+    results,
+    compression,
+    compresslevel,
+    dry_run,
+    local,
+    out_dir,
 ):
+    # Validate out_dir usage
+    if not local and out_dir != "out":
+        logger.error("-Invalid arguments: --out-dir can only be used with --local")
+        sys.exit(1)
+
     """Archive a benchmark"""
-    benchmark = validate_benchmark(benchmark, echo=False)
+    benchmark = validate_benchmark(benchmark, "/tmp", echo=False)
 
     match compression:
         case "none":
@@ -308,6 +325,7 @@ def archive_benchmark(
         code=code,
         software=software,
         results=results,
+        results_dir=out_dir,
         compression=compression,
         compresslevel=compresslevel,
         dry_run=dry_run,

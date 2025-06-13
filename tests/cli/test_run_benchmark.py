@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
@@ -102,6 +103,33 @@ def test_local():
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected)
+
+
+def test_custom_out_dir():
+    expected = """
+    Benchmark YAML file integrity check passed.
+    Running benchmark..."""
+
+    custom_out_dir = "out_2313_custom"
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(data / "mock_benchmark.yaml"),
+                "--local",
+                "--out-dir",
+                custom_out_dir
+            ],
+        )
+
+        assert result.returncode == 0
+        assert_startswith(result.stdout, expected)
+
+        assert os.path.exists(custom_out_dir)
+        shutil.rmtree(custom_out_dir)
 
 
 def test_local_dry():

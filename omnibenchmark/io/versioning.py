@@ -4,13 +4,13 @@ from typing import Dict, List, Tuple, Union
 import glob
 
 from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.io.RemoteStorage import StorageOptions
 from omnibenchmark.io.exception import MinIOStorageVersioningCorruptionException
-from omnibenchmark.io.S3config import S3_DEFAULT_STORAGE_OPTIONS
 
 
 def get_objects_to_tag(
     objdic: Dict,
-    storage_options: S3_DEFAULT_STORAGE_OPTIONS = S3_DEFAULT_STORAGE_OPTIONS(),
+    storage_options: StorageOptions,
 ) -> Tuple[List, List]:
     """
     Get a list of objects that need to be tagged with the current version.
@@ -50,7 +50,7 @@ def get_objects_to_tag(
 
 def get_expected_benchmark_output_files(
     benchmark: Benchmark,
-    storage_options: S3_DEFAULT_STORAGE_OPTIONS = S3_DEFAULT_STORAGE_OPTIONS(),
+    storage_options: StorageOptions,
 ) -> List:
     object_names_to_keep = benchmark.get_output_paths()
     if storage_options.extra_files_to_version_not_in_benchmark_yaml:
@@ -69,8 +69,8 @@ def get_expected_benchmark_output_files(
 def filter_objects_to_tag(
     object_names_to_tag: List,
     versionid_of_objects_to_tag: List,
+    storage_options: StorageOptions,
     benchmark: Union[None, Benchmark] = None,
-    storage_options: S3_DEFAULT_STORAGE_OPTIONS = S3_DEFAULT_STORAGE_OPTIONS(),
 ) -> Tuple[List, List]:
     if benchmark is None:
         return object_names_to_tag, versionid_of_objects_to_tag

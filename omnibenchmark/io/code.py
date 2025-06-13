@@ -4,8 +4,8 @@ import tarfile
 
 from pathlib import Path
 from filelock import FileLock
-from git import Repo
 from git.exc import InvalidGitRepositoryError
+from git import Repo
 import requests
 
 from omnibenchmark.workflow.snakemake.scripts.utils import (
@@ -13,7 +13,7 @@ from omnibenchmark.workflow.snakemake.scripts.utils import (
 )
 
 
-# Get the code from a GitHub repository  ( https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
+# Get the code from a GitHub repository (https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
 def get_git_archive_from_github(
     # TODO: deprecate, just use clone_git_repo
     output_dir: Path,

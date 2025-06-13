@@ -24,8 +24,8 @@ from omnibenchmark.io.exception import (
     RemoteStorageInvalidInputException,
 )
 from omnibenchmark.io.archive import prepare_archive_software
-from omnibenchmark.io.RemoteStorage import RemoteStorage
-from omnibenchmark.io.S3config import S3_DEFAULT_STORAGE_OPTIONS, bucket_readonly_policy
+from omnibenchmark.io.RemoteStorage import RemoteStorage, StorageOptions
+from omnibenchmark.io.S3config import bucket_readonly_policy
 from omnibenchmark.io.S3versioning import get_s3_object_versions_and_tags
 from omnibenchmark.io.versioning import (
     filter_objects_to_tag,
@@ -68,8 +68,7 @@ class MinIOStorage(RemoteStorage):
         self,
         auth_options: Dict,
         benchmark: str,
-        # TODO: fix type problems here.
-        storage_options: Dict = S3_DEFAULT_STORAGE_OPTIONS,
+        storage_options: StorageOptions,
     ):
         super().__init__(auth_options, benchmark, storage_options)
         assert "endpoint" in self.auth_options.keys()
@@ -123,7 +122,7 @@ class MinIOStorage(RemoteStorage):
         except MinIOStorageConnectionException as e:
             raise e
 
-    def _create_benchmark(self, benchmark) -> None:
+    def _create_benchmark(self, benchmark: str) -> None:
         if self.client.bucket_exists(benchmark):
             raise MinIOStorageBucketManipulationException(
                 f"Benchmark {benchmark} already exists."
@@ -197,7 +196,6 @@ class MinIOStorage(RemoteStorage):
 
             # upload software files
             for software_file in software_files:
-                print(software_file)
                 with open(software_file, "r") as fh:
                     softstr = fh.read()
 
@@ -217,12 +215,10 @@ class MinIOStorage(RemoteStorage):
         )
 
         # filter objects based on workflow
-        object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(
-            object_names_to_tag,
-            versionid_of_objects_to_tag,
-            benchmark,
-            self.storage_options,
-        )
+        object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(object_names_to_tag,
+                                                                                 versionid_of_objects_to_tag,
+                                                                                 self.storage_options,
+                                                                                 benchmark)
 
         # Tag all objects with current version
         tags = minio.datatypes.Tags.new_object_tags()

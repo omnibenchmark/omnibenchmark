@@ -4,11 +4,6 @@ import sys
 
 
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.io.RemoteStorage import DEFAULT_STORAGE_OPTIONS
-
-
-class S3_DEFAULT_STORAGE_OPTIONS(DEFAULT_STORAGE_OPTIONS):
-    pass
 
 
 def benchmarker_access_token_policy(benchmark):
