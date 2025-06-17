@@ -9,8 +9,7 @@ def parse_extra_args(args):
     while i < len(args):
         arg = args[i]
         if arg.startswith("--"):
-            # Replace dashes with underscores
-            key = arg[2:].replace("-", "_")
+            key = arg[2:]
             # Check if there's a following value that isn't another option.
             if i + 1 < len(args) and not args[i + 1].startswith("--"):
                 extra_kwargs[key] = args[i + 1]
