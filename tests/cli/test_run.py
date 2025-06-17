@@ -90,3 +90,34 @@ def test_run_benchmark_with_yes(
     # Ensure workflow.run_workflow is called
     mock_workflow_run_workflow.assert_called_once()
     assert result.exit_code == 0
+
+
+@pytest.mark.short
+def test_run_benchmark_with_slurm_executor(
+    mock_validate_benchmark, mock_workflow_run_workflow, mock_click_confirm
+):
+    """
+    Test that the benchmark runs with the SLURM executor and extra arguments that are passed directly to snakemake
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    runner = CliRunner()
+    result = runner.invoke(
+        run_benchmark,
+        [
+            "--benchmark",
+            benchmark_path,
+            "-k",
+            "--executor",
+            "slurm",
+            "--jobs",
+            "2",
+            "-yes",
+        ],
+    )
+
+    mock_click_confirm.assert_not_called()
+
+    # Ensure workflow.run_workflow is called
+    mock_workflow_run_workflow.assert_called_once()
+    assert result.exit_code == 0

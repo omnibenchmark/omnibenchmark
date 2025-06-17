@@ -1,6 +1,7 @@
 import os.path
 from pathlib import Path
 from abc import ABCMeta, abstractmethod
+from typing import Optional
 
 from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
 
@@ -20,9 +21,11 @@ class WorkflowEngine(metaclass=ABCMeta):
         continue_on_error: bool = False,
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        module_path: str = os.environ.get("MODULEPATH", None),
+        module_path: str = os.environ.get("MODULEPATH", ""),
+        debug: bool = False,
         work_dir: Path = Path(os.getcwd()),
-        **kwargs,
+        resources: Optional[dict] = None,
+        **snakemake_kwargs,
     ) -> bool:
         """
         Serializes & runs benchmark workflow.
@@ -37,7 +40,9 @@ class WorkflowEngine(metaclass=ABCMeta):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
-            **kwargs: keyword arguments to pass to the workflow engine
+            resources(dict): optional dict of resources to be passed to snakemake execution
+
+            **snakemake_kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
         - Status code (bool) of the workflow run.
@@ -72,9 +77,9 @@ class WorkflowEngine(metaclass=ABCMeta):
         continue_on_error: bool = False,
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        module_path: str = os.environ.get("MODULEPATH", None),
+        module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
-        **kwargs,
+        **snakemake_kwargs,
     ) -> bool:
         """
         Serializes & runs benchmark node workflow.
@@ -91,7 +96,8 @@ class WorkflowEngine(metaclass=ABCMeta):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
-            **kwargs: keyword arguments to pass to the workflow engine
+
+            **snakemake_kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
         - Status code (bool) of the workflow run.

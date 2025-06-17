@@ -37,9 +37,9 @@ class SnakemakeEngine(WorkflowEngine):
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
-        debug: bool = False,
         work_dir: Path = Path(os.getcwd()),
         resources: Optional[dict] = None,
+        debug: bool = False,
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -371,7 +371,7 @@ class SnakemakeEngine(WorkflowEngine):
             if isinstance(value, bool):
                 if value:  # Add flag only if True
                     argv.append(f"--{key}")
-            else:
+            elif value is not None:
                 argv.extend([f"--{key}", str(value)])
 
         return argv

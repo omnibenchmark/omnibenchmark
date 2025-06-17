@@ -17,6 +17,7 @@ from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
 from .debug import add_debug_option
+from .utils.args import parse_extra_args
 
 
 @click.group(name="run")
@@ -27,7 +28,13 @@ def run(ctx):
 
 
 @add_debug_option
-@run.command(name="benchmark")
+@run.command(
+    name="benchmark",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
 @click.option(
     "-b",
     "--benchmark",
@@ -83,6 +90,12 @@ def run(ctx):
     default=DEFAULT_TIMEOUT_HUMAN,
     help="Timeout for each separate task execution (local only). Do note that total runtime is not additive.",
 )
+@click.option(
+    "--executor",
+    help="Specify a custom executor to use for workflow execution. Example: slurm",
+    type=str,
+    default=None,
+)
 @click.pass_context
 def run_benchmark(
     ctx,
@@ -95,9 +108,11 @@ def run_benchmark(
     keep_module_logs,
     continue_on_error,
     task_timeout,
+    executor,
 ):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
+    extra_args = parse_extra_args(ctx.args)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
@@ -160,7 +175,9 @@ def run_benchmark(
         backend=benchmark.get_benchmark_software_backend(),
         debug=debug,
         resources={LOCAL_TIMEOUT_VAR: timeout_s},
+        executor=executor,
         **storage_options,
+        **extra_args,
     )
 
     if success:
@@ -171,7 +188,13 @@ def run_benchmark(
     sys.exit(0 if success else 1)
 
 
-@run.command(name="module")
+@run.command(
+    name="module",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
 @click.option(
     "-b",
     "--benchmark",
@@ -208,14 +231,29 @@ def run_benchmark(
     default=False,
     help="Keep module-specific log files after execution.",
 )
+@click.option(
+    "--executor",
+    help="Specify a custom executor to use for workflow execution. Example: slurm",
+    type=str,
+    default=None,
+)
 @click.pass_context
 def run_module(
-    ctx, benchmark, module, input_dir, dry, update, keep_module_logs, continue_on_error
+    ctx,
+    benchmark,
+    module,
+    input_dir,
+    dry,
+    update,
+    keep_module_logs,
+    continue_on_error,
+    executor,
 ):
     """
     Run a specific module that is part of the benchmark.
     """
     behaviours = {"input": input_dir, "example": None, "all": None}
+    extra_args = parse_extra_args(ctx.args)
 
     # TODO(ben): fix cyclomatic complexity in this function
     non_none_behaviours = {
@@ -325,6 +363,8 @@ def run_module(
                                     continue_on_error=continue_on_error,
                                     keep_module_logs=keep_module_logs,
                                     backend=b.get_benchmark_software_backend(),
+                                    executor=executor,
+                                    **extra_args,
                                 )
 
                                 if success:
@@ -379,4 +419,4 @@ def run_module(
 def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     logger.info("Validating a benchmark yaml.")
-    benchmark = validate_benchmark(benchmark)
+    _ = validate_benchmark(benchmark)
