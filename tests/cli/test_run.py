@@ -97,7 +97,8 @@ def test_run_benchmark_with_slurm_executor(
     mock_validate_benchmark, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
-    Test that the benchmark runs with the SLURM executor and extra arguments that are passed directly to snakemake
+    Test that the benchmark runs with the SLURM executor and
+    extra arguments that are passed directly to nakemake.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
@@ -120,4 +121,10 @@ def test_run_benchmark_with_slurm_executor(
 
     # Ensure workflow.run_workflow is called
     mock_workflow_run_workflow.assert_called_once()
+    args, kwargs = mock_workflow_run_workflow.call_args
+    assert kwargs["cores"] == 1
+    assert kwargs["executor"] == "slurm"
+    assert kwargs["jobs"] == "2"
+    assert kwargs["continue_on_error"] is True
+
     assert result.exit_code == 0
