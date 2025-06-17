@@ -3,7 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.2.2](main)
+## [0.3.0](main) UNRELEASED
 
 - feature: SLURM support
 - feature: Support passing of extra arguments from CLI -> Snakemake for run commands
