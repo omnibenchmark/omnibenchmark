@@ -95,3 +95,36 @@ We haven't fully tested omnibenchmark on Windows, but we would recommend using t
 ## Enabling networking in singularity containers
 
 (Updating)
+
+## Configuration file
+
+Omnibenchmark uses a configuration file to store settings such as paths and environment variables. The configuration file is stored at:
+
+- Linux: `~/.config/omnibenchmark/omnibenchmark.cfg`
+- macOS: `~/Library/Application Support/omnibenchmark/omnibenchmark.cfg`
+
+### Format
+
+The configuration file uses the INI format with sections and key-value pairs:
+
+```ini
+[section1]
+key1 = value1
+key2 = value2
+
+[section2]
+key3 = value3
+```
+
+### Common Settings
+
+You might want to configure:
+
+- **Easybuild paths**: Set `MODULEPATH` and `ROBOTPATH` in the `easybuild` section 
+  to specify where modules are installed and where to find easyconfigs.
+
+- **Dataset storage**: Set `datasets` in the `dirs` section to control where 
+  benchmark datasets are stored.
+
+For more detailed information about the configuration system, including programmatic access, 
+see the [Configuration System](config.md) documentation.

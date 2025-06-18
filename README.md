@@ -32,6 +32,10 @@ See [our tags](https://github.com/omnibenchmark/omnibenchmark/tags).
 
 Documentation includes a [CLI reference](https://docs.omnibenchmark.org/latest/reference/).
 
+### Configuration
+
+Omnibenchmark uses a configuration file to store paths for Easybuild modules, dataset storage, and other settings. The configuration file is automatically created and managed by the system. See the [Configuration documentation](https://docs.omnibenchmark.org/latest/config/) for details.
+
 ## Developer notes
 
 Check [CONTRIBUTING.md](https://github.com/omnibenchmark/omnibenchmark/blob/main/CONTRIBUTING.md).
