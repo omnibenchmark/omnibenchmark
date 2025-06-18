@@ -1,6 +1,6 @@
 ## updated from Snakemake's test suite
 ##
-##https://raw.githubusercontent.com/snakemake/snakemake/main/tests/tests.py
+## https://raw.githubusercontent.com/snakemake/snakemake/main/tests/tests.py
 ## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
 ## From Koester's license above:
 ##
@@ -14,6 +14,7 @@
 import sys
 import os.path as op
 import pytest
+
 from utils.run import run, check_cmd_zero_exit
 
 sys.path.insert(0, op.dirname(__file__))
@@ -52,6 +53,7 @@ def test_bash_cmd():
     check_cmd_zero_exit("bash --version")
 
 
+@pytest.mark.easybuild_toolchain
 def test_easybuild_sys_toolchain_build():
     run(
         Snakefile=op.join("03_easybuild_build", "Snakefile"),
