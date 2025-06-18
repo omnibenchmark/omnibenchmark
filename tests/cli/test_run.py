@@ -112,8 +112,18 @@ def test_run_benchmark_with_slurm_executor(
             "--executor",
             "slurm",
             "--jobs",
-            "2",
-            "-yes",
+            "6",
+            "--cores",
+            "24",
+            "--default-resources",
+            "mem_mb=4000",
+            "runtime=600",
+            "--set-threads",
+            "4",
+            "--verbose",
+            "--printshellcmds",
+            "--reason",
+            "--yes",
         ],
     )
 
@@ -122,9 +132,14 @@ def test_run_benchmark_with_slurm_executor(
     # Ensure workflow.run_workflow is called
     mock_workflow_run_workflow.assert_called_once()
     args, kwargs = mock_workflow_run_workflow.call_args
-    assert kwargs["cores"] == 1
     assert kwargs["executor"] == "slurm"
-    assert kwargs["jobs"] == "2"
+    assert kwargs["jobs"] == "6"
+    assert kwargs["cores"] == 24
+    assert kwargs["set-threads"] == "4"
+    assert kwargs["default-resources"] == "mem_mb=4000 runtime=600"
     assert kwargs["continue_on_error"] is True
+    assert kwargs["verbose"] is True
+    assert kwargs["printshellcmds"] is True
+    assert kwargs["reason"] is True
 
     assert result.exit_code == 0
