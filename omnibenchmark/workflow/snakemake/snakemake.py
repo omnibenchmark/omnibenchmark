@@ -371,6 +371,9 @@ class SnakemakeEngine(WorkflowEngine):
             if isinstance(value, bool):
                 if value:  # Add flag only if True
                     argv.append(f"--{key}")
+            elif isinstance(value, list):
+                argv.append(f"--{key}")
+                argv.extend(str(v) for v in value)
             elif value is not None:
                 argv.extend([f"--{key}", str(value)])
 

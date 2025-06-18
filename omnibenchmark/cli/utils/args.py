@@ -15,10 +15,12 @@ def parse_extra_args(args):
             while i < len(args) and not args[i].startswith("--"):
                 values.append(args[i])
                 i += 1
-            if values:
-                extra_kwargs[key] = " ".join(values)
-            else:
+            if not values:
                 extra_kwargs[key] = True
+            elif len(values) == 1:
+                extra_kwargs[key] = values[0]
+            else:
+                extra_kwargs[key] = values
         else:
             i += 1
     return extra_kwargs
