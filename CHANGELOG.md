@@ -3,6 +3,9 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](main) UNRELEASED
+- feat: add an extra profiler to the snakemake execution
+
 ## [0.2.2](main) UNRELEASED
 - cli: added `--out-dir` to `ob run benchmark` to configure a different output directory for the workflow
 

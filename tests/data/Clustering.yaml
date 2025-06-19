@@ -2,11 +2,8 @@ id: clustering_benchmark
 description: Clustering benchmark on Iris and Penguins Dataset.
 version: 1.0
 benchmarker: "OmniBenchmark Team at Robinsons Lab"
-storage: https://play.min.io
 benchmark_yaml_spec: 0.01
-storage_api: S3
-storage_bucket_name: clustering_benchmark
-software_backend: host
+software_backend: conda
 software_environments:
   R:
     description: "R 4.4.1 with gfbf-2023 toolchain"

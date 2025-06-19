@@ -5,7 +5,7 @@ channels:
 dependencies:
   - conda-forge::python == 3.12
   - conda-forge::pip >= 25.0.0
-  - conda-forge::mamba >= 1.5.10
+  - conda-forge::conda >= 24.9.1 
   - conda-forge::lmod >= 8.7.25
   - pip:
      - "."
