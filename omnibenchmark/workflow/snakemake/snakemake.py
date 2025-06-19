@@ -38,6 +38,7 @@ class SnakemakeEngine(WorkflowEngine):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
+        out_dir: str = "out",
         resources: Optional[dict] = None,
         debug: bool = False,
         **snakemake_kwargs,
@@ -55,6 +56,7 @@ class SnakemakeEngine(WorkflowEngine):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
+            out_dir (str): output directory. Default: `out`
             resources(dict): optional dict of resources to be passed to snakemake execution
 
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
@@ -79,6 +81,7 @@ class SnakemakeEngine(WorkflowEngine):
             work_dir=work_dir,
             debug=debug,
             resources=resources,
+            out_dir=out_dir,
             **snakemake_kwargs,
         )
 
@@ -129,7 +132,7 @@ class SnakemakeEngine(WorkflowEngine):
             self._write_includes(f, INCLUDES)
 
             # Load benchmark from yaml file
-            f.write(f'benchmark = load("{benchmark_file.as_posix()}")\n\n')
+            f.write(f'benchmark = load("{benchmark_file.as_posix()}", config)\n\n')
 
             # Create capture all rule
             f.write("node_paths = sorted(benchmark.get_output_paths())\n")
@@ -322,6 +325,7 @@ class SnakemakeEngine(WorkflowEngine):
         dataset: Optional[str] = None,
         debug: bool = False,
         resources: Optional[dict] = None,
+        out_dir: Optional[str] = None,
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
@@ -333,11 +337,16 @@ class SnakemakeEngine(WorkflowEngine):
             "--directory",
             work_dir.as_posix(),
             "--config",
-            f"input={input_dir.as_posix() if input_dir else ''}",
             f"dataset={dataset}",
             f"keep_module_logs={keep_module_logs}",
             f"keep_going={continue_on_error}",
         ]
+
+        if input_dir:
+            argv.extend([f"input={input_dir.as_posix()}"])
+
+        if out_dir:
+            argv.extend([f"out_dir={out_dir}"])
 
         if debug:
             argv.extend(["--verbose", "--debug"])

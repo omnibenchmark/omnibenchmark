@@ -5,6 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.3.0](main) UNRELEASED
 
+- cli: added `--out-dir` to `ob run benchmark` to configure a different output directory for the workflow
 - feature: SLURM support
 - feature: Support passing of extra arguments from CLI -> Snakemake for run commands
 
