@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import subprocess
@@ -9,6 +10,13 @@ import configparser
 from snakemake.script import Snakemake
 
 from omnibenchmark.benchmark.params import Params
+
+try:
+    from denet import execute_with_monitoring
+
+    HAS_PROFILER = True
+except ImportError:
+    HAS_PROFILER = False
 
 
 def mock_execution(inputs: List[str], output: str, snakemake: Snakemake):
@@ -70,15 +78,28 @@ def execution(
 
     try:
         with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
-            result = subprocess.run(
-                command,
-                check=True,
-                stdout=stdout_f,
-                stderr=stderr_f,
-                text=True,
-                timeout=timeout,
-            )
-            exit_code = result.returncode
+            kwargs = {"timeout": timeout}
+
+            if HAS_PROFILER:
+                # execute and monitor
+                exec_fn = execute_with_monitoring
+                kwargs["stdout_file"] = stdout_file
+                kwargs["stderr_file"] = stderr_file
+                kwargs["output_file"] = (output_dir / "perf_raw.jsonl").as_posix()
+                exit_code, monitor = exec_fn(command, **kwargs)
+                # output the aggregated metrics in the folder too
+                with open((output_dir / "perf.json").as_posix(), "w") as perf_file:
+                    summary = json.loads(monitor.get_summary())
+                    json.dump(summary, perf_file)
+            else:
+                # execute without monitoring, via subprocess.run
+                exec_fn = subprocess.run
+                kwargs["stdout"] = stdout_f
+                kwargs["stderr"] = stderr_f
+                kwargs["check"] = True
+                kwargs["text"] = True
+                result = exec_fn(command, **kwargs)
+                exit_code = result.returncode
             logging.info(f"{executable} ran successfully with return code {exit_code}.")
 
     except subprocess.CalledProcessError as e:
@@ -92,6 +113,8 @@ def execution(
             f"ERROR: Executing {executable} failed after timing out in {timeout}s"
             f"See {stderr_file} for details."
         )
+        with open((output_dir / "timeout").as_posix(), "w") as timeout_witness:
+            timeout_witness.write("1")
         raise e
 
     finally:
@@ -124,6 +147,8 @@ def _read_config(module_dir: Path) -> Optional[configparser.ConfigParser]:
 
 
 def _create_command(executable_path: Path) -> Optional[list[str]]:
+    # TODO(ben): is this really needed?
+    # We might just rely on shebang line if it's not a binary
     _, extension = os.path.splitext(executable_path)
 
     if extension == ".py":
