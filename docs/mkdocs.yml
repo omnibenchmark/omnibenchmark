@@ -46,7 +46,7 @@ plugins:
       type: date
       enable_creation_date: false
   - bibtex:
-      bib_file: "docs/refs.bib"
+      bib_file: "refs.bib"
 
 markdown_extensions:
   - mkdocs-click
