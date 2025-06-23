@@ -136,7 +136,6 @@ jobs:
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
       - name: Detect macOS version and set CONDA_OVERRIDE_OSX
-        if: runner.os == 'macOS'
         run: |
           OS_VER=$(sw_vers -productVersion | cut -d. -f1,2)
           echo "CONDA_OVERRIDE_OSX=$OS_VER" >> $GITHUB_ENV
