@@ -1,0 +1,63 @@
+id: mock_benchmark_metadata
+description: benchmark to test module metadata
+version: 1.0
+benchmarker: "Bench Marker"
+software_backend: host
+software_environments:
+  python:
+    description: "some python env"
+    conda: envs/python_vX_test.yaml
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: "python"
+        repository:
+          url: bundles/dummymodule_83af5a4.bundle # this commit should not validate
+          commit: 83af5a4
+        parameters:
+          - values: ["--output", "D1.txt"]
+    outputs:
+      - id: data.counts
+        path: "{input}/{stage}/{module}/{params}/{dataset}.txt"
+
+  - id: process
+    modules:
+      - id: P1
+        software_environment: python
+        repository:
+          url: bundles/omni-module-tests_f89d626.bundle
+          commit: f89d626
+        parameters:
+          - values: ["--ok", "1"]
+      - id: P2
+        # this module is failing
+        software_environment: python
+        repository:
+          url: bundles/dummymodule_83af5a4.bundle # this commit should validate metadata
+          commit: 83af5a4
+        parameters:
+          - values: ["--fail", "hard"]
+    inputs:
+      - entries:
+          - data.counts
+    outputs:
+      - id: process.out
+        path: "{input}/{stage}/{module}/{params}/{dataset}.processed.txt"
+
+  - id: analyze
+    modules:
+      - id: A1
+        name: "Analyze"
+        software_environment: python
+        repository:
+          url: bundles/dummymodule_83af5a4.bundle # this commit has no valid entrypoints
+          commit: 83af5a4
+        parameters:
+          - values: ["--ok", "1", "--output", "analyzed.txt"]
+    inputs:
+      - entries:
+          - process.out
+    outputs:
+      - id: analysis.result
+        path: "{input}/{stage}/{module}/{params}/{dataset}.computation.txt"
