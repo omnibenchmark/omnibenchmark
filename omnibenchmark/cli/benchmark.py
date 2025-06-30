@@ -10,6 +10,11 @@ from datetime import datetime
 from difflib import unified_diff
 
 from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.benchmark.cite import (
+    extract_citation_metadata,
+    format_output,
+    CitationExtractionError,
+)
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.storage import get_storage, remote_storage_args
@@ -180,3 +185,77 @@ def plot_topology(ctx, benchmark: str):
     if b is not None:
         mermaid = b.export_to_mermaid()
         click.echo(mermaid)
+
+
+@info.command("cite")
+@click.option(
+    "--benchmark",
+    "-b",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file or benchmark id.",
+    envvar="OB_BENCHMARK",
+)
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["json", "yaml", "bibtex"], case_sensitive=False),
+    default="yaml",
+    help="Output format for citation information.",
+)
+@click.option(
+    "--warn",
+    is_flag=True,
+    help="Treat missing citation metadata as warnings instead of errors (default: strict mode fails if ANY module lacks valid citation metadata).",
+)
+@click.option(
+    "--out",
+    type=click.Path(),
+    help="Output file to write results to.",
+)
+@click.pass_context
+def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
+    """Extract citation metadata from CITATION.cff files in benchmark modules.
+
+    Automatically clones repositories to temporary directories if not found locally.
+    By default, runs in strict mode and fails if ANY module lacks valid citation metadata.
+    This includes modules with missing repository info, clone failures, or missing CITATION.cff files.
+    Use --warn to treat these as warnings instead of errors.
+    """
+
+    b = validate_benchmark(benchmark, "/tmp", echo=False)
+    if b is not None:
+        logger.info(f"Extracting citation metadata from {benchmark}")
+        logger.info(
+            "Will clone repositories to temporary directories if not found locally"
+        )
+
+        try:
+            citation_metadata = extract_citation_metadata(b, strict=not warn)
+        except RuntimeWarning as e:
+            logger.warning(str(e))
+            return
+        except CitationExtractionError as e:
+            logger.error(str(e))
+            logger.error(f"Failed modules: {', '.join(e.failed_modules)}")
+            # Log detailed error information
+            for issue in e.issues:
+                logger.error(f"  - {issue.message}")
+            ctx.exit(1)
+
+        try:
+            output = format_output(citation_metadata, format)
+        except ValueError as e:
+            logger.error(str(e))
+            ctx.exit(1)
+
+        if out:
+            try:
+                with open(out, "w", encoding="utf-8") as f:
+                    f.write(output)
+                logger.info(f"Output written to {out}")
+            except Exception as e:
+                logger.error(f"Failed to write output file: {e}")
+                ctx.exit(1)
+        else:
+            click.echo(output)
