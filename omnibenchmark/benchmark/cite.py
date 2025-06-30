@@ -9,10 +9,14 @@ from typing import Dict, Optional, Any, List
 
 from omnibenchmark.benchmark.benchmark import Benchmark
 from omnibenchmark.io.code import clone_module
-
-# TODO: Refactor to avoid code duplication - this function exists in multiple places
-from omnibenchmark.workflow.snakemake.scripts.utils import (
-    generate_unique_repo_folder_name,
+from omnibenchmark.model.repo import get_repo_hash
+from omnibenchmark.benchmark.validation_core import (
+    ValidationResult,
+    ValidationIssue,
+    ValidationSeverity,
+    ValidationException,
+    create_validation_context,
+    validate_citation_cff_content,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,124 +25,162 @@ logger = logging.getLogger(__name__)
 class CitationExtractionError(Exception):
     """Raised when citation extraction fails in strict mode."""
 
-    def __init__(self, message: str, failed_modules: List[str]):
+    def __init__(
+        self, message: str, failed_modules: List[str], issues: List[ValidationIssue]
+    ):
         super().__init__(message)
         self.failed_modules = failed_modules
+        self.issues = issues
+
+
+class ModuleCitationResult:
+    """Result of citation extraction for a single module."""
+
+    def __init__(self, module_id: str):
+        self.module_id = module_id
+        self.repository_url: Optional[str] = None
+        self.commit_hash: Optional[str] = None
+        self.citation_data: Optional[Dict[str, Any]] = None
+        self.citation_file_found: bool = False
+        self.local_repo_exists: bool = False
+        self.validation_result: ValidationResult = ValidationResult()
+
+    def add_issue(self, issue: ValidationIssue):
+        """Add a validation issue."""
+        self.validation_result.add_issue(issue)
+
+    def is_valid(self) -> bool:
+        """Return True if no errors."""
+        return self.validation_result.is_valid()
+
+    def has_warnings(self) -> bool:
+        """Return True if warnings exist."""
+        return self.validation_result.has_warnings()
+
+
+def convert_errors_to_warnings(result: ModuleCitationResult) -> ModuleCitationResult:
+    """Convert all errors to warnings for warn mode."""
+    if not result.validation_result.errors:
+        return result
+
+    # Create new ValidationResult with all issues as warnings
+    new_result = ValidationResult()
+    for issue in result.validation_result.issues:
+        warning_issue = ValidationIssue(
+            issue_type=issue.issue_type,
+            severity=ValidationSeverity.WARNING,
+            path=issue.path,
+            module_id=issue.module_id,
+            message=issue.message,
+            **issue.context,
+        )
+        new_result.add_issue(warning_issue)
+
+    result.validation_result = new_result
+    return result
+
+
+def create_cite_issue(
+    issue_type: str,
+    module_id: str,
+    message: str,
+    severity: ValidationSeverity = ValidationSeverity.ERROR,
+    **context,
+) -> ValidationIssue:
+    """Create a citation-related validation issue."""
+    return ValidationIssue(
+        issue_type=issue_type,
+        severity=severity,
+        path=".",
+        module_id=module_id,
+        message=message,
+        **context,
+    )
 
 
 def extract_citation_metadata(
-    benchmark: Benchmark, strict: bool = False
+    benchmark: Benchmark, strict: bool = True, warn_mode: bool = False
 ) -> Dict[str, Optional[Dict[str, Any]]]:
     """Extract CITATION.cff metadata from all modules in a benchmark.
 
     Args:
         benchmark: The benchmark instance to extract citations from
-        strict: If True, raise errors for ANY module without valid citation metadata
+        strict: If True, use strict mode (fail fast on first error)
+        warn_mode: If True, convert errors to warnings instead of failing
 
     Returns:
         Dictionary mapping module_id to citation metadata
 
     Raises:
         RuntimeWarning: If no cloned repositories are found
-        CitationExtractionError: If strict=True and ANY module lacks valid citation metadata
+        CitationExtractionError: If strict=True and errors found (unless warn_mode=True)
     """
     repos_base_dir = Path(".snakemake/repos")
     temp_directories = []  # Track temporary directories for cleanup
 
     modules = benchmark.get_converter().get_modules()
-    citation_metadata = {}
+    module_results = {}
     found_any_repos = False
-    failed_modules = []
+    all_issues = []
 
-    for module_id, module in modules.items():
-        repo_info = benchmark.get_converter().get_module_repository(module)
-
-        # Get repository URL and commit hash
-        # Try different possible attribute names
-        repo_url = getattr(repo_info, "url", None) or getattr(
-            repo_info, "repository", None
-        )
-        commit_hash = (
-            getattr(repo_info, "commit_hash", None)
-            or getattr(repo_info, "commit", None)
-            or getattr(repo_info, "version", None)
-        )
-
-        citation_metadata[module_id] = {
-            "repository_url": repo_url,
-            "commit_hash": commit_hash,
-            "citation_data": None,
-            "citation_file_found": False,
-            "local_repo_exists": False,
-        }
-
-        if not repo_url or not commit_hash:
-            if strict:
-                failed_modules.append(module_id)
-            else:
-                logger.warning(f"Missing repository info for module: {module_id}")
-            continue
-
-        # Generate the expected local folder name
-        folder_name = generate_unique_repo_folder_name(repo_url, commit_hash)
-        local_repo_path = repos_base_dir / folder_name
-
-        if not local_repo_path.exists():
-            # Try to clone the repository to a temporary directory
-            logger.info(
-                f"Local repository not found for {module_id}, attempting to clone..."
-            )
-            temp_repo_path = _clone_to_temp(repo_url, commit_hash, module_id)
-
-            if temp_repo_path is None:
-                # Clone failed
-                if strict:
-                    failed_modules.append(module_id)
-                else:
-                    logger.warning(
-                        f"Failed to clone repository for {module_id}: {repo_url}"
-                    )
-                continue
-
-            # Use the temporary path instead and track for cleanup
-            local_repo_path = temp_repo_path
-            temp_directories.append(temp_repo_path.parent)
-
-        found_any_repos = True
-        citation_metadata[module_id]["local_repo_exists"] = True
-        citation_file = local_repo_path / "CITATION.cff"
-
-        if not citation_file.exists():
-            if strict:
-                failed_modules.append(module_id)
-            else:
-                logger.warning(f"No CITATION.cff found for module: {module_id}")
-            continue
-
-        try:
-            with open(citation_file, "r", encoding="utf-8") as f:
-                citation_data = yaml.safe_load(f)
-            citation_metadata[module_id]["citation_data"] = citation_data
-            citation_metadata[module_id]["citation_file_found"] = True
-            logger.info(f"Found CITATION.cff for module: {module_id}")
-        except Exception as e:
-            if strict:
-                failed_modules.append(module_id)
-            else:
-                logger.warning(f"Error reading CITATION.cff for {module_id}: {e}")
-
-    # Cleanup temporary directories
     try:
+        for module_id, module in modules.items():
+            result = _extract_single_module_citation(
+                module_id, module, benchmark, repos_base_dir, temp_directories
+            )
+
+            if result.local_repo_exists:
+                found_any_repos = True
+
+            # In strict mode, fail fast on first error
+            if strict and not warn_mode and not result.is_valid():
+                all_issues.extend(result.validation_result.errors)
+                raise CitationExtractionError(
+                    f"Citation extraction failed for module: {module_id}",
+                    [module_id],
+                    result.validation_result.errors,
+                )
+
+            # Convert errors to warnings if in warn mode
+            if warn_mode and not result.is_valid():
+                result = convert_errors_to_warnings(result)
+                # Log warnings
+                for warning in result.validation_result.warnings:
+                    logger.warning(warning.message)
+
+            # Collect all errors for non-strict mode
+            if not result.is_valid():
+                all_issues.extend(result.validation_result.errors)
+
+            module_results[module_id] = result
+
+        # Check if we found any repositories
         if not found_any_repos and not temp_directories:
             raise RuntimeWarning(
                 "No local repositories found for any modules. Try running the benchmark first to clone the modules."
             )
 
-        if strict and failed_modules:
+        # In non-warn mode, check if we have any failures
+        if not warn_mode and all_issues:
+            failed_modules = [
+                mid for mid, result in module_results.items() if not result.is_valid()
+            ]
             raise CitationExtractionError(
                 f"Missing valid citation metadata in {len(failed_modules)} modules",
                 failed_modules,
+                all_issues,
             )
+
+        # Convert results to legacy format
+        citation_metadata = {}
+        for module_id, result in module_results.items():
+            citation_metadata[module_id] = {
+                "repository_url": result.repository_url,
+                "commit_hash": result.commit_hash,
+                "citation_data": result.citation_data,
+                "citation_file_found": result.citation_file_found,
+                "local_repo_exists": result.local_repo_exists,
+            }
 
         return citation_metadata
 
@@ -151,6 +193,110 @@ def extract_citation_metadata(
                     logger.debug(f"Cleaned up temporary directory: {temp_dir}")
             except Exception as e:
                 logger.warning(f"Failed to cleanup temporary directory {temp_dir}: {e}")
+
+
+def _extract_single_module_citation(
+    module_id: str,
+    module: Any,
+    benchmark: Benchmark,
+    repos_base_dir: Path,
+    temp_directories: List[Path],
+) -> ModuleCitationResult:
+    """Extract citation metadata for a single module."""
+    result = ModuleCitationResult(module_id)
+
+    repo_info = benchmark.get_converter().get_module_repository(module)
+
+    # Get repository URL and commit hash
+    repo_url = getattr(repo_info, "url", None) or getattr(repo_info, "repository", None)
+    commit_hash = (
+        getattr(repo_info, "commit_hash", None)
+        or getattr(repo_info, "commit", None)
+        or getattr(repo_info, "version", None)
+    )
+
+    result.repository_url = repo_url
+    result.commit_hash = commit_hash
+
+    if not repo_url or not commit_hash:
+        issue = create_cite_issue(
+            "missing_repository_info",
+            module_id,
+            f"Missing repository info for module: {module_id}",
+        )
+        result.add_issue(issue)
+        return result
+
+    # Generate the expected local folder name
+    folder_name = get_repo_hash(repo_url, commit_hash)
+    local_repo_path = repos_base_dir / folder_name
+
+    if not local_repo_path.exists():
+        # Try to clone the repository to a temporary directory
+        logger.info(
+            f"Local repository not found for {module_id}, attempting to clone..."
+        )
+        temp_repo_path = _clone_to_temp(repo_url, commit_hash, module_id)
+
+        if temp_repo_path is None:
+            issue = create_cite_issue(
+                "clone_failed",
+                module_id,
+                f"Failed to clone repository for {module_id}: {repo_url}",
+                repo_url=repo_url,
+            )
+            result.add_issue(issue)
+            return result
+
+        # Use the temporary path instead and track for cleanup
+        local_repo_path = temp_repo_path
+        temp_directories.append(temp_repo_path.parent)
+
+    result.local_repo_exists = True
+    citation_file = local_repo_path / "CITATION.cff"
+
+    if not citation_file.exists():
+        issue = create_cite_issue(
+            "citation_missing", module_id, "CITATION.cff file not found"
+        )
+        result.add_issue(issue)
+        return result
+
+    try:
+        with open(citation_file, "r", encoding="utf-8") as f:
+            citation_content = f.read()
+
+        # Use structured validation
+        # Create validation context for citation validation
+        ctx = create_validation_context(module_id, warn_mode=True)
+        try:
+            citation_result, citation_data = validate_citation_cff_content(
+                citation_content, ctx
+            )
+            # Merge citation validation results
+            result.validation_result.add_issues(ctx.result.issues)
+        except ValidationException as ve:
+            # In citation validation, add the validation issues
+            result.validation_result.add_issues(ve.issues)
+
+        # Copy validation results
+        # Citation validation results are already merged above
+
+        if citation_data:
+            result.citation_data = citation_data
+            result.citation_file_found = True
+            logger.info(f"Found valid CITATION.cff for module: {module_id}")
+
+    except Exception as e:
+        issue = create_cite_issue(
+            "citation_read_error",
+            module_id,
+            f"Error reading CITATION.cff for {module_id}: {str(e)}",
+            error=str(e),
+        )
+        result.add_issue(issue)
+
+    return result
 
 
 def convert_to_bibtex(citation_metadata: Dict[str, Optional[Dict[str, Any]]]) -> str:

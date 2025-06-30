@@ -8,9 +8,7 @@ from git.exc import InvalidGitRepositoryError
 from git import Repo
 import requests
 
-from omnibenchmark.workflow.snakemake.scripts.utils import (
-    generate_unique_repo_folder_name,
-)
+from omnibenchmark.model.repo import get_repo_hash
 
 
 # Get the code from a GitHub repository (https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-tar)
@@ -19,7 +17,7 @@ def get_git_archive_from_github(
     output_dir: Path,
     repository_url: str,
     commit_hash: str,
-) -> Path:
+) -> Path | None:
     # construct url
     baseurl = (
         repository_url.replace("https://", "")
@@ -54,7 +52,7 @@ def get_git_archive_from_github(
 # TODO: deprecate, just use clone_git_repo
 def get_git_archive_from_gitlab(
     output_dir: Path, repository_url: str, commit_hash: str
-) -> Path:
+) -> Path | None:
     # construct url
     baseurl = repository_url.replace("https://", "").replace("http://", "")
     gitlab_remote = str(Path(baseurl).parents[-2])
@@ -80,7 +78,9 @@ def get_git_archive_from_gitlab(
         os.remove(tarfilename)
 
 
-def get_git_archive(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
+def get_git_archive(
+    output_dir: Path, repository_url: str, commit_hash: str
+) -> Path | None:
     if "github.com" in repository_url:
         return get_git_archive_from_github(output_dir, repository_url, commit_hash)
     elif "gitlab" in repository_url:
@@ -112,7 +112,7 @@ def clone_git_repo(output_dir: Path, repository_url: str, commit_hash: str) -> P
 
 # TODO: deprecate, just use clone_git_repo
 def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Path:
-    module_name = generate_unique_repo_folder_name(repository_url, commit_hash)
+    module_name = get_repo_hash(repository_url, commit_hash)
     module_dir = output_dir / module_name
 
     lock = module_dir.with_suffix(".lock")
@@ -151,5 +151,12 @@ def clone_module(output_dir: Path, repository_url: str, commit_hash: str) -> Pat
             raise RuntimeError(
                 f"ERROR: {commit_hash} does not match {repo.head.commit.hexsha[:7]}"
             )
+    # Clean up the lock file after successful completion
+    try:
+        if lock.exists():
+            lock.unlink()
+            logging.debug(f"Cleaned up lock file: {lock}")
+    except Exception as e:
+        logging.warning(f"Failed to cleanup lock file {lock}: {e}")
 
     return module_dir

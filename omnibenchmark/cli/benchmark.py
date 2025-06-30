@@ -205,7 +205,7 @@ def plot_topology(ctx, benchmark: str):
 @click.option(
     "--warn",
     is_flag=True,
-    help="Treat missing citation metadata as warnings instead of errors (default: strict mode fails if ANY module lacks valid citation metadata).",
+    help="Convert errors to warnings instead of failing fast (default: strict mode fails on first error).",
 )
 @click.option(
     "--out",
@@ -217,9 +217,8 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
     """Extract citation metadata from CITATION.cff files in benchmark modules.
 
     Automatically clones repositories to temporary directories if not found locally.
-    By default, runs in strict mode and fails if ANY module lacks valid citation metadata.
-    This includes modules with missing repository info, clone failures, or missing CITATION.cff files.
-    Use --warn to treat these as warnings instead of errors.
+    By default, runs in strict mode and fails fast on the first error found.
+    Use --warn to convert errors to warnings and continue processing all modules.
     """
 
     b = validate_benchmark(benchmark, "/tmp", echo=False)
@@ -230,7 +229,9 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
         )
 
         try:
-            citation_metadata = extract_citation_metadata(b, strict=not warn)
+            citation_metadata = extract_citation_metadata(
+                b, strict=True, warn_mode=warn
+            )
         except RuntimeWarning as e:
             logger.warning(str(e))
             return
@@ -238,8 +239,8 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
             logger.error(str(e))
             logger.error(f"Failed modules: {', '.join(e.failed_modules)}")
             # Log detailed error information
-            for issue in e.issues:
-                logger.error(f"  - {issue.message}")
+            for error in e.errors:
+                logger.error(f"  - {error.msg}")
             ctx.exit(1)
 
         try:

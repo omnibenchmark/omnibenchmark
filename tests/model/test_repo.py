@@ -247,7 +247,11 @@ def test_get_repo_hash_format_string():
 
 @pytest.mark.short
 def test_get_repo_hash_short_commit_hash():
+<<<<<<< HEAD
     """Test that commit hashes shorter than 7 characters raise ValueError."""
+=======
+    """Test that commit hashes shorter than 8 characters raise ValueError."""
+>>>>>>> 27f16b5 (refactor: move repo hash utility to model module)
     repo_url = "https://github.com/user/repo.git"
 
     short_commits = [
@@ -256,21 +260,36 @@ def test_get_repo_hash_short_commit_hash():
         "abc",
         "abcd",
         "abcde",
+<<<<<<< HEAD
         "abcdef",  # 6 chars - should fail
+=======
+        "abcdef",
+        "abcdefg",  # 7 chars - should fail
+>>>>>>> 27f16b5 (refactor: move repo hash utility to model module)
     ]
 
     for commit in short_commits:
         with pytest.raises(
+<<<<<<< HEAD
             ValueError, match="commit_hash must be at least 7 characters long"
+=======
+            ValueError, match="commit_hash must be at least 8 characters long"
+>>>>>>> 27f16b5 (refactor: move repo hash utility to model module)
         ):
             get_repo_hash(repo_url, commit)
 
 
 @pytest.mark.short
 def test_get_repo_hash_minimum_valid_commit_hash():
+<<<<<<< HEAD
     """Test that commit hashes with at least 7 characters work."""
     repo_url = "https://github.com/user/repo.git"
     commit_hash = "abcdefg"  # Exactly 7 characters
+=======
+    """Test that commit hashes with exactly 8 characters work."""
+    repo_url = "https://github.com/user/repo.git"
+    commit_hash = "abcdefgh"  # Exactly 8 characters
+>>>>>>> 27f16b5 (refactor: move repo hash utility to model module)
 
     result = get_repo_hash(repo_url, commit_hash)
 
@@ -284,6 +303,7 @@ def test_get_repo_hash_minimum_valid_commit_hash():
 
 @pytest.mark.short
 def test_get_repo_hash_short_commit_edge_cases():
+<<<<<<< HEAD
     """Test edge cases for commit hash length validation."""
     repo_url = "https://github.com/user/repo.git"
 
@@ -298,5 +318,21 @@ def test_get_repo_hash_short_commit_edge_cases():
     assert len(result) == 64
 
     # Test more than 7 characters (should pass)
+=======
+    """Test edge cases for short commit validation."""
+    repo_url = "https://github.com/user/repo.git"
+
+    # Test exactly 7 characters (should fail)
+    with pytest.raises(
+        ValueError, match="commit_hash must be at least 8 characters long"
+    ):
+        get_repo_hash(repo_url, "1234567")
+
+    # Test exactly 8 characters (should pass)
+    result = get_repo_hash(repo_url, "12345678")
+    assert len(result) == 64
+
+    # Test more than 8 characters (should pass)
+>>>>>>> 27f16b5 (refactor: move repo hash utility to model module)
     result = get_repo_hash(repo_url, "123456789")
     assert len(result) == 64

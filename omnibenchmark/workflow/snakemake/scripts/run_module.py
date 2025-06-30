@@ -14,9 +14,6 @@ from omnibenchmark.benchmark import constants
 from omnibenchmark.io.code import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 from omnibenchmark.benchmark.symlinks import SymlinkManager
-from omnibenchmark.workflow.snakemake.scripts.utils import (
-    get_module_name_from_rule_name,
-)
 
 logger = logging.getLogger("SNAKEMAKE_RUNNER")
 
@@ -24,6 +21,14 @@ try:
     snakemake: Snakemake = snakemake
 except NameError:
     raise RuntimeError("This script must be run from within a Snakemake workflow")
+
+
+def extract_module_name(rule_name: str) -> str:
+    parts = rule_name.split("_")
+    if len(parts) == 0:
+        raise ValueError("Invalid rule name")
+    return parts[1]
+
 
 params = dict(snakemake.params)
 
@@ -56,7 +61,7 @@ repositories_dir = Path(".snakemake") / "repos"
 module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 
 # Execute module code
-module_name = get_module_name_from_rule_name(snakemake.rule)
+module_name = extract_module_name(snakemake.rule)
 
 try:
     exit_code = execution(
