@@ -34,6 +34,8 @@ concurrency:
 jobs:
   software_testing_linux:
     permissions: write-all
+    env:
+      LMOD_VERSION: "8.7.53"
     strategy:
       matrix:
         os: [ubuntu-22.04]
@@ -62,38 +64,22 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
-      - name: install OS & Python packages
+      - name: Install OS & Python packages
         run: |
-          # disable apt-get update, we don't really need it,
-          # and it does more harm than good (it's fairly expensive, and it results in flaky test runs)
-          ## # sudo apt-get update
           sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt-get update # so updating - for singularity
-          # for modules tool
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev
-          # fix for lua-posix packaging issue,
-          #   see https://bugs.launchpad.net/ubuntu/+source/lua-posix/+bug/1752082
-          # needed for Ubuntu 18.04, but not for Ubuntu 20.04, so skipping symlinking if posix.so already exists
-          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
-          fi
-          # for testing OpenMPI-system*eb we need to have Open MPI installed
-          sudo apt-get install libopenmpi-dev openmpi-bin
-          ## required for test_dep_graph
-          pip install pep8 python-graph-core python-graph-dot
-
-      - name: Install LMOD from source
-        run: |
           sudo apt-get update
-          sudo apt-get install -y lua5.2 liblua5.2-dev tcl tcl-dev wget unzip make
-      
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
+          
           # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
-      
-          # Download and install LMOD
-          LMOD_VERSION=8.7.53
+
+          sudo apt-get install libopenmpi-dev openmpi-bin
+          pip install pep8 python-graph-core python-graph-dot
+
+      - name: Install LMOD from source
+        run: |
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
@@ -101,8 +87,14 @@ jobs:
           ./configure --prefix=/opt/lmod
           make -j$(nproc)
           sudo make install
-      
-          lmod --version
+          
+          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
+          
+          echo "LMOD_PKG=$LMOD_PKG"
+          echo "LMOD_DIR=$LMOD_DIR"
+          
+          echo "LMOD_PKG=$LMOD_PKG" >> $GITHUB_ENV
+          echo "LMOD_DIR=$LMOD_DIR" >> $GITHUB_ENV
 
       - name: Extra OS / apt (apptainer)
         run: |
@@ -111,11 +103,8 @@ jobs:
       - name: Test
         shell: bash -el {0}
         run: |
-          source "${CONDA}/etc/profile.d/conda.sh"
-          conda activate omnibenchmark
           conda info
           conda list
-          lmod --version
           
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
@@ -208,6 +197,8 @@ jobs:
       - name: Test
         shell: bash -el {0}
         run: |
+          source "${CONDA}/etc/profile.d/conda.sh"
+          conda activate omnibenchmark
           conda info
           conda list
           

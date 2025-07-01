@@ -122,6 +122,8 @@ jobs:
     name: Software Tests (Linux)
 #    needs: tests
     permissions: write-all
+    env:
+      LMOD_VERSION: "8.7.53"
     strategy:
       matrix:
         os: [ubuntu-22.04]
@@ -151,29 +153,22 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
-      - name: install OS & Python packages
+      - name: Install OS & Python packages
         run: |
           sudo add-apt-repository -y ppa:apptainer/ppa
           sudo apt-get update
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
+          
+          # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
+
           sudo apt-get install libopenmpi-dev openmpi-bin
           pip install pep8 python-graph-core python-graph-dot
 
       - name: Install LMOD from source
         run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.2 liblua5.2-dev tcl tcl-dev wget unzip make
-      
-          # Optional: fix for lua-posix bug
-          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
-          fi
-      
-          # Download and install LMOD
-          LMOD_VERSION=8.7.53
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
@@ -182,7 +177,13 @@ jobs:
           make -j$(nproc)
           sudo make install
           
-          lmod --version
+          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
+          
+          echo "LMOD_PKG=$LMOD_PKG"
+          echo "LMOD_DIR=$LMOD_DIR"
+          
+          echo "LMOD_PKG=$LMOD_PKG" >> $GITHUB_ENV
+          echo "LMOD_DIR=$LMOD_DIR" >> $GITHUB_ENV
 
       - name: Extra OS / apt (apptainer)
         run: |
@@ -193,7 +194,6 @@ jobs:
         run: |
           conda info
           conda list
-          lmod --version
           
           pip install -e ".[s3]"
           pip install -e ".[test]"
