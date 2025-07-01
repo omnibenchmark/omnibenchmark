@@ -4,7 +4,8 @@ import shutil
 import os
 import os.path as op
 
-from env_modules_python import module
+# TODO: No idea where this import comes from.
+# from env_modules_python import module
 
 from omnibenchmark.software import easybuild_backend as easy
 from omnibenchmark.software import common
@@ -34,7 +35,7 @@ for eb in easyconfigs:
             workdir = WD
         run:
             with open(log.log, 'w') as logtxt:
-                print(module('list'))
+                # print(module('list'))
                 common.check_easybuild_status()
                 ret = easy.easybuild_easyconfig(easyconfig = eb,
                                                 threads = 2)
@@ -59,6 +60,6 @@ for eb in easyconfigs:
             op.join('{easyconfig}_ld.txt')
         shell:
             """
-            module spider
+            # module spider
             ld --version > {output}
             """
