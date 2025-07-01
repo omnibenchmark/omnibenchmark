@@ -160,8 +160,29 @@ jobs:
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
           sudo apt-get install libopenmpi-dev openmpi-bin
-          sudo apt-get install lmod
           pip install pep8 python-graph-core python-graph-dot
+
+      - name: Install LMOD from source
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2 liblua5.2-dev tcl tcl-dev wget unzip make
+      
+          # Optional: fix for lua-posix bug
+          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
+            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
+          fi
+      
+          # Download and install LMOD
+          LMOD_VERSION=8.7.53
+          wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
+          unzip ${LMOD_VERSION}.zip
+          cd Lmod-${LMOD_VERSION}
+      
+          ./configure --prefix=/opt/lmod
+          make -j$(nproc)
+          sudo make install
+          
+          lmod --version
 
       - name: Extra OS / apt (apptainer)
         run: |
@@ -172,6 +193,7 @@ jobs:
         run: |
           conda info
           conda list
+          lmod --version
           
           pip install -e ".[s3]"
           pip install -e ".[test]"
