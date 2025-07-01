@@ -116,6 +116,8 @@ jobs:
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
   software_testing_mac:
+    env:
+      CONDA_OVERRIDE_OSX: 14.0
     permissions: write-all
     strategy:
       matrix:
