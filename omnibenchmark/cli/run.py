@@ -74,7 +74,7 @@ def run(ctx):
 )
 @click.option(
     "-l",
-    "--local",
+    "--local-storage",
     help="Execute and store results locally. Default False.",
     is_flag=True,
     default=False,

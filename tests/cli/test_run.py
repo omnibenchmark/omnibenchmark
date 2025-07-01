@@ -42,7 +42,7 @@ def test_run_benchmark_without_yes(
     runner = CliRunner()
     result = runner.invoke(
         run_benchmark,
-        ["--benchmark", benchmark_path, "--cores", "2", "--update", "--local"],
+        ["--benchmark", benchmark_path, "--cores", "2", "--update", "--local-storage"],
     )
 
     # Ensure click.confirm is NOT called
@@ -74,7 +74,7 @@ def test_run_benchmark_with_yes(
             "-k",
             "--cores",
             "2",
-            "--local",
+            "--local-storage",
             "--yes",
         ],
     )

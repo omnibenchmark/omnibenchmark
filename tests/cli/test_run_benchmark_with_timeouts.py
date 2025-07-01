@@ -26,7 +26,7 @@ def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
                 "benchmark",
                 "--benchmark",
                 (tmp_path / timeout_benchmark).as_posix(),
-                "--local",
+                "--local-storage",
             ],
             cwd=tmp_path,
         )
@@ -50,7 +50,7 @@ def test_benchmark_run_with_timeout_less_than_task_fails(tmp_path):
                 (tmp_path / timeout_benchmark).as_posix(),
                 "--task-timeout",
                 "1s",
-                "--local",
+                "--local-storage",
             ],
             cwd=tmp_path,
         )
@@ -72,7 +72,7 @@ def test_benchmark_run_high_timeout(tmp_path):
                 (tmp_path / timeout_benchmark).as_posix(),
                 "--task-timeout",
                 "5s",
-                "--local",
+                "--local-storage",
             ],
             cwd=tmp_path,
         )
