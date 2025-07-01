@@ -131,18 +131,73 @@ jobs:
         python-version: ["3.12"]
       fail-fast: true
 
-    # TODO: run on particular container with conda etc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Cache system dependencies
+        id: cache-system
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/lmod
+            ~/.cache/pip
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          restore-keys: |
+            system-deps-${{ runner.os }}-
+
+      - name: Install OS & Python packages
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          sudo add-apt-repository -y ppa:apptainer/ppa
+          sudo apt-get update
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
+          
+          # Optional: fix for lua-posix bug
+          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
+            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
+          fi
+          
+          sudo apt-get install libopenmpi-dev openmpi-bin
+          pip install pep8 python-graph-core python-graph-dot
+
+      - name: Install LMOD from source
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
+          unzip ${LMOD_VERSION}.zip
+          cd Lmod-${LMOD_VERSION}
+          
+          ./configure --prefix=/opt/lmod
+          make -j$(nproc)
+          sudo make install
+
+      - name: Extra OS / apt (apptainer)
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
+
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
+
+      - name: Cache omnibenchmark environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/share/miniconda3/envs
+            ~/conda_pkgs_dir
+            ~/.conda/pkgs
+            ~/.conda/envs/omnibenchmark
+            ~/.cache/pip
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            conda-${{ runner.os }}-${{ matrix.python-version }}-
+            conda-${{ runner.os }}-
 
       - name: Setup omnibenchmark environment
         uses: conda-incubator/setup-miniconda@v3
@@ -153,63 +208,33 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
-      - name: Install OS & Python packages
-        run: |
-          sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt-get update
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
-          
-          # Optional: fix for lua-posix bug
-          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
-            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
-          fi
-
-          sudo apt-get install libopenmpi-dev openmpi-bin
-          pip install pep8 python-graph-core python-graph-dot
-
-      - name: Install LMOD from source
-        run: |
-          wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
-          unzip ${LMOD_VERSION}.zip
-          cd Lmod-${LMOD_VERSION}
-      
-          ./configure --prefix=/opt/lmod
-          make -j$(nproc)
-          sudo make install
-          
-          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
-          
-          echo "LMOD_PKG=$LMOD_PKG"
-          echo "LMOD_DIR=$LMOD_DIR"
-          
-          echo "LMOD_PKG=$LMOD_PKG" >> $GITHUB_ENV
-          echo "LMOD_DIR=$LMOD_DIR" >> $GITHUB_ENV
-
-      - name: Extra OS / apt (apptainer)
-        run: |
-          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
-
       - name: Test
         shell: bash -el {0}
         run: |
           conda info
           conda list
           
+          # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
+          
+          # install required python dependencies
           pip install numpy pandas scikit-learn scipy
-
+          
           cd tests/software
-
+          
+          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
           source "$LMOD_PKG"/init/profile
-
+          
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
-
+          
           module spider 3.6.3-foss-2017b
-
+          
+          # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-
+          
+          # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
@@ -231,18 +256,34 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache system dependencies
+        id: cache-system
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            ~/Library/Caches/pip
+            /opt/homebrew/var/homebrew/locks
+            /opt/homebrew/Library/Homebrew/vendor/gems
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          restore-keys: |
+            system-deps-${{ runner.os }}-
+
       - name: Set up Homebrew
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
-      - name: Install packages using homebrew
+      - name: Install OS packages using homebrew
+        if: steps.cache-system.outputs.cache-hit != 'true'
         shell: bash -el {0}
         run: |
           bash
           brew upgrade
           brew install coreutils
           brew install lmod
+          
+          echo $LMOD_PKG
 
       - name: Modify python version in test env
         shell: bash -el {0}
@@ -250,6 +291,20 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
+
+      - name: Cache omnibenchmark environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            /Users/runner/miniconda3/envs
+            ~/conda_pkgs_dir
+            ~/.conda/pkgs
+            ~/.conda/envs/omnibenchmark
+            ~/.cache/pip
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            conda-${{ runner.os }}-${{ matrix.python-version }}-
+            conda-${{ runner.os }}-
 
       - name: Setup omnibenchmark environment
         uses: conda-incubator/setup-miniconda@v3
@@ -270,6 +325,7 @@ jobs:
           if [ -f /usr/local/opt/lmod/init/bash ]; then
                source /usr/local/opt/lmod/init/profile
           fi
+          export R_LIBS=~/work/Rlib
           EOF
 
           cat <<'EOF' >>~/.bash_profile
@@ -283,13 +339,17 @@ jobs:
           conda activate omnibenchmark
           conda info
           conda list
-          
+
+          # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
+
+          # install required Python dependenices
           pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
+          source /opt/homebrew/opt/lmod/init/bash
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
