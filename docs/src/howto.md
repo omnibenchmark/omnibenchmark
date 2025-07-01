@@ -32,7 +32,7 @@ stages:
     modules:
       - id: M1
         software_environment: "python"
-        exclude: 
+        exclude:
           - D2
         repository:
           url: https://github.com/omnibenchmark-example/method.git
@@ -50,7 +50,7 @@ id: bench1
 
 [snip]
 
-software_environments:                                 
+software_environments:
   remote_custom_container:
     description: "A singularity container from a registry"
     ## update the path to an ORAS-compatible registry
@@ -68,6 +68,53 @@ Omnibenchmark itself is a python package. Some of its dependencies, namely those
 Software can be managed:
 
 - Using the host's binaries. If relevant interpreters/software are in your $PATH (perhaps using a virtual environment, or directly), they're accessible to omnibenchmark.
-- Using conda. For that `conda` is required. We provide a conda environment YAML to help installing all dependencies. 
+- Using conda. For that `conda` is required. We provide a conda environment YAML to help installing all dependencies.
 - Using apptainer. For that, apptainer is needed.
 - Using environment modules (lmod). For that, lmod is needed.
+
+Similarly, on MacOS:
+
+- Using the host's binaries. If relevant interpreters/software are in your $PATH (perhaps using a virtual environment, or directly), they're accessible to omnibenchmark.
+- Using conda. For that [mamba](https://github.com/mamba-org/mamba) is required. We provide an `environment.yaml` to help building the environment.
+- Using singularity. It won't work unless using a virtual machine to provide a Linux-friendly host to singularity.
+- Using environment modules (lmod). For that, lmod needs to be installed.
+
+We haven't fully tested omnibenchmark on Windows, but we would recommend using the  Windows Subsystem for Linux (WSL).
+
+
+## Enabling networking in singularity containers
+
+(Updating)
+
+## Configuration file
+
+Omnibenchmark uses a configuration file to store settings such as paths and environment variables. The configuration file is stored at:
+
+- Linux: `~/.config/omnibenchmark/omnibenchmark.cfg`
+- macOS: `~/Library/Application Support/omnibenchmark/omnibenchmark.cfg`
+
+### Format
+
+The configuration file uses the INI format with sections and key-value pairs:
+
+```ini
+[section1]
+key1 = value1
+key2 = value2
+
+[section2]
+key3 = value3
+```
+
+### Common Settings
+
+You might want to configure:
+
+- **Easybuild paths**: Set `MODULEPATH` and `ROBOTPATH` in the `easybuild` section
+  to specify where modules are installed and where to find easyconfigs.
+
+- **Dataset storage**: Set `datasets` in the `dirs` section to control where
+  benchmark datasets are stored.
+
+For more detailed information about the configuration system, including programmatic access,
+see the [Configuration System](config.md) documentation.

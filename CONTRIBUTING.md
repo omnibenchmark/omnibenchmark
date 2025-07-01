@@ -133,6 +133,18 @@ This ensures two things:
 
 We might change this in the future to a more generic approach. But for now this should be sufficient to allow debuggability of the test outputs, and good test isolation.
 
+## Documentation
+
+### Configuration Documentation
+
+When adding or modifying configuration options in the codebase:
+
+1. Update `docs/src/config.md` with the new section/key and its purpose
+2. Add a description of the expected format and default values
+3. Include examples for common usage patterns
+
+This ensures that the documentation stays in sync with the actual configuration options available.
+
 ## Internal project dependencies
 
 ### omni-schema
@@ -148,4 +160,5 @@ Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) depe
 And that omni-schema versions are tagged and pinned at the pytoml level ([example](https://github.com/omnibenchmark/omnibenchmark/blob/2ce768bb2cfb693f3e555f751979093964eef63b/pyproject.toml#L38)), so omni-schema changes must be in sync with omnibenchmark changes.
 
 Before investing too much time, do note that we're planning to phase out the external omni-schema package.
+
 

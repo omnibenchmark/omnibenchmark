@@ -17,19 +17,19 @@ from easybuild.tools.options import set_up_configuration
 
 
 from importlib import resources as impresources
+
+
+from omnibenchmark.config import config
 from . import templates
 
 HOME = op.expanduser("~")
 ## careful, 'all' will be prepended unless exported, shell-wise, the MODULEPATH/all path as MODULEPATH
 ## when running omb
-MODULEPATH = op.join(HOME, ".local", "easybuild", "modules")
+MODULEPATH = config.get("easybuild", "MODULEPATH", default="")
+ROBOTPATH = config.get("easybuild", "ROBOTPATH", default="")
 
-# FIXME: this is a hack, do not hardcode paths
-ROBOTPATH = op.join(
-    HOME, "micromamba", "envs", "omnibenchmark", "easybuild", "easyconfigs"
-)
-
-os.makedirs(MODULEPATH, exist_ok=True)
+if MODULEPATH != "":
+    os.makedirs(MODULEPATH, exist_ok=True)
 
 ## shell-based stuff, partly to be replaced by direct eb API calls -------------------------------------
 
@@ -83,15 +83,10 @@ def easybuild_easyconfig(
         easyconfig=op.basename(easyconfig), threads=threads
     )
 
-    # try:
     ret = subprocess.run(
         cmd.split(" "), shell=False, capture_output=True, check=False, text=True
     )
-    # print(ret.stdout)
-    # print(ret.stderr)
     return ret
-    # except subprocess.CalledProcessError as exc:
-    #     return ("ERROR easybuild failed:", exc.returncode, exc.output)
 
 
 def parse_easyconfig(ec_fn: str) -> list:
@@ -141,27 +136,6 @@ def get_envmodule_name_from_easyconfig(easyconfig: str) -> str:
     return os.path.join(ec["name"], det_full_ec_version(ec))
 
 
-# def construct_easybuild_easyconfig_command(
-#     easyconfig : str, workdir :str =  os.getcwd(), threads : int = 2, containerize : bool =False, container_build_image : bool =False
-# ) -> str:
-
-
-#     # args = generate_default_easybuild_config_arguments(workdir = workdir)
-#     cmd = """eb %(easyconfig)s --robot --parallel=%(threads)s \
-#               --detect-loaded-modules=unload --check-ebroot-env-vars=unset""" % {
-#         "easyconfig": easyconfig,
-#         # 'args' : args,
-#         "threads": threads,
-#     }
-#     if containerize:
-#         cmd += (
-#             " --container-config bootstrap=localimage,from=example.sif --experimental"
-#         )
-#         if container_build_image:
-#             cmd += " --container-build-image"
-#     return cmd
-
-
 def create_definition_file(
     easyconfig: str, singularity_recipe: str, envmodule: str, nthreads: int = 2
 ) -> None:
@@ -199,9 +173,6 @@ def singularity_build(
     cmd = (
         "singularity build --force --fakeroot " + image_name + " " + singularity_recipe
     )
-    # output = subprocess.check_output(
-    #     cmd, stderr=subprocess.STDOUT, shell=True, universal_newlines=True
-    # )
     output = subprocess.run(
         cmd, shell=True, text=True, capture_output=True, check=False
     )
