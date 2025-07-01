@@ -5,6 +5,5 @@ channels:
 dependencies:
   - conda-forge::python == 3.12
   - conda-forge::pip >= 24.1.2
-  - conda-forge::conda >= 25.5.1
   - pip:
      - "."

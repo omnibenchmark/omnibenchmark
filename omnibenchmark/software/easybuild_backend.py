@@ -25,9 +25,7 @@ HOME = op.expanduser("~")
 MODULEPATH = op.join(HOME, ".local", "easybuild", "modules")
 
 # FIXME: this is a hack, do not hardcode paths
-ROBOTPATH = op.join(
-    HOME, "micromamba", "envs", "omnibenchmark", "easybuild", "easyconfigs"
-)
+ROBOTPATH = op.join(HOME, "envs", "omnibenchmark", "easybuild", "easyconfigs")
 
 os.makedirs(MODULEPATH, exist_ok=True)
 

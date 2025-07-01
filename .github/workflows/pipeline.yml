@@ -149,7 +149,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
-          activate-environment: true
+          activate-environment: omnibenchmark
 
       - name: install OS & Python packages
         run: |
@@ -160,6 +160,7 @@ jobs:
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
           sudo apt-get install libopenmpi-dev openmpi-bin
+          sudo apt-get install lmod
           pip install pep8 python-graph-core python-graph-dot
 
       - name: Extra OS / apt (apptainer)
@@ -167,10 +168,11 @@ jobs:
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
 
       - name: Test
-        env:
-          CI: false
         shell: bash -el {0}
         run: |
+          conda info
+          conda list
+          
           pip install -e ".[s3]"
           pip install -e ".[test]"
           pip install numpy pandas scikit-learn scipy
@@ -234,11 +236,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
-          activate-environment: true
+          activate-environment: omnibenchmark
 
       - name: Modify bashrc
-        env:
-          CI: true
         shell: bash -el {0}
         run: |
           cat <<'EOF' >>~/.bashrc
@@ -255,10 +255,13 @@ jobs:
           EOF
 
       - name: Test
-        env:
-          CI: true
         shell: bash -el {0}
         run: |
+          source "${CONDA}/etc/profile.d/conda.sh"
+          conda activate omnibenchmark
+          conda info
+          conda list
+          
           pip install -e ".[s3]"
           pip install -e ".[test]"
           pip install numpy pandas scikit-learn scipy
