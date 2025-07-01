@@ -139,15 +139,17 @@ jobs:
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp conda-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
 
       - name: Setup omnibenchmark environment
-        uses: mamba-org/setup-micromamba@v1
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          miniforge-version: latest
+          python-version: ${{ matrix.python-version }}
+          use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
-          environment-name: omb
-          cache-environment: false
+          activate-environment: true
 
       - name: install OS & Python packages
         run: |
@@ -217,24 +219,22 @@ jobs:
           brew upgrade
           brew install coreutils
           brew install lmod
-          brew install micromamba
 
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
-      - name: Manually create env
-        env:
-          CONDA_OVERRIDE_OSX: 14.0
-        shell: bash -el {0}
-        run: |
-          eval "$(micromamba shell hook --shell bash)"
-          micromamba create -n omnibenchmark
-          micromamba activate omnibenchmark
-          micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
+      - name: Setup omnibenchmark environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          python-version: ${{ matrix.python-version }}
+          use-mamba: true
+          environment-file: test-environment-${{ matrix.python-version }}.yml
+          activate-environment: true
 
       - name: Modify bashrc
         env:
@@ -248,7 +248,6 @@ jobs:
           if [ -f /usr/local/opt/lmod/init/bash ]; then
                source /usr/local/opt/lmod/init/profile
           fi
-          eval "$(micromamba shell hook --shell bash)"
           EOF
 
           cat <<'EOF' >>~/.bash_profile
@@ -260,9 +259,6 @@ jobs:
           CI: true
         shell: bash -el {0}
         run: |
-          micromamba activate
-          micromamba activate omnibenchmark
-
           pip install -e ".[s3]"
           pip install -e ".[test]"
           pip install numpy pandas scikit-learn scipy
