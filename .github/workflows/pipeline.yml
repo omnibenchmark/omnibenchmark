@@ -30,97 +30,97 @@ jobs:
           ruff check .
 
   # Step 2: Run tests only if linting passes
-#  tests:
-#    name: Run Tests
-#    needs: lint
-#    permissions: write-all
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        os: [ubuntu-latest, macos-latest]
-#        python-version: ["3.12"]
-#        poetry-version: ["1.8.0"]
-#    defaults:
-#      run:
-#        shell: bash
-#    runs-on: ${{ matrix.os }}
-#    steps:
-#      - name: Check out repository
-#        uses: actions/checkout@v4
-#
-#      - name: Set up python ${{ matrix.python-version }}
-#        id: setup-python
-#        uses: actions/setup-python@v5
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#
-#      - name: Install Poetry
-#        uses: snok/install-poetry@v1
-#        with:
-#          virtualenvs-create: true
-#          virtualenvs-in-project: true
-#
-#      - name: Validate Poetry configuration
-#        run: poetry check
-#
-#      - name: Load cached venv
-#        id: cached-dependencies
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            .venv
-#          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-#
-#      - name: Install dependencies with poetry
-#        if: steps.cached-dependencies.outputs.cache-hit != 'true'
-#        run: |
-#          poetry install --no-interaction --no-root --extras s3 --extras test
-#
-#      - name: Install library
-#        run: poetry install --no-interaction
-#
-#      - name: Run short tests
-#        run: |
-#          poetry run pytest -m short
-#        if: matrix.os == 'ubuntu-latest'
-#
-#      # Build wheel after short tests pass
-#      - name: Build wheel
-#        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-#        run: |
-#          pip install build
-#          python -m build .
-#
-#      # Upload the wheel as an artifact
-#      - name: Upload wheel artifact
-#        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: omnibenchmark-wheel
-#          path: dist/*.whl
-#          retention-days: 7
-#
-#      - name: Run longer tests (integration)
-#        run: |
-#          poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
-#              tests/benchmark tests/cli tests/workflow tests/io
-#        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-#
-#      - name: Generate tests & coverage badges
-#        run: |
-#          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
-#          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
-#
-#      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
-#        name: Comment coverage result
-#        uses: MishaKav/pytest-coverage-comment@main
-#        with:
-#          pytest-xml-coverage-path: ./reports/coverage.xml
+  tests:
+    name: Run Tests
+    needs: lint
+    permissions: write-all
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12"]
+        poetry-version: ["1.8.0"]
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up python ${{ matrix.python-version }}
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Validate Poetry configuration
+        run: poetry check
+
+      - name: Load cached venv
+        id: cached-dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies with poetry
+        if: steps.cached-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install --no-interaction --no-root --extras s3 --extras test
+
+      - name: Install library
+        run: poetry install --no-interaction
+
+      - name: Run short tests
+        run: |
+          poetry run pytest -m short
+        if: matrix.os == 'ubuntu-latest'
+
+      # Build wheel after short tests pass
+      - name: Build wheel
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          pip install build
+          python -m build .
+
+      # Upload the wheel as an artifact
+      - name: Upload wheel artifact
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/*.whl
+          retention-days: 7
+
+      - name: Run longer tests (integration)
+        run: |
+          poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
+              tests/benchmark tests/cli tests/workflow tests/io
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+
+      - name: Generate tests & coverage badges
+        run: |
+          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
+          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
+
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
+        name: Comment coverage result
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./reports/coverage.xml
 
   # Step 3: Run software tests only if regular tests pass
   software-tests-linux:
     name: Software Tests (Linux)
-#    needs: tests
+    needs: tests
     permissions: write-all
     env:
       LMOD_VERSION: "8.7.53"
@@ -242,7 +242,7 @@ jobs:
 
   software-tests-mac:
     name: Software Tests (macOS)
-#    needs: tests
+    needs: tests
     permissions: write-all
     strategy:
       matrix:
@@ -282,8 +282,6 @@ jobs:
           brew upgrade
           brew install coreutils
           brew install lmod
-          
-          echo $LMOD_PKG
 
       - name: Modify python version in test env
         shell: bash -el {0}
