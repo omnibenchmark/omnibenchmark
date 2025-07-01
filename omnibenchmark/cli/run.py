@@ -107,7 +107,7 @@ def run_benchmark(
     update,
     dry,
     yes,
-    local,
+    local_storage,
     keep_module_logs,
     continue_on_error,
     task_timeout,
@@ -127,8 +127,10 @@ def run_benchmark(
         sys.exit(1)
 
     # Validate out_dir usage
-    if not local and out_dir != "out":
-        logger.error("-Invalid arguments: --out-dir can only be used with --local")
+    if not local_storage and out_dir != "out":
+        logger.error(
+            "-Invalid arguments: --out-dir can only be used with --local-storage"
+        )
         sys.exit(1)
 
     b = validate_benchmark(benchmark, out_dir)
@@ -149,7 +151,7 @@ def run_benchmark(
         msg = "re-run the entire workflow"
         abort_if_user_does_not_confirm(msg, logger)
 
-    if not local:
+    if not local_storage:
         storage_options = remote_storage_snakemake_args(b)
         # creates bucket if it doesn't exist
         _ = get_storage_from_benchmark(b)
