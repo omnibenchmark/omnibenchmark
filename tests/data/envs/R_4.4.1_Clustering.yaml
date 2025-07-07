@@ -12,4 +12,4 @@ dependencies:
   - conda-forge::r-caret
   - pip:
     # optional profiler
-    - denet==0.3.2
+    - denet>=0.4.2
