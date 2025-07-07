@@ -22,6 +22,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", None),
+        local_timeout: Optional[int] = None,
         work_dir: Path = Path(os.getcwd()),
         out_dir: str = "out",
         resources: Optional[dict] = None,
@@ -41,7 +42,7 @@ class WorkflowEngine(metaclass=ABCMeta):
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             out_dir (str): output directory. Default: `out`
-            resources(dict): optional dict of resources to be passed to snakemake execution
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
             **kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
