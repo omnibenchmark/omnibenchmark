@@ -149,8 +149,8 @@ jobs:
           # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
+              cli_conda_tests.py cli_apptainer_tests.py cli_envmodules_tests.py \
+              conda_tests.py apptainer_tests.py envmodules_tests.py test_run_with_software.py
 
   software_testing_mac:
     permissions: write-all

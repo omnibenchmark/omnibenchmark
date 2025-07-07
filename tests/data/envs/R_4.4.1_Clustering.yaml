@@ -10,3 +10,6 @@ dependencies:
   - conda-forge::r-dplyr
   - conda-forge::r-mclust
   - conda-forge::r-caret
+  - pip:
+    # optional profiler
+    - denet>=0.4.2
