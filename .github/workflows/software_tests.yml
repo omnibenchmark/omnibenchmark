@@ -34,6 +34,8 @@ concurrency:
 jobs:
   software_testing_linux:
     permissions: write-all
+    env:
+      LMOD_VERSION: "8.7.53"
     strategy:
       matrix:
         os: [ubuntu-22.04]
@@ -47,58 +49,93 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Modify python version in test env
-        shell: bash -el {0}
-        run: |
-          cp conda-test-environment.yml test-environment-${{ matrix.python-version }}.yml
-          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
-
-      - name: Setup omnibenchmark environment
-        uses: mamba-org/setup-micromamba@v1
+      - name: Cache system dependencies
+        id: cache-system
+        uses: actions/cache@v4
         with:
-          environment-file: conda-test-environment.yml
-          environment-name: omb
-          cache-environment: false
+          path: |
+            /opt/lmod
+            ~/.cache/pip
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          restore-keys: |
+            system-deps-${{ runner.os }}-
 
-      - name: install OS & Python packages
+      - name: Install OS & Python packages
+        if: steps.cache-system.outputs.cache-hit != 'true'
         run: |
-          # disable apt-get update, we don't really need it,
-          # and it does more harm than good (it's fairly expensive, and it results in flaky test runs)
-          ## # sudo apt-get update
           sudo add-apt-repository -y ppa:apptainer/ppa
-          sudo apt-get update # so updating - for singularity
-          # for modules tool
-          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev
-          # fix for lua-posix packaging issue,
-          #   see https://bugs.launchpad.net/ubuntu/+source/lua-posix/+bug/1752082
-          # needed for Ubuntu 18.04, but not for Ubuntu 20.04, so skipping symlinking if posix.so already exists
+          sudo apt-get update
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
+          
+          # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
-          # for testing OpenMPI-system*eb we need to have Open MPI installed
+
           sudo apt-get install libopenmpi-dev openmpi-bin
-          ## required for test_dep_graph
           pip install pep8 python-graph-core python-graph-dot
 
+      - name: Install LMOD from source
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
+          unzip ${LMOD_VERSION}.zip
+          cd Lmod-${LMOD_VERSION}
+      
+          ./configure --prefix=/opt/lmod
+          make -j$(nproc)
+          sudo make install
+
       - name: Extra OS / apt (apptainer)
+        if: steps.cache-system.outputs.cache-hit != 'true'
         run: |
           sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
 
-      - name: Test
-        env:
-          CI: false
+      - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          # tests script
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
+
+      - name: Cache omnibenchmark environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/share/miniconda3/envs
+            ~/conda_pkgs_dir
+            ~/.conda/pkgs
+            ~/.conda/envs/omnibenchmark
+            ~/.cache/pip
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            conda-${{ runner.os }}-${{ matrix.python-version }}-
+            conda-${{ runner.os }}-
+
+      - name: Setup omnibenchmark environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          python-version: ${{ matrix.python-version }}
+          use-mamba: true
+          environment-file: test-environment-${{ matrix.python-version }}.yml
+          activate-environment: omnibenchmark
+
+      - name: Test
+        shell: bash -el {0}
+        run: |
+          conda info
+          conda list
+          
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
 
-          ## install required python dependencies
+          # install required python dependencies
           pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
+          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
@@ -116,12 +153,10 @@ jobs:
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
   software_testing_mac:
-    env:
-      CONDA_OVERRIDE_OSX: 14.0
     permissions: write-all
     strategy:
       matrix:
-        os: [macos-14] # [macos-14, macos-13]
+        os: [macos-14]
         test_group: [1, 2]
         python-version: ["3.12"]
       fail-fast: false
@@ -132,38 +167,64 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache system dependencies
+        id: cache-system
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            ~/Library/Caches/pip
+            /opt/homebrew/var/homebrew/locks
+            /opt/homebrew/Library/Homebrew/vendor/gems
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          restore-keys: |
+            system-deps-${{ runner.os }}-
+
       - name: Set up Homebrew
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
         if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
 
-      - name: Install packages using homebrew
+      - name: Install OS packages using homebrew
+        if: steps.cache-system.outputs.cache-hit != 'true'
         shell: bash -el {0}
         run: |
           bash
           brew upgrade
           brew install coreutils
           brew install lmod
-          brew install micromamba
 
       - name: Modify python version in test env
         shell: bash -el {0}
         run: |
-          cp mac-test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
 
-      - name: Manually create env
-        shell: bash -el {0}
-        run: |
-          eval "$(micromamba shell hook --shell bash)"
-          micromamba create -n omnibenchmark
-          micromamba activate omnibenchmark
-          micromamba install -f test-environment-${{ matrix.python-version }}.yml mamba=1
+      - name: Cache omnibenchmark environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            /Users/runner/miniconda3/envs
+            ~/conda_pkgs_dir
+            ~/.conda/pkgs
+            ~/.conda/envs/omnibenchmark
+            ~/.cache/pip
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            conda-${{ runner.os }}-${{ matrix.python-version }}-
+            conda-${{ runner.os }}-
+
+      - name: Setup omnibenchmark environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          python-version: ${{ matrix.python-version }}
+          use-mamba: true
+          environment-file: test-environment-${{ matrix.python-version }}.yml
+          activate-environment: omnibenchmark
 
       - name: Modify bashrc
-        env:
-          CI: true
         shell: bash -el {0}
         run: |
           cat <<'EOF' >>~/.bashrc
@@ -173,7 +234,6 @@ jobs:
           if [ -f /usr/local/opt/lmod/init/bash ]; then
                source /usr/local/opt/lmod/init/profile
           fi
-          eval "$(micromamba shell hook --shell bash)"
           export R_LIBS=~/work/Rlib
           EOF
 
@@ -182,24 +242,23 @@ jobs:
           EOF
 
       - name: Test
-        env:
-          CI: true
         shell: bash -el {0}
         run: |
-
-          # eval "$(micromamba shell hook --shell bash)"
-          micromamba activate
-          micromamba activate omnibenchmark
-
+          source "${CONDA}/etc/profile.d/conda.sh"
+          conda activate omnibenchmark
+          conda info
+          conda list
+          
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
 
-          ## install required Python dependenices
+          # install required Python dependenices
           pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
+          source /opt/homebrew/opt/lmod/init/bash
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
