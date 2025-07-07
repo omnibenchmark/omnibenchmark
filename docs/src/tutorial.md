@@ -6,7 +6,6 @@ Omnibenchmark has been tested under GNU/Linux.
 
 We recommend installing omnibenchmark using conda, because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.  We recommend managing `conda` with [miniforge](https://conda-forge.org/download/). Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.
 
-
 ### Full install (conda miniforge)
 
 #### apt-based Linux on amd64 architecture
