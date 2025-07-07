@@ -40,7 +40,7 @@ class SnakemakeEngine(WorkflowEngine):
         debug: bool = False,
         work_dir: Path = Path(os.getcwd()),
         out_dir: str = "out",
-        resources: Optional[dict] = None,
+        local_timeout: Optional[int] = None,
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -57,17 +57,17 @@ class SnakemakeEngine(WorkflowEngine):
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             out_dir (str): output directory. Default: `out`
-            resources(dict): optional dict of resources to be passed to snakemake execution
 
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
         - Status code (bool) of the workflow run.
         """
-        resources = resources or {}
 
         # Serialize Snakefile for workflow
-        snakefile = self.serialize_workflow(benchmark, work_dir, write_to_disk=False)
+        snakefile = self.serialize_workflow(
+            benchmark, work_dir, write_to_disk=False, local_timeout=local_timeout
+        )
 
         # Prepare the argv list
         argv = self._prepare_argv(
@@ -80,7 +80,6 @@ class SnakemakeEngine(WorkflowEngine):
             backend=backend,
             work_dir=work_dir,
             debug=debug,
-            resources=resources,
             out_dir=out_dir,
             **snakemake_kwargs,
         )
@@ -99,6 +98,7 @@ class SnakemakeEngine(WorkflowEngine):
         benchmark: Benchmark,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk=True,
+        local_timeout=1000,
     ) -> Path:
         """
         Serializes a Snakefile for the benchmark.
@@ -145,7 +145,9 @@ class SnakemakeEngine(WorkflowEngine):
             # Create node rules
             f.write("nodes = benchmark.get_nodes()\n")
             f.write("for node in nodes:\n")
-            f.write("    create_node_rule(node, benchmark, config)\n\n")
+            f.write(
+                f"    create_node_rule(node, benchmark, config, {local_timeout})\n\n"
+            )
 
             # Create metric collector rules
             f.write("collectors = benchmark.get_metric_collectors()\n")
@@ -195,7 +197,7 @@ class SnakemakeEngine(WorkflowEngine):
         os.makedirs(work_dir, exist_ok=True)
 
         # Serialize Snakefile for node workflow
-        snakefile = self.serialize_node_workflow(node, work_dir, write_to_disk=False)
+        snakefile = self.serialize_node_workflow(node, work_dir, write_to_disk=True)
 
         # Prepare the argv list
         argv = self._prepare_argv(
@@ -324,7 +326,6 @@ class SnakemakeEngine(WorkflowEngine):
         input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
         debug: bool = False,
-        resources: Optional[dict] = None,
         out_dir: Optional[str] = None,
         **snakemake_kwargs,
     ):
@@ -369,12 +370,6 @@ class SnakemakeEngine(WorkflowEngine):
             argv.append("--use-envmodules")
         elif backend == SoftwareBackendEnum.conda:
             argv.append("--use-conda")
-
-        # Add resources if any
-        if resources:
-            argv.extend(
-                ["--resources", ",".join(f"{k}={v}" for k, v in resources.items())]
-            )
 
         for key, value in snakemake_kwargs.items():
             if isinstance(value, bool):

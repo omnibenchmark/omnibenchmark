@@ -16,13 +16,13 @@ def get_script_path(script_name: str) -> str:
     path = Path(resources.files(scripts) / script_name)
     return str(path)
 
-def create_node_rule(node, benchmark, config):
+def create_node_rule(node, benchmark, config, local_timeout):
     if node.is_initial():
-        return _create_initial_node(benchmark, node, config)
+        return _create_initial_node(benchmark, node, config, local_timeout)
     else:
-        return _create_intermediate_node(benchmark, node, config)
+        return _create_intermediate_node(benchmark, node, config, local_timeout)
 
-def _create_initial_node(benchmark, node, config):
+def _create_initial_node(benchmark, node, config, local_timeout):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -59,11 +59,12 @@ def _create_initial_node(benchmark, node, config):
             commit_hash = commit_hash,
             parameters = node.get_parameters(),
             dataset = module_id,
-            keep_module_logs=config['keep_module_logs']
+            keep_module_logs=config['keep_module_logs'],
+            local_task_timeout=local_timeout
         script: get_script_path(RUN_MODULE)
 
 
-def _create_intermediate_node(benchmark, node, config):
+def _create_intermediate_node(benchmark, node, config, local_timeout):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -115,7 +116,8 @@ def _create_intermediate_node(benchmark, node, config):
             repository_url = repository_url,
             commit_hash = commit_hash,
             parameters = node.get_parameters(),
-            keep_module_logs=config['keep_module_logs']
+            keep_module_logs=config['keep_module_logs'],
+            local_task_timeout=local_timeout
         script: get_script_path(RUN_MODULE)
 
 
@@ -159,7 +161,7 @@ def create_standalone_node_rule(node, config):
                 commit_hash = commit_hash,
                 parameters=node.get_parameters(),
                 dataset=config['dataset'],
-                keep_module_logs=config['keep_module_logs']
+                keep_module_logs=config['keep_module_logs'],
             benchmark:
                 node.get_benchmark_path(config)
             script: get_script_path(RUN_MODULE)
