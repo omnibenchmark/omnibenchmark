@@ -1,4 +1,6 @@
+#! /usr/bin/env python
 # WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
+
 import logging
 import os
 import sys
@@ -30,12 +32,17 @@ commit_hash = params.get("commit_hash")
 parameters = params.get("parameters")
 inputs_map = params.get("inputs_map")
 dataset = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
+
 # For now we're handling timeout in seconds.
 # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
 timeout = params.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
 
 keep_module_logs = params.get("keep_module_logs", False)
 keep_going = snakemake.config.get("keep_going", False)
+
+# For now we're handling timeout in seconds as runtime.
+# When implementing cluster resource handling, we will need to convert this to minutes (e.g. slurm takes it in min)
+timeout = params.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
 
 output_dir = Path(str(os.path.commonpath(snakemake.output)))
 if len(snakemake.output) == 1:
@@ -50,7 +57,6 @@ module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 
 # Execute module code
 module_name = get_module_name_from_rule_name(snakemake.rule)
-
 
 try:
     exit_code = execution(

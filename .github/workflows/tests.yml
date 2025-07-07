@@ -1,112 +1,112 @@
-name: Tests
-concurrency:
-  group: ${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
-on:
-  # Removed pull_request trigger to avoid duplication with pipeline.yml
-  workflow_dispatch: # Allow manual trigger if needed
-  push:
-    branches:
-      - main # Still run on main branch pushes
-
-jobs:
-  run-tests:
-    permissions: write-all
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest] # [ubuntu-22.04, macos-latest]
-        python-version: ["3.12"]
-        poetry-version: ["1.8.0"]
-    defaults:
-      run:
-        shell: bash
-    runs-on: ${{ matrix.os }}
-    steps:
-      #----------------------------------------------
-      # Check-out repo and set-up python
-      #----------------------------------------------
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      #----------------------------------------------
-      #  -----  install & configure poetry  -----
-      #----------------------------------------------
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-      #----------------------------------------------
-      # Check Poetry configuration
-      #----------------------------------------------
-      - name: Validate Poetry configuration
-        run: poetry check
-        # This will fail the job if there are issues with pyproject.toml
-      #----------------------------------------------
-      # install dependencies if cache does not exist
-      #----------------------------------------------
-      - name: Install dependencies with poetry
-        if: steps.cached-dependencies.outputs.cache-hit != 'true'
-        run: |
-          poetry install --no-interaction --no-root --extras s3 --extras test
-
-      #----------------------------------------------
-      # load cached venv if cache exists
-      #----------------------------------------------
-      - name: Load cached venv
-        id: cached-dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            .venv
-            ${{ env.R_LIBS_USER }}
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      #----------------------------------------------
-      # install your root project, if required
-      #----------------------------------------------
-      - name: Install library
-        run: poetry install --no-interaction
-
-      #----------------------------------------------
-      # run test suite and output coverage file for mac and linux
-      #----------------------------------------------
-      - name: Run tests
-        run: |
-          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
-              tests/benchmark tests/cli tests/workflow tests/io
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-
-      #----------------------------------------------
-      # run test suite and output coverage file for windows
-      #----------------------------------------------
-      - name: Run tests
-        run: |
-          ## skip software tests, they're done differently
-          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml
-        if: matrix.os == 'windows-latest'
-
-      #----------------------------------------------
-      # Generate badges
-      #----------------------------------------------
-      - name: Generate tests & coverage badges
-        run: |
-          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
-          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
-      #----------------------------------------------
-      # Report coverage
-      #----------------------------------------------
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
-        name: Comment coverage result
-        uses: MishaKav/pytest-coverage-comment@main
-        with:
-          pytest-xml-coverage-path: ./reports/coverage.xml
+#name: Tests
+#concurrency:
+#  group: ${{ github.head_ref || github.run_id }}
+#  cancel-in-progress: true
+#
+#on:
+#  # Removed pull_request trigger to avoid duplication with pipeline.yml
+#  workflow_dispatch: # Allow manual trigger if needed
+#  push:
+#    branches:
+#      - main # Still run on main branch pushes
+#
+#jobs:
+#  run-tests:
+#    permissions: write-all
+#
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        os: [ubuntu-latest, macos-latest] # [ubuntu-22.04, macos-latest]
+#        python-version: ["3.12"]
+#        poetry-version: ["1.8.0"]
+#    defaults:
+#      run:
+#        shell: bash
+#    runs-on: ${{ matrix.os }}
+#    steps:
+#      #----------------------------------------------
+#      # Check-out repo and set-up python
+#      #----------------------------------------------
+#      - name: Check out repository
+#        uses: actions/checkout@v4
+#
+#      - name: Set up python ${{ matrix.python-version }}
+#        id: setup-python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#
+#      #----------------------------------------------
+#      #  -----  install & configure poetry  -----
+#      #----------------------------------------------
+#      - name: Install Poetry
+#        uses: snok/install-poetry@v1
+#        with:
+#          virtualenvs-create: true
+#          virtualenvs-in-project: true
+#      #----------------------------------------------
+#      # Check Poetry configuration
+#      #----------------------------------------------
+#      - name: Validate Poetry configuration
+#        run: poetry check
+#        # This will fail the job if there are issues with pyproject.toml
+#      #----------------------------------------------
+#      # install dependencies if cache does not exist
+#      #----------------------------------------------
+#      - name: Install dependencies with poetry
+#        if: steps.cached-dependencies.outputs.cache-hit != 'true'
+#        run: |
+#          poetry install --no-interaction --no-root --extras s3 --extras test
+#
+#      #----------------------------------------------
+#      # load cached venv if cache exists
+#      #----------------------------------------------
+#      - name: Load cached venv
+#        id: cached-dependencies
+#        uses: actions/cache@v3
+#        with:
+#          path: |
+#            .venv
+#            ${{ env.R_LIBS_USER }}
+#          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+#
+#      #----------------------------------------------
+#      # install your root project, if required
+#      #----------------------------------------------
+#      - name: Install library
+#        run: poetry install --no-interaction
+#
+#      #----------------------------------------------
+#      # run test suite and output coverage file for mac and linux
+#      #----------------------------------------------
+#      - name: Run tests
+#        run: |
+#          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
+#              tests/benchmark tests/cli tests/workflow tests/io
+#        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+#
+#      #----------------------------------------------
+#      # run test suite and output coverage file for windows
+#      #----------------------------------------------
+#      - name: Run tests
+#        run: |
+#          ## skip software tests, they're done differently
+#          poetry run pytest --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml
+#        if: matrix.os == 'windows-latest'
+#
+#      #----------------------------------------------
+#      # Generate badges
+#      #----------------------------------------------
+#      - name: Generate tests & coverage badges
+#        run: |
+#          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
+#          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
+#      #----------------------------------------------
+#      # Report coverage
+#      #----------------------------------------------
+#      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
+#        name: Comment coverage result
+#        uses: MishaKav/pytest-coverage-comment@main
+#        with:
+#          pytest-xml-coverage-path: ./reports/coverage.xml

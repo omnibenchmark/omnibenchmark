@@ -19,7 +19,7 @@ Recent versions of omnibenchmark should be installable [from pypi](https://pypi.
 pip install omnibenchmark
 ```
 
-Do note that if you plan to use `conda` as a software execution backend, you will want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend micromamba. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
+Do note that if you plan to use `conda` as a software execution backend, you will want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend miniforge. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
 
 ### Releases
 

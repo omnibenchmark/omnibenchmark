@@ -4,14 +4,14 @@ Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/proje
 
 Omnibenchmark has been tested under GNU/Linux.
 
-We recommend installing omnibenchmark using conda, because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.  We recommend managing `conda` with [miniforge](https://conda-forge.org/download/) or [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html). Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.
+We recommend installing omnibenchmark using conda, because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.  We recommend managing `conda` with [miniforge](https://conda-forge.org/download/). Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.
 
 
-### Full install (micromamba)
+### Full install (conda miniforge)
 
 #### apt-based Linux on amd64 architecture
 
-First, install [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html), a faster conda manager and package solver.
+First, install [miniforge](https://github.com/conda-forge/miniforge).
 
 === "Shell"
 
@@ -59,10 +59,11 @@ Then, clone the omnibenchmark source code and install it in a new conda environm
     ```shell
     git clone git@github.com:omnibenchmark/omnibenchmark.git
     cd omnibenchmark
-    micromamba activate
-    micromamba create -n omnibenchmark
-    micromamba activate omnibenchmark
-    micromamba install -f conda-test-environment.yaml
+
+    conda init "$(basename "${SHELL}")"
+    conda create -n omnibenchmark -y
+    conda activate omnibenchmark
+    conda env update -f test-environment.yml
     ```
 
 === "Output"
@@ -165,7 +166,7 @@ First, install homebrew.
     Homebrew 4.3.17
     ```
 
-Then, install omnibenchmark dependencies, including lmod and micromamba.
+Then, install omnibenchmark dependencies, including lmod and conda.
 
 === "Shell"
 
@@ -186,9 +187,9 @@ Then, install omnibenchmark dependencies, including lmod and micromamba.
 
     brew install wget
     brew reinstall cmake
-    brew install micromamba
+    brew install miniforrge
     module --version
-    micromamba --version
+    conda --version
     ```
 
 === "Output"
@@ -215,15 +216,15 @@ Clone omnibenchmark.
     (no output)
     ```
 
-Using micromamba, install omnibenchmark.
+Using conda, install omnibenchmark.
 
 === "Shell"
 
     ```shell
-    eval "$(micromamba shell hook --shell bash)"
-    micromamba create -n omnibenchmark
-    micromamba activate omnibenchmark
-    micromamba install -f mac-test-environment.yml
+    conda init "$(basename "${SHELL}")"
+    conda create -n omnibenchmark -y
+    conda activate omnibenchmark
+    conda env update -f test-environment.yml
     ```
 
 === "Output"

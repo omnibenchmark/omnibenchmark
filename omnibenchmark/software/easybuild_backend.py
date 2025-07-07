@@ -25,6 +25,7 @@ from . import templates
 HOME = op.expanduser("~")
 ## careful, 'all' will be prepended unless exported, shell-wise, the MODULEPATH/all path as MODULEPATH
 ## when running omb
+
 MODULEPATH = config.get("easybuild", "MODULEPATH", default="")
 ROBOTPATH = config.get("easybuild", "ROBOTPATH", default="")
 
