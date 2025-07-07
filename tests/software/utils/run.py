@@ -4,7 +4,6 @@
 ## 22th July 2024
 
 import subprocess
-import os
 
 
 def check_cmd_zero_exit(cmd_string):
@@ -48,4 +47,4 @@ def run(Snakefile, produced, expected, method):
         run_snmk_envmodules(Snakefile, produced, expected)
     else:
         print("not implemented")
-    os.remove(produced)
+    # os.remove(produced)
