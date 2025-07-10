@@ -239,8 +239,8 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
             logger.error(str(e))
             logger.error(f"Failed modules: {', '.join(e.failed_modules)}")
             # Log detailed error information
-            for error in e.errors:
-                logger.error(f"  - {error.msg}")
+            for issue in e.issues:
+                logger.error(f"  - {issue.msg}")
             ctx.exit(1)
 
         try:

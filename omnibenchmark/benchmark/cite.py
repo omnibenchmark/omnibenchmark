@@ -171,7 +171,6 @@ def extract_citation_metadata(
                 all_issues,
             )
 
-        # Convert results to legacy format
         citation_metadata = {}
         for module_id, result in module_results.items():
             citation_metadata[module_id] = {
@@ -179,7 +178,6 @@ def extract_citation_metadata(
                 "commit_hash": result.commit_hash,
                 "citation_data": result.citation_data,
                 "citation_file_found": result.citation_file_found,
-                "local_repo_exists": result.local_repo_exists,
             }
 
         return citation_metadata
@@ -506,7 +504,7 @@ def _extract_year_from_date(date_str) -> Optional[str]:
 
 def get_citation_summary(
     citation_metadata: Dict[str, Optional[Dict[str, Any]]],
-) -> Dict[str, int]:
+) -> Dict[str, float]:
     """Get summary statistics of citation metadata.
 
     Args:
@@ -517,10 +515,14 @@ def get_citation_summary(
     """
     total_modules = len(citation_metadata)
     found_citations = sum(
-        1 for m in citation_metadata.values() if m.get("citation_file_found")
+        1
+        for m in citation_metadata.values()
+        if m is not None and m.get("citation_file_found")
     )
     local_repos = sum(
-        1 for m in citation_metadata.values() if m.get("local_repo_exists")
+        1
+        for m in citation_metadata.values()
+        if m is not None and m.get("local_repo_exists")
     )
 
     return {

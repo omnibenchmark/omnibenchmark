@@ -17,13 +17,8 @@ def get_repo_hash(repo: str, ref: str) -> str:
         raise ValueError("Both repo_url and commit_hash must be provided")
     if repo == "" or ref == "":
         raise ValueError("Both repo_url and commit_hash must be non-empty")
-<<<<<<< HEAD
     if len(ref) < 7:
         raise ValueError("commit_hash must be at least 7 characters long")
-=======
-    if len(ref) < 8:
-        raise ValueError("commit_hash must be at least 8 characters long")
->>>>>>> 27f16b5 (refactor: move repo hash utility to model module)
 
     repr = f"{repo}@{ref}"
     return hashlib.sha256(repr.encode("utf-8")).hexdigest()
