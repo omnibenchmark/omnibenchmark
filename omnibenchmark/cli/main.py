@@ -7,6 +7,7 @@ from omnibenchmark.cli.benchmark import info
 from omnibenchmark.cli.io import storage
 from omnibenchmark.cli.run import run
 from omnibenchmark.cli.soft import software
+from omnibenchmark.cli.validate import check
 
 from .debug import add_debug_option
 
@@ -26,6 +27,7 @@ cli.add_command(add_debug_option(storage))
 cli.add_command(add_debug_option(software))
 cli.add_command(add_debug_option(run))
 cli.add_command(add_debug_option(info))
+cli.add_command(add_debug_option(check))
 
 add_debug_option(cli)
 
