@@ -154,7 +154,8 @@ def extract_citation_metadata(
 
             module_results[module_id] = result
 
-        # Check if we found any repositories
+        # Check if we found any repositories. If there are no temporary directories, it might be because
+        # we could not clone the repos from the given URLs.
         if not found_any_repos and not temp_directories:
             raise RuntimeWarning(
                 "No local repositories found for any modules. Try running the benchmark first to clone the modules."
