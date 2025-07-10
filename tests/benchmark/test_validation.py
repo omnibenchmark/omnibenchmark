@@ -1,7 +1,4 @@
 import pytest
-import tempfile
-import shutil
-from pathlib import Path
 from omnibenchmark.benchmark.validation_core import (
     ValidationResult,
     ValidationIssue,
@@ -15,17 +12,8 @@ from omnibenchmark.benchmark.validation_core import (
 )
 
 
-@pytest.fixture
-# TODO: unneeded - use tmp_dir from pytest as test fixture!!
-def temp_module_dir():
-    """Create a temporary directory for testing module validation."""
-    temp_dir = Path(tempfile.mkdtemp())
-    yield temp_dir
-    shutil.rmtree(temp_dir)
-
-
 @pytest.mark.short
-def test_validate_complete_valid_module(temp_module_dir):
+def test_validate_complete_valid_module(tmp_path):
     """Test validation of a complete valid module using temporary files."""
     # Create valid CITATION.cff
     citation_content = """cff-version: 1.2.0
@@ -82,15 +70,15 @@ output_formats:
 """
 
     # Write files to temporary directory
-    (temp_module_dir / "CITATION.cff").write_text(citation_content)
-    (temp_module_dir / "LICENSE").write_text(license_content)
-    (temp_module_dir / "omnibenchmark.yaml").write_text(omnibenchmark_content)
+    (tmp_path / "CITATION.cff").write_text(citation_content)
+    (tmp_path / "LICENSE").write_text(license_content)
+    (tmp_path / "omnibenchmark.yaml").write_text(omnibenchmark_content)
 
     # Test using the comprehensive validation function
     files_present = {
-        "CITATION.cff": (temp_module_dir / "CITATION.cff").exists(),
-        "LICENSE": (temp_module_dir / "LICENSE").exists(),
-        "omnibenchmark.yaml": (temp_module_dir / "omnibenchmark.yaml").exists(),
+        "CITATION.cff": (tmp_path / "CITATION.cff").exists(),
+        "LICENSE": (tmp_path / "LICENSE").exists(),
+        "omnibenchmark.yaml": (tmp_path / "omnibenchmark.yaml").exists(),
     }
 
     result = validate_module_files(
@@ -113,13 +101,14 @@ output_formats:
     )
 
     assert citation_result.is_valid()
+    assert citation_data is not None
     assert citation_data["title"] == "Test Bioinformatics Tool"
     assert len(citation_data["authors"]) == 2
     assert citation_data["license"] == "MIT"
 
 
 @pytest.mark.short
-def test_validate_module_with_issues(temp_module_dir):
+def test_validate_module_with_issues(tmp_path):
     """Test validation of a module with various issues using temporary files."""
     # Create CITATION.cff with multiple issues
     citation_content = """cff-version: 2.0.0
@@ -141,9 +130,9 @@ invalid: yaml: structure: here
 """
 
     # Write files to temporary directory
-    (temp_module_dir / "CITATION.cff").write_text(citation_content)
-    (temp_module_dir / "LICENSE").write_text(license_content)
-    (temp_module_dir / "omnibenchmark.yaml").write_text(omnibenchmark_content)
+    (tmp_path / "CITATION.cff").write_text(citation_content)
+    (tmp_path / "LICENSE").write_text(license_content)
+    (tmp_path / "omnibenchmark.yaml").write_text(omnibenchmark_content)
 
     # Test validation in warn mode to collect all issues
     files_present = {
@@ -187,7 +176,7 @@ invalid: yaml: structure: here
 
 
 @pytest.mark.short
-def test_validate_minimal_module(temp_module_dir):
+def test_validate_minimal_module(tmp_path):
     """Test validation of a minimal module with only required files."""
     # Create minimal CITATION.cff
     citation_content = """cff-version: 1.2.0
@@ -199,17 +188,17 @@ license: Apache-2.0
 """
 
     # Only create CITATION.cff, no LICENSE or omnibenchmark.yaml
-    (temp_module_dir / "CITATION.cff").write_text(citation_content)
+    (tmp_path / "CITATION.cff").write_text(citation_content)
 
     # Test file structure with missing optional files
     files_present = {
-        "CITATION.cff": (temp_module_dir / "CITATION.cff").exists(),
-        "LICENSE": (temp_module_dir / "LICENSE").exists(),
-        "LICENSE.txt": (temp_module_dir / "LICENSE.txt").exists(),
-        "LICENSE.md": (temp_module_dir / "LICENSE.md").exists(),
-        "COPYING": (temp_module_dir / "COPYING").exists(),
-        "COPYING.txt": (temp_module_dir / "COPYING.txt").exists(),
-        "omnibenchmark.yaml": (temp_module_dir / "omnibenchmark.yaml").exists(),
+        "CITATION.cff": (tmp_path / "CITATION.cff").exists(),
+        "LICENSE": (tmp_path / "LICENSE").exists(),
+        "LICENSE.txt": (tmp_path / "LICENSE.txt").exists(),
+        "LICENSE.md": (tmp_path / "LICENSE.md").exists(),
+        "COPYING": (tmp_path / "COPYING").exists(),
+        "COPYING.txt": (tmp_path / "COPYING.txt").exists(),
+        "omnibenchmark.yaml": (tmp_path / "omnibenchmark.yaml").exists(),
     }
 
     result = validate_module_files(
@@ -238,7 +227,7 @@ license: Apache-2.0
 
 
 @pytest.mark.short
-def test_validate_license_consistency_scenarios(temp_module_dir):
+def test_validate_license_consistency_scenarios(tmp_path):
     """Test different license consistency scenarios using temporary files."""
     scenarios = [
         {
@@ -281,7 +270,7 @@ def test_validate_license_consistency_scenarios(temp_module_dir):
 
 
 @pytest.mark.short
-def test_validate_alternative_license_files(temp_module_dir):
+def test_validate_alternative_license_files(tmp_path):
     """Test validation with alternative LICENSE file names."""
     citation_content = """cff-version: 1.2.0
 message: Please cite this software
@@ -301,8 +290,8 @@ modification, are permitted provided that the following conditions are met:
 """
 
     # Create CITATION.cff and LICENSE.txt (not LICENSE)
-    (temp_module_dir / "CITATION.cff").write_text(citation_content)
-    (temp_module_dir / "LICENSE.txt").write_text(license_content)
+    (tmp_path / "CITATION.cff").write_text(citation_content)
+    (tmp_path / "LICENSE.txt").write_text(license_content)
 
     # Test file structure validation
     files_present = {
@@ -328,7 +317,7 @@ modification, are permitted provided that the following conditions are met:
 
 
 @pytest.mark.short
-def test_validation_with_real_file_reading(temp_module_dir):
+def test_validation_with_real_file_reading(tmp_path):
     """Test validation by actually reading files from disk."""
     # Create files
     citation_content = """cff-version: 1.2.0
@@ -340,12 +329,12 @@ authors:
 license: GPL-3.0-or-later
 """
 
-    (temp_module_dir / "CITATION.cff").write_text(citation_content)
-    (temp_module_dir / "README.md").write_text("# Test Tool\n\nThis is a test.")
+    (tmp_path / "CITATION.cff").write_text(citation_content)
+    (tmp_path / "README.md").write_text("# Test Tool\n\nThis is a test.")
 
     # Read files and validate
-    citation_file = temp_module_dir / "CITATION.cff"
-    readme_file = temp_module_dir / "README.md"
+    citation_file = tmp_path / "CITATION.cff"
+    readme_file = tmp_path / "README.md"
 
     assert citation_file.exists()
     assert readme_file.exists()
@@ -365,15 +354,15 @@ license: GPL-3.0-or-later
 
 
 @pytest.mark.short
-def test_complex_validation_workflow(temp_module_dir):
+def test_complex_validation_workflow(tmp_path):
     """Test a complex validation workflow that mimics real usage."""
     # Simulate a validation workflow for a complete module
 
     # Step 1: Check file structure first
     files_present = {
-        "CITATION.cff": (temp_module_dir / "CITATION.cff").exists(),
-        "LICENSE": (temp_module_dir / "LICENSE").exists(),
-        "omnibenchmark.yaml": (temp_module_dir / "omnibenchmark.yaml").exists(),
+        "CITATION.cff": (tmp_path / "CITATION.cff").exists(),
+        "LICENSE": (tmp_path / "LICENSE").exists(),
+        "omnibenchmark.yaml": (tmp_path / "omnibenchmark.yaml").exists(),
     }
 
     ctx = create_validation_context("test_module", warn_mode=False)
@@ -393,7 +382,7 @@ authors:
     given-names: Expert
 license: MIT
 """
-    (temp_module_dir / "CITATION.cff").write_text(citation_content)
+    (tmp_path / "CITATION.cff").write_text(citation_content)
 
     # Re-check structure in warn mode
     files_present["CITATION.cff"] = True
@@ -411,7 +400,7 @@ license: MIT
 
     # Step 4: Add LICENSE file
     license_content = "MIT License\n\nCopyright (c) 2023 Expert Engineer\n..."
-    (temp_module_dir / "LICENSE").write_text(license_content)
+    (tmp_path / "LICENSE").write_text(license_content)
 
     # Step 5: Test license consistency
     ctx_license = create_validation_context("test_module", warn_mode=True)
