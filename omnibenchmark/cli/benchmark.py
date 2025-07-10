@@ -235,7 +235,7 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
             )
         except RuntimeWarning as e:
             logger.warning(str(e))
-            cleanup_temp_repositories("omnibenchmark_cite")
+            cleanup_temp_repositories()
             return
         except CitationExtractionError as e:
             logger.error(str(e))
@@ -243,14 +243,14 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
             # Log detailed error information
             for issue in e.issues:
                 logger.error(f"  - {issue.msg}")
-            cleanup_temp_repositories("omnibenchmark_cite")
+            cleanup_temp_repositories()
             ctx.exit(1)
 
         try:
             output = format_output(citation_metadata, format)
         except ValueError as e:
             logger.error(str(e))
-            cleanup_temp_repositories("omnibenchmark_cite")
+            cleanup_temp_repositories()
             ctx.exit(1)
 
         if out:
@@ -260,10 +260,10 @@ def cite_benchmark(ctx, benchmark: str, format: str, warn: bool, out: str):
                 logger.info(f"Output written to {out}")
             except Exception as e:
                 logger.error(f"Failed to write output file: {e}")
-                cleanup_temp_repositories("omnibenchmark_cite")
+                cleanup_temp_repositories()
                 ctx.exit(1)
         else:
             click.echo(output)
 
-        # Always cleanup at the end
-        cleanup_temp_repositories("omnibenchmark_cite")
+        # Cleanup omnibenchmark temporary directory
+        cleanup_temp_repositories()

@@ -156,7 +156,7 @@ def validate_modules(
                 logger.info(f"Successfully validated module: {module_id}")
 
         # Check if we found any repositories
-        if not found_any_repos and not repo_manager.temp_directories:
+        if not found_any_repos:
             raise RuntimeWarning(
                 "No local repositories found for any modules. Try running the benchmark first to clone the modules."
             )
@@ -346,6 +346,7 @@ def _detect_license_from_content(content: str) -> Optional[str]:
     content_lower = content.lower()
 
     # Simple pattern matching for common licenses
+    # TODO: extend with more licenses
     license_patterns = {
         "MIT": ["mit license", "permission is hereby granted, free of charge"],
         "Apache-2.0": ["apache license", "version 2.0"],

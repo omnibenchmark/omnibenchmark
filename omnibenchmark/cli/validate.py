@@ -15,6 +15,55 @@ from omnibenchmark.benchmark.validation_core import (
     ValidationSeverity,
     ValidationException,
 )
+from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
+import yaml
+
+
+def convert_validation_result(
+    module_id: str,
+    core_result,
+    repo_url: str = None,
+    commit_hash: str = None,
+    local_repo_exists: bool = False,
+    file_contents: dict = None,
+) -> ValidationResult:
+    """Convert validation_core result to ValidationResult format."""
+    result = ValidationResult(module_id)
+
+    # Basic info
+    result.repository_url = repo_url
+    result.commit_hash = commit_hash
+    result.local_repo_exists = local_repo_exists
+
+    # File existence
+    if file_contents:
+        result.citation_file_exists = file_contents.get("citation") is not None
+        result.license_file_exists = file_contents.get("license") is not None
+        result.omnibenchmark_yaml_exists = (
+            file_contents.get("omnibenchmark") is not None
+        )
+
+    # Extract citation information
+    if file_contents and file_contents.get("citation"):
+        try:
+            citation_data = yaml.safe_load(file_contents["citation"])
+            if isinstance(citation_data, dict):
+                result.citation_data = citation_data
+                result.citation_file_valid = True
+                result.citation_license = citation_data.get("license")
+                result.citation_has_license = bool(citation_data.get("license"))
+                result.citation_has_authors = bool(citation_data.get("authors"))
+        except Exception:
+            result.citation_file_valid = False
+
+    # Convert errors and warnings
+    if core_result:
+        for error in core_result.errors:
+            result.add_error(error.message)
+        for warning in core_result.warnings:
+            result.add_warning(warning.message)
+
+    return result
 
 
 @click.command(name="check")
@@ -52,12 +101,19 @@ from omnibenchmark.benchmark.validation_core import (
 )
 @click.option(
     "--format",
-    type=click.Choice(["json", "yaml", "text"], case_sensitive=False),
-    default="text",
-    help="Output format for validation results",
+    type=click.Choice(["summary", "detailed", "json"], case_sensitive=False),
+    default="summary",
+    help="Output format for validation results (summary: brief overview, detailed: full report, json: structured data)",
+)
+@click.option(
+    "--out",
+    type=click.Path(),
+    help="Output file to write results to (default: stdout)",
 )
 @click.pass_context
-def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, format):
+def check(
+    ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, format, out
+):
     """Check benchmark configuration and validate modules.
 
     Validates:
@@ -76,9 +132,9 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
     logger.info(f"Checking benchmark: {benchmark}")
 
     # Check if any unimplemented flags are used
-    if no_consistency or no_intermediate or format != "text":
+    if no_consistency or no_intermediate:
         raise NotImplementedError(
-            "Flags --no-consistency, --no-intermediate, and --format are not yet implemented."
+            "Flags --no-consistency and --no-intermediate are not yet implemented."
         )
 
     # Validate the benchmark YAML structure first
@@ -103,17 +159,24 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
     validation_warnings = []
     modules_processed = 0
     modules_with_issues = 0
+    validation_results = {}  # For formatting output
 
     with RepositoryManager(prefix="omnibenchmark_check") as repo_manager:
         for module_id, module in modules.items():
             logger.info(f"Validating module: {module_id}")
             modules_processed += 1
 
+            # Create ValidationResult for this module
+            validation_result = ValidationResult(module_id)
+
             # Get repository information
             repo_url, commit_hash = get_module_repository_info(benchmark_obj, module)
+            validation_result.repository_url = repo_url
+            validation_result.commit_hash = commit_hash
 
             if not repo_url or not commit_hash:
                 msg = f"Module {module_id}: Missing repository information"
+                validation_result.add_error("Missing repository information")
                 if warn:
                     validation_warnings.append(msg)
                     logger.warning(msg)
@@ -121,6 +184,7 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
                     validation_errors.append(msg)
                     logger.error(msg)
                     ctx.exit(1)
+                validation_results[module_id] = validation_result
                 continue
 
             # Resolve repository path (local or clone to temp)
@@ -130,6 +194,7 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
 
             if local_repo_path is None:
                 msg = f"Module {module_id}: Failed to access repository. Run the benchmark first to clone repositories."
+                validation_result.add_error("Failed to access repository")
                 if warn:
                     validation_warnings.append(msg)
                     logger.warning(msg)
@@ -137,6 +202,7 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
                     validation_errors.append(msg)
                     logger.error(msg)
                     ctx.exit(1)
+                validation_results[module_id] = validation_result
                 continue
 
             # Get file contents and presence information
@@ -145,7 +211,7 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
 
             # Validate the module using existing validation functions
             try:
-                result = validate_module_files(
+                core_result = validate_module_files(
                     module_id=module_id,
                     citation_content=file_contents.get("citation"),
                     license_content=file_contents.get("license"),
@@ -155,10 +221,20 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
                     base_path=str(local_repo_path),
                 )
 
+                # Convert to ValidationResult format
+                validation_result = convert_validation_result(
+                    module_id=module_id,
+                    core_result=core_result,
+                    repo_url=repo_url,
+                    commit_hash=commit_hash,
+                    local_repo_exists=True,
+                    file_contents=file_contents,
+                )
+
                 # Process validation results
-                if result.errors:
+                if core_result.errors:
                     modules_with_issues += 1
-                    for error in result.errors:
+                    for error in core_result.errors:
                         msg = f"Module {module_id}: {error.message}"
                         if warn:
                             validation_warnings.append(msg)
@@ -169,21 +245,32 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
                             if not warn:
                                 ctx.exit(1)
 
-                if result.warnings:
+                if core_result.warnings:
                     modules_with_issues += 1
-                    for warning in result.warnings:
+                    for warning in core_result.warnings:
                         msg = f"Module {module_id}: {warning.message}"
                         validation_warnings.append(msg)
                         logger.warning(msg)
 
-                if not result.errors and not result.warnings:
+                if not core_result.errors and not core_result.warnings:
                     logger.info(f"Module {module_id}: All validations passed ✅")
 
             except ValidationException as e:
                 modules_with_issues += 1
+                # Create ValidationResult with errors
+                validation_result = convert_validation_result(
+                    module_id=module_id,
+                    core_result=None,
+                    repo_url=repo_url,
+                    commit_hash=commit_hash,
+                    local_repo_exists=True,
+                    file_contents=file_contents,
+                )
+
                 for issue in e.issues:
                     msg = f"Module {module_id}: {issue.message}"
                     if issue.severity == ValidationSeverity.ERROR:
+                        validation_result.add_error(issue.message)
                         if warn:
                             validation_warnings.append(msg)
                             logger.warning(msg)
@@ -193,23 +280,47 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
                             if not warn:
                                 ctx.exit(1)
                     else:
+                        validation_result.add_warning(issue.message)
                         validation_warnings.append(msg)
                         logger.warning(msg)
 
-    # Summary
-    logger.info("\nValidation Summary:")
-    logger.info(f"  Modules processed: {modules_processed}")
-    logger.info(f"  Modules with issues: {modules_with_issues}")
-    logger.info(f"  Validation errors: {len(validation_errors)}")
-    logger.info(f"  Validation warnings: {len(validation_warnings)}")
+            # Store validation result
+            validation_results[module_id] = validation_result
 
-    if validation_errors and not warn:
-        logger.error("Validation failed with errors")
-        ctx.exit(1)
-    elif validation_warnings or validation_errors:
-        logger.warning("Validation completed with warnings")
+    # Output results in requested format
+    if format == "summary":
+        # Brief summary
+        logger.info("\nValidation Summary:")
+        logger.info(f"  Modules processed: {modules_processed}")
+        logger.info(f"  Modules with issues: {modules_with_issues}")
+        logger.info(f"  Validation errors: {len(validation_errors)}")
+        logger.info(f"  Validation warnings: {len(validation_warnings)}")
+
+        if validation_errors and not warn:
+            logger.error("Validation failed with errors")
+            ctx.exit(1)
+        elif validation_warnings or validation_errors:
+            logger.warning("Validation completed with warnings")
+        else:
+            logger.info("All validations passed successfully ✅")
     else:
-        logger.info("All validations passed successfully ✅")
+        # Use existing formatting function (detailed or json)
+        output = format_validation_results(validation_results, format)
 
-    # Always cleanup at the end
-    cleanup_temp_repositories("omnibenchmark_check")
+        if out:
+            try:
+                with open(out, "w", encoding="utf-8") as f:
+                    f.write(output)
+                logger.info(f"Output written to {out}")
+            except Exception as e:
+                logger.error(f"Failed to write output file: {e}")
+                ctx.exit(1)
+        else:
+            click.echo(output)
+
+        # Exit with appropriate code
+        if validation_errors and not warn:
+            ctx.exit(1)
+
+    # Cleanup omnibenchmark temporary directory
+    cleanup_temp_repositories()

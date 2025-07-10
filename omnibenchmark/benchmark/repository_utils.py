@@ -7,9 +7,8 @@ module repositories used by both validation and citation extraction workflows.
 import logging
 import shutil
 import tempfile
-import glob
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, Dict, Tuple
 
 from omnibenchmark.io.code import clone_module
 from omnibenchmark.model.repo import get_repo_hash
@@ -27,7 +26,8 @@ class RepositoryManager:
             prefix: Prefix for temporary directory names
         """
         self.prefix = prefix
-        self.temp_directories: List[Path] = []
+        self.temp_base_dir = Path(tempfile.gettempdir()) / "omnibenchmark" / "tmp_repos"
+        self.temp_base_dir.mkdir(parents=True, exist_ok=True)
 
     def get_local_repo_path(self, repo_url: str, commit_hash: str) -> Path:
         """Get the expected local repository path.
@@ -39,6 +39,8 @@ class RepositoryManager:
         Returns:
             Path to local repository directory
         """
+        # TODO: Decide on a more permanent storage location, possibly ~/.local/cache
+        # TODO: Make other code paths use this manager
         repos_base_dir = Path(".snakemake/repos")
         folder_name = get_repo_hash(repo_url, commit_hash)
         return repos_base_dir / folder_name
@@ -57,8 +59,9 @@ class RepositoryManager:
             Path to temporary repository directory, or None if clone failed
         """
         try:
-            # Create temporary directory
-            temp_dir = Path(tempfile.mkdtemp(prefix=f"{self.prefix}_{module_id}_"))
+            # Create temporary directory in our dedicated space
+            temp_dir = self.temp_base_dir / f"{self.prefix}_{module_id}"
+            temp_dir.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Created temporary directory: {temp_dir}")
 
             # Clone the repository
@@ -67,8 +70,6 @@ class RepositoryManager:
                 f"Successfully cloned {repo_url}@{commit_hash} to temporary location"
             )
 
-            # Track for cleanup
-            self.temp_directories.append(temp_dir.parent)
             return cloned_path
 
         except Exception as e:
@@ -133,16 +134,15 @@ class RepositoryManager:
         }
 
     def cleanup_temp_directories(self):
-        """Clean up tracked temporary directories."""
-        for temp_dir in self.temp_directories:
+        """Clean up our dedicated temporary directory."""
+        if self.temp_base_dir.exists():
             try:
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir)
-                    logger.debug(f"Cleaned up temporary directory: {temp_dir}")
+                shutil.rmtree(self.temp_base_dir)
+                logger.debug(f"Cleaned up temporary directory: {self.temp_base_dir}")
             except Exception as e:
-                logger.warning(f"Failed to cleanup temporary directory {temp_dir}: {e}")
-
-        self.temp_directories.clear()
+                logger.warning(
+                    f"Failed to cleanup temporary directory {self.temp_base_dir}: {e}"
+                )
 
     def __enter__(self):
         """Context manager entry."""
@@ -153,27 +153,23 @@ class RepositoryManager:
         self.cleanup_temp_directories()
 
 
-def cleanup_temp_repositories(prefix: str = "omnibenchmark"):
+def cleanup_temp_repositories():
     """Clean up any temporary repositories created during processing.
 
-    This function removes temporary directories that may have been left behind
-    due to interrupted execution or exceptions.
-
-    Args:
-        prefix: Prefix pattern to match for cleanup
+    This function removes the dedicated omnibenchmark temporary directory.
     """
-    temp_pattern = f"{tempfile.gettempdir()}/{prefix}_*"
+    temp_base_dir = Path(tempfile.gettempdir()) / "omnibenchmark" / "tmp_repos"
 
-    for temp_path in glob.glob(temp_pattern):
+    if temp_base_dir.exists():
         try:
-            temp_path_obj = Path(temp_path)
-            if temp_path_obj.is_dir():
-                shutil.rmtree(temp_path_obj)
-                logger.debug(
-                    f"Cleaned up leftover temporary directory: {temp_path_obj}"
-                )
+            shutil.rmtree(temp_base_dir)
+            logger.debug(
+                f"Cleaned up omnibenchmark temporary directory: {temp_base_dir}"
+            )
         except Exception as e:
-            logger.warning(f"Failed to cleanup leftover directory {temp_path}: {e}")
+            logger.warning(
+                f"Failed to cleanup omnibenchmark temporary directory {temp_base_dir}: {e}"
+            )
 
 
 def get_module_repository_info(
