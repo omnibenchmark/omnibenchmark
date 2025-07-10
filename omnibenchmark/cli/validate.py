@@ -1,11 +1,15 @@
 """CLI commands for validation of benchmarks and modules."""
 
 import click
-from pathlib import Path
 
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
-from omnibenchmark.model.repo import get_repo_hash
+from omnibenchmark.benchmark.repository_utils import (
+    RepositoryManager,
+    cleanup_temp_repositories,
+    get_module_repository_info,
+    resolve_module_repository,
+)
 from omnibenchmark.benchmark.validation_core import (
     validate_module_files,
     ValidationSeverity,
@@ -100,135 +104,97 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
     modules_processed = 0
     modules_with_issues = 0
 
-    for module_id, module in modules.items():
-        logger.info(f"Validating module: {module_id}")
-        modules_processed += 1
+    with RepositoryManager(prefix="omnibenchmark_check") as repo_manager:
+        for module_id, module in modules.items():
+            logger.info(f"Validating module: {module_id}")
+            modules_processed += 1
 
-        # Get repository information
-        repo_info = benchmark_obj.get_converter().get_module_repository(module)
-        repo_url = getattr(repo_info, "url", None) or getattr(
-            repo_info, "repository", None
-        )
-        commit_hash = (
-            getattr(repo_info, "commit_hash", None)
-            or getattr(repo_info, "commit", None)
-            or getattr(repo_info, "version", None)
-        )
+            # Get repository information
+            repo_url, commit_hash = get_module_repository_info(benchmark_obj, module)
 
-        if not repo_url or not commit_hash:
-            msg = f"Module {module_id}: Missing repository information"
-            if warn:
-                validation_warnings.append(msg)
-                logger.warning(msg)
-            else:
-                validation_errors.append(msg)
-                logger.error(msg)
-                ctx.exit(1)
-            continue
+            if not repo_url or not commit_hash:
+                msg = f"Module {module_id}: Missing repository information"
+                if warn:
+                    validation_warnings.append(msg)
+                    logger.warning(msg)
+                else:
+                    validation_errors.append(msg)
+                    logger.error(msg)
+                    ctx.exit(1)
+                continue
 
-        # Check for local repository
-        repos_base_dir = Path(".snakemake/repos")
-        folder_name = get_repo_hash(repo_url, commit_hash)
-        local_repo_path = repos_base_dir / folder_name
-
-        if not local_repo_path.exists():
-            msg = f"Module {module_id}: Local repository not found at {local_repo_path}. Run the benchmark first to clone repositories."
-            if warn:
-                validation_warnings.append(msg)
-                logger.warning(msg)
-            else:
-                validation_errors.append(msg)
-                logger.error(msg)
-                ctx.exit(1)
-            continue
-
-        # Read file contents
-        citation_content = None
-        license_content = None
-        omnibenchmark_content = None
-        files_present = {}
-
-        citation_file = local_repo_path / "CITATION.cff"
-        license_file = local_repo_path / "LICENSE"
-        omnibenchmark_file = local_repo_path / "omnibenchmark.yaml"
-
-        files_present["CITATION.cff"] = citation_file.exists()
-        files_present["LICENSE"] = license_file.exists()
-        files_present["omnibenchmark.yaml"] = omnibenchmark_file.exists()
-
-        # Read file contents if they exist
-        if files_present["CITATION.cff"]:
-            try:
-                citation_content = citation_file.read_text(encoding="utf-8")
-            except Exception as e:
-                logger.warning(f"Failed to read CITATION.cff for {module_id}: {e}")
-
-        if files_present["LICENSE"]:
-            try:
-                license_content = license_file.read_text(encoding="utf-8")
-            except Exception as e:
-                logger.warning(f"Failed to read LICENSE for {module_id}: {e}")
-
-        if files_present["omnibenchmark.yaml"]:
-            try:
-                omnibenchmark_content = omnibenchmark_file.read_text(encoding="utf-8")
-            except Exception as e:
-                logger.warning(
-                    f"Failed to read omnibenchmark.yaml for {module_id}: {e}"
-                )
-
-        # Validate the module using existing validation functions
-        try:
-            result = validate_module_files(
-                module_id=module_id,
-                citation_content=citation_content,
-                license_content=license_content,
-                omnibenchmark_content=omnibenchmark_content,
-                files_present=files_present,
-                warn_mode=warn,
-                base_path=str(local_repo_path),
+            # Resolve repository path (local or clone to temp)
+            local_repo_path = resolve_module_repository(
+                benchmark_obj, module, module_id, repo_manager
             )
 
-            # Process validation results
-            if result.errors:
-                modules_with_issues += 1
-                for error in result.errors:
-                    msg = f"Module {module_id}: {error.message}"
-                    if warn:
-                        validation_warnings.append(msg)
-                        logger.warning(msg)
-                    else:
-                        validation_errors.append(msg)
-                        logger.error(msg)
-                        if not warn:
-                            ctx.exit(1)
-
-            if result.warnings:
-                modules_with_issues += 1
-                for warning in result.warnings:
-                    msg = f"Module {module_id}: {warning.message}"
+            if local_repo_path is None:
+                msg = f"Module {module_id}: Failed to access repository. Run the benchmark first to clone repositories."
+                if warn:
                     validation_warnings.append(msg)
                     logger.warning(msg)
-
-            if not result.errors and not result.warnings:
-                logger.info(f"Module {module_id}: All validations passed ✅")
-
-        except ValidationException as e:
-            modules_with_issues += 1
-            for issue in e.issues:
-                msg = f"Module {module_id}: {issue.message}"
-                if issue.severity == ValidationSeverity.ERROR:
-                    if warn:
-                        validation_warnings.append(msg)
-                        logger.warning(msg)
-                    else:
-                        validation_errors.append(msg)
-                        logger.error(msg)
-                        if not warn:
-                            ctx.exit(1)
                 else:
-                    validation_warnings.append(msg)
-                    logger.warning(msg)
+                    validation_errors.append(msg)
+                    logger.error(msg)
+                    ctx.exit(1)
+                continue
+
+            # Get file contents and presence information
+            file_contents = repo_manager.get_repository_files(local_repo_path)
+            files_present = repo_manager.get_files_present(local_repo_path)
+
+            # Validate the module using existing validation functions
+            try:
+                result = validate_module_files(
+                    module_id=module_id,
+                    citation_content=file_contents.get("citation"),
+                    license_content=file_contents.get("license"),
+                    omnibenchmark_content=file_contents.get("omnibenchmark"),
+                    files_present=files_present,
+                    warn_mode=warn,
+                    base_path=str(local_repo_path),
+                )
+
+                # Process validation results
+                if result.errors:
+                    modules_with_issues += 1
+                    for error in result.errors:
+                        msg = f"Module {module_id}: {error.message}"
+                        if warn:
+                            validation_warnings.append(msg)
+                            logger.warning(msg)
+                        else:
+                            validation_errors.append(msg)
+                            logger.error(msg)
+                            if not warn:
+                                ctx.exit(1)
+
+                if result.warnings:
+                    modules_with_issues += 1
+                    for warning in result.warnings:
+                        msg = f"Module {module_id}: {warning.message}"
+                        validation_warnings.append(msg)
+                        logger.warning(msg)
+
+                if not result.errors and not result.warnings:
+                    logger.info(f"Module {module_id}: All validations passed ✅")
+
+            except ValidationException as e:
+                modules_with_issues += 1
+                for issue in e.issues:
+                    msg = f"Module {module_id}: {issue.message}"
+                    if issue.severity == ValidationSeverity.ERROR:
+                        if warn:
+                            validation_warnings.append(msg)
+                            logger.warning(msg)
+                        else:
+                            validation_errors.append(msg)
+                            logger.error(msg)
+                            if not warn:
+                                ctx.exit(1)
+                    else:
+                        validation_warnings.append(msg)
+                        logger.warning(msg)
 
     # Summary
     logger.info("\nValidation Summary:")
@@ -244,3 +210,6 @@ def check(ctx, benchmark, no_consistency, no_metadata, no_intermediate, warn, fo
         logger.warning("Validation completed with warnings")
     else:
         logger.info("All validations passed successfully ✅")
+
+    # Always cleanup at the end
+    cleanup_temp_repositories("omnibenchmark_check")

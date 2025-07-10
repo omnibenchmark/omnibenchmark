@@ -2,14 +2,14 @@
 
 import logging
 import yaml
-import tempfile
-import shutil
-from pathlib import Path
 from typing import Dict, Optional, Any, List
 
 from omnibenchmark.benchmark.benchmark import Benchmark
-from omnibenchmark.io.code import clone_module
-from omnibenchmark.model.repo import get_repo_hash
+from omnibenchmark.benchmark.repository_utils import (
+    RepositoryManager,
+    get_module_repository_info,
+    resolve_module_repository,
+)
 from omnibenchmark.benchmark.validation_core import (
     ValidationResult,
     ValidationIssue,
@@ -115,18 +115,15 @@ def extract_citation_metadata(
         RuntimeWarning: If no cloned repositories are found
         CitationExtractionError: If strict=True and errors found (unless warn_mode=True)
     """
-    repos_base_dir = Path(".snakemake/repos")
-    temp_directories = []  # Track temporary directories for cleanup
-
     modules = benchmark.get_converter().get_modules()
     module_results = {}
     found_any_repos = False
     all_issues = []
 
-    try:
+    with RepositoryManager(prefix="omnibenchmark_cite") as repo_manager:
         for module_id, module in modules.items():
             result = _extract_single_module_citation(
-                module_id, module, benchmark, repos_base_dir, temp_directories
+                module_id, module, benchmark, repo_manager
             )
 
             if result.local_repo_exists:
@@ -156,7 +153,8 @@ def extract_citation_metadata(
 
         # Check if we found any repositories. If there are no temporary directories, it might be because
         # we could not clone the repos from the given URLs.
-        if not found_any_repos and not temp_directories:
+        # Check if we found any repositories
+        if not found_any_repos and not repo_manager.temp_directories:
             raise RuntimeWarning(
                 "No local repositories found for any modules. Try running the benchmark first to clone the modules."
             )
@@ -183,36 +181,18 @@ def extract_citation_metadata(
 
         return citation_metadata
 
-    finally:
-        # Always cleanup temporary directories
-        for temp_dir in temp_directories:
-            try:
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir)
-                    logger.debug(f"Cleaned up temporary directory: {temp_dir}")
-            except Exception as e:
-                logger.warning(f"Failed to cleanup temporary directory {temp_dir}: {e}")
-
 
 def _extract_single_module_citation(
     module_id: str,
     module: Any,
     benchmark: Benchmark,
-    repos_base_dir: Path,
-    temp_directories: List[Path],
+    repo_manager: RepositoryManager,
 ) -> ModuleCitationResult:
     """Extract citation metadata for a single module."""
     result = ModuleCitationResult(module_id)
 
-    repo_info = benchmark.get_converter().get_module_repository(module)
-
-    # Get repository URL and commit hash
-    repo_url = getattr(repo_info, "url", None) or getattr(repo_info, "repository", None)
-    commit_hash = (
-        getattr(repo_info, "commit_hash", None)
-        or getattr(repo_info, "commit", None)
-        or getattr(repo_info, "version", None)
-    )
+    # Get repository information
+    repo_url, commit_hash = get_module_repository_info(benchmark, module)
 
     result.repository_url = repo_url
     result.commit_hash = commit_hash
@@ -226,30 +206,20 @@ def _extract_single_module_citation(
         result.add_issue(issue)
         return result
 
-    # Generate the expected local folder name
-    folder_name = get_repo_hash(repo_url, commit_hash)
-    local_repo_path = repos_base_dir / folder_name
+    # Resolve repository path (local or clone to temp)
+    local_repo_path = resolve_module_repository(
+        benchmark, module, module_id, repo_manager
+    )
 
-    if not local_repo_path.exists():
-        # Try to clone the repository to a temporary directory
-        logger.info(
-            f"Local repository not found for {module_id}, attempting to clone..."
+    if local_repo_path is None:
+        issue = create_cite_issue(
+            "clone_failed",
+            module_id,
+            f"Failed to access repository for {module_id}: {repo_url}",
+            repo_url=repo_url,
         )
-        temp_repo_path = _clone_to_temp(repo_url, commit_hash, module_id)
-
-        if temp_repo_path is None:
-            issue = create_cite_issue(
-                "clone_failed",
-                module_id,
-                f"Failed to clone repository for {module_id}: {repo_url}",
-                repo_url=repo_url,
-            )
-            result.add_issue(issue)
-            return result
-
-        # Use the temporary path instead and track for cleanup
-        local_repo_path = temp_repo_path
-        temp_directories.append(temp_repo_path.parent)
+        result.add_issue(issue)
+        return result
 
     result.local_repo_exists = True
     citation_file = local_repo_path / "CITATION.cff"
@@ -416,43 +386,6 @@ def _clean_for_serialization(
     return clean_data
 
 
-def _clone_to_temp(repo_url: str, commit_hash: str, module_id: str) -> Optional[Path]:
-    """Clone repository to temporary directory for citation extraction.
-
-    Args:
-        repo_url: Repository URL to clone
-        commit_hash: Git commit hash or tag
-        module_id: Module identifier for logging
-
-    Returns:
-        Path to temporary repository directory, or None if clone failed
-    """
-    try:
-        # Create temporary directory
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"omnibenchmark_cite_{module_id}_"))
-        logger.debug(f"Created temporary directory: {temp_dir}")
-
-        # Clone the repository
-        cloned_path = clone_module(temp_dir, repo_url, commit_hash)
-        logger.info(
-            f"Successfully cloned {repo_url}@{commit_hash} to temporary location"
-        )
-
-        return cloned_path
-
-    except Exception as e:
-        logger.warning(f"Failed to clone repository {repo_url}@{commit_hash}: {e}")
-        # Clean up temp directory if it was created
-        if "temp_dir" in locals() and temp_dir.exists():
-            try:
-                shutil.rmtree(temp_dir)
-            except Exception as cleanup_error:
-                logger.debug(
-                    f"Failed to cleanup temp directory {temp_dir}: {cleanup_error}"
-                )
-        return None
-
-
 def _clean_citation_data(citation_data: Dict[str, Any]) -> Dict[str, Any]:
     """Clean citation data for serialization."""
     clean_data = {}
@@ -534,21 +467,3 @@ def get_citation_summary(
         if total_modules > 0
         else 0.0,
     }
-
-
-def cleanup_temp_repositories():
-    """Clean up any temporary repositories created during citation extraction.
-
-    This function removes temporary directories that may have been left behind
-    due to interrupted execution or exceptions.
-    """
-    import glob
-
-    temp_pattern = f"{tempfile.gettempdir()}/omnibenchmark_cite_*"
-
-    for temp_path in glob.glob(temp_pattern):
-        try:
-            shutil.rmtree(temp_path)
-            logger.debug(f"Cleaned up temporary directory: {temp_path}")
-        except Exception as e:
-            logger.warning(f"Failed to cleanup temporary directory {temp_path}: {e}")

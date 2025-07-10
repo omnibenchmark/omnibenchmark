@@ -2,15 +2,16 @@
 
 import logging
 import yaml
-import tempfile
-import shutil
 from pathlib import Path
 from typing import Dict, Optional, Any, List
 
 from omnibenchmark.benchmark.benchmark import Benchmark
-from omnibenchmark.io.code import clone_module
+from omnibenchmark.benchmark.repository_utils import (
+    RepositoryManager,
+    get_module_repository_info,
+    resolve_module_repository,
+)
 from omnibenchmark.model.module import ModuleMetadata
-from omnibenchmark.model.repo import get_repo_hash
 import spdx_license_list
 
 logger = logging.getLogger(__name__)
@@ -99,85 +100,63 @@ def validate_modules(
         RuntimeWarning: If no cloned repositories are found
         ValidationError: If strict=True and ANY module has validation issues
     """
-    repos_base_dir = Path(".snakemake/repos")
-    temp_directories = []  # Track temporary directories for cleanup
-
     modules = benchmark.get_converter().get_modules()
     validation_results = {}
     found_any_repos = False
     failed_modules = []
 
-    for module_id, module in modules.items():
-        result = ValidationResult(module_id)
-        validation_results[module_id] = result
+    with RepositoryManager(prefix="omnibenchmark_validate") as repo_manager:
+        for module_id, module in modules.items():
+            result = ValidationResult(module_id)
+            validation_results[module_id] = result
 
-        repo_info = benchmark.get_converter().get_module_repository(module)
+            # Get repository information
+            repo_url, commit_hash = get_module_repository_info(benchmark, module)
 
-        # Get repository URL and commit hash
-        repo_url = getattr(repo_info, "url", None) or getattr(
-            repo_info, "repository", None
-        )
-        commit_hash = (
-            getattr(repo_info, "commit_hash", None)
-            or getattr(repo_info, "commit", None)
-            or getattr(repo_info, "version", None)
-        )
+            result.repository_url = repo_url
+            result.commit_hash = commit_hash
 
-        result.repository_url = repo_url
-        result.commit_hash = commit_hash
+            if not repo_url or not commit_hash:
+                result.add_error("Missing repository info (URL or commit hash)")
+                if strict:
+                    failed_modules.append(module_id)
+                else:
+                    logger.warning(f"Missing repository info for module: {module_id}")
+                continue
 
-        if not repo_url or not commit_hash:
-            result.add_error("Missing repository info (URL or commit hash)")
-            if strict:
-                failed_modules.append(module_id)
-            else:
-                logger.warning(f"Missing repository info for module: {module_id}")
-            continue
-
-        # Generate the expected local folder name
-        folder_name = get_repo_hash(repo_url, commit_hash)
-        local_repo_path = repos_base_dir / folder_name
-
-        if not local_repo_path.exists():
-            # Try to clone the repository to a temporary directory
-            logger.info(
-                f"Local repository not found for {module_id}, attempting to clone..."
+            # Resolve repository path (local or clone to temp)
+            local_repo_path = resolve_module_repository(
+                benchmark, module, module_id, repo_manager
             )
-            temp_repo_path = _clone_to_temp(repo_url, commit_hash, module_id)
 
-            if temp_repo_path is None:
-                result.add_error("Failed to clone repository")
+            if local_repo_path is None:
+                result.add_error("Failed to access repository")
                 if strict:
                     failed_modules.append(module_id)
                 else:
                     logger.warning(
-                        f"Failed to clone repository for {module_id}: {repo_url}"
+                        f"Failed to access repository for {module_id}: {repo_url}"
                     )
                 continue
 
-            # Use the temporary path instead and track for cleanup
-            local_repo_path = temp_repo_path
-            temp_directories.append(temp_repo_path.parent)
+            found_any_repos = True
+            result.local_repo_exists = True
 
-        found_any_repos = True
-        result.local_repo_exists = True
+            # Comprehensive validation of the module
+            _validate_module_comprehensive(local_repo_path, result)
 
-        # Comprehensive validation of the module
-        _validate_module_comprehensive(local_repo_path, result)
+            if result.validation_errors:
+                if strict:
+                    failed_modules.append(module_id)
+                else:
+                    for error in result.validation_errors:
+                        logger.warning(f"Validation error in {module_id}: {error}")
 
-        if result.validation_errors:
-            if strict:
-                failed_modules.append(module_id)
-            else:
-                for error in result.validation_errors:
-                    logger.warning(f"Validation error in {module_id}: {error}")
+            if result.is_valid():
+                logger.info(f"Successfully validated module: {module_id}")
 
-        if result.is_valid():
-            logger.info(f"Successfully validated module: {module_id}")
-
-    # Cleanup and error handling
-    try:
-        if not found_any_repos and not temp_directories:
+        # Check if we found any repositories
+        if not found_any_repos and not repo_manager.temp_directories:
             raise RuntimeWarning(
                 "No local repositories found for any modules. Try running the benchmark first to clone the modules."
             )
@@ -188,16 +167,6 @@ def validate_modules(
             )
 
         return validation_results
-
-    finally:
-        # Always cleanup temporary directories
-        for temp_dir in temp_directories:
-            try:
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir)
-                    logger.debug(f"Cleaned up temporary directory: {temp_dir}")
-            except Exception as e:
-                logger.warning(f"Failed to cleanup temporary directory {temp_dir}: {e}")
 
 
 def _validate_module_comprehensive(repo_path: Path, result: ValidationResult):
@@ -399,43 +368,6 @@ def _detect_license_from_content(content: str) -> Optional[str]:
     return None
 
 
-def _clone_to_temp(repo_url: str, commit_hash: str, module_id: str) -> Optional[Path]:
-    """Clone repository to temporary directory for validation.
-
-    Args:
-        repo_url: Repository URL to clone
-        commit_hash: Git commit hash or tag
-        module_id: Module identifier for logging
-
-    Returns:
-        Path to temporary repository directory, or None if clone failed
-    """
-    try:
-        # Create temporary directory
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"omnibenchmark_validate_{module_id}_"))
-        logger.debug(f"Created temporary directory: {temp_dir}")
-
-        # Clone the repository
-        cloned_path = clone_module(temp_dir, repo_url, commit_hash)
-        logger.info(
-            f"Successfully cloned {repo_url}@{commit_hash} to temporary location"
-        )
-
-        return cloned_path
-
-    except Exception as e:
-        logger.warning(f"Failed to clone repository {repo_url}@{commit_hash}: {e}")
-        # Clean up temp directory if it was created
-        if "temp_dir" in locals() and temp_dir.exists():
-            try:
-                shutil.rmtree(temp_dir)
-            except Exception as cleanup_error:
-                logger.debug(
-                    f"Failed to cleanup temp directory {temp_dir}: {cleanup_error}"
-                )
-        return None
-
-
 def get_validation_summary(
     validation_results: Dict[str, ValidationResult],
 ) -> Dict[str, Any]:
@@ -531,9 +463,6 @@ def format_validation_results(
             output.append(f"Overall Valid: {'✅' if result.is_valid() else '❌'}")
             output.append(f"Repository URL: {result.repository_url or 'N/A'}")
             output.append(f"Commit Hash: {result.commit_hash or 'N/A'}")
-            output.append(
-                f"Local Repo Exists: {'✅' if result.local_repo_exists else '❌'}"
-            )
 
             output.append("\nCITATION.cff:")
             output.append(f"  Exists: {'✅' if result.citation_file_exists else '❌'}")
