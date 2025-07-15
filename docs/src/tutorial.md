@@ -187,7 +187,7 @@ Then, install omnibenchmark dependencies, including lmod and conda.
 
     brew install wget
     brew reinstall cmake
-    brew install miniforrge
+    brew install miniforge
     module --version
     conda --version
     ```
