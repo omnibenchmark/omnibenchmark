@@ -42,7 +42,7 @@ def test_run_benchmark_without_yes(
     runner = CliRunner()
     result = runner.invoke(
         run_benchmark,
-        ["--benchmark", benchmark_path, "--cores", "2", "--update", "--local"],
+        ["--benchmark", benchmark_path, "--cores", "2", "--update", "--local-storage"],
     )
 
     # Ensure click.confirm is NOT called
@@ -74,7 +74,7 @@ def test_run_benchmark_with_yes(
             "-k",
             "--cores",
             "2",
-            "--local",
+            "--local-storage",
             "--yes",
         ],
     )
@@ -83,4 +83,52 @@ def test_run_benchmark_with_yes(
 
     # Ensure workflow.run_workflow is called
     mock_workflow_run_workflow.assert_called_once()
+    assert result.exit_code == 0
+
+
+@pytest.mark.short
+def test_run_benchmark_with_slurm_executor(
+    mock_validate_benchmark, mock_workflow_run_workflow, mock_click_confirm
+):
+    """
+    Test that the benchmark runs with the SLURM executor and
+    extra arguments that are passed directly to nakemake.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    runner = CliRunner()
+    result = runner.invoke(
+        run_benchmark,
+        [
+            "--benchmark",
+            benchmark_path,
+            "-k",
+            "--executor",
+            "slurm",
+            "--jobs",
+            "6",
+            "--cores",
+            "24",
+            "--default-resources",
+            "mem_mb=4000",
+            "runtime=600",
+            "--verbose",
+            "--printshellcmds",
+            "--yes",
+        ],
+    )
+
+    mock_click_confirm.assert_not_called()
+
+    # Ensure workflow.run_workflow is called
+    mock_workflow_run_workflow.assert_called_once()
+    args, kwargs = mock_workflow_run_workflow.call_args
+    assert kwargs["executor"] == "slurm"
+    assert kwargs["jobs"] == "6"
+    assert kwargs["cores"] == 24
+    assert kwargs["default-resources"] == ["mem_mb=4000", "runtime=600"]
+    assert kwargs["continue_on_error"] is True
+    assert kwargs["verbose"] is True
+    assert kwargs["printshellcmds"] is True
+
     assert result.exit_code == 0

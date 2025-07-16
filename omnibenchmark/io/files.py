@@ -18,8 +18,8 @@ def list_files(
     stage: str,
     module: str,
     file_id: str,
-    local: bool = False,
-    storage_options: StorageOptions = StorageOptions(out_dir="out")
+    local_storage: bool = False,
+    storage_options: StorageOptions = StorageOptions(out_dir="out"),
 ):
     """List all available files for a certain benchmark, version and stage"""
     from .storage import get_storage, remote_storage_args
@@ -30,14 +30,14 @@ def list_files(
 
     expected_files = get_expected_benchmark_output_files(benchmark, storage_options)
 
-    if not local:
+    if not local_storage:
         auth_options = remote_storage_args(benchmark)
 
         ss = get_storage(
             str(benchmark.converter.model.storage_api),
             auth_options,
             str(benchmark.converter.model.storage_bucket_name),
-            storage_options
+            storage_options,
         )
         ss.set_version(benchmark.get_benchmark_version())
         ss._get_objects()

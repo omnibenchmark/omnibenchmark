@@ -51,6 +51,7 @@ dependencies = [
     "easybuild>=5.0.0",
     "easybuild-easyblocks>=5.0.0",
     "omni-schema>=0.0.6",
+    "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
 
 ]
 
