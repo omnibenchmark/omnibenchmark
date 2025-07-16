@@ -6,6 +6,10 @@ concurrency:
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
+      - dev
 
 jobs:
   # Step 1: Run code style checks first
@@ -154,12 +158,12 @@ jobs:
           sudo add-apt-repository -y ppa:apptainer/ppa
           sudo apt-get update
           sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
-          
+
           # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
-          
+
           sudo apt-get install libopenmpi-dev openmpi-bin
           pip install pep8 python-graph-core python-graph-dot
 
@@ -169,7 +173,7 @@ jobs:
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
-          
+
           ./configure --prefix=/opt/lmod
           make -j$(nproc)
           sudo make install
@@ -213,27 +217,27 @@ jobs:
         run: |
           conda info
           conda list
-          
+
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
-          
+
           # install required python dependencies
           pip install numpy pandas scikit-learn scipy
-          
+
           cd tests/software
-          
+
           source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
           source "$LMOD_PKG"/init/profile
-          
+
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
-          
+
           module spider 3.6.3-foss-2017b
-          
+
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-          
+
           # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
