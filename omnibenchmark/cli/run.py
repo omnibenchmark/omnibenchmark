@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 import humanfriendly
 
-from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN, LOCAL_TIMEOUT_VAR
+from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.storage import get_storage_from_benchmark
