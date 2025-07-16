@@ -39,6 +39,7 @@ Each design document should follow a consistent structure:
 ## Existing Design Documents
 
 - [001-module-metadata.md](./001-module-metadata.md): Module metadata specification
+- [002-module-artifact-validation.md](./002-module-artifact-validation.md): Module artifact validation specification
 
 ## Resources
 

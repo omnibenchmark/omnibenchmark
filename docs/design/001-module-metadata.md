@@ -5,17 +5,10 @@
 
 **Authors**: ben, ...
 **Date**: 2025-06-18
-<<<<<<< HEAD
 **Status**: Approved
 **Version**: 0.1.0
 **Supersedes**: N/A
 **Reviewed-by**: dincicau, csoneson, imallona
-=======
-**Status**: Review
-**Version**: 0.1.0
-**Supersedes**: N/A
-**Reviewed-by**: dincicau, csoneson
->>>>>>> dffe4e6 (docs: add template and README for design docs)
 **Related Issues**: #145
 
 ## Changes
