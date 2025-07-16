@@ -25,8 +25,8 @@ class WorkflowEngine(metaclass=ABCMeta):
         debug: bool = False,
         work_dir: Path = Path(os.getcwd()),
         out_dir: str = "out",
-        resources: Optional[dict] = None,
-        **snakemake_kwargs,
+        local_timeout: Optional[int] = None,
+        **kwargs,
     ) -> bool:
         """
         Serializes & runs benchmark workflow.
@@ -42,9 +42,8 @@ class WorkflowEngine(metaclass=ABCMeta):
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
             out_dir (str): output directory. Default: `out`
-            resources(dict): optional dict of resources to be passed to snakemake execution
-
-            **snakemake_kwargs: keyword arguments to pass to the workflow engine
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
+            **kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
         - Status code (bool) of the workflow run.
@@ -81,7 +80,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
-        **snakemake_kwargs,
+        **kwargs,
     ) -> bool:
         """
         Serializes & runs benchmark node workflow.
@@ -98,8 +97,7 @@ class WorkflowEngine(metaclass=ABCMeta):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
-
-            **snakemake_kwargs: keyword arguments to pass to the workflow engine
+            **kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
         - Status code (bool) of the workflow run.

@@ -19,7 +19,7 @@ Recent versions of omnibenchmark should be installable [from pypi](https://pypi.
 pip install omnibenchmark
 ```
 
-Do note that if you plan to use `conda` as a software execution backend, you will want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend micromamba. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
+Do note that if you plan to use `conda` as a software execution backend, you will want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend miniforge. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
 
 ### Releases
 
@@ -31,6 +31,10 @@ See [our tags](https://github.com/omnibenchmark/omnibenchmark/tags).
 [Live documentation](https://docs.omnibenchmark.org/latest) is avilable for every published release and the main branch.
 
 Documentation includes a [CLI reference](https://docs.omnibenchmark.org/latest/reference/).
+
+### Configuration
+
+Omnibenchmark uses a configuration file to store paths for Easybuild modules, dataset storage, and other settings. The configuration file is automatically created and managed by the system. See the [Configuration documentation](https://docs.omnibenchmark.org/latest/config/) for details.
 
 ## Developer notes
 
