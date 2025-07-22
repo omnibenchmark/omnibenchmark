@@ -3,6 +3,10 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](dev) UNRELEASED
+
+- refactor: remove the software command
+
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
 
 - feat(cli): re-add temporarily disabled --task-timeout (#132)
