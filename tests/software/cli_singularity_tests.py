@@ -19,6 +19,7 @@ test_cases = [
 # command = "software"
 # expected_output = "Usage: cli software singularity build [OPTIONS]\nTry 'cli software singularity build --help' for help.\n\nError: Invalid value for '-e' / '--easyconfig': Path 'nonexistent.eb' does not exist.\n"
 @pytest.mark.parametrize("command, expected_output", test_cases)
+@pytest.mark.skip(reason="deprecated cli command")
 def test_click(command, expected_output, capture_logs):
     runner.invoke(cli, shlex.split(command))
     log_output = capture_logs.getvalue()
