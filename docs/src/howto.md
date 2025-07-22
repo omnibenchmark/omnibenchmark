@@ -1,3 +1,214 @@
+## Install Omnibenchmark
+
+Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/project/omnibenchmark/), [source code](https://github.com/omnibenchmark/omnibenchmark)).
+
+### Supported Platforms
+
+| Backend      | Linux | MacOS | Windows |
+|--------------|-------|-------|---------|
+| Conda        | ✅    | ✅    | ❌       |
+| Apptainer    | ✅    | ❌    | ❌       |
+| Easybuild    | ✅    | ✅    | ❌       |
+| Lmod         | ✅    | ✅    | ❌       |
+
+
+### Quick Start (Recommended: Conda)
+
+```shell
+# Install Miniforge and git if not already installed
+# See: https://conda-forge.org/miniforge/ and https://git-scm.com/
+
+git clone https://github.com/omnibenchmark/omnibenchmark.git
+cd omnibenchmark
+conda create -n omnibenchmark python=3.12 -y
+conda activate omnibenchmark
+conda env update -f test-environment.yml
+pip install .
+ob --version
+```
+
+For detailed instructions, see below.
+
+### Installation via Conda 
+
+This is the **recommended** way to install Omnibenchmark because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.
+
+First, you need to install a Conda-based Python3 distribution. The recommended choice is [Miniforge](https://conda-forge.org/download/).
+
+*Note: Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.*
+
+First, install [miniforge](https://github.com/conda-forge/miniforge) and [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+
+=== "Shell"
+
+    ```shell
+    conda --version
+    git --version
+    ```
+
+=== "Output"
+
+    ```
+    conda 24.9.2
+    git version 2.46.2
+    ```
+
+Then, clone the omnibenchmark source code and install it in a new conda environment.
+
+=== "Shell"
+
+    ```shell
+    git clone git@github.com:omnibenchmark/omnibenchmark.git
+    cd omnibenchmark
+
+    conda init "$(basename "${SHELL}")"
+    conda create -n omnibenchmark -y
+    conda activate omnibenchmark
+    conda env update -f test-environment.yml
+    ```
+
+=== "Output"
+
+    ```
+    Cloning into 'omnibenchmark'...
+    ...
+
+    Empty environment created at prefix: /home/user/micromamba/envs/omnibenchmark
+    ...
+    Successfully built omnibenchmark easybuild easybuild-easyblocks easybuild-easyconfigs easybuild-framework snakedeploy
+    Installing collected packages: throttler, sortedcontainers, pytz, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, connection_pool, async, appdirs, wrapt, urllib3, tzdata, typing-extensions, traitlets, tqdm, tabulate, spdx-license-list, smmap, six, rpds-py, reretry, PyYAML, pytrie, pyparsing, pyjwt, pygments, pycparser, pulp, psutil, propcache, pluggy, platformdirs, pillow, packaging, numpy, networkx, multidict, MarkupSafe, kiwisolver, iniconfig, immutables, idna, humanfriendly, hbreader, frozenlist, fonttools, filelock, easybuild, dpath, docutils, cycler, configargparse, click, charset_normalizer, certifi, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, typing-inspection, snakemake-interface-common, smart-open, requests, referencing, rdflib, python-dateutil, pytest, pydot, pydantic-core, jupyter-core, jsonasobj2, json-flattener, jinja2, gitdb, deprecated, contourpy, conda-inject, cffi, aiosignal, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-logger-plugins, snakemake-interface-executor-plugins, pytest-logging, pynacl, pydantic, pandas, matplotlib, jsonschema-specifications, GitPython, cryptography, aiohttp, prefixcommons, jsonschema, curies, pygithub, prefixmaps, nbformat, snakemake, snakedeploy, linkml-runtime, omni-schema, omnibenchmark
+    ...
+    Successfully installed GitPython-3.1.44 MarkupSafe-3.0.2 PyYAML-6.0.2 aiohappyeyeballs-2.6.1 aiohttp-3.12.14 aiosignal-1.4.0 annotated-types-0.7.0 appdirs-1.4.4 argparse-dataclass-2.0.0 async-0.6.2 attrs-25.3.0 certifi-2025.7.14 cffi-1.17.1 charset_normalizer-3.4.2 click-8.2.1 conda-inject-1.3.2 configargparse-1.7.1 connection_pool-0.0.3 contourpy-1.3.2 cryptography-45.0.5 curies-0.10.19 cycler-0.12.1 deprecated-1.2.18 docutils-0.21.2 dpath-2.2.0 easybuild-5.1.1 easybuild-easyblocks-5.1.1 easybuild-easyconfigs-5.1.1 easybuild-framework-5.1.1 fastjsonschema-2.21.1 filelock-3.18.0 fonttools-4.59.0 frozenlist-1.7.0 gitdb-4.0.12 hbreader-0.9.1 humanfriendly-10.0 idna-3.10 immutables-0.21 iniconfig-2.1.0 jinja2-3.1.6 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.25.0 jsonschema-specifications-2025.4.1 jupyter-core-5.8.1 kiwisolver-1.4.8 linkml-runtime-1.9.4 matplotlib-3.8.0 multidict-6.6.3 nbformat-5.10.4 networkx-3.5 numpy-1.26.4 omni-schema-0.0.6 omnibenchmark-0.2.1.post18.dev0+e14e0f3 packaging-25.0 pandas-2.3.1 pillow-11.3.0 platformdirs-4.3.8 pluggy-1.6.0 prefixcommons-0.1.12 prefixmaps-0.2.6 propcache-0.3.2 psutil-7.0.0 pulp-3.2.1 pycparser-2.22 pydantic-2.11.7 pydantic-core-2.33.2 pydot-4.0.1 pygithub-2.6.1 pygments-2.19.2 pyjwt-2.10.1 pynacl-1.5.0 pyparsing-3.2.3 pytest-8.4.1 pytest-logging-2015.11.4 python-dateutil-2.9.0.post0 pytrie-0.4.0 pytz-2025.2 rdflib-7.1.4 referencing-0.36.2 requests-2.32.4 reretry-0.11.8 rpds-py-0.26.0 six-1.17.0 smart-open-7.3.0.post1 smmap-5.0.2 snakedeploy-0.11.0 snakemake-9.8.1 snakemake-interface-common-1.20.2 snakemake-interface-executor-plugins-9.3.8 snakemake-interface-logger-plugins-1.2.3 snakemake-interface-report-plugins-1.1.1 snakemake-interface-storage-plugins-4.2.1 sortedcontainers-2.4.0 spdx-license-list-3.27.0 tabulate-0.9.0 throttler-1.2.2 tqdm-4.67.1 traitlets-5.14.3 typing-extensions-4.14.1 typing-inspection-0.4.1 tzdata-2025.2 urllib3-2.5.0 wrapt-1.17.2 yarl-1.20.1 yte-1.9.0
+    ```
+
+Check Omnibenchmark has sucessfully installed.
+
+=== "Shell"
+
+    ```shell
+    ob --version
+    ```
+
+=== "Output"
+
+    ```
+    S3 storage not available. You might want to install the 'minio' and 'boto3' packages.
+    OmniBenchmark CLI, version 0.2.1
+    ```
+
+### Installation via pip
+
+Omnibenchmark requires `python == 3.12`. You might want to configure a [virtual env](https://docs.python.org/3/library/venv.html#module-venv).
+
+You can install omnibenchmark as a python package with `pip`.
+
+=== "Shell"
+
+    ```shell
+    pip install omnibenchmark
+    ```
+
+Or, to install the development branch:
+
+=== "Shell"
+
+    ```shell
+    git clone https://github.com/omnibenchmark/omnibenchmark
+    cd omnibenchmark
+    git checkout dev
+    pip install .
+    ```
+
+## Install Additional Dependencies
+
+Omnibenchmark aims to faciltate benchmarking using different software backends, including `conda`, `apptainer` (formerly `singularity`), or `easybuild`-built envmodules. Hence, extra steps to install some requirements (e.g., `apptainer`, `envmodules`, and so on) are required.
+
+#### Installation on Linux
+
+All `apptainer`, `easybuild`, and `lmod` are available on Linux.
+
+Make sure to install [apptainer](https://apptainer.org/docs/admin/main/installation.html) (formerly singularity) as the containerization solution, as well as some other system-wide dependencies.
+
+After checking that apptainer is available, you should ensure **debootstrap** is available for building debian-based containers, and make sure to configure **fakeroot** with [`singularity config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot) to allow non-root users to simulate root privileges while managing containers.
+
+Do note that you will need `debootstrap` even if you're using a non-debian based linux.
+
+```shell
+sudo apt install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget debootstrap software-properties-common
+sudo add-apt-repository -y ppa:apptainer/ppa
+sudo apt update
+sudo apt install openmpi-bin libopenmpi-dev apptainer
+```
+
+Check everything works with:
+
+=== "Shell"
+
+    ```shell
+    conda --version
+    singularity --version
+    eb --version
+    module --version
+    ```
+
+=== "Output"
+
+
+    ```
+    conda 24.9.2
+    singularity version 3.11.4
+    This is EasyBuild 5.1.1 (framework: 5.1.1, easyblocks: 5.1.1)
+
+    Modules based on Lua: Version 8.7.53 2024-10-12 19:57 -05:00
+        by Robert McLay mclay@tacc.utexas.edu
+
+    ```
+
+
+#### Installation on Mac
+
+Only `easybuild` and `lmod` are available on Mac.
+
+=== "Shell"
+
+    ```shell
+    brew upgrade
+    brew install coreutils
+    brew install gcc
+    brew install python
+    brew install lmod
+    if [ -f /usr/local/opt/lmod/init/profile ]; then
+        source /usr/local/opt/lmod/init/profile
+    fi
+    if [ -f /opt/homebrew/opt/lmod/init/profile ]; then
+        source /opt/homebrew/opt/lmod/init/profile
+    fi
+
+    brew install wget
+    brew reinstall cmake
+    ```
+  
+Check everything works with:
+
+=== "Shell"
+
+    ```shell
+    conda --version
+    eb --version
+    module --version
+    ```
+
+=== "Output"
+
+    ```
+    conda 24.9.2
+    This is EasyBuild 5.1.1 (framework: 5.1.1, easyblocks: 5.1.1)
+
+    Modules based on Lua: Version 8.7.53 2024-10-12 19:57 -05:00
+        by Robert McLay mclay@tacc.utexas.edu
+
+    ```
+
 ## Add parameters to a benchmark YAML
 
 Module `P1` is parametrized and will run twice, once with `-a 0 -b 0.1` and second with `-a 1 -b 0.1`.
