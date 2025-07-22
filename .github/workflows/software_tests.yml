@@ -66,7 +66,7 @@ jobs:
           sudo add-apt-repository -y ppa:apptainer/ppa
           sudo apt-get update
           sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
-          
+
           # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
@@ -81,7 +81,7 @@ jobs:
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
-      
+
           ./configure --prefix=/opt/lmod
           make -j$(nproc)
           sudo make install
@@ -125,7 +125,7 @@ jobs:
         run: |
           conda info
           conda list
-          
+
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
@@ -149,7 +149,6 @@ jobs:
           # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
   software_testing_mac:
@@ -248,7 +247,7 @@ jobs:
           conda activate omnibenchmark
           conda info
           conda list
-          
+
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
@@ -268,5 +267,5 @@ jobs:
 
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
-               conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
+               conda_tests.py envmodules_tests.py test_run_with_software.py \
                -k 'not test_easybuild_sys_toolchain_build'

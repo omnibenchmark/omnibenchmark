@@ -6,7 +6,6 @@ from omnibenchmark import __version__
 from omnibenchmark.cli.benchmark import info
 from omnibenchmark.cli.io import storage
 from omnibenchmark.cli.run import run
-from omnibenchmark.cli.soft import software
 
 from .debug import add_debug_option
 
@@ -23,7 +22,6 @@ def cli(ctx):
 
 # Add subcommands to the CLI
 cli.add_command(add_debug_option(storage))
-cli.add_command(add_debug_option(software))
 cli.add_command(add_debug_option(run))
 cli.add_command(add_debug_option(info))
 
