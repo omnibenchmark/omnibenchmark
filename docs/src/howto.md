@@ -37,20 +37,18 @@ First, you need to install a Conda-based Python3 distribution. The recommended c
 
 *Note: Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.*
 
-First, install [miniforge](https://github.com/conda-forge/miniforge) and [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+First, install [miniforge](https://github.com/conda-forge/miniforge).
 
 === "Shell"
 
     ```shell
     conda --version
-    git --version
     ```
 
 === "Output"
 
     ```
     conda 24.9.2
-    git version 2.46.2
     ```
 
 Then, download the omnibenchmark environment file and install it in a new conda environment.
