@@ -791,7 +791,7 @@ stages:
 
 ### Metric collectors
 
-The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within `{input}/{stage}/{module}/{params}` are produced by a given module `id` (and its associated `repository` and `software_environment`). These files can be further processed by other modules, i.e. `module_next`, so new files will be stored within `{stage_next}/{module_next}/{params_next}`. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
+The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within `{input}/{stage}/{module}/{params}` are produced by a given module `id` (and its associated `repository` and `software_environment`). These files can be further processed by other modules, i.e. `module_next`, so new files will be stored within `{input}/{stage}/{module}/{params}/{stage_next}/{module_next}/{params_next}`. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
 An independent syntax allows collecting _multiple inputs across multiple folders and lineages_ to process them jointly. This usecase is typically needed when collecting metrics, that is, gathering all output files from some stage(s) to build a final aggregated report. Graphically, collection means adding the rightmost step  (`is collected by`) to the benchmarking workflow to produce `c1` (again, naming is flexible):
 
