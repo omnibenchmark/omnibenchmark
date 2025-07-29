@@ -235,14 +235,22 @@ def _expand_output_path(output_path: str) -> str:
     """
     Expands a relative output path into a templated output path format if not already expanded.
 
-    The function checks whether the provided `output_path` string starts with a specific
-    prefix template (`"{input}/{stage}/{module}/{params}/"`). If it does not, it prepends
-    this prefix to the path. This ensures that all output paths conform to a standardized
-    format used throughout the benchmarking system.
-    """
+    If the path does not already start with the standardized prefix (`"{input}/{stage}/{module}/{params}/"`),
+    it prepends this prefix. Additionally, if the path does not contain the `{dataset}` placeholder,
+    it prepends `{dataset}.` to the filename part of the path.
 
+    """
     prefix = "{input}/{stage}/{module}/{params}/"
-    if output_path.startswith(prefix):
-        return output_path
-    else:
-        return prefix + output_path
+
+    if "{dataset}" not in output_path:
+        parts = output_path.rsplit("/", 1)
+        if len(parts) == 2:
+            path_dir, filename = parts
+            output_path = f"{path_dir}/{{dataset}}.{filename}"
+        else:
+            output_path = f"{{dataset}}.{output_path}"
+
+    if not output_path.startswith(prefix):
+        output_path = prefix + output_path
+
+    return output_path
