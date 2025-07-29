@@ -141,7 +141,9 @@ class LinkMLConverter:
         if isinstance(stage, str):
             stage = self.get_stages()[stage]
 
-        return dict([(output.id, output.path) for output in stage.outputs])
+        return dict(
+            [(output.id, _expand_output_path(output.path)) for output in stage.outputs]
+        )
 
     def get_output_stage(self, output_id: str) -> omni_schema.Stage:
         """Get stage that returns output with out_id"""
@@ -227,3 +229,20 @@ class LinkMLConverter:
             modules.update(modules_in_stage)
 
         return modules
+
+
+def _expand_output_path(output_path: str) -> str:
+    """
+    Expands a relative output path into a templated output path format if not already expanded.
+
+    The function checks whether the provided `output_path` string starts with a specific
+    prefix template (`"{input}/{stage}/{module}/{params}/"`). If it does not, it prepends
+    this prefix to the path. This ensures that all output paths conform to a standardized
+    format used throughout the benchmarking system.
+    """
+
+    prefix = "{input}/{stage}/{module}/{params}/"
+    if output_path.startswith(prefix):
+        return output_path
+    else:
+        return prefix + output_path

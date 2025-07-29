@@ -606,7 +606,7 @@ stages:
         ##   params: `empty` (no parameters added)
         ##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
         ##     generating outputs, are reused as `dataset` wildcards)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.png"
+        path: "{dataset}.png"
 ```
 
 Let's add another stage, for the modules `M1` and `M2`.
@@ -640,7 +640,7 @@ This stage is not initial: its modules have both inputs and outputs.
         ##   module: `M1` or `M2`
         ##   params: `empty` (no parameters added)
         ##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz"
+        path: "{dataset}.matrix.tsv.gz"
 ```
 
 You might be wondering: what does the wildcard `{input}` mean? The directory name (relative or full path) of `data.image`. This doesn't have to be modified by the user when writing the YAML; omnibenchmark will substitute paths appropriately. As a consequence, running module `D1` will generate files under the path template `{input}/{stage}/{module}/{params}/{dataset}.png`, that is:
@@ -649,7 +649,7 @@ You might be wondering: what does the wildcard `{input}` mean? The directory nam
 ./data/D1/default/D1.png
 ```
 
-Hence, running modules `M1` and `M2` will produce files templated as `{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz`, which, given there is only one dataset `D1` available, will result in:
+Hence, running modules `M1` and `M2` will produce files templated as `{dataset}.matrix.tsv.gz`, which, given there is only one dataset `D1` available, will result in:
 
 ```
 ./data/D1/default/methods/M1/default/D1.matrix.tsv.gz
@@ -685,10 +685,10 @@ Finally, we add the metrics stage containing modules `m1` and `m2`.
         ##   module: `m1` or `m2`
         ##   params: `empty` (no parameters added)
         ##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.json"
+        path: "{dataset}.json"
 ```
 
-Hence, running modules `m1` and `m2` will produce files templated as `{input}/{stage}/{module}/{params}/{dataset}.json`; given there is only one dataset `D1` and two methods `M1` and `M2` available, will result in the following outputs:
+Hence, running modules `m1` and `m2` will produce files templated as `{dataset}.json`; given there is only one dataset `D1` and two methods `M1` and `M2` available, will result in the following outputs:
 
 ```
 ./data/D1/default/methods/M1/default/metrics/m1/default/D1.json
@@ -750,7 +750,7 @@ stages:
           commit: 41aaa0a
     outputs:
       - id: data.image
-        path: "{input}/{stage}/{module}/{params}/{dataset}.png"
+        path: "{dataset}.png"
 
   - id: methods
     modules:
@@ -768,7 +768,7 @@ stages:
       - entries: data.image
     outputs:
       - id: methods.matrix
-        path: "{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz"
+        path: "{dataset}.matrix.tsv.gz"
 
   - id: metrics
     modules:
@@ -786,12 +786,12 @@ stages:
       - entries: methods.matrix
     outputs:
       - id: metrics.json
-        path: "{input}/{stage}/{module}/{params}/{dataset}.json"
+        path: "{dataset}.json"
 ```
 
 ### Metric collectors
 
-The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within `{input}/{stage}/{module}/{params}` are produced by a given module `id` (and its associated `repository` and `software_environment`). These files can be further processed by other modules, i.e. `module_next`, so new files will be stored within `{input}/{stage}/{module}/{params}/{stage_next}/{module_next}/{params_next}`. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
+The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within `{input}/{stage}/{module}/{params}` are produced by a given module `id` (and its associated `repository` and `software_environment`). These files can be further processed by other modules, i.e. `module_next`, so new files will be stored within `{stage_next}/{module_next}/{params_next}`. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
 An independent syntax allows collecting _multiple inputs across multiple folders and lineages_ to process them jointly. This usecase is typically needed when collecting metrics, that is, gathering all output files from some stage(s) to build a final aggregated report. Graphically, collection means adding the rightmost step  (`is collected by`) to the benchmarking workflow to produce `c1` (again, naming is flexible):
 
@@ -885,7 +885,7 @@ stages:
         ##   params: `empty` (no parameters added)
         ##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
         ##     generating outputs, are reused as `dataset` wildcards)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.png"
+        path: "{dataset}.png"
 ```
 
 Hence, the git repository implementing module `D1` doesn't have any input, but generates one output. In this case, the repository implementing `D1` has [a config file](https://github.com/omnibenchmark-example/data/blob/main/config.cfg) indicating the entrypoint is a python script named `entrypoint_data.py`:
@@ -924,7 +924,7 @@ stages:
           - data.counts
     outputs:
       - id: select_lognorm.selected
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 ```
 
 So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [config file](https://github.com/omnibenchmark-example/process/blob/main/config.cfg) indicates:
