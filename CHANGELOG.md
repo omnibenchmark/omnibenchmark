@@ -3,6 +3,11 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Unreleased)
+
+- fix: Restrict yaml output paths and hide implementation details (#138)
+-
+
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
 
 - feat(cli): re-add temporarily disabled --task-timeout (#132)
