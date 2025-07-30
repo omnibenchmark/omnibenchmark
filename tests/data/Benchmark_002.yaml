@@ -31,15 +31,15 @@ stages:
           commit: 63b7b36
     outputs:
       - id: data.counts
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
       - id: data.meta
-        path: "{input}/{stage}/{module}/{params}/{dataset}.meta.json"
+        path: "{dataset}.meta.json"
       - id: data.label
-        path: "{input}/{stage}/{module}/{params}/{dataset}.label.json"
+        path: "{dataset}.label.json"
       - id: data.coord
-        path: "{input}/{stage}/{module}/{params}/{dataset}.coord.json"
+        path: "{dataset}.coord.json"
       - id: data.ncluster
-        path: "{input}/{stage}/{module}/{params}/{dataset}_ncluster.txt"
+        path: "{dataset}_ncluster.txt"
 
   - id: normalization
     modules:
@@ -55,7 +55,7 @@ stages:
         ]
     outputs:
       - id: data.normalized
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 
   - id: select_counts
     modules:
@@ -76,7 +76,7 @@ stages:
           - data.meta
     outputs:
       - id: select_counts.selected
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 
   - id: select_lognorm
     modules:
@@ -99,7 +99,7 @@ stages:
           - data.coord
     outputs:
       - id: select_lognorm.selected
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 
   - id: dimred
     modules:
@@ -118,7 +118,7 @@ stages:
           - select_counts.selected
     outputs:
       - id: pca.matrix
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 
   - id: methods
     modules:
@@ -134,4 +134,4 @@ stages:
           - pca.matrix
     outputs:
       - id: methods.label
-        path: "{input}/{stage}/{module}/{params}/{dataset}.model.out.gz"
+        path: "{dataset}.model.out.gz"

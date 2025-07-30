@@ -49,9 +49,9 @@ stages:
           commit: 9032478
     outputs:
       - id: data.features
-        path: "{input}/{stage}/{module}/{params}/{dataset}.features.csv"
+        path: "{dataset}.features.csv"
       - id: data.labels
-        path: "{input}/{stage}/{module}/{params}/{dataset}.labels.csv"
+        path: "{dataset}.labels.csv"
 
   - id: distances
     modules:
@@ -70,7 +70,7 @@ stages:
           - data.features
     outputs:
       - id: distances
-        path: "{input}/{stage}/{module}/{params}/{dataset}.distances.csv"
+        path: "{dataset}.distances.csv"
 
   - id: methods
     modules:
@@ -89,7 +89,7 @@ stages:
           - distances
     outputs:
       - id: methods.clusters
-        path: "{input}/{stage}/{module}/{params}/{dataset}.clusters.csv"
+        path: "{dataset}.clusters.csv"
 
   - id: metrics
     modules:
@@ -109,4 +109,4 @@ stages:
           - data.labels
     outputs:
       - id: metrics.mapping
-        path: "{input}/{stage}/{module}/{params}/{dataset}.metrics.txt"
+        path: "{dataset}.metrics.txt"

@@ -19,7 +19,7 @@ stages:
           - values: ["--output", "D1.txt"]
     outputs:
       - id: data.counts
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt"
+        path: "{dataset}.txt"
 
   - id: process
     modules:
@@ -43,7 +43,7 @@ stages:
           - data.counts
     outputs:
       - id: process.out
-        path: "{input}/{stage}/{module}/{params}/{dataset}.processed.txt"
+        path: "{dataset}.processed.txt"
 
   - id: analyze
     modules:
@@ -60,4 +60,4 @@ stages:
           - process.out
     outputs:
       - id: analysis.result
-        path: "{input}/{stage}/{module}/{params}/{dataset}.computation.txt"
+        path: "{dataset}.computation.txt"
