@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 import humanfriendly
 
-from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN, LOCAL_TIMEOUT_VAR
+from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.storage import get_storage_from_benchmark
@@ -17,6 +17,7 @@ from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
 from .debug import add_debug_option
+from .utils.args import parse_extra_args
 
 
 @click.group(name="run")
@@ -27,7 +28,13 @@ def run(ctx):
 
 
 @add_debug_option
-@run.command(name="benchmark")
+@run.command(
+    name="benchmark",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
 @click.option(
     "-b",
     "--benchmark",
@@ -67,7 +74,7 @@ def run(ctx):
 )
 @click.option(
     "-l",
-    "--local",
+    "--local-storage",
     help="Execute and store results locally. Default False.",
     is_flag=True,
     default=False,
@@ -84,6 +91,12 @@ def run(ctx):
     help="Timeout for each separate task execution (local only). Do note that total runtime is not additive.",
 )
 @click.option(
+    "--executor",
+    help="Specify a custom executor to use for workflow execution. Example: slurm",
+    type=str,
+    default=None,
+)
+@click.option(
     "--out-dir", type=str, default="out", help="Output folder name (local only)."
 )
 @click.pass_context
@@ -94,14 +107,16 @@ def run_benchmark(
     update,
     dry,
     yes,
-    local,
+    local_storage,
     keep_module_logs,
     continue_on_error,
     task_timeout,
+    executor,
     out_dir,
 ):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
+    extra_args = parse_extra_args(ctx.args)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
@@ -112,8 +127,10 @@ def run_benchmark(
         sys.exit(1)
 
     # Validate out_dir usage
-    if not local and out_dir != "out":
-        logger.error("-Invalid arguments: --out-dir can only be used with --local")
+    if not local_storage and out_dir != "out":
+        logger.error(
+            "-Invalid arguments: --out-dir can only be used with --local-storage"
+        )
         sys.exit(1)
 
     b = validate_benchmark(benchmark, out_dir)
@@ -134,7 +151,7 @@ def run_benchmark(
         msg = "re-run the entire workflow"
         abort_if_user_does_not_confirm(msg, logger)
 
-    if not local:
+    if not local_storage:
         storage_options = remote_storage_snakemake_args(b)
         # creates bucket if it doesn't exist
         _ = get_storage_from_benchmark(b)
@@ -158,15 +175,23 @@ def run_benchmark(
         keep_module_logs=keep_module_logs,
         backend=b.get_benchmark_software_backend(),
         debug=debug,
+        executor=executor,
         out_dir=out_dir,
         local_timeout=timeout_s,
         **storage_options,
+        **extra_args,
     )
 
     log_result_and_quit(logger, success, type="Benchmark")
 
 
-@run.command(name="module")
+@run.command(
+    name="module",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
 @click.option(
     "-b",
     "--benchmark",
@@ -203,14 +228,29 @@ def run_benchmark(
     default=False,
     help="Keep module-specific log files after execution.",
 )
+@click.option(
+    "--executor",
+    help="Specify a custom executor to use for workflow execution. Example: slurm",
+    type=str,
+    default=None,
+)
 @click.pass_context
 def run_module(
-    ctx, benchmark, module, input_dir, dry, update, keep_module_logs, continue_on_error
+    ctx,
+    benchmark,
+    module,
+    input_dir,
+    dry,
+    update,
+    keep_module_logs,
+    continue_on_error,
+    executor,
 ):
     """
     Run a specific module that is part of the benchmark.
     """
     behaviours = {"input": input_dir, "example": None, "all": None}
+    extra_args = parse_extra_args(ctx.args)
 
     non_none_behaviours = {
         key: value for key, value in behaviours.items() if value is not None
@@ -338,7 +378,10 @@ def run_module(
             continue_on_error=continue_on_error,
             keep_module_logs=keep_module_logs,
             backend=b.get_benchmark_software_backend(),
+            executor=executor,
+            **extra_args,
         )
+
         log_result_and_quit(logger, success, type="Module")
 
 

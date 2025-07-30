@@ -278,7 +278,7 @@ def create_policy(benchmark: str):
 )
 @click.option(
     "-l",
-    "--local",
+    "--local-storage",
     help="Execute and store results locally. Default False.",
     is_flag=True,
     default=False,
@@ -296,12 +296,14 @@ def archive_benchmark(
     compression,
     compresslevel,
     dry_run,
-    local,
+    local_storage,
     out_dir,
 ):
     # Validate out_dir usage
-    if not local and out_dir != "out":
-        logger.error("-Invalid arguments: --out-dir can only be used with --local")
+    if not local_storage and out_dir != "out":
+        logger.error(
+            "-Invalid arguments: --out-dir can only be used with --local_storage"
+        )
         sys.exit(1)
 
     """Archive a benchmark"""
@@ -329,7 +331,7 @@ def archive_benchmark(
         compression=compression,
         compresslevel=compresslevel,
         dry_run=dry_run,
-        local=local,
+        local_storage=local_storage,
     )
     if dry_run:
         click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")
