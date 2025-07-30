@@ -44,7 +44,7 @@ def test_benchmark_not_found():
                 "benchmark",
                 "--benchmark",
                 str(data / "does_not_exist.yaml"),
-                "--local",
+                "--local-storage",
             ]
         )
         assert result.returncode == 2
@@ -60,7 +60,7 @@ def test_benchmark_format_incorrect():
                 "benchmark",
                 "--benchmark",
                 str(data / "benchmark_format_incorrect.yaml"),
-                "--local",
+                "--local-storage",
             ]
         )
         assert result.returncode == 1
@@ -77,7 +77,7 @@ def test_benchmark_software_does_not_exist():
                 "benchmark",
                 "--benchmark",
                 str(data / "benchmark_software_does_not_exist.yaml"),
-                "--local",
+                "--local-storage",
             ]
         )
 
@@ -97,7 +97,7 @@ def test_local():
                 "benchmark",
                 "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local",
+                "--local-storage",
             ],
         )
 
@@ -119,9 +119,9 @@ def test_custom_out_dir():
                 "benchmark",
                 "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local",
+                "--local-storage",
                 "--out-dir",
-                custom_out_dir
+                custom_out_dir,
             ],
         )
 
@@ -144,7 +144,7 @@ def test_local_dry():
                 "benchmark",
                 "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local",
+                "--local-storage",
                 "--dry",
             ]
         )
@@ -163,7 +163,7 @@ def test_local_update_true():
                 "benchmark",
                 "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local",
+                "--local-storage",
                 "--update",
             ],
             input="y",
@@ -185,7 +185,7 @@ def test_local_update_false():
                 "benchmark",
                 "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local",
+                "--local-storage",
                 "--update",
             ],
             input="n",
@@ -207,7 +207,7 @@ def test_local_dry_update():
                 "benchmark",
                 "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local",
+                "--local-storage",
                 "--update",
                 "--dry",
             ]
@@ -225,7 +225,7 @@ def test_benchmark_does_fail_if_one_module_fails(bundled_repos, tmp_path):  # no
                 "benchmark",
                 "--benchmark",
                 (data / "benchmark_failing_module.yaml").as_posix(),
-                "--local",
+                "--local-storage",
             ],
             input="y",
             cwd=tmp_path,
@@ -248,7 +248,7 @@ def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos)
                 "benchmark",
                 "--benchmark",
                 (data / "benchmark_failing_module.yaml").as_posix(),
-                "--local",
+                "--local-storage",
                 "--continue-on-error",
             ],
             input="y",
