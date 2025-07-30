@@ -121,10 +121,10 @@ jobs:
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
 
-  # Step 3: Run software tests only if regular tests pass
+  # Step 3: Run software tests only if linting tests passes
   software-tests-linux:
     name: Software Tests (Linux)
-    needs: tests
+    needs: lint
     permissions: write-all
     env:
       LMOD_VERSION: "8.7.53"
@@ -148,9 +148,9 @@ jobs:
           path: |
             /opt/lmod
             ~/.cache/pip
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-v2-${{ hashFiles('**/pipeline.yml', '**/pyproject.toml') }}
           restore-keys: |
-            system-deps-${{ runner.os }}-
+            system-deps-${{ runner.os }}-v2-
 
       - name: Install OS & Python packages
         if: steps.cache-system.outputs.cache-hit != 'true'
@@ -246,7 +246,7 @@ jobs:
 
   software-tests-mac:
     name: Software Tests (macOS)
-    needs: tests
+    needs: lint
     permissions: write-all
     strategy:
       matrix:
@@ -269,9 +269,9 @@ jobs:
             ~/Library/Caches/pip
             /opt/homebrew/var/homebrew/locks
             /opt/homebrew/Library/Homebrew/vendor/gems
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-v2-${{ hashFiles('**/pipeline.yml', '**/pyproject.toml') }}
           restore-keys: |
-            system-deps-${{ runner.os }}-
+            system-deps-${{ runner.os }}-v2-
 
       - name: Set up Homebrew
         id: set-up-homebrew
