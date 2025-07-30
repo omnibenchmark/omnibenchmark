@@ -3,7 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.2.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Unreleased)
+## [0.3.0] Unreleased
 
 - fix: Restrict yaml output paths and hide implementation details (#138)
 -

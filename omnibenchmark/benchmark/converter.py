@@ -1,9 +1,12 @@
+import os
 from pathlib import Path
 from typing import Union, Optional, Dict, List
 
 from omni_schema.datamodel import omni_schema
+from omni_schema.datamodel.omni_schema import IOFile
 
 from omnibenchmark.benchmark import params
+from omnibenchmark.benchmark.constants import OUTPUT_PATH_PREFIX
 from omnibenchmark.utils import merge_dict_list, parse_instance
 
 
@@ -142,7 +145,7 @@ class LinkMLConverter:
             stage = self.get_stages()[stage]
 
         return dict(
-            [(output.id, _expand_output_path(output.path)) for output in stage.outputs]
+            [(output.id, _expand_output_path(output)) for output in stage.outputs]
         )
 
     def get_output_stage(self, output_id: str) -> omni_schema.Stage:
@@ -209,7 +212,7 @@ class LinkMLConverter:
         else:
             return False
 
-    def get_outputs(self) -> Dict[str, str]:
+    def get_outputs(self) -> Dict[str, IOFile]:
         """Get outputs"""
 
         outputs = {}
@@ -231,26 +234,34 @@ class LinkMLConverter:
         return modules
 
 
-def _expand_output_path(output_path: str) -> str:
+def _expand_output_path(file: IOFile) -> str:
     """
-    Expands a relative output path into a templated output path format if not already expanded.
+    Expands a relative output path into a standardized templated format.
 
-    If the path does not already start with the standardized prefix (`"{input}/{stage}/{module}/{params}/"`),
-    it prepends this prefix. Additionally, if the path does not contain the `{dataset}` placeholder,
-    it prepends `{dataset}.` to the filename part of the path.
+    This function ensures output paths follow a consistent structure by:
+    1. Prepending the standard `constants.OUTPUT_PATH_PREFIX` if not already present
+    2. Adding a {dataset} placeholder to the filename if not already included
 
     """
-    prefix = "{input}/{stage}/{module}/{params}/"
+    output_path = file.path
+    if output_path.strip() == "":
+        raise ValueError(f"Output path for file {file.id} is empty")
+
+    if os.path.isabs(output_path):
+        raise ValueError(
+            f"Output path for file {file.id} must be relative, not absolute: {output_path}"
+        )
+
+    if not output_path.startswith(OUTPUT_PATH_PREFIX):
+        output_path = os.path.join(OUTPUT_PATH_PREFIX, output_path)
 
     if "{dataset}" not in output_path:
-        parts = output_path.rsplit("/", 1)
+        parts = output_path.rsplit(os.path.sep, 1)
         if len(parts) == 2:
-            path_dir, filename = parts
-            output_path = f"{path_dir}/{{dataset}}.{filename}"
+            directory, filename = parts
+            output_path = os.path.join(directory, f"{{dataset}}.{filename}")
         else:
-            output_path = f"{{dataset}}.{output_path}"
-
-    if not output_path.startswith(prefix):
-        output_path = prefix + output_path
+            filename = parts[0]
+            output_path = f"{{dataset}}.{filename}"
 
     return output_path

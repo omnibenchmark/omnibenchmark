@@ -1,10 +1,14 @@
 import os.path
 from collections import Counter
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from urllib.parse import urlparse
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, SoftwareEnvironment
+from omni_schema.datamodel.omni_schema import (
+    SoftwareBackendEnum,
+    SoftwareEnvironment,
+    IOFile,
+)
 
 from omnibenchmark.benchmark.converter import LinkMLConverter
 from omnibenchmark.benchmark.validation.error import ValidationError
@@ -39,7 +43,8 @@ class Validator:
                 )
             )
 
-        output_ids = converter.get_outputs().keys()
+        outputs = converter.get_outputs()
+        output_ids = outputs.keys()
         duplicate_output_ids = Validator.find_duplicate(output_ids)
         if duplicate_output_ids:
             self.errors.append(
@@ -47,6 +52,9 @@ class Validator:
                     f"Found duplicate output ids: {', '.join(duplicate_output_ids)}"
                 )
             )
+
+        for output in outputs.values():
+            self.errors.extend(Validator.validate_file(output))
 
         for stage_id in converter.get_stages():
             stage_inputs_set = converter.get_stage_implicit_inputs(stage_id)
@@ -135,6 +143,21 @@ class Validator:
             raise ValidationError(self.errors)
         else:
             return converter
+
+    @staticmethod
+    def validate_file(file: IOFile) -> List[ValidationError]:
+        errors = []
+        if file.path.strip() == "":
+            errors.append(ValidationError(f"Output path for file {file.id} is empty"))
+
+        if os.path.isabs(file.path):
+            errors.append(
+                ValidationError(
+                    f"Output path for file {file.id} must be relative, not absolute: {file.path}"
+                )
+            )
+
+        return errors
 
     @staticmethod
     def find_duplicate(ids):
