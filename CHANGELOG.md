@@ -6,6 +6,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ## [0.3.0](main) UNRELEASED
 
 - feat: add an extra profiler to the snakemake execution
+- feature: SLURM support
+- feature: Support passing of extra arguments from CLI -> Snakemake for run commands
 
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Aug 1st 2025)
 
