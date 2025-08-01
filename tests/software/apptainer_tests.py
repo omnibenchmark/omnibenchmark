@@ -20,22 +20,22 @@ from utils.run import run, check_cmd_zero_exit
 sys.path.insert(0, op.dirname(__file__))
 
 
-def test_singularity():
+def test_apptainer():
     run(
-        Snakefile=op.join("01_singularity", "Snakefile"),
+        Snakefile=op.join("01_apptainer", "Snakefile"),
         produced=op.join("test0.out"),
-        expected=op.join("01_singularity", "expected_results", "test0.out"),
+        expected=op.join("01_apptainer", "expected_results", "test0.out"),
         method="apptainer",
     )
 
 
-def test_singularity_nonexistent():
+def test_apptainer_nonexistent():
     with pytest.raises(Exception):
         run(
-            Snakefile=op.join("02_singularity_nonexistent", "Snakefile"),
+            Snakefile=op.join("02_apptainer_nonexistent", "Snakefile"),
             produced=op.join("test0.out"),
             expected=op.join(
-                "02_singularity_nonexistent", "expected_results", "test0.out"
+                "02_apptainer_nonexistent", "expected_results", "test0.out"
             ),
             method="apptainer",
         )
@@ -45,8 +45,8 @@ def test_easybuild_cmd():
     check_cmd_zero_exit("eb --version")
 
 
-def test_singularity_cmd():
-    check_cmd_zero_exit("singularity --version")
+def test_apptainer_cmd():
+    check_cmd_zero_exit("apptainer --version")
 
 
 def test_bash_cmd():

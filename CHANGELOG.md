@@ -5,11 +5,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.3.0](main) UNRELEASED
 
-- cli: added `--out-dir` to `ob run benchmark` to configure a different output directory for the workflow
+- feat: add an extra profiler to the snakemake execution
 - feature: SLURM support
 - feature: Support passing of extra arguments from CLI -> Snakemake for run commands
 
-## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
+## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Aug 1st 2025)
 
 - feat(cli): re-add temporarily disabled --task-timeout (#132)
 - feat(cli): added `--out-dir` to `ob run benchmark` to configure a different output directory for the workflow
@@ -22,6 +22,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - bugfix for `--continue-on-error` flag.
 
 ## [0.2.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.0) (May 20th 2025)
+
 - workflow parameters: Fix parameter instability, use human-friendly symlinks to reference stable, hashed parameter folders.
 - workflow: added a metric collector capability linked to new YAML specs as defined in omni-schema version `94c312957f96d218369e5e1bcf7abaf976ed0fbc`
 - cli: added `-k` or `--continue-on-error` to `ob run benchmark` to keep going on (rule) error
