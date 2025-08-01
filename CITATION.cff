@@ -1,0 +1,75 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: omnibenchmark
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: 'Izaskun '
+    family-names: Mallona
+    orcid: 'https://orcid.org/0000-0002-2853-7526'
+  - given-names: Almut
+    family-names: Lütge
+    orcid: 'https://orcid.org/0000-0003-1104-727X'
+  - given-names: Ben
+    family-names: Carrillo
+    orcid: 'https://orcid.org/0009-0003-5704-4151'
+  - given-names: 'Daniel '
+    family-names: Incicau
+    orcid: 'https://orcid.org/0009-0001-1748-6145'
+  - given-names: Reto
+    family-names: Gerber
+    orcid: 'https://orcid.org/0000-0001-5414-8906'
+  - given-names: 'Anthony '
+    family-names: Sonrel
+    orcid: 'https://orcid.org/0000-0002-2414-715X'
+  - given-names: Charlotte
+    family-names: Soneson
+    orcid: 'https://orcid.org/0000-0003-3833-2169'
+  - orcid: 'https://orcid.org/0000-0002-3048-5518'
+    given-names: Mark
+    name-particle: D
+    family-names: Robinson
+identifiers:
+  - type: url
+    value: 'https://arxiv.org/abs/2409.17038'
+  - type: doi
+    value: 10.48550/arXiv.2409.17038
+repository-code: 'https://github.com/omnibenchmark/omnibenchmark/'
+url: 'https://docs.omnibenchmark.org'
+abstract: >-
+  Benchmarking in bioinformatics is a process of designing,
+  running and disseminating rigorous performance evaluations
+  of methods (software). Benchmarking systems facilitate the
+  benchmarking process by providing an entrypoint to store,
+  coordinate and execute concrete benchmarks.
+
+  We describe an alpha version of a new benchmarking system,
+  Omnibenchmark, to facilitate benchmark formalization and
+  execution in solo and community efforts. Omnibenchmark
+  provides a benchmark definition syntax (in a configuration
+  YAML file), a dynamic workflow generation based on
+  Snakemake, S3-compatible storage handling, and
+  reproducible software environments using EasyBuild, lmod,
+  Apptainer or conda. Tutorials and installation
+  instructions are available from this https URL. 
+keywords:
+  - benchmarking
+  - reproducible
+  - software
+  - bioinformatics
+  - continuous
+  - community-driven
+  - methods
+  - metrics
+  - Snakemake
+  - conda
+  - envmodules
+  - Apptainer
+  - workflow
+license: Apache
+commit: 9a71537
+version: 0.2.1

@@ -6,6 +6,10 @@ concurrency:
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
+      - dev
 
 jobs:
   # Step 1: Run code style checks first
