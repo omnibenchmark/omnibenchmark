@@ -56,7 +56,7 @@ jobs:
           path: |
             /opt/lmod
             ~/.cache/pip
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml', 'test-environment.yml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -96,6 +96,9 @@ jobs:
         run: |
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
+          
+          # Add cache validation check
+          echo "Environment file hash: $(md5sum test-environment-${{ matrix.python-version }}.yml || md5 test-environment-${{ matrix.python-version }}.yml)"
 
       - name: Cache omnibenchmark environment
         uses: actions/cache@v4
@@ -106,7 +109,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('test-environment.yml', 'requirements.txt', 'pyproject.toml') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -119,6 +122,16 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
 
       - name: Test
         shell: bash -el {0}
@@ -176,7 +189,7 @@ jobs:
             ~/Library/Caches/pip
             /opt/homebrew/var/homebrew/locks
             /opt/homebrew/Library/Homebrew/vendor/gems
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml', 'test-environment.yml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -200,6 +213,9 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
+          
+          # Add cache validation check
+          echo "Environment file hash: $(md5 test-environment-${{ matrix.python-version }}.yml || md5sum test-environment-${{ matrix.python-version }}.yml)"
 
       - name: Cache omnibenchmark environment
         uses: actions/cache@v4
@@ -210,7 +226,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('test-environment.yml', 'requirements.txt', 'pyproject.toml') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -223,6 +239,16 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
 
       - name: Modify bashrc
         shell: bash -el {0}
