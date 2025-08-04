@@ -643,7 +643,7 @@ This stage is not initial: its modules have both inputs and outputs.
         path: "{dataset}.matrix.tsv.gz"
 ```
 
-You might be wondering: what does the wildcard `{input}` mean? The directory name (relative or full path) of `data.image`. This doesn't have to be modified by the user when writing the YAML; omnibenchmark will substitute paths appropriately. As a consequence, running module `D1` will generate files under the path template `{input}/{stage}/{module}/{params}/{dataset}.png`, that is:
+You might be wondering: what does the wildcard `{dataset}` mean? It represents the dataset identifier that will be resolved at runtime. When writing the YAML, you only need to specify the filename template using simple wildcards like `{dataset}`. Omnibenchmark will automatically organize files in a hierarchical directory structure for provenance tracking. As a consequence, running module `D1` will generate files at:
 
 ```
 ./data/D1/default/D1.png
@@ -791,7 +791,7 @@ stages:
 
 ### Metric collectors
 
-The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within `{input}/{stage}/{module}/{params}` are produced by a given module `id` (and its associated `repository` and `software_environment`). These files can be further processed by other modules, i.e. `module_next`, so new files will be stored within `{input}/{stage}/{module}/{params}/{stage_next}/{module_next}/{params_next}`. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
+The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs. Omnibenchmark automatically organizes files in a hierarchical directory structure where each module's outputs are stored in dedicated directories for provenance tracking. These files can be further processed by other modules, creating linear lineages with implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
 An independent syntax allows collecting _multiple inputs across multiple folders and lineages_ to process them jointly. This usecase is typically needed when collecting metrics, that is, gathering all output files from some stage(s) to build a final aggregated report. Graphically, collection means adding the rightmost step  (`is collected by`) to the benchmarking workflow to produce `c1` (again, naming is flexible):
 
