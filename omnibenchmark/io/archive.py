@@ -145,7 +145,7 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
 
 
 def prepare_archive_results(
-    benchmark: Benchmark, results_dir: str, local: bool = False
+    benchmark: Benchmark, results_dir: str, local_storage: bool = False
 ) -> List[Path]:
     """
     Prepare the results to archive and return list of all filenames.
@@ -164,10 +164,10 @@ def prepare_archive_results(
         stage="",
         module="",
         file_id="",
-        local=local,
+        local_storage=local_storage,
         storage_options=StorageOptions(out_dir=results_dir),
     )
-    if not local:
+    if not local_storage:
         download_files(
             benchmark.get_definition_file().as_posix(),
             type="all",
@@ -190,7 +190,7 @@ def archive_version(
     compression=zipfile.ZIP_STORED,
     compresslevel: int = None,
     dry_run: bool = False,
-    local: bool = False,
+    local_storage: bool = False,
 ):
     # retrieve all filenames to save
     filenames = []
@@ -219,7 +219,7 @@ def archive_version(
     ## results (results files)
     ### check if results match remote, if not download
     if results:
-        filenames += prepare_archive_results(benchmark, results_dir, local)
+        filenames += prepare_archive_results(benchmark, results_dir, local_storage)
 
     if dry_run:
         return filenames

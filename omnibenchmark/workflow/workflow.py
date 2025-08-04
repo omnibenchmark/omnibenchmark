@@ -21,11 +21,11 @@ class WorkflowEngine(metaclass=ABCMeta):
         continue_on_error: bool = False,
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        module_path: str = os.environ.get("MODULEPATH", None),
-        local_timeout: Optional[int] = None,
+        module_path: str = os.environ.get("MODULEPATH", ""),
+        debug: bool = False,
         work_dir: Path = Path(os.getcwd()),
         out_dir: str = "out",
-        resources: Optional[dict] = None,
+        local_timeout: Optional[int] = None,
         **kwargs,
     ) -> bool:
         """
@@ -78,7 +78,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         continue_on_error: bool = False,
         keep_module_logs: bool = False,
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
-        module_path: str = os.environ.get("MODULEPATH", None),
+        module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
         **kwargs,
     ) -> bool:
