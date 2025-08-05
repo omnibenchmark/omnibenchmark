@@ -8,7 +8,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - cli: added `--out-dir` to `ob run benchmark` to configure a different output directory for the workflow
 - feature: SLURM support
 - feature: Support passing of extra arguments from CLI -> Snakemake for run commands
-- - refactor: remove the software command
+- fix: Restrict yaml output paths and hide implementation details (#138)
+- refactor: remove the software command
 
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
 
