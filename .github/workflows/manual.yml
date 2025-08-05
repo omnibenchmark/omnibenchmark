@@ -1,125 +1,22 @@
-name: CI Pipeline
-
-concurrency:
-  group: ${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+name: Manual CI Pipeline
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - dev
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to test'
+        required: true
+        default: 'linux'
+        type: choice
+        options:
+        - linux
+        - mac
+        - both
 
 jobs:
-  lint:
-    name: Code Style Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Linters
-        run: pip install ruff
-
-      - name: Lint with Ruff
-        continue-on-error: true
-        run: |
-          ruff check .
-
-  tests:
-    name: Run Tests
-    needs: lint
-    permissions: write-all
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.12"]
-        poetry-version: ["1.8.0"]
-    defaults:
-      run:
-        shell: bash
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Validate Poetry configuration
-        run: poetry check
-
-      - name: Load cached venv
-        id: cached-dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies with poetry
-        if: steps.cached-dependencies.outputs.cache-hit != 'true'
-        run: |
-          poetry install --no-interaction --no-root --extras s3 --extras test
-
-      - name: Install library
-        run: poetry install --no-interaction
-
-      - name: Run short tests
-        run: |
-          poetry run pytest -m short
-        if: matrix.os == 'ubuntu-latest'
-
-      - name: Build wheel
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        run: |
-          pip install build
-          python -m build .
-
-      - name: Upload wheel artifact
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
-        with:
-          name: omnibenchmark-wheel
-          path: dist/*.whl
-          retention-days: 7
-
-      - name: Run longer tests (integration)
-        run: |
-          poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml \
-              tests/benchmark tests/cli tests/workflow tests/io
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-
-      - name: Generate tests & coverage badges
-        run: |
-          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
-          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
-
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
-        name: Comment coverage result
-        uses: MishaKav/pytest-coverage-comment@main
-        with:
-          pytest-xml-coverage-path: ./reports/coverage.xml
-
   software-tests-linux:
-    name: Software Tests (Linux)
-    needs: lint
+    if: ${{ github.event.inputs.platform == 'linux' || github.event.inputs.platform == 'both' }}
+    name: Software Tests (Linux) - Manual
     permissions: write-all
     env:
       LMOD_VERSION: "8.7.53"
@@ -128,7 +25,7 @@ jobs:
         os: [ubuntu-22.04]
         test_group: [1, 2]
         python-version: ["3.12"]
-      fail-fast: true
+      fail-fast: false
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -143,7 +40,7 @@ jobs:
           path: |
             /opt/lmod
             ~/.cache/pip
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/manual.yml', '**/pyproject.toml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -158,7 +55,7 @@ jobs:
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
-          
+
           sudo apt-get install libopenmpi-dev openmpi-bin
           pip install pep8 python-graph-core python-graph-dot
 
@@ -168,7 +65,7 @@ jobs:
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
-          
+      
           ./configure --prefix=/opt/lmod
           make -j$(nproc)
           sudo make install
@@ -196,7 +93,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('manual.yml', 'pyproject.toml') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -229,23 +126,23 @@ jobs:
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
-          
+
           # install required python dependencies
           pip install numpy pandas scikit-learn scipy
-          
+
           cd tests/software
-          
+
           source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
           source "$LMOD_PKG"/init/profile
-          
+
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
-          
+
           module spider 3.6.3-foss-2017b
-          
+
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-          
+
           # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
@@ -253,8 +150,8 @@ jobs:
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
   software-tests-mac:
-    name: Software Tests (macOS)
-    needs: lint
+    if: ${{ github.event.inputs.platform == 'mac' || github.event.inputs.platform == 'both' }}
+    name: Software Tests (macOS) - Manual
     permissions: write-all
     strategy:
       matrix:
@@ -277,7 +174,7 @@ jobs:
             ~/Library/Caches/pip
             /opt/homebrew/var/homebrew/locks
             /opt/homebrew/Library/Homebrew/vendor/gems
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/manual.yml', '**/pyproject.toml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -314,7 +211,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/manual.yml','pyproject.toml') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -362,7 +259,7 @@ jobs:
           conda activate omnibenchmark
           conda info
           conda list
-
+          
           # install the s3 and test extra dependencies
           pip install -e ".[s3]"
           pip install -e ".[test]"
