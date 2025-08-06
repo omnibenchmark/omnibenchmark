@@ -160,8 +160,7 @@ jobs:
           fi
 
           sudo apt-get install libopenmpi-dev openmpi-bin
-          pip install uv
-          uv pip install --system pep8 python-graph-core python-graph-dot
+          pip install pep8 python-graph-core python-graph-dot
 
       - name: Install LMOD from source
         if: steps.cache-system.outputs.cache-hit != 'true'
