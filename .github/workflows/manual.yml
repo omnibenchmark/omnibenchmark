@@ -107,6 +107,18 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
+
+
       - name: Test
         shell: bash -el {0}
         run: |
@@ -137,6 +149,7 @@ jobs:
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               conda_tests.py singularity_tests.py test_run_with_software.py
+
 
   software_testing_mac:
     if: ${{ github.event.inputs.platform == 'mac' || github.event.inputs.platform == 'both' }}
@@ -213,6 +226,17 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
+
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
 
       - name: Modify bashrc
         shell: bash -el {0}
