@@ -121,10 +121,10 @@ Check everything works with:
 === "Shell"
 
     ```shell
-    ob software check --what singularity
-    ob software check --what conda
-    ob software check --what easybuild
-    ob software check --what module
+    singularity --version
+    conda --version
+    eb --version
+    type module
     ```
 
 === "Output"
@@ -241,10 +241,10 @@ Check everything except singularity works with:
 === "Shell"
 
     ```shell
-    ob software check --what singularity ## should fail
-    ob software check --what conda
-    ob software check --what easybuild
-    ob software check --what module
+    singularity --version ## should fail
+    conda --version
+    eb --version
+    type module
     ```
 
 === "Output"
@@ -310,12 +310,12 @@ First search an appropriate [easyconfig](https://docs.easybuild.io/). We suggest
 
     ```
 
-Then, we install it with omnibenchmark.
+Then, we install it using EasyBuild directly.
 
 === "Shell"
 
     ```shell
-    ob software module build -e zlib-1.3.1.eb
+    eb zlib-1.3.1.eb --robot
     ```
 
 === "Output"
@@ -434,7 +434,7 @@ module unload zlib/1.3.1
 
 ## Install software using singularity
 
-To install software with easybuild inside a container, you can use `ob software singularity` commands.
+To install software with easybuild inside a container, you can build singularity images directly.
 
 First search an appropriate [easyconfig](https://docs.easybuild.io/). We suggest installing `cowsay`, which is a nice say of saying hello world in the terminal, with the system toolchain. First, we make sure we can find an easyconfig named `cowsay`:
 
@@ -444,10 +444,11 @@ eb --search cowsay
 
 As of this writing, there is only one version of the application, namely `cowsay-3.04.eb`.
 
-Then, we install it with omnibenchmark (do note that we'll be pinning the version too). This will generate a Singularity Image File (SIF), named `cowsay-3.04.eb.sif`:
+Then, we build the software using EasyBuild directly:
 
 ```bash
-ob software singularity build -e cowsay-3.04.eb
+# Build the software first with easybuild, then create a container image
+eb cowsay-3.04.eb --robot
 ```
 
 Now that we have built the SIF image, we can execute commands inside the singularity container. Let's do that as a way to verify that the image was correctly created.
