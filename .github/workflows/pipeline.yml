@@ -61,7 +61,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12"]
-        poetry-version: ["1.8.0"]
     defaults:
       run:
         shell: bash
@@ -76,41 +75,29 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
-      - name: Validate Poetry configuration
-        run: poetry check
+      - name: Create virtual environment
+        run: uv venv
 
-      - name: Load cached venv
-        id: cached-dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies with poetry
-        if: steps.cached-dependencies.outputs.cache-hit != 'true'
+      - name: Install dependencies with uv
         run: |
-          poetry install --no-interaction --no-root --extras s3 --extras test
-
-      - name: Install library
-        run: poetry install --no-interaction
+          uv pip install -e ".[s3,test]"
 
       - name: Run short tests
         run: |
-          poetry run pytest -m short
+          uv run pytest -m short
         if: matrix.os == 'ubuntu-latest'
 
       - name: Build wheel
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: |
-          pip install build
-          python -m build .
+          uv pip install build
+          uv run python -m build .
 
       - name: Upload wheel artifact
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
@@ -123,21 +110,9 @@ jobs:
       - name: Run longer tests (integration)
         run: |
           mkdir -p ./reports
-          poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
+          uv run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io tests/config tests/model
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-
-      - name: Generate tests & coverage badges
-        run: |
-          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
-          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-
-      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
-        name: Comment coverage result
-        uses: MishaKav/pytest-coverage-comment@main
-        with:
-          pytest-xml-coverage-path: ./reports/coverage.xml
 
   software_testing_linux:
     name: Software Tests (Linux)
@@ -175,14 +150,15 @@ jobs:
           sudo add-apt-repository -y ppa:apptainer/ppa
           sudo apt-get update
           sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
-          
+
           # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
           fi
-          
+
           sudo apt-get install libopenmpi-dev openmpi-bin
-          pip install pep8 python-graph-core python-graph-dot
+          pip install uv
+          uv pip install pep8 python-graph-core python-graph-dot
 
       - name: Install LMOD from source
         if: steps.cache-system.outputs.cache-hit != 'true'
@@ -190,7 +166,7 @@ jobs:
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
-          
+
           ./configure --prefix=/opt/lmod
           make -j$(nproc)
           sudo make install
@@ -205,7 +181,7 @@ jobs:
         run: |
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
-          
+
           # Add cache validation check
           echo "Environment file hash: $(md5sum test-environment-${{ matrix.python-version }}.yml || md5 test-environment-${{ matrix.python-version }}.yml)"
 
@@ -237,27 +213,29 @@ jobs:
         run: |
           conda info
           conda list
-          
+
+          # install uv
+          pip install uv
+
           # install the s3 and test extra dependencies
-          pip install -e ".[s3]"
-          pip install -e ".[test]"
-          
+          uv pip install -e ".[s3,test]"
+
           # install required python dependencies
-          pip install numpy pandas scikit-learn scipy
-          
+          uv pip install numpy pandas scikit-learn scipy
+
           cd tests/software
-          
+
           source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
           source "$LMOD_PKG"/init/profile
-          
+
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
           module use $MODULEPATH
-          
+
           module spider 3.6.3-foss-2017b
-          
+
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
-          
+
           # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
@@ -312,7 +290,7 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
-          
+
           # Add cache validation check
           echo "Environment file hash: $(md5 test-environment-${{ matrix.python-version }}.yml || md5sum test-environment-${{ matrix.python-version }}.yml)"
 
@@ -364,12 +342,14 @@ jobs:
           conda info
           conda list
 
-          # install the s3 and test extra dependencies
-          pip install -e ".[s3]"
-          pip install -e ".[test]"
+          # install uv
+          pip install uv
 
-          # install required Python dependenices
-          pip install numpy pandas scikit-learn scipy
+          # install the s3 and test extra dependencies
+          uv pip install -e ".[s3,test]"
+
+          # install required Python dependencies
+          uv pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
