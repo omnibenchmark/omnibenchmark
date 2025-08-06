@@ -1,4 +1,6 @@
-usage: Tm [-h] [--uncorrected] [-d DNA] [--na NA] [--mg MG] [--dntp DNTP] [--version] seq
+usage: Tm [-h] [--uncorrected] [-d DNA] [--na NA] [--mg MG] [--dntp DNTP]
+          [--version]
+          seq
 
 Calculate nucleotide melting temps
 

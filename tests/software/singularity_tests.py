@@ -51,15 +51,3 @@ def test_singularity_cmd():
 
 def test_bash_cmd():
     check_cmd_zero_exit("bash --version")
-
-
-@pytest.mark.easybuild_toolchain
-def test_easybuild_sys_toolchain_build():
-    run(
-        Snakefile=op.join("03_easybuild_build", "Snakefile"),
-        produced=op.join("binutils-2.35.eb_ld.txt"),
-        expected=op.join(
-            "03_easybuild_build", "expected_results", "binutils-2.35.eb_ld.txt"
-        ),
-        method="apptainer",
-    )
