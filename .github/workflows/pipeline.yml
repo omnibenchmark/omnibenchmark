@@ -1,3 +1,23 @@
+## updated from Snakemake's test suite
+##
+## https://raw.githubusercontent.com/snakemake/snakemake/main/.github/workflows/main.yml
+## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
+## From Koester's license above:
+##
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+## PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+## FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+## OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+## DEALINGS IN THE SOFTWARE.
+##
+## and from easybuilders/easybuild-easyconfigs test suite
+##
+## Derivative work from Kenneth Hoste and colleagues
+## https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/.github/workflows/unit_tests.yml
+## GPLv2
+## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
+
 name: CI Pipeline
 
 concurrency:
@@ -6,9 +26,11 @@ concurrency:
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
-  # Step 1: Run code style checks first
   lint:
     name: Code Style Check
     runs-on: ubuntu-latest
@@ -29,7 +51,6 @@ jobs:
         run: |
           ruff check .
 
-  # Step 2: Run tests only if linting passes
   tests:
     name: Run Tests
     needs: lint
@@ -84,14 +105,12 @@ jobs:
           poetry run pytest -m short
         if: matrix.os == 'ubuntu-latest'
 
-      # Build wheel after short tests pass
       - name: Build wheel
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: |
           pip install build
           python -m build .
 
-      # Upload the wheel as an artifact
       - name: Upload wheel artifact
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v4
@@ -119,10 +138,9 @@ jobs:
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
 
-  # Step 3: Run software tests only if regular tests pass
-  software-tests-linux:
+  software_testing_linux:
     name: Software Tests (Linux)
-    needs: tests
+    needs: lint
     permissions: write-all
     env:
       LMOD_VERSION: "8.7.53"
@@ -146,7 +164,7 @@ jobs:
           path: |
             /opt/lmod
             ~/.cache/pip
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -186,6 +204,9 @@ jobs:
         run: |
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
+          
+          # Add cache validation check
+          echo "Environment file hash: $(md5sum test-environment-${{ matrix.python-version }}.yml || md5 test-environment-${{ matrix.python-version }}.yml)"
 
       - name: Cache omnibenchmark environment
         uses: actions/cache@v4
@@ -196,7 +217,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -209,6 +230,16 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
 
       - name: Test
         shell: bash -el {0}
@@ -242,9 +273,9 @@ jobs:
               cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
-  software-tests-mac:
+  software_testing_mac:
     name: Software Tests (macOS)
-    needs: tests
+    needs: lint
     permissions: write-all
     strategy:
       matrix:
@@ -267,7 +298,7 @@ jobs:
             ~/Library/Caches/pip
             /opt/homebrew/var/homebrew/locks
             /opt/homebrew/Library/Homebrew/vendor/gems
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/workflow.yml', '**/requirements.txt', '**/setup.py', '**/pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -291,6 +322,9 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
+          
+          # Add cache validation check
+          echo "Environment file hash: $(md5 test-environment-${{ matrix.python-version }}.yml || md5sum test-environment-${{ matrix.python-version }}.yml)"
 
       - name: Cache omnibenchmark environment
         uses: actions/cache@v4
@@ -301,7 +335,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -314,6 +348,16 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
 
       - name: Modify bashrc
         shell: bash -el {0}
@@ -349,7 +393,11 @@ jobs:
 
           cd tests/software
 
-          source /opt/homebrew/opt/lmod/init/bash
+          if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+            source /opt/homebrew/opt/lmod/init/bash
+          elif [ -f /usr/local/opt/lmod/init/bash ]; then
+            source /usr/local/opt/lmod/init/bash
+          fi
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
