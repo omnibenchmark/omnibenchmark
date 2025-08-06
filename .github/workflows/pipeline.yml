@@ -1,3 +1,23 @@
+## updated from Snakemake's test suite
+##
+## https://raw.githubusercontent.com/snakemake/snakemake/main/.github/workflows/main.yml
+## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
+## From Koester's license above:
+##
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+## PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+## FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+## OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+## DEALINGS IN THE SOFTWARE.
+##
+## and from easybuilders/easybuild-easyconfigs test suite
+##
+## Derivative work from Kenneth Hoste and colleagues
+## https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/.github/workflows/unit_tests.yml
+## GPLv2
+## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
+
 name: CI Pipeline
 
 concurrency:
@@ -118,7 +138,7 @@ jobs:
         with:
           pytest-xml-coverage-path: ./reports/coverage.xml
 
-  software-tests-linux:
+  software_testing_linux:
     name: Software Tests (Linux)
     needs: lint
     permissions: write-all
@@ -197,7 +217,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -252,7 +272,7 @@ jobs:
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
               conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
 
-  software-tests-mac:
+  software_testing_mac:
     name: Software Tests (macOS)
     needs: lint
     permissions: write-all
@@ -314,7 +334,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -372,7 +392,11 @@ jobs:
 
           cd tests/software
 
-          source /opt/homebrew/opt/lmod/init/bash
+          if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+            source /opt/homebrew/opt/lmod/init/bash
+          elif [ -f /usr/local/opt/lmod/init/bash ]; then
+            source /usr/local/opt/lmod/init/bash
+          fi
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
