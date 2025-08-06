@@ -29,7 +29,7 @@ ob --version
 
 For detailed instructions, see below.
 
-### Installation via Conda 
+### Installation via Conda
 
 This is the **recommended** way to install Omnibenchmark because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.
 
@@ -120,13 +120,13 @@ Follow the [installation guide for Apptainer](https://apptainer.org/docs/admin/m
 
 #### 2. Install Required System Dependencies
 
-- **debootstrap**  
+- **debootstrap**
   Required for building Debian-based containers — this is needed even on non-Debian Linux distributions.
 
-- **fakeroot**  
+- **fakeroot**
   Allows users to simulate root privileges without actual root access. This is especially useful for unprivileged container builds.
 
-After installing `fakeroot`, configure it for apptainer with [`singularity config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot) to allow non-root users to simulate root privileges while managing containers.
+After installing `fakeroot`, configure it for apptainer with [`apptainer config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot) to allow non-root users to simulate root privileges while managing containers.
 
 ```shell
 sudo apt install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget debootstrap software-properties-common
@@ -141,7 +141,7 @@ Check everything works with:
 
     ```shell
     conda --version
-    singularity --version
+    apptainer --version
     eb --version
     module --version
     ```
@@ -151,7 +151,7 @@ Check everything works with:
 
     ```
     conda 24.9.2
-    singularity version 3.11.4
+    apptainer version 3.11.4
     This is EasyBuild 5.1.1 (framework: 5.1.1, easyblocks: 5.1.1)
 
     Modules based on Lua: Version 8.7.53 2024-10-12 19:57 -05:00
@@ -183,7 +183,7 @@ Mac devices only support `conda` and `easybuild`-built environment modules as cu
     brew install wget
     brew reinstall cmake
     ```
-  
+
 Check everything works with:
 
 === "Shell"
@@ -258,7 +258,7 @@ stages:
     modules:
       - id: M1
         software_environment: "python"
-        exclude: 
+        exclude:
           - D2
         repository:
           url: https://github.com/omnibenchmark-example/method.git
@@ -266,9 +266,9 @@ stages:
    [snip]
 ```
 
-## Use a custom singularity container to run methods
+## Use a custom apptainer container to run methods
 
-We recommend building singularity containers using easybuild and `ob software singularity build --easyconfig [easyconfig]`. Still, it is possible to use any singularity container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.
+We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.
 
 ```yaml
 ---
@@ -276,9 +276,9 @@ id: bench1
 
 [snip]
 
-software_environments:                                 
+software_environments:
   remote_custom_container:
-    description: "A singularity container from a registry"
+    description: "An apptainer container from a registry"
     ## update the path to an ORAS-compatible registry
     apptainer: oras://registry.renkulab.io/izaskun.mallona/sing
   local_custom_container:
@@ -287,13 +287,13 @@ software_environments:
     apptainer: /home/user/singularity_image.sif
 ```
 
-## Choosing the right software backend (lmod, singularity, conda)
+## Choosing the right software backend (lmod, apptainer, conda)
 
 Omnibenchmark itself is a python package. Some of its dependencies, namely those related to (reproducible) software stack management, are OS-specific.
 
 Software can be managed:
 
 - Using the host's binaries. If relevant interpreters/software are in your $PATH (perhaps using a virtual environment, or directly), they're accessible to omnibenchmark.
-- Using conda. For that `conda` is required. We provide a conda environment YAML to help installing all dependencies. 
+- Using conda. For that `conda` is required. We provide a conda environment YAML to help installing all dependencies.
 - Using apptainer. For that, apptainer is needed.
 - Using environment modules (lmod). For that, lmod is needed.

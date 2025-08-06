@@ -70,7 +70,7 @@ benchmark_yaml_spec: 0.01
 software_backend: apptainer
 
 ## Software environment recipes associated to this benchmark.
-##  Suffice to say they are singularity images in some ORAS-compatible registry.
+##  Suffice to say they are apptainer images in some ORAS-compatible registry.
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
@@ -256,7 +256,7 @@ benchmark_yaml_spec: 0.01
 software_backend: apptainer
 
 ## Software environment recipes associated to this benchmark.
-## Suffice to say they are singularity images in some ORAS-compatible registry.
+## Suffice to say they are apptainer images in some ORAS-compatible registry.
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
