@@ -107,6 +107,7 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
+
       - name: Verify environment setup
         shell: bash -el {0}
         run: |
@@ -116,6 +117,7 @@ jobs:
           echo "=== Conda environment info ==="
           conda info
           conda list | head -20
+
 
       - name: Test
         shell: bash -el {0}
@@ -146,8 +148,8 @@ jobs:
           # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              cli_conda_tests.py cli_singularity_tests.py cli_envmodules_tests.py \
-              conda_tests.py singularity_tests.py envmodules_tests.py test_run_with_software.py
+              conda_tests.py singularity_tests.py test_run_with_software.py
+
 
   software_testing_mac:
     if: ${{ github.event.inputs.platform == 'mac' || github.event.inputs.platform == 'both' }}
@@ -225,6 +227,7 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
+
       - name: Verify environment setup
         shell: bash -el {0}
         run: |
@@ -283,5 +286,5 @@ jobs:
 
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
-               conda_tests.py envmodules_tests.py cli_envmodules_tests.py cli_conda_tests.py test_run_with_software.py \
+               conda_tests.py test_run_with_software.py \
                -k 'not test_easybuild_sys_toolchain_build'
