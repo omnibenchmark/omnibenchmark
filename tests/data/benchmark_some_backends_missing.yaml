@@ -37,11 +37,11 @@ stages:
           commit: 63b7b36
     outputs:
       - id: data.counts
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
       - id: data.meta
-        path: "{input}/{stage}/{module}/{params}/{dataset}.meta.json"
+        path: "{dataset}.meta.json"
       - id: data.data_specific_params
-        path: "{input}/{stage}/{module}/{params}/{dataset}_params.txt"
+        path: "{dataset}_params.txt"
 
   - id: process
     modules:
@@ -67,7 +67,7 @@ stages:
           - data.meta
     outputs:
       - id: process.filtered
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 
   - id: methods
     modules:
@@ -98,7 +98,7 @@ stages:
           - data.data_specific_params
     outputs:
       - id: methods.mapping
-        path: "{input}/{stage}/{module}/{params}/{dataset}.model.out.gz"
+        path: "{dataset}.model.out.gz"
 
   - id: metrics
     modules:
@@ -124,4 +124,4 @@ stages:
           - data.data_specific_params
     outputs:
       - id: metrics.mapping
-        path: "{input}/{stage}/{module}/{params}/{dataset}.results.txt"
+        path: "{dataset}.results.txt"
