@@ -61,6 +61,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12"]
+        poetry-version: ["1.8.0"]
     defaults:
       run:
         shell: bash
@@ -75,29 +76,41 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
         with:
-          enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
+          virtualenvs-create: true
+          virtualenvs-in-project: true
 
-      - name: Create virtual environment
-        run: uv venv
+      - name: Validate Poetry configuration
+        run: poetry check
 
-      - name: Install dependencies with uv
+      - name: Load cached venv
+        id: cached-dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies with poetry
+        if: steps.cached-dependencies.outputs.cache-hit != 'true'
         run: |
-          uv pip install -e ".[s3,test]"
+          poetry install --no-interaction --no-root --extras s3 --extras test
+
+      - name: Install library
+        run: poetry install --no-interaction
 
       - name: Run short tests
         run: |
-          uv run pytest -m short
+          poetry run pytest -m short
         if: matrix.os == 'ubuntu-latest'
 
       - name: Build wheel
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: |
-          uv pip install build
-          uv run python -m build .
+          pip install build
+          python -m build .
 
       - name: Upload wheel artifact
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
@@ -110,17 +123,26 @@ jobs:
       - name: Run longer tests (integration)
         run: |
           mkdir -p ./reports
-          uv run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
+          poetry run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io tests/config tests/model
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 
+      - name: Generate tests & coverage badges
+        run: |
+          poetry run genbadge tests -i ./reports/junit.xml -o ./reports/tests.svg
+          poetry run genbadge coverage -i ./reports/coverage.xml -o ./reports/coverage.svg
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && matrix.poetry-version == '1.8.0' && github.event.pull_request.head.repo.full_name == github.repository }}
+        name: Comment coverage result
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./reports/coverage.xml
+
   software_testing_linux:
-    name: Software Tests (Linux) - Conda Environment
+    name: Software Tests (Linux)
     needs: lint
     permissions: write-all
-    # These tests run in a conda environment because they test Snakemake's conda integration
-    # and other conda-based software management features. The conda environment provides
-    # access to conda/mamba commands needed for these integration tests.
     env:
       LMOD_VERSION: "8.7.53"
     strategy:
@@ -210,22 +232,18 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
-      - name: Test Snakemake + Conda Integration
+      - name: Test
         shell: bash -el {0}
         run: |
-          # Running inside conda environment to test conda-based software management
-          # These tests require conda/mamba to be available for Snakemake workflows
           conda info
           conda list
 
-          # install uv
-          pip install uv
-
           # install the s3 and test extra dependencies
-          uv pip install --system -e ".[s3,test]"
+          pip install -e ".[s3]"
+          pip install -e ".[test]"
 
-          # install required python dependencies, just because some benchmarking module gets fancy.
-          uv pip install --system numpy pandas scikit-learn scipy
+          # install required python dependencies
+          pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
@@ -240,19 +258,15 @@ jobs:
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          # invoke pytest for conda integration tests
-          # These tests specifically test Snakemake's ability to create and manage conda environments
+          # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              conda_tests.py singularity_tests.py test_run_with_software.py
+              conda_tests.py apptainer_tests.py test_run_with_software.py
 
   software_testing_mac:
-    name: Software Tests (macOS) - Conda Environment
+    name: Software Tests (macOS)
     needs: lint
     permissions: write-all
-    # These tests run in a conda environment because they test Snakemake's conda integration
-    # and other conda-based software management features. The conda environment provides
-    # access to conda/mamba commands needed for these integration tests.
     strategy:
       matrix:
         os: [macos-14]
@@ -316,7 +330,7 @@ jobs:
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
 
-      - name: Setup a conda env for omnibenchmark
+      - name: Setup omnibenchmark environment
         uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-version: latest
@@ -342,24 +356,20 @@ jobs:
           source ~/.bashrc
           EOF
 
-      - name: Test Snakemake + Conda env
+      - name: Test
         shell: bash -el {0}
         run: |
-          # Running inside conda environment to test conda-based software management
-          # These tests require conda to be available for Snakemake workflows
           source "${CONDA}/etc/profile.d/conda.sh"
           conda activate omnibenchmark
           conda info
           conda list
 
-          # install uv
-          pip install uv
-
           # install the s3 and test extra dependencies
-          uv pip install --system -e ".[s3,test]"
+          pip install -e ".[s3]"
+          pip install -e ".[test]"
 
-          # install required Python dependencies -- for some of the benchmark modules
-          uv pip install --system numpy pandas scikit-learn scipy
+          # install required Python dependenices
+          pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
@@ -375,8 +385,6 @@ jobs:
 
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          # invoke pytest for conda integration tests
-          # These tests specifically test Snakemake's ability to create and manage conda environments
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py test_run_with_software.py \
