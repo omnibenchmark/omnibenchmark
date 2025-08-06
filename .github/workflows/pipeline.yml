@@ -29,6 +29,7 @@ on:
   push:
     branches:
       - main
+      - dev
 
 jobs:
   lint:
@@ -231,16 +232,6 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
-      - name: Verify environment setup
-        shell: bash -el {0}
-        run: |
-          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
-          echo "=== Environment file contents ==="
-          cat test-environment-${{ matrix.python-version }}.yml
-          echo "=== Conda environment info ==="
-          conda info
-          conda list | head -20
-
       - name: Test
         shell: bash -el {0}
         run: |
@@ -347,16 +338,6 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
-
-      - name: Verify environment setup
-        shell: bash -el {0}
-        run: |
-          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
-          echo "=== Environment file contents ==="
-          cat test-environment-${{ matrix.python-version }}.yml
-          echo "=== Conda environment info ==="
-          conda info
-          conda list | head -20
 
       - name: Modify bashrc
         shell: bash -el {0}
