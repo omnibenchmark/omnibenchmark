@@ -55,7 +55,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/omnibenchmark/omnibenchmark"
+Homepage = "https://omnibenchmark.org"
 Repository = "https://github.com/omnibenchmark/omnibenchmark"
 
 [project.optional-dependencies]
