@@ -55,7 +55,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/omnibenchmark/omnibenchmark"
+Homepage = "https://omnibenchmark.org"
 Repository = "https://github.com/omnibenchmark/omnibenchmark"
 
 [project.optional-dependencies]
@@ -85,7 +85,6 @@ include = ["omnibenchmark"]
 # Optional settings (or leave empty for default)
 version_scheme = "post-release"
 local_scheme = "dirty-tag"
-
 
 [tool.isort]
 profile = "black"
