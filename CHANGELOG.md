@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - feature: Support passing of extra arguments from CLI -> Snakemake for run commands
 - fix: Restrict yaml output paths and hide implementation details (#138)
 - refactor: remove the software command
+- chore(pkg): use setuptools for builds instead of poetry
 
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
 
