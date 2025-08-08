@@ -19,12 +19,15 @@ from utils.run import run, check_cmd_zero_exit
 
 sys.path.insert(0, op.dirname(__file__))
 
+# Get the directory containing this test file
+TEST_DIR = op.dirname(__file__)
+
 
 def test_apptainer():
     run(
-        Snakefile=op.join("01_apptainer", "Snakefile"),
-        produced=op.join("test0.out"),
-        expected=op.join("01_apptainer", "expected_results", "test0.out"),
+        Snakefile=op.join(TEST_DIR, "01_apptainer", "Snakefile"),
+        produced=op.join(TEST_DIR, "test0.out"),
+        expected=op.join(TEST_DIR, "01_apptainer", "expected_results", "test0.out"),
         method="apptainer",
     )
 
@@ -32,10 +35,10 @@ def test_apptainer():
 def test_apptainer_nonexistent():
     with pytest.raises(Exception):
         run(
-            Snakefile=op.join("02_apptainer_nonexistent", "Snakefile"),
-            produced=op.join("test0.out"),
+            Snakefile=op.join(TEST_DIR, "02_apptainer_nonexistent", "Snakefile"),
+            produced=op.join(TEST_DIR, "test0.out"),
             expected=op.join(
-                "02_apptainer_nonexistent", "expected_results", "test0.out"
+                TEST_DIR, "02_apptainer_nonexistent", "expected_results", "test0.out"
             ),
             method="apptainer",
         )
