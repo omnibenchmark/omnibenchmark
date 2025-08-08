@@ -70,6 +70,6 @@ keywords:
   - envmodules
   - Apptainer
   - workflow
-license: GPL-3.0-or-later
+license: Apache
 commit: 9a71537
 version: 0.2.1

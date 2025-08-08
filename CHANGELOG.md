@@ -13,7 +13,7 @@ This project uses [Semantic Versioning](https://semver.org/) and [Conventional C
 - tests: disable snakemake-only tests that only exercise environemtes, under rework
 - chore(pkg): use setuptools for builds instead of poetry
 
-## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
+## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Aug 1st 2025)
 
 - feat(cli): re-add temporarily disabled --task-timeout (#132)
 - feat(cli): added `--out-dir` to `ob run benchmark` to configure a different output directory for the workflow
