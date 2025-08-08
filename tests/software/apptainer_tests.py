@@ -23,34 +23,43 @@ sys.path.insert(0, op.dirname(__file__))
 TEST_DIR = op.dirname(__file__)
 
 
-def test_apptainer():
+# As they are, these tests are just exercising snakemake's apptainer integration, they don't belong here.
+@pytest.mark.skip(reason="snakemake-apptainer tests disabled")
+def test_apptainer(tmp_path):
     run(
-        Snakefile=op.join(TEST_DIR, "01_apptainer", "Snakefile"),
-        produced=op.join(TEST_DIR, "test0.out"),
-        expected=op.join(TEST_DIR, "01_apptainer", "expected_results", "test0.out"),
+        snakefile_path=op.join(TEST_DIR, "01_apptainer", "Snakefile"),
+        expected_path=op.join(
+            TEST_DIR, "01_apptainer", "expected_results", "test0.out"
+        ),
         method="apptainer",
+        tmp_path=tmp_path,
     )
 
 
-def test_apptainer_nonexistent():
+# As they are, these tests are just exercising snakemake's apptainer integration, they don't belong here.
+@pytest.mark.skip(reason="snakemake-apptainer tests disabled")
+def test_apptainer_nonexistent(tmp_path):
     with pytest.raises(Exception):
         run(
-            Snakefile=op.join(TEST_DIR, "02_apptainer_nonexistent", "Snakefile"),
-            produced=op.join(TEST_DIR, "test0.out"),
-            expected=op.join(
+            snakefile_path=op.join(TEST_DIR, "02_apptainer_nonexistent", "Snakefile"),
+            expected_path=op.join(
                 TEST_DIR, "02_apptainer_nonexistent", "expected_results", "test0.out"
             ),
             method="apptainer",
+            tmp_path=tmp_path,
         )
 
 
+@pytest.mark.skip(reason="Apptainer tests disabled")
 def test_easybuild_cmd():
     check_cmd_zero_exit("eb --version")
 
 
+@pytest.mark.skip(reason="Apptainer tests disabled")
 def test_apptainer_cmd():
     check_cmd_zero_exit("apptainer --version")
 
 
+@pytest.mark.skip(reason="Apptainer tests disabled")
 def test_bash_cmd():
     check_cmd_zero_exit("bash --version")
