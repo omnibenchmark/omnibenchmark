@@ -86,7 +86,6 @@ include = ["omnibenchmark"]
 version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
-
 [tool.isort]
 profile = "black"
 

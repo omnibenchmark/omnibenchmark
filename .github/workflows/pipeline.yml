@@ -229,7 +229,8 @@ jobs:
 
           cd tests/software
 
-          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
+          export LMOD_PKG=/opt/lmod/lmod/${LMOD_VERSION}
+          source "$LMOD_PKG"/init/bash
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
@@ -244,7 +245,7 @@ jobs:
           # These tests specifically test Snakemake's ability to create and manage conda environments
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              conda_tests.py singularity_tests.py test_run_with_software.py
+              conda_tests.py apptainer_tests.py test_run_with_software.py
 
   software_testing_mac:
     name: Software Tests (macOS) - Conda Environment
@@ -364,8 +365,10 @@ jobs:
           cd tests/software
 
           if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+            export LMOD_PKG=/opt/homebrew/opt/lmod
             source /opt/homebrew/opt/lmod/init/bash
           elif [ -f /usr/local/opt/lmod/init/bash ]; then
+            export LMOD_PKG=/usr/local/opt/lmod
             source /usr/local/opt/lmod/init/bash
           fi
           source "$LMOD_PKG"/init/profile

@@ -134,7 +134,8 @@ jobs:
 
           cd tests/software
 
-          source /opt/lmod/lmod/${LMOD_VERSION}/init/bash
+          export LMOD_PKG=/opt/lmod/lmod/${LMOD_VERSION}
+          source "$LMOD_PKG"/init/bash
           source "$LMOD_PKG"/init/profile
 
           export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
@@ -273,8 +274,10 @@ jobs:
           cd tests/software
 
           if [ -f /opt/homebrew/opt/lmod/init/bash ]; then
+            export LMOD_PKG=/opt/homebrew/opt/lmod
             source /opt/homebrew/opt/lmod/init/bash
           elif [ -f /usr/local/opt/lmod/init/bash ]; then
+            export LMOD_PKG=/usr/local/opt/lmod
             source /usr/local/opt/lmod/init/bash
           fi
           source "$LMOD_PKG"/init/profile
