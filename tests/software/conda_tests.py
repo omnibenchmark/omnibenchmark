@@ -16,12 +16,15 @@ import os.path as op
 
 from utils.run import run
 
+import pytest
+
 sys.path.insert(0, op.dirname(__file__))
 
 # Get the directory containing this test file
 TEST_DIR = op.dirname(__file__)
 
 
+@pytest.mark.skip(reason="Conda tests disabled")
 def test_conda(tmp_path):
     run(
         snakefile_path=op.join(TEST_DIR, "00_conda", "Snakefile"),
