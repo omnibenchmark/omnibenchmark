@@ -1,6 +1,5 @@
 ## omnibenchmark
 
-<a href="https://github align="center">
 <a href="https://github.com/omnibenchmark/omnibenchmark/actions/workflows/pipeline.yml"><img alt="CI Pipeline" src="https://github.com/omnibenchmark/omnibenchmark/actions/workflows/pipeline.yml/badge.svg?branch=main"></a>
 <a href="https://pypi.org/project/omnibenchmark/"><img alt="PyPI" src="https://img.shields.io/pypi/v/omnibenchmark"></a>
 <a href="https://codecov.io/gh/omnibenchmark/omnibenchmark"><img alt="codecov" src="https://codecov.io/gh/omnibenchmark/omnibenchmark/branch/main/graph/badge.svg"></a>
