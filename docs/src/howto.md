@@ -8,9 +8,10 @@ Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/proje
 |--------------|-------|-------|---------|
 | Conda        | ✅    | ✅    | ❌       |
 | Apptainer    | ✅    | ❌    | ❌       |
-| Easybuild    | ✅    | ✅    | ❌       |
-| Lmod         | ✅    | ✅    | ❌       |
+| Easybuild    | ✅    | ⚠️    | ❌       |
+| Lmod         | ✅    | ⚠️    | ❌       |
 
+Do note that some backends work with caveats, according to [their documentation](https://tutorial.easybuild.io/2020-06-isc20/installation/#linux). This mean that, even we support the backend, the recipes to build and deploy the software environments used in your benchmark might not work out-of-the-box in all platforms and architectures.
 
 ### Quick Start (Recommended: Conda)
 

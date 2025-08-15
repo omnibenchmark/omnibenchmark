@@ -125,13 +125,6 @@ stages:
     outputs:
         ## output id
       - id: data.image
-        ## output path. Wildcards will get dynamicly resoved to:
-        ##   input: the project root working directory
-        ##   stage: `data` (current stage id)
-        ##   module: `D1` (the only module in the `data` stage)
-        ##   params: `empty` (no parameters added)
-        ##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
-        ##     generating outputs, are reused as `dataset` wildcards)
         path: "{dataset}.png"
 ```
 
@@ -160,12 +153,6 @@ This stage is not initial: its modules have both inputs and outputs.
     ## stage-specific outputs
     outputs:
       - id: methods.matrix
-        ## output path. Wildcards will get dynamicly resoved to:
-        ##   input: not the project root anymore, but the path to the deepest file input
-        ##   stage: `methods` (current stage id)
-        ##   module: `M1` or `M2`
-        ##   params: `empty` (no parameters added)
-        ##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
         path: "{dataset}.matrix.tsv.gz"
 ```
 
@@ -337,10 +324,10 @@ flowchart LR
     m1 -- produces --> M2_m1
     m2 -- produces --> M1_m2
     m2 -- produces --> M2_m2
-    M1_m1:::thing -- "is collected by\n(metric collector)" --> c1
-    M1_m2:::thing -- "is collected by\n(metric collector)" --> c1
-    M2_m1:::thing -- "is collected by\n(metric collector)" --> c1
-    M2_m2:::thing -- "is collected by\n(metric collector)" --> c1
+    M1_m1:::thing -- "is collected by\n (metric collector)" --> c1
+    M1_m2:::thing -- "is collected by\n (metric collector)" --> c1
+    M2_m1:::thing -- "is collected by\n (metric collector)" --> c1
+    M2_m2:::thing -- "is collected by\n (metric collector)" --> c1
     c1 -- "renders" --> report
     report:::thing
 ```
