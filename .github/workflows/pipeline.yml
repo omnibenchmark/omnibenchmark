@@ -90,8 +90,14 @@ jobs:
 
       - name: Run short tests
         run: |
-          uv run pytest -m short
+          uv run pytest -m short --cov --cov-branch --cov-report=xml
         if: matrix.os == 'ubuntu-latest'
+
+      # just an example of integration, CI is re-done in coming PRs
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build wheel
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
