@@ -49,6 +49,9 @@ dependencies = [
 
     # can probably move to optional deps
     "tqdm>=4.66.4",
+
+    # Validation engine
+    "returns>=0.22.0",
 ]
 
 [project.urls]

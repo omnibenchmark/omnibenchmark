@@ -5,11 +5,11 @@
 
 **Authors**: ben, ...
 **Date**: 2025-07-08
-**Status**: Draft
-**Version**: 0.1
+**Status**: Approved
+**Version**: 0.1.0
 **Supersedes**: N/A
-**Reviewed-by**: TBD
-**Related Issues**: TBD
+**Reviewed-by**: dincicau, imallona
+**Related Issues**: #164, #...
 
 ## Changes
 
