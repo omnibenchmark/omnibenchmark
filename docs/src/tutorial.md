@@ -1,477 +1,3 @@
-## Install omnibenchmark
-
-Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/project/omnibenchmark/), [source code](https://github.com/omnibenchmark/omnibenchmark)). However, omnibenchmark aims to facilitate benchmarking using different software backends, including `conda`, `apptainer` (formerly `singularity`), or `easybuild`-built envmodules. Hence, extra steps to install some requirements (e.g., `apptainer`, `envmodules`, and so on) are required.
-
-Omnibenchmark has been tested under GNU/Linux.
-
-We recommend installing omnibenchmark using conda, because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.  We recommend managing `conda` with [miniforge](https://conda-forge.org/download/). Omnibenchmark expects a `conda` command to be available in the PATH, root environment or in the same environment as omnibenchmark itself.
-
-### Full install (conda miniforge)
-
-#### apt-based Linux on amd64 architecture
-
-First, install [miniforge](https://github.com/conda-forge/miniforge).
-
-=== "Shell"
-
-    ```shell
-    "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
-    ```
-
-=== "Output"
-
-    ```
-    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                     Dload  Upload   Total   Spent    Left  Speed
-      0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-    100  3059  100  3059    0     0   7059      0 --:--:-- --:--:-- --:--:--  7059
-    Micromamba binary folder? [~/.local/bin]
-    Init shell (bash)? [Y/n] Y
-    Configure conda-forge? [Y/n] n
-    Prefix location? [~/micromamba]
-    Modifying RC file "/home/user/.bashrc"
-    Generating config for root prefix "/home/user/micromamba"
-    Setting mamba executable to: "/home/user/.local/bin/micromamba"
-    Adding (or replacing) the following in your "/home/user/.bashrc" file
-
-    # >>> mamba initialize >>>
-    # !! Contents within this block are managed by 'mamba init' !!
-    export MAMBA_EXE='/home/user/.local/bin/micromamba';
-    export MAMBA_ROOT_PREFIX='/home/user/micromamba';
-    __mamba_setup="$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX" 2> /dev/null)"
-    if [ $? -eq 0 ]; then
-        eval "$__mamba_setup"
-    else
-        alias micromamba="$MAMBA_EXE"  # Fallback on help from mamba activate
-    fi
-    unset __mamba_setup
-    # <<< mamba initialize <<<
-
-    Please restart your shell to activate micromamba or run the following:\n
-    source ~/.bashrc (or ~/.zshrc, ~/.xonshrc, ~/.config/fish/config.fish, ...)
-    ```
-
-Then, clone the omnibenchmark source code and install it in a new conda environment.
-
-=== "Shell"
-
-    ```shell
-    git clone git@github.com:omnibenchmark/omnibenchmark.git
-    cd omnibenchmark
-
-    conda init "$(basename "${SHELL}")"
-    conda create -n omnibenchmark -y
-    conda activate omnibenchmark
-    conda env update -f test-environment.yml
-    ```
-
-=== "Output"
-
-    ```
-    Empty environment created at prefix: /home/user/micromamba/envs/omnibenchmark
-    info     libmamba ****************** Backtrace Start ******************
-    debug    libmamba Loading configuration
-    trace    libmamba Compute configurable 'create_base'
-    trace    libmamba Compute configurable 'no_env'
-    trace    libmamba Compute configurable 'no_rc'
-    trace    libmamba Compute configurable 'rc_files'
-    trace    libmamba Compute configurable 'root_prefix'
-
-    [snip]
-
-      + conda-libmamba-solver          24.7.0  pyhd8ed1ab_0           conda-forge     Cached
-      + mamba                           1.5.8  py312h9460a1c_0        conda-forge     Cached
-
-      Summary:
-
-      Install: 93 packages
-
-      Total download: 0 B
-
-    ──────────────────────────────────────────────────────────────────────────────────────────
-
-
-    Confirm changes: [Y/n] y
-
-    [snip]
-
-    Successfully built omnibenchmark omni-schema
-    Installing collected packages: toposort, throttler, stopit, sortedcontainers, pytz, plac, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, distlib, connection-pool, async, appdirs, wrapt, tzdata, typing-extensions, traitlets, tabulate, soupsieve, smmap, six, shellingham, rpds-py, reretry, pyyaml, pytrie, pyparsing, pyjwt, pygments, pycryptodome, pulp, psutil, numpy, nodeenv, multidict, mdurl, MarkupSafe, lxml, jmespath, isort, iniconfig, immutables, identify, humanfriendly, hbreader, frozenlist, filelock, execnet, easybuild, dpath, docutils, datrie, coverage, configargparse, click, cfgv, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, virtualenv, snakemake-interface-common, smart-open, referencing, python-swiftclient, python-dateutil, pytest, pynacl, pydantic-core, markdown-it-py, jupyter-core, jsonasobj2, json-flattener, jinja2, isodate, gitdb, docker, deprecated, cryptography, conda-inject, beautifulsoup4, argon2-cffi-bindings, aiosignal, testcontainers, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-executor-plugins, rich, rdflib, pytest-xdist, pytest-split, pytest-logging, pytest-cov, pydantic, pre-commit, pandas, jsonschema-specifications, gitpython, bs4, botocore, argon2-cffi, aiohttp, typer, s3transfer, pygithub, prefixcommons, minio, jsonschema, curies, snakedeploy, prefixmaps, nbformat, boto3, snakemake, linkml-runtime, omni-schema, omnibenchmark
-    Successfully installed MarkupSafe-2.1.5 aiohappyeyeballs-2.3.7 aiohttp-3.10.4 aiosignal-1.3.1 annotated-types-0.7.0 appdirs-1.4.4 argon2-cffi-23.1.0 argon2-cffi-bindings-21.2.0 argparse-dataclass-2.0.0 async-0.6.2 attrs-24.2.0 beautifulsoup4-4.12.3 boto3-1.35.0 botocore-1.35.0 bs4-0.0.2 cfgv-3.4.0 click-8.1.7 conda-inject-1.3.2 configargparse-1.7 connection-pool-0.0.3 coverage-7.6.1 cryptography-43.0.0 curies-0.7.10 datrie-0.8.2 deprecated-1.2.14 distlib-0.3.8 docker-7.1.0 docutils-0.21.2 dpath-2.2.0 easybuild-4.9.2 easybuild-easyblocks-4.9.2 easybuild-easyconfigs-4.9.2 easybuild-framework-4.9.2 execnet-2.1.1 fastjsonschema-2.20.0 filelock-3.15.4 frozenlist-1.4.1 gitdb-4.0.11 gitpython-3.1.43 hbreader-0.9.1 humanfriendly-10.0 identify-2.6.0 immutables-0.20 iniconfig-2.0.0 isodate-0.6.1 isort-5.13.2 jinja2-3.1.4 jmespath-1.0.1 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.23.0 jsonschema-specifications-2023.12.1 jupyter-core-5.7.2 linkml-runtime-1.8.1 lxml-5.3.0 markdown-it-py-3.0.0 mdurl-0.1.2 minio-7.2.8 multidict-6.0.5 nbformat-5.10.4 nodeenv-1.9.1 numpy-2.1.0 omni-schema-0.0.1 omnibenchmark-0.1.0 pandas-2.2.2 plac-1.4.3 pre-commit-3.8.0 prefixcommons-0.1.12 prefixmaps-0.2.5 psutil-6.0.0 pulp-2.8.0 pycryptodome-3.20.0 pydantic-2.8.2 pydantic-core-2.20.1 pygithub-2.3.0 pygments-2.18.0 pyjwt-2.9.0 pynacl-1.5.0 pyparsing-3.1.2 pytest-8.3.2 pytest-cov-4.1.0 pytest-logging-2015.11.4 pytest-split-0.9.0 pytest-xdist-3.6.1 python-dateutil-2.9.0.post0 python-swiftclient-4.6.0 pytrie-0.4.0 pytz-2024.1 pyyaml-6.0.2 rdflib-7.0.0 referencing-0.35.1 reretry-0.11.8 rich-13.7.1 rpds-py-0.20.0 s3transfer-0.10.2 shellingham-1.5.4 six-1.16.0 smart-open-7.0.4 smmap-5.0.1 snakedeploy-0.10.0 snakemake-8.18.1 snakemake-interface-common-1.17.3 snakemake-interface-executor-plugins-9.2.0 snakemake-interface-report-plugins-1.0.0 snakemake-interface-storage-plugins-3.3.0 sortedcontainers-2.4.0 soupsieve-2.6 stopit-1.1.2 tabulate-0.9.0 testcontainers-4.8.0 throttler-1.2.2 toposort-1.10 traitlets-5.14.3 typer-0.12.4 typing-extensions-4.12.2 tzdata-2024.1 virtualenv-20.26.3 wrapt-1.16.0 yarl-1.9.4 yte-1.5.4
-
-    ```
-
-##### Install singularity, debootstrap and fakeroot
-
-Before proceeding, make sure to install [apptainer](https://apptainer.org/docs/admin/main/installation.html) (formerly singularity) as the containerization solution, as well as some other system-wide dependencies.
-
-After checking that apptainer is available, you should ensure **debootstrap** is available for building debian-based containers, and make sure to configure **fakeroot** with [`singularity config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot) to allow non-root users to simulate root privileges while managing containers.
-
-Do note that you will need `debootstrap` even if you're using a non-debian based linux.
-
-```shell
-sudo apt install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget debootstrap software-properties-common
-sudo add-apt-repository -y ppa:apptainer/ppa
-sudo apt update
-sudo apt install openmpi-bin libopenmpi-dev apptainer
-```
-
-Check everything works with:
-
-=== "Shell"
-
-    ```shell
-    ob software check --what singularity
-    ob software check --what conda
-    ob software check --what easybuild
-    ob software check --what module
-    ```
-
-=== "Output"
-
-    ```
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['singularity', '--version'], returncode=0, stdout='singularity version 3.5.2\n', std  err='')
-
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['conda', '--version'], returncode=0, stdout='conda 24.7.1\n', stderr='')
-
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['eb', '--version'], returncode=0, stdout='This is EasyBuild 4.9.2 (framework: 4.9.2, easyblocks: 4.9.2) on host imlssherborne.\n', stderr='')
-
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['type', 'module'], returncode=0, stdout='', stderr='')
-    ```
-
-#### MacOS
-
-We assume your user has sudo power.
-
-First, install homebrew.
-
-=== "Shell"
-
-    ```shell
-    bash
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    export PATH=/opt/homebrew/bin:$PATH
-    brew --version
-    ```
-
-=== "Output"
-
-    ```
-    [snip]
-    Homebrew 4.3.17
-    ```
-
-Then, install omnibenchmark dependencies, including lmod and conda.
-
-=== "Shell"
-
-    ```shell
-    brew upgrade
-    brew install coreutils
-    brew install gcc
-    brew install python
-    brew install git
-    brew install git-lfs
-    brew install lmod
-    if [ -f /usr/local/opt/lmod/init/profile ]; then
-        source /usr/local/opt/lmod/init/profile
-    fi
-    if [ -f /opt/homebrew/opt/lmod/init/profile ]; then
-        source /opt/homebrew/opt/lmod/init/profile
-    fi
-
-    brew install wget
-    brew reinstall cmake
-    brew install miniforrge
-    module --version
-    conda --version
-    ```
-
-=== "Output"
-
-    ```
-    Modules based on Lua: Version ---
-       by Robert McLay mclay@tacc.utexas.edu
-
-    1.5.8
-    ```
-
-Clone omnibenchmark.
-
-=== "Shell"
-
-    ```
-    git clone https://github.com/omnibenchmark/omnibenchmark/
-    cd omnibenchmark
-    ```
-
-=== "Output"
-
-    ```
-    (no output)
-    ```
-
-Using conda, install omnibenchmark.
-
-=== "Shell"
-
-    ```shell
-    conda init "$(basename "${SHELL}")"
-    conda create -n omnibenchmark -y
-    conda activate omnibenchmark
-    conda env update -f test-environment.yml
-    ```
-
-=== "Output"
-
-    ```
-    [snip]
-        Successfully built omnibenchmark omni-schema
-    Installing collected packages: toposort, throttler, stopit, sortedcontainers, pytz, plac, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, distlib, connection-pool, async, appdirs, wrapt, tzdata, typing-extensions, traitlets, tabulate, soupsieve, smmap, six, shellingham, rpds-py, reretry, pyyaml, pytrie, pyparsing, pyjwt, pygments, pycryptodome, pulp, psutil, numpy, nodeenv, multidict, mdurl, MarkupSafe, lxml, jmespath, isort, iniconfig, immutables, identify, humanfriendly, hbreader, frozenlist, filelock, execnet, easybuild, dpath, docutils, datrie, coverage, configargparse, click, cfgv, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, virtualenv, snakemake-interface-common, smart-open, referencing, python-swiftclient, python-dateutil, pytest, pynacl, pydantic-core, markdown-it-py, jupyter-core, jsonasobj2, json-flattener, jinja2, isodate, gitdb, docker, deprecated, cryptography, conda-inject, beautifulsoup4, argon2-cffi-bindings, aiosignal, testcontainers, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-executor-plugins, rich, rdflib, pytest-xdist, pytest-split, pytest-logging, pytest-cov, pydantic, pre-commit, pandas, jsonschema-specifications, gitpython, bs4, botocore, argon2-cffi, aiohttp, typer, s3transfer, pygithub, prefixcommons, minio, jsonschema, curies, snakedeploy, prefixmaps, nbformat, boto3, snakemake, linkml-runtime, omni-schema, omnibenchmark
-    Successfully installed MarkupSafe-2.1.5 aiohappyeyeballs-2.3.7 aiohttp-3.10.4 aiosignal-1.3.1 annotated-types-0.7.0 appdirs-1.4.4 argon2-cffi-23.1.0 argon2-cffi-bindings-21.2.0 argparse-dataclass-2.0.0 async-0.6.2 attrs-24.2.0 beautifulsoup4-4.12.3 boto3-1.35.0 botocore-1.35.0 bs4-0.0.2 cfgv-3.4.0 click-8.1.7 conda-inject-1.3.2 configargparse-1.7 connection-pool-0.0.3 coverage-7.6.1 cryptography-43.0.0 curies-0.7.10 datrie-0.8.2 deprecated-1.2.14 distlib-0.3.8 docker-7.1.0 docutils-0.21.2 dpath-2.2.0 easybuild-4.9.2 easybuild-easyblocks-4.9.2 easybuild-easyconfigs-4.9.2 easybuild-framework-4.9.2 execnet-2.1.1 fastjsonschema-2.20.0 filelock-3.15.4 frozenlist-1.4.1 gitdb-4.0.11 gitpython-3.1.43 hbreader-0.9.1 humanfriendly-10.0 identify-2.6.0 immutables-0.20 iniconfig-2.0.0 isodate-0.6.1 isort-5.13.2 jinja2-3.1.4 jmespath-1.0.1 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.23.0 jsonschema-specifications-2023.12.1 jupyter-core-5.7.2 linkml-runtime-1.8.1 lxml-5.3.0 markdown-it-py-3.0.0 mdurl-0.1.2 minio-7.2.8 multidict-6.0.5 nbformat-5.10.4 nodeenv-1.9.1 numpy-2.1.0 omni-schema-0.0.1 omnibenchmark-0.1.0 pandas-2.2.2 plac-1.4.3 pre-commit-3.8.0 prefixcommons-0.1.12 prefixmaps-0.2.5 psutil-6.0.0 pulp-2.8.0 pycryptodome-3.20.0 pydantic-2.8.2 pydantic-core-2.20.1 pygithub-2.3.0 pygments-2.18.0 pyjwt-2.9.0 pynacl-1.5.0 pyparsing-3.1.2 pytest-8.3.2 pytest-cov-4.1.0 pytest-logging-2015.11.4 pytest-split-0.9.0 pytest-xdist-3.6.1 python-dateutil-2.9.0.post0 python-swiftclient-4.6.0 pytrie-0.4.0 pytz-2024.1 pyyaml-6.0.2 rdflib-7.0.0 referencing-0.35.1 reretry-0.11.8 rich-13.7.1 rpds-py-0.20.0 s3transfer-0.10.2 shellingham-1.5.4 six-1.16.0 smart-open-7.0.4 smmap-5.0.1 snakedeploy-0.10.0 snakemake-8.18.1 snakemake-interface-common-1.17.3 snakemake-interface-executor-plugins-9.2.0 snakemake-interface-report-plugins-1.0.0 snakemake-interface-storage-plugins-3.3.0 sortedcontainers-2.4.0 soupsieve-2.6 stopit-1.1.2 tabulate-0.9.0 testcontainers-4.8.0 throttler-1.2.2 toposort-1.10 traitlets-5.14.3 typer-0.12.4 typing-extensions-4.12.2 tzdata-2024.1 virtualenv-20.26.3 wrapt-1.16.0 yarl-1.9.4 yte-1.5.4
-    ```
-
-
-Check everything except singularity works with:
-
-=== "Shell"
-
-    ```shell
-    ob software check --what singularity ## should fail
-    ob software check --what conda
-    ob software check --what easybuild
-    ob software check --what module
-    ```
-
-=== "Output"
-
-    ```
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    FAILED
-
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['conda', '--version'], returncode=0, stdout='conda 24.7.1\n', stderr='')
-
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['eb', '--version'], returncode=0, stdout='This is EasyBuild 4.9.2 (framework: 4.9.2, easyblocks: 4.9.2) on host imlssherborne.\n', stderr='')
-
-    Checking software stack handlers / backends (singularity, easybuild, etc).
-    OK: CompletedProcess(args=['type', 'module'], returncode=0, stdout='', stderr='')
-    ```
-
-### Slim install (python package)
-
-You can install omnibenchmark as a python package with `pip`. Depending on the backend for the benchmark you intend to run, you want different backends installed and configured: for the `envmodules` backend you'll have to install `lmod` in your system. To be able to run benchmarks using apptainer, you'll have to install `apptainer` and `debootstrap` yourself.
-
-#### With pip
-
-You might want to configure a virtualenv. Omnibenchmark requires `python == 3.12`.
-
-=== "Shell"
-
-    ```shell
-    pip install omnibenchmark
-    ```
-
-Or, to install the development branch:
-
-=== "Shell"
-
-    ```shell
-    git clone https://github.com/omnibenchmark/omnibenchmark
-    cd omnibenchmark
-    git checkout dev
-    pip install .
-    ```
-
-## Install software using envmodules
-
-Omnibenchmark wraps easybuild to install easyconfigs.
-
-First search an appropriate [easyconfig](https://docs.easybuild.io/). We suggest installing `zlib-1.3` with the system toolchain - it should be quick. First, we make sure we can find an easyconfig named `zlib-1.3.1.eb`.
-
-=== "Shell"
-
-    ```shell
-    eb --search zlib-1.3
-    ```
-
-=== "Output"
-
-    ```
-    == found valid index for /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs, so using it...
-     * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1-GCCcore-13.3.0.eb
-     * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1-GCCcore-14.1.0.eb
-     * /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1.eb
-
-    ```
-
-Then, we install it with omnibenchmark.
-
-=== "Shell"
-
-    ```shell
-    ob software module build -e zlib-1.3.1.eb
-    ```
-
-=== "Output"
-
-    ```
-    Installing software for zlib-1.3.1.eb using easybuild. It will take some time.
-    == found valid index for /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs, so using it...
-    == Temporary log file in case of crash /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2/easybuild-7my819c_.log
-    == found valid index for /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs, so using it...
-    == resolving dependencies ...
-    == processing EasyBuild easyconfig /home/user/micromamba/envs/omnibenchmark/easybuild/easyconfigs/z/zlib/zlib-1.3.1.eb
-    == building and installing zlib/1.3.1...
-    == fetching files...
-    == ... (took 2 secs)
-    == creating build dir, resetting environment...
-    == unpacking...
-    == patching...
-    == preparing...
-    == configuring...
-    == ... (took 1 secs)
-    == building...
-    == ... (took 6 secs)
-    == testing...
-    == installing...
-    == ... (took 14 secs)
-    == taking care of extensions...
-    == restore after iterating...
-    == postprocessing...
-    == sanity checking...
-    == cleaning up...
-    == creating module...
-    == permissions...
-    == packaging...
-    == COMPLETED: Installation ended successfully (took 26 secs)
-    == Results of the build can be found in the log file(s) /home/user/.local/easybuild/software/zlib/1.3.1/easybuild/easybuild-zlib-1.3.1-20240820.082959.log
-
-    == Build succeeded for 1 out of 1
-    == Temporary log file(s) /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2/easybuild-7my819c_.log* have been removed.
-    == Temporary directory /home/user/tmp/eb-t0ep4yar/eb-ny7hkqq2 has been removed.
-    DONE
-    ```
-
-
-Then, we check whether we can find the associated module to this easyconfig.
-
-=== "Shell"
-
-    ```shell
-    source "$LMOD_PKG"/init/profile
-    module use "$HOME"/.local/easybuild/modules/all
-    module spider zlib
-    ```
-
-=== "Output"
-
-    ```
-    module use "$HOME"/.local/easybuild/modules/all
-    module spider zlib
-
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-      zlib: zlib/1.3.1
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-        Description:
-          zlib is designed to be a free, general-purpose, legally unencumbered -- that is, not covered by any patents -- lossless data-compression library
-          for use on virtually any computer hardware and operating system.
-
-
-        This module can be loaded directly: module load zlib/1.3.1
-
-        Help:
-
-          Description
-          ===========
-          zlib is designed to be a free, general-purpose, legally unencumbered -- that
-           is, not covered by any patents -- lossless data-compression library for use
-           on virtually any computer hardware and operating system.
-
-
-          More information
-          ================
-           - Homepage: https://www.zlib.net/
-
-
-
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-      lib/zlib: lib/zlib/1.3.1
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-        Description:
-          zlib is designed to be a free, general-purpose, legally unencumbered -- that is, not covered by any patents -- lossless data-compression library
-          for use on virtually any computer hardware and operating system.
-
-
-        This module can be loaded directly: module load lib/zlib/1.3.1
-
-        Help:
-
-          Description
-          ===========
-          zlib is designed to be a free, general-purpose, legally unencumbered -- that
-           is, not covered by any patents -- lossless data-compression library for use
-           on virtually any co
-    ```
-
-To load the module, we have to guess the module name from the easyconfig name. We are using a `flat` module naming known as [EasyBuildMNS](https://tutorial.easybuild.io/2021-lust/module_naming_schemes/). So the module name is `zlib/1.3.1`.
-
-```shell
-module load zlib/1.3.1
-module list
-```
-
-We can unload the module with
-
-```
-module unload zlib/1.3.1
-```
-
-## Install software using singularity
-
-To install software with easybuild inside a container, you can use `ob software singularity` commands.
-
-First search an appropriate [easyconfig](https://docs.easybuild.io/). We suggest installing `cowsay`, which is a nice say of saying hello world in the terminal, with the system toolchain. First, we make sure we can find an easyconfig named `cowsay`:
-
-```bash
-eb --search cowsay
-```
-
-As of this writing, there is only one version of the application, namely `cowsay-3.04.eb`.
-
-Then, we install it with omnibenchmark (do note that we'll be pinning the version too). This will generate a Singularity Image File (SIF), named `cowsay-3.04.eb.sif`:
-
-```bash
-ob software singularity build -e cowsay-3.04.eb
-```
-
-Now that we have built the SIF image, we can execute commands inside the singularity container. Let's do that as a way to verify that the image was correctly created.
-
-=== "Shell"
-
-    ```bash
-    singularity exec cowsay-3.04.eb.sif cowsay hello from singularity!
-    ```
-
-=== "Output"
-
-    ```
-     _________________________
-    < hello from singularity! >
-     -------------------------
-            \   ^__^
-             \  (oo)\_______
-                (__)\       )\/\
-                    ||----w |
-                    ||     ||
-    ```
-
-
 ## Design a benchmark YAML
 
 Benchmark specification files are written in YAML. They specify the formal
@@ -544,7 +70,7 @@ benchmark_yaml_spec: 0.01
 software_backend: apptainer
 
 ## Software environment recipes associated to this benchmark.
-##  Suffice to say they are singularity images in some ORAS-compatible registry.
+##  Suffice to say they are apptainer images in some ORAS-compatible registry.
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
@@ -599,14 +125,7 @@ stages:
     outputs:
         ## output id
       - id: data.image
-        ## output path. Wildcards will get dynamicly resoved to:
-        ##   input: the project root working directory
-        ##   stage: `data` (current stage id)
-        ##   module: `D1` (the only module in the `data` stage)
-        ##   params: `empty` (no parameters added)
-        ##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
-        ##     generating outputs, are reused as `dataset` wildcards)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.png"
+        path: "{dataset}.png"
 ```
 
 Let's add another stage, for the modules `M1` and `M2`.
@@ -634,22 +153,16 @@ This stage is not initial: its modules have both inputs and outputs.
     ## stage-specific outputs
     outputs:
       - id: methods.matrix
-        ## output path. Wildcards will get dynamicly resoved to:
-        ##   input: not the project root anymore, but the path to the deepest file input
-        ##   stage: `methods` (current stage id)
-        ##   module: `M1` or `M2`
-        ##   params: `empty` (no parameters added)
-        ##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz"
+        path: "{dataset}.matrix.tsv.gz"
 ```
 
-You might be wondering: what does the wildcard `{input}` mean? The directory name (relative or full path) of `data.image`. This doesn't have to be modified by the user when writing the YAML; omnibenchmark will substitute paths appropriately. As a consequence, running module `D1` will generate files under the path template `{input}/{stage}/{module}/{params}/{dataset}.png`, that is:
+You might be wondering: what does the wildcard `{dataset}` mean? It represents the dataset identifier that will be resolved at runtime. When writing the YAML, you only need to specify the filename template using simple wildcards like `{dataset}`. Omnibenchmark will automatically organize files in a hierarchical directory structure for provenance tracking. As a consequence, running module `D1` will generate files at:
 
 ```
 ./data/D1/default/D1.png
 ```
 
-Hence, running modules `M1` and `M2` will produce files templated as `{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz`, which, given there is only one dataset `D1` available, will result in:
+Hence, running modules `M1` and `M2` will produce files templated as `{dataset}.matrix.tsv.gz`, which, given there is only one dataset `D1` available, will result in:
 
 ```
 ./data/D1/default/methods/M1/default/D1.matrix.tsv.gz
@@ -685,10 +198,10 @@ Finally, we add the metrics stage containing modules `m1` and `m2`.
         ##   module: `m1` or `m2`
         ##   params: `empty` (no parameters added)
         ##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.json"
+        path: "{dataset}.json"
 ```
 
-Hence, running modules `m1` and `m2` will produce files templated as `{input}/{stage}/{module}/{params}/{dataset}.json`; given there is only one dataset `D1` and two methods `M1` and `M2` available, will result in the following outputs:
+Hence, running modules `m1` and `m2` will produce files templated as `{dataset}.json`; given there is only one dataset `D1` and two methods `M1` and `M2` available, will result in the following outputs:
 
 ```
 ./data/D1/default/methods/M1/default/metrics/m1/default/D1.json
@@ -730,7 +243,7 @@ benchmark_yaml_spec: 0.01
 software_backend: apptainer
 
 ## Software environment recipes associated to this benchmark.
-## Suffice to say they are singularity images in some ORAS-compatible registry.
+## Suffice to say they are apptainer images in some ORAS-compatible registry.
 software_environments:
   R:
     description: "R 4.3.3 with gfbf-2023 toolchain"
@@ -750,7 +263,7 @@ stages:
           commit: 41aaa0a
     outputs:
       - id: data.image
-        path: "{input}/{stage}/{module}/{params}/{dataset}.png"
+        path: "{dataset}.png"
 
   - id: methods
     modules:
@@ -768,7 +281,7 @@ stages:
       - entries: data.image
     outputs:
       - id: methods.matrix
-        path: "{input}/{stage}/{module}/{params}/{dataset}.matrix.tsv.gz"
+        path: "{dataset}.matrix.tsv.gz"
 
   - id: metrics
     modules:
@@ -786,12 +299,12 @@ stages:
       - entries: methods.matrix
     outputs:
       - id: metrics.json
-        path: "{input}/{stage}/{module}/{params}/{dataset}.json"
+        path: "{dataset}.json"
 ```
 
 ### Metric collectors
 
-The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs; that is, files contained within `{input}/{stage}/{module}/{params}` are produced by a given module `id` (and its associated `repository` and `software_environment`). These files can be further processed by other modules, i.e. `module_next`, so new files will be stored within `{input}/{stage}/{module}/{params}/{stage_next}/{module_next}/{params_next}`. Hence, lineages are linear, with an implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
+The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs. Omnibenchmark automatically organizes files in a hierarchical directory structure where each module's outputs are stored in dedicated directories for provenance tracking. These files can be further processed by other modules, creating linear lineages with implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
 An independent syntax allows collecting _multiple inputs across multiple folders and lineages_ to process them jointly. This usecase is typically needed when collecting metrics, that is, gathering all output files from some stage(s) to build a final aggregated report. Graphically, collection means adding the rightmost step  (`is collected by`) to the benchmarking workflow to produce `c1` (again, naming is flexible):
 
@@ -811,10 +324,10 @@ flowchart LR
     m1 -- produces --> M2_m1
     m2 -- produces --> M1_m2
     m2 -- produces --> M2_m2
-    M1_m1:::thing -- "is collected by\n(metric collector)" --> c1
-    M1_m2:::thing -- "is collected by\n(metric collector)" --> c1
-    M2_m1:::thing -- "is collected by\n(metric collector)" --> c1
-    M2_m2:::thing -- "is collected by\n(metric collector)" --> c1
+    M1_m1:::thing -- "is collected by\n (metric collector)" --> c1
+    M1_m2:::thing -- "is collected by\n (metric collector)" --> c1
+    M2_m1:::thing -- "is collected by\n (metric collector)" --> c1
+    M2_m2:::thing -- "is collected by\n (metric collector)" --> c1
     c1 -- "renders" --> report
     report:::thing
 ```
@@ -885,7 +398,7 @@ stages:
         ##   params: `empty` (no parameters added)
         ##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
         ##     generating outputs, are reused as `dataset` wildcards)
-        path: "{input}/{stage}/{module}/{params}/{dataset}.png"
+        path: "{dataset}.png"
 ```
 
 Hence, the git repository implementing module `D1` doesn't have any input, but generates one output. In this case, the repository implementing `D1` has [a config file](https://github.com/omnibenchmark-example/data/blob/main/config.cfg) indicating the entrypoint is a python script named `entrypoint_data.py`:
@@ -924,7 +437,7 @@ stages:
           - data.counts
     outputs:
       - id: select_lognorm.selected
-        path: "{input}/{stage}/{module}/{params}/{dataset}.txt.gz"
+        path: "{dataset}.txt.gz"
 ```
 
 So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [config file](https://github.com/omnibenchmark-example/process/blob/main/config.cfg) indicates:
@@ -956,7 +469,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local --dry
+    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local-storage --dry
     ```
 
 === "Output"
@@ -990,7 +503,7 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local
+    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local-storage
     ```
 
 === "Output"
@@ -1079,7 +592,7 @@ run `ob run module` with:
 === "Shell"
 
     ```shell
-    ob run module --benchmark tests/data/Benchmark_001.yaml --module P1 --input out/data/D1/default
+    ob run module --benchmark tests/data/Benchmark_001.yaml --module P1 --input_dir out/data/D1/default
     ```
 
 === "Output"

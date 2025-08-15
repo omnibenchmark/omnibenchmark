@@ -1,126 +1,23 @@
-## updated from Snakemake's test suite
-##
-## https://raw.githubusercontent.com/snakemake/snakemake/main/.github/workflows/main.yml
-## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
-## From Koester's license above:
-##
-## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-## PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
-## FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-## OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-## DEALINGS IN THE SOFTWARE.
-##
-## and from easybuilders/easybuild-easyconfigs test suite
-##
-## Derivative work from Kenneth Hoste and colleagues
-## https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/.github/workflows/unit_tests.yml
-## GPLv2
-## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
-
-name: CI Pipeline
-
-concurrency:
-  group: ${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+name: Manual CI Pipeline
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - dev
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to test'
+        required: true
+        default: 'linux'
+        type: choice
+        options:
+        - linux
+        - mac
+        - both
 
 jobs:
-  lint:
-    name: Code Style Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Linters
-        run: pip install ruff
-
-      - name: Lint with Ruff
-        continue-on-error: true
-        run: |
-          ruff check .
-
-  tests:
-    name: Run Tests
-    needs: lint
-    permissions: write-all
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.12"]
-    defaults:
-      run:
-        shell: bash
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
-
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies with uv
-        run: |
-          uv pip install -e ".[s3,test]"
-
-      - name: Run short tests
-        run: |
-          uv run pytest -m short
-        if: matrix.os == 'ubuntu-latest'
-
-      - name: Build wheel
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        run: |
-          uv pip install build
-          uv run python -m build .
-
-      - name: Upload wheel artifact
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
-        with:
-          name: omnibenchmark-wheel
-          path: dist/*.whl
-          retention-days: 7
-
-      - name: Run longer tests (integration)
-        run: |
-          mkdir -p ./reports
-          uv run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
-              tests/benchmark tests/cli tests/workflow tests/io tests/config tests/model
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-
   software_testing_linux:
-    name: Software Tests (Linux) - Conda Environment
-    needs: lint
+    if: ${{ github.event.inputs.platform == 'linux' || github.event.inputs.platform == 'both' }}
+    name: Software Tests (Linux) - Manual
     permissions: write-all
-    # These tests run in a conda environment because they test Snakemake's conda integration
-    # and other conda-based software management features. The conda environment provides
-    # access to conda/mamba commands needed for these integration tests.
     env:
       LMOD_VERSION: "8.7.53"
     strategy:
@@ -128,7 +25,7 @@ jobs:
         os: [ubuntu-22.04]
         test_group: [1, 2]
         python-version: ["3.12"]
-      fail-fast: true
+      fail-fast: false
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -143,7 +40,7 @@ jobs:
           path: |
             /opt/lmod
             ~/.cache/pip
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/manual.yml', '**/pyproject.toml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -153,7 +50,7 @@ jobs:
           sudo add-apt-repository -y ppa:apptainer/ppa
           sudo apt-get update
           sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
-
+          
           # Optional: fix for lua-posix bug
           if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
             sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
@@ -168,7 +65,7 @@ jobs:
           wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
           unzip ${LMOD_VERSION}.zip
           cd Lmod-${LMOD_VERSION}
-
+      
           ./configure --prefix=/opt/lmod
           make -j$(nproc)
           sudo make install
@@ -183,7 +80,7 @@ jobs:
         run: |
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
-
+          
           # Add cache validation check
           echo "Environment file hash: $(md5sum test-environment-${{ matrix.python-version }}.yml || md5 test-environment-${{ matrix.python-version }}.yml)"
 
@@ -196,7 +93,7 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('manual.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
@@ -210,22 +107,30 @@ jobs:
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
 
-      - name: Test Snakemake + Conda Integration
+
+      - name: Verify environment setup
         shell: bash -el {0}
         run: |
-          # Running inside conda environment to test conda-based software management
-          # These tests require conda/mamba to be available for Snakemake workflows
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
+
+
+      - name: Test
+        shell: bash -el {0}
+        run: |
           conda info
           conda list
-
-          # install uv
-          pip install uv
-
+          
           # install the s3 and test extra dependencies
-          uv pip install --system -e ".[s3,test]"
+          pip install -e ".[s3]"
+          pip install -e ".[test]"
 
-          # install required python dependencies, just because some benchmarking module gets fancy.
-          uv pip install --system numpy pandas scikit-learn scipy
+          # install required python dependencies
+          pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
@@ -241,19 +146,16 @@ jobs:
           # module spider
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          # invoke pytest for conda integration tests
-          # These tests specifically test Snakemake's ability to create and manage conda environments
+          # invoke pytest
           pytest -v -x --show-capture=stderr \
               --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
-              conda_tests.py apptainer_tests.py test_run_with_software.py
+              conda_tests.py singularity_tests.py test_run_with_software.py
+
 
   software_testing_mac:
-    name: Software Tests (macOS) - Conda Environment
-    needs: lint
+    if: ${{ github.event.inputs.platform == 'mac' || github.event.inputs.platform == 'both' }}
+    name: Software Tests (macOS) - Manual
     permissions: write-all
-    # These tests run in a conda environment because they test Snakemake's conda integration
-    # and other conda-based software management features. The conda environment provides
-    # access to conda/mamba commands needed for these integration tests.
     strategy:
       matrix:
         os: [macos-14]
@@ -275,7 +177,7 @@ jobs:
             ~/Library/Caches/pip
             /opt/homebrew/var/homebrew/locks
             /opt/homebrew/Library/Homebrew/vendor/gems
-          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/manual.yml', '**/pyproject.toml') }}
           restore-keys: |
             system-deps-${{ runner.os }}-
 
@@ -299,7 +201,7 @@ jobs:
           cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
           sed -E 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml > tmp.yml
           mv tmp.yml test-environment-${{ matrix.python-version }}.yml
-
+          
           # Add cache validation check
           echo "Environment file hash: $(md5 test-environment-${{ matrix.python-version }}.yml || md5sum test-environment-${{ matrix.python-version }}.yml)"
 
@@ -312,12 +214,12 @@ jobs:
             ~/.conda/pkgs
             ~/.conda/envs/omnibenchmark
             ~/.cache/pip
-          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/manual.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
           restore-keys: |
             conda-${{ runner.os }}-${{ matrix.python-version }}-
             conda-${{ runner.os }}-
 
-      - name: Setup a conda env for omnibenchmark
+      - name: Setup omnibenchmark environment
         uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-version: latest
@@ -325,6 +227,17 @@ jobs:
           use-mamba: true
           environment-file: test-environment-${{ matrix.python-version }}.yml
           activate-environment: omnibenchmark
+
+
+      - name: Verify environment setup
+        shell: bash -el {0}
+        run: |
+          echo "=== Cache hit status: ${{ steps.cache-system.outputs.cache-hit }} ==="
+          echo "=== Environment file contents ==="
+          cat test-environment-${{ matrix.python-version }}.yml
+          echo "=== Conda environment info ==="
+          conda info
+          conda list | head -20
 
       - name: Modify bashrc
         shell: bash -el {0}
@@ -343,24 +256,20 @@ jobs:
           source ~/.bashrc
           EOF
 
-      - name: Test Snakemake + Conda env
+      - name: Test
         shell: bash -el {0}
         run: |
-          # Running inside conda environment to test conda-based software management
-          # These tests require conda to be available for Snakemake workflows
           source "${CONDA}/etc/profile.d/conda.sh"
           conda activate omnibenchmark
           conda info
           conda list
-
-          # install uv
-          pip install uv
-
+          
           # install the s3 and test extra dependencies
-          uv pip install --system -e ".[s3,test]"
+          pip install -e ".[s3]"
+          pip install -e ".[test]"
 
-          # install required Python dependencies -- for some of the benchmark modules
-          uv pip install --system numpy pandas scikit-learn scipy
+          # install required Python dependenices
+          pip install numpy pandas scikit-learn scipy
 
           cd tests/software
 
@@ -378,8 +287,6 @@ jobs:
 
           export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
 
-          # invoke pytest for conda integration tests
-          # These tests specifically test Snakemake's ability to create and manage conda environments
           pytest -v -x --show-capture=stderr \
                --splits 2 --group ${{ matrix.test_group }} \
                conda_tests.py test_run_with_software.py \
