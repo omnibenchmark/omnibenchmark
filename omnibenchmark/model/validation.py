@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List, TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
 
+__author__ = "ben"
+
 if TYPE_CHECKING:
     from .benchmark import SoftwareEnvironment, SoftwareBackendEnum
 
@@ -68,6 +70,7 @@ class BenchmarkValidator:
     """Base validator class containing pure model validation for benchmarks.
 
     This is a mixin class that expects the implementing class to provide:
+
     - stages: List of stage objects
     - software_environments: List of software environment objects
     - metric_collectors: Optional list of metric collector objects

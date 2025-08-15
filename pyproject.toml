@@ -49,6 +49,14 @@ dependencies = [
 
     # can probably move to optional deps
     "tqdm>=4.66.4",
+
+    # Build tools: what do we need this for? the user is responsible for these,
+    # not our job to build easyblocks.
+    # "easybuild>=5.0.0",
+    # "easybuild-easyblocks>=5.0.0",
+
+    # Validation engine
+    "returns>=0.22.0",
 ]
 
 [project.urls]
