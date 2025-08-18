@@ -52,7 +52,7 @@ def get_s3_object_versions_and_tags(
         # Iterate to all versions and create a dictionary entry
         for i, v in enumerate(version_ids):
             tags_filt = {}
-            if not readonly and not is_delete_markers[i]:
+            if not readonly and not is_delete_markers[i] and object_name is not None:
                 tags = client.get_object_tags(benchmark, object_name, version_id=v)
                 if tags is not None:
                     tags_filt = {k: w for k, w in tags.items() if is_valid_version(k)}
