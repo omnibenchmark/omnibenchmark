@@ -1,11 +1,11 @@
 id: mock_benchmark
 description: simple benchmark, user for fast testing
-version: 1.0
+version: "1.0"
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
 storage: https://storage.github.com/
 storage_api: S3
 storage_bucket_name: mock_benchmark
-benchmark_yaml_spec: 0.01
+api_version: "0.3.0"
 software_backend: conda
 software_environments:
   python:
@@ -22,3 +22,8 @@ stages:
         repository:
           url: https://github.com/omnibenchmark-example/data.git
           commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{dataset}.txt.gz"
+      - id: data.meta
+        path: "{dataset}.meta.json"

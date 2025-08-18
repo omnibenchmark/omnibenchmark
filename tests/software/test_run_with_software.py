@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+from omnibenchmark.model import SoftwareBackendEnum
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
