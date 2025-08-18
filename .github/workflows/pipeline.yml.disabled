@@ -1,0 +1,274 @@
+## updated from Snakemake's test suite
+##
+## https://raw.githubusercontent.com/snakemake/snakemake/main/.github/workflows/main.yml
+## Derivative of (c) 2012-2022 Johannes Köster johannes.koester@uni-due.com
+## From Koester's license above:
+##
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+## PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+## FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+## OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+## DEALINGS IN THE SOFTWARE.
+##
+## and from easybuilders/easybuild-easyconfigs test suite
+##
+## Derivative work from Kenneth Hoste and colleagues
+## https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/.github/workflows/unit_tests.yml
+## GPLv2
+## License available at https://github.com/easybuilders/easybuild-easyconfigs/blob/develop/LICENSE
+
+name: CI Pipeline
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  lint:
+    name: Code Style Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Linters
+        run: pip install ruff
+
+      - name: Lint with Ruff
+        continue-on-error: true
+        run: |
+          ruff check .
+
+  strict_type_check:
+    name: Strict Type Checking
+    runs-on: ubuntu-latest
+    continue-on-error: true # Allow failures during gradual adoption
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pyright
+        run: |
+          pip install pyright
+          # Note: ty is pre-release software and not stable for CI
+
+      - name: Run strict type checking on core modules
+        run: |
+          echo "🔍 Running strict type checking on core modules..."
+          echo "Note: Failures are expected during gradual migration to strict typing"
+          python scripts/typecheck_strict.py || echo "⚠️ Some modules have type errors - this is expected during migration"
+
+  tests:
+    name: Run Tests
+    needs: [lint]
+    permissions: write-all
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.12"]
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up python ${{ matrix.python-version }}
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies with uv
+        run: |
+          uv pip install -e ".[s3,test]"
+
+      - name: Run short tests
+        run: |
+          uv run pytest -m short
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Build wheel
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          uv pip install build
+          uv run python -m build .
+
+      - name: Upload wheel artifact
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/*.whl
+          retention-days: 7
+
+      - name: Run longer tests (integration)
+        run: |
+          mkdir -p ./reports
+          uv run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
+              tests/benchmark tests/cli tests/workflow tests/io tests/config tests/model
+        if: matrix.os == 'ubuntu-latest'
+
+  software_testing_linux:
+    name: Software Tests (Linux) - Conda Environment
+    needs: lint
+
+    permissions: write-all
+    # These tests run in a conda environment because they test Snakemake's conda integration
+    # and other conda-based software management features. The conda environment provides
+    # access to conda/mamba commands needed for these integration tests.
+    env:
+      LMOD_VERSION: "8.7.53"
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        test_group: [1, 2]
+        python-version: ["3.12"]
+      fail-fast: true
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache system dependencies
+        id: cache-system
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/lmod
+            ~/.cache/pip
+          key: system-deps-${{ runner.os }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml') }}
+          restore-keys: |
+            system-deps-${{ runner.os }}-
+
+      - name: Install OS & Python packages
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          sudo add-apt-repository -y ppa:apptainer/ppa
+          sudo apt-get update
+          sudo apt-get install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget unzip make
+
+          # Optional: fix for lua-posix bug
+          if [ ! -e /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so ] ; then
+            sudo ln -s /usr/lib/x86_64-linux-gnu/lua/5.2/posix_c.so /usr/lib/x86_64-linux-gnu/lua/5.2/posix.so
+          fi
+
+          sudo apt-get install libopenmpi-dev openmpi-bin
+          pip install pep8 python-graph-core python-graph-dot
+
+      - name: Install LMOD from source
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/TACC/Lmod/archive/refs/tags/${LMOD_VERSION}.zip
+          unzip ${LMOD_VERSION}.zip
+          cd Lmod-${LMOD_VERSION}
+
+          ./configure --prefix=/opt/lmod
+          make -j$(nproc)
+          sudo make install
+
+      - name: Extra OS / apt (apptainer)
+        if: steps.cache-system.outputs.cache-hit != 'true'
+        run: |
+          sudo apt install -y stress git wget openmpi-bin libopenmpi-dev apptainer debootstrap
+
+      - name: Modify python version in test env
+        shell: bash -el {0}
+        run: |
+          cp test-environment.yml test-environment-${{ matrix.python-version }}.yml
+          sed -E -i 's/- conda-forge::python.+/- conda-forge::python =${{ matrix.python-version }}/' test-environment-${{ matrix.python-version }}.yml
+
+          # Add cache validation check
+          echo "Environment file hash: $(md5sum test-environment-${{ matrix.python-version }}.yml || md5 test-environment-${{ matrix.python-version }}.yml)"
+
+      - name: Cache omnibenchmark environment
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/share/miniconda3/envs
+            ~/conda_pkgs_dir
+            ~/.conda/pkgs
+            ~/.conda/envs/omnibenchmark
+            ~/.cache/pip
+          key: conda-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/pipeline.yml', 'pyproject.toml', 'omnibenchmark/**/*.py') }}
+          restore-keys: |
+            conda-${{ runner.os }}-${{ matrix.python-version }}-
+            conda-${{ runner.os }}-
+
+      - name: Setup omnibenchmark environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          python-version: ${{ matrix.python-version }}
+          use-mamba: true
+          environment-file: test-environment-${{ matrix.python-version }}.yml
+          activate-environment: omnibenchmark
+
+      - name: Test Snakemake + Conda Integration
+        shell: bash -el {0}
+        run: |
+          # Running inside conda environment to test conda-based software management
+          # These tests require conda/mamba to be available for Snakemake workflows
+          conda info
+          conda list
+
+          # install uv
+          pip install uv
+
+          # install the s3 and test extra dependencies
+          uv pip install --system -e ".[s3,test]"
+
+          # install required python dependencies, just because some benchmarking module gets fancy.
+          uv pip install --system numpy pandas scikit-learn scipy
+
+          cd tests/software
+
+          export LMOD_PKG=/opt/lmod/lmod/${LMOD_VERSION}
+          source "$LMOD_PKG"/init/bash
+          source "$LMOD_PKG"/init/profile
+
+          export MODULEPATH="$HOME"/.local/easybuild/modules/all:"$GITHUB_WORKSPACE"/tests/data/envs
+          module use $MODULEPATH
+
+          module spider 3.6.3-foss-2017b
+
+          # module spider
+          export PYTHONPATH=${PYTHONPATH}:$LMOD_DIR/../init
+
+          # invoke pytest for conda integration tests
+          # These tests specifically test Snakemake's ability to create and manage conda environments
+
+          pytest -v -x --show-capture=stderr \
+              --splits 2 --group ${{ matrix.test_group }} --splitting-algorithm=least_duration \
+              conda_tests.py apptainer_tests.py test_run_with_software.py
