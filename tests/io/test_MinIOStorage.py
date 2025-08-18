@@ -1,13 +1,15 @@
 import datetime
 import io
+import tempfile
+import shutil
 from packaging.version import Version
 from pathlib import Path
 
 import pytest
-import yaml
+from git import Repo
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.model import SoftwareBackendEnum
+from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.io.RemoteStorage import StorageOptions
 from omnibenchmark.io.exception import RemoteStorageInvalidInputException
 from omnibenchmark.io.MinIOStorage import MinIOStorage
@@ -22,7 +24,11 @@ def get_benchmark_data_path() -> Path:
 class TestMinIOStorage:
     def test_init_fail(self):
         with pytest.raises(AssertionError):
-            MinIOStorage(auth_options={}, benchmark="test", storage_options=StorageOptions(out_dir="out"))
+            MinIOStorage(
+                auth_options={},
+                benchmark="test",
+                storage_options=StorageOptions(out_dir="out"),
+            )
 
     def test_init_success(self, minio_storage):  # noqa: F811
         client = minio_storage.get_storage_client()
@@ -202,47 +208,79 @@ class TestMinIOStorage:
         client._get_objects()
         client.files
 
-        path = get_benchmark_data_path()
-        benchmark_file = Path(path / "mock_benchmark.yaml").as_posix()
+        # Set up a temporary git repository for testing version persistence
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
 
-        with open(benchmark_file, "r") as fh:
-            yaml.safe_load(fh)
-            benchmark = Benchmark(Path(benchmark_file))
+            # Initialize git repo
+            repo = Repo.init(temp_path)
 
-        client.set_version("0.3")
-        client.create_new_version(benchmark)
-        client._get_objects()
-        assert all(
-            [f not in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
-        )
+            # Copy benchmark file to git repo
+            path = get_benchmark_data_path()
+            original_benchmark_file = path / "mock_benchmark.yaml"
+            benchmark_file = temp_path / "mock_benchmark.yaml"
+            shutil.copy2(original_benchmark_file, benchmark_file)
+
+            # Commit the initial benchmark file
+            repo.index.add([str(benchmark_file.name)])
+            repo.index.commit("Initial benchmark commit")
+
+            # Create BenchmarkExecution with git-tracked file
+            benchmark = BenchmarkExecution(benchmark_file)
+
+            client.set_version("0.3")
+            client.create_new_version(benchmark)
+            client._get_objects()
+            assert all(
+                [f not in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
+            )
 
     # fmt: off
     def test_store_software_and_config_with_benchmark(self, minio_storage):  # noqa: F811
     # fmt: on
-        # FIXME! create_new_version fails, need to debug
-        pytest.skip("this test is broken")
 
         client = minio_storage.get_storage_client()
 
-        path = get_benchmark_data_path()
-        benchmark_file = Path(path / "Clustering.yaml").as_posix()
-        with open(benchmark_file, "r") as fh:
-            yaml.safe_load(fh)
-            benchmark = Benchmark(Path(benchmark_file))
+        # Set up a temporary git repository for testing version persistence
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
 
-        benchmark.converter.model.software_backend = SoftwareBackendEnum("conda")
+            # Initialize git repo
+            repo = Repo.init(temp_path)
 
-        client.set_version("0.3")
-        client.create_new_version(benchmark)
-        client._get_objects()
-        client.files.keys()
-        assert all(
-            [
-                f in client.files.keys()
-                for f in [
-                    "software/R_4.4.1_Clustering.yaml",
-                    "software/Python_3.12.6_Clustering.yaml",
-                    "config/benchmark.yaml",
+            # Copy benchmark file to git repo
+            path = get_benchmark_data_path()
+            original_benchmark_file = path / "Clustering.yaml"
+            benchmark_file = temp_path / "Clustering.yaml"
+            shutil.copy2(original_benchmark_file, benchmark_file)
+
+            # Copy environment files as well
+            envs_dir = temp_path / "envs"
+            envs_dir.mkdir()
+            original_envs_dir = path / "envs"
+            for env_file in original_envs_dir.glob("*.yaml"):
+                shutil.copy2(env_file, envs_dir / env_file.name)
+
+            # Commit the initial files
+            repo.index.add([str(benchmark_file.name), "envs/*"])
+            repo.index.commit("Initial benchmark commit")
+
+            # Create BenchmarkExecution with git-tracked file
+            benchmark = BenchmarkExecution(benchmark_file)
+
+            benchmark.model.software_backend = SoftwareBackendEnum("conda")
+
+            client.set_version("0.3")
+            client.create_new_version(benchmark)
+            client._get_objects()
+            client.files.keys()
+            assert all(
+                [
+                    f in client.files.keys()
+                    for f in [
+                        "software/R_4.4.1_Clustering.yaml",
+                        "software/Python_3.12.6_Clustering.yaml",
+                        "config/benchmark.yaml",
+                    ]
                 ]
-            ]
-        )
+            )
