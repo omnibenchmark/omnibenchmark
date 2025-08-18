@@ -1,0 +1,30 @@
+# ty configuration file - optimized for development
+# Note: ty is pre-release software and may have bugs
+
+[environment]
+python-version = "3.12"
+
+[src]
+include = [
+    "omnibenchmark/benchmark",
+    "omnibenchmark/cli",
+    "omnibenchmark/dag",
+    "omnibenchmark/model",
+    "omnibenchmark/io",
+    "tests/dag",
+]
+exclude = [
+    "**/__pycache__",
+    "**/.mypy_cache",
+    "**/.pytest_cache",
+    "**/node_modules",
+    "**/*.pyc",
+    "build/",
+    "dist/",
+    ".venv/",
+    ".git/",
+]
+
+[terminal]
+output-format = "concise"
+error-on-warning = false
