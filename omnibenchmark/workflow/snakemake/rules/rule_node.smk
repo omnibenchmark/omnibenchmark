@@ -1,7 +1,7 @@
 from importlib import resources
 from pathlib import Path
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum, Benchmark
+from omnibenchmark.model import SoftwareBackendEnum, Benchmark
 
 from omnibenchmark.benchmark import Validator, BenchmarkNode
 from omnibenchmark.workflow.snakemake import scripts
@@ -168,7 +168,7 @@ def create_standalone_node_rule(node, config):
 
 
 def _get_environment_path(benchmark: Benchmark, node: BenchmarkNode, software_backend: SoftwareBackendEnum):
-    benchmark_dir = benchmark.directory
+    benchmark_dir = benchmark.context.directory
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
 
