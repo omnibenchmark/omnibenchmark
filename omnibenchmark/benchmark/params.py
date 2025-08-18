@@ -3,6 +3,8 @@ from collections.abc import Mapping
 import json
 import hashlib
 
+from typing import List
+
 
 class Params:
     """
@@ -102,7 +104,7 @@ class Params:
         return args
 
     @classmethod
-    def from_cli_args(cls, args):
+    def from_cli_args(cls, args: List[str]) -> "Params":
         """
         Create Params from command line arguments.
         Supports:
