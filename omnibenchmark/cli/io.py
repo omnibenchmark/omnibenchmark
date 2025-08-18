@@ -7,11 +7,9 @@ import zipfile
 from pathlib import Path
 
 import click
-import yaml
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.cli.utils.validation import validate_benchmark
 from omnibenchmark.io.archive import archive_version
 from omnibenchmark.io.files import checksum_files
 from omnibenchmark.io.files import list_files
@@ -19,8 +17,43 @@ from omnibenchmark.io.files import download_files
 from omnibenchmark.io.S3config import benchmarker_access_token_policy
 from omnibenchmark.io.tree import tree_string_from_list
 from omnibenchmark.io.storage import get_storage, remote_storage_args
+from omnibenchmark.io.MinIOStorage import MinIOStorage
 
 from .debug import add_debug_option
+
+
+class StorageAuth:
+    """Convenience class for handling storage authentication and validation."""
+
+    def __init__(self, benchmark_path: str):
+        self.benchmark_path = benchmark_path
+        self.benchmark = BenchmarkExecution(Path(benchmark_path))
+        self.auth_options = remote_storage_args(self.benchmark)
+
+        # Validate required storage components
+        api = self.benchmark.get_storage_api()
+        bucket = self.benchmark.get_storage_bucket_name()
+
+        if api is None:
+            logger.error("Error: No storage API found.")
+            sys.exit(1)
+        if bucket is None:
+            logger.error("Error: No storage bucket found.")
+            sys.exit(1)
+
+        # Store validated non-null values
+        self.api: str = api
+        self.bucket: str = bucket
+
+    def get_storage_instance(self) -> MinIOStorage:
+        """Get validated storage instance."""
+        ss = get_storage(self.api, self.auth_options, self.bucket)
+        if ss is None:
+            logger.error("Error: No storage found.")
+            sys.exit(1)
+        # Type assertion since we know ss is not None after the exit check
+        assert ss is not None
+        return ss
 
 
 @click.group(name="storage")
@@ -42,28 +75,20 @@ def storage(ctx):
 )
 def create_benchmark_version(benchmark: str):
     """Create a new benchmark version."""
+    assert benchmark is not None
 
-    with open(benchmark, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
+    storage_auth = StorageAuth(benchmark)
+    ss = storage_auth.get_storage_instance()
 
-    auth_options = remote_storage_args(benchmark)
+    ss.set_version(storage_auth.benchmark.get_benchmark_version())
 
-    # setup storage
-    ss = get_storage(
-        str(benchmark.converter.model.storage_api),
-        auth_options,
-        str(benchmark.converter.model.storage_bucket_name),
-    )
-    ss.set_version(benchmark.get_benchmark_version())
     if ss.version in ss.versions:
         logger.error(
             "Error: version already exists. Cannot overwrite.",
         )
         sys.exit(1)
-    else:
-        logger.info("Create a new benchmark version")
-        ss.create_new_version(benchmark)
+    logger.info("Create a new benchmark version")
+    ss.create_new_version(storage_auth.benchmark)
 
 
 @add_debug_option
@@ -182,8 +207,19 @@ def download_all_files(
 def checksum_all_files(benchmark: str):
     """Generate md5sums of all benchmark outputs"""
 
+    # ARCHITECTURAL NOTE: Business Logic in CLI Layer
+    # This function contains domain logic (checksum validation) that belongs in
+    # a service layer. During the LinkML → Pydantic migration, CLI commands retained
+    # business logic to maintain functionality while models were refactored.
+    #
+    # Future consideration: Extract to a ChecksumService that can be used by CLI,
+    # API endpoints, or other interfaces. CLI should only handle argument parsing
+    # and output formatting.
+    # TODO(ben): move this logic away from CLI
     logger.info("Checking MD5 checksums... ")
-    failed_checks_filenames = checksum_files(benchmark=benchmark, verbose=True)
+    failed_checks_filenames = checksum_files(
+        benchmark=benchmark, type="all", stage="", module="", file_id="", verbose=True
+    )
     if len(failed_checks_filenames) > 0:
         logger.error("Failed checksums:")
         for filename in failed_checks_filenames:
@@ -201,22 +237,19 @@ def checksum_all_files(benchmark: str):
     required=True,
     envvar="OB_BENCHMARK",
 )
-def create_policy(benchmark: str):
+def create_policy(benchmark_path: str):
     """Create a new policy for a benchmark."""
 
-    with open(benchmark, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark))
+    assert benchmark_path is not None
 
-    if (
-        str(benchmark.converter.model.storage_api).upper() == "MINIO"
-        or str(benchmark.converter.model.storage_api).upper() == "S3"
+    storage_auth = StorageAuth(benchmark_path)
+    if storage_auth.api and (
+        storage_auth.api.upper() == "MINIO" or storage_auth.api.upper() == "S3"
     ):
-        policy = benchmarker_access_token_policy(
-            benchmark.converter.model.storage_bucket_name
-        )
+        policy = benchmarker_access_token_policy(storage_auth.bucket)
         logger.error(json.dumps(policy, indent=2))
     else:
+        # TODO: this belongs to validation
         logger.error("Error: Invalid storage type. Only MinIO/S3 storage is supported.")
         raise click.Abort()
 
@@ -307,7 +340,11 @@ def archive_benchmark(
         sys.exit(1)
 
     """Archive a benchmark"""
-    benchmark = validate_benchmark(benchmark, "/tmp", echo=False)
+
+    assert benchmark is not None
+
+    storage_auth = StorageAuth(benchmark)
+    benchmark = storage_auth.benchmark
 
     match compression:
         case "none":

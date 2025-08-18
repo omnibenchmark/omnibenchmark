@@ -28,7 +28,7 @@ def combine_performances(
     for perf in performance_files:
         if os.path.exists(perf):
             curr = read_performance(perf)
-            temp_df = pandas.DataFrame(curr, index=[1])
+            temp_df = pandas.DataFrame([curr])
             temp_df["module"] = op.dirname(perf).split("/")[-2]
             temp_df["path"] = perf
             temp_df["params"] = read_params(out_dir, perf)
