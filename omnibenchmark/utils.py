@@ -1,18 +1,26 @@
 """General utils functions"""
 
 import os
-
-from linkml_runtime.loaders import yaml_loader
 import subprocess
 from pathlib import Path
 from typing import List, Union, Any
-import yaml
-import platform
 
-from omni_schema.datamodel.omni_schema import IOFile
+
+# Import moved to function to avoid circular import
 
 
 def try_avail_envmodule(module_name: str) -> bool:
+    """Check if an environment module is available on the system.
+
+    NOTE: This function should only be used in execution contexts (e.g., BenchmarkExecution),
+    not in abstract model validation. Models should remain system-agnostic.
+
+    Args:
+        module_name: Name of the environment module to check
+
+    Returns:
+        bool: True if module is available, False otherwise
+    """
     env = {}
     env.update(os.environ)
 
@@ -36,22 +44,6 @@ def as_list(input: Union[List, Any]):
     return input if isinstance(input, List) else [input]
 
 
-def parse_instance(path: Path, target_class) -> Any:
-    """Load a model of target_class from a file."""
-
-    # Due to a yaml.CLoader issue for Yaml files on Windows, https://github.com/yaml/pyyaml/issues/293
-    # We will have different logic for loading the model based on the OS.
-    # Basically the Windows user will have a slower loading time, because the yaml.Loader does not have the issue
-    if platform.system() == "Windows":
-        with path.open("r") as file:
-            benchmark_yaml = yaml.load(file, yaml.SafeLoader)
-            benchmark = yaml_loader.load(benchmark_yaml, target_class)
-            return benchmark
-    else:
-        benchmark = yaml_loader.load(str(path), target_class)
-        return benchmark
-
-
 def merge_dict_list(list_of_dicts):
     """Merge a list of dictionaries into a single dictionary."""
     merged_dict = {
@@ -61,7 +53,14 @@ def merge_dict_list(list_of_dicts):
     return merged_dict
 
 
-def format_mc_output(output: IOFile, out_dir: Path, collector_id: str):
+def format_mc_output(output, out_dir: Path, collector_id: str):
+    """Format metric collector output path.
+
+    Args:
+        output: IOFile object
+        out_dir: Output directory path
+        collector_id: Collector identifier
+    """
     if output.path:
         o = output.path.replace("{input}", str(out_dir))
         o = o.replace("{name}", collector_id)
