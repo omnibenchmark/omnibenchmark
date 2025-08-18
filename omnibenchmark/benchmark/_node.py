@@ -1,11 +1,12 @@
 import os.path
 from pathlib import Path
+from typing import Optional
 
 
 class BenchmarkNode:
     def __init__(
         self,
-        converter,
+        model,
         stage,
         module,
         parameters,
@@ -13,7 +14,7 @@ class BenchmarkNode:
         outputs,
         after=None,
     ):
-        self.converter = converter
+        self.model = model
         self.stage = stage
         self.module = module
         self.parameters = parameters
@@ -36,25 +37,27 @@ class BenchmarkNode:
         )
 
     def get_benchmark_name(self):
-        return self.converter.get_name()
+        return self.model.get_name()
 
     def get_benchmark_version(self):
-        return self.converter.get_version()
+        return self.model.get_version()
 
     def get_benchmark_author(self):
-        return self.converter.get_author()
+        return self.model.get_author()
 
     def get_benchmark_software_backend(self):
-        return self.converter.get_software_backend()
+        return self.model.get_software_backend()
 
     def get_benchmark_software_environments(self):
-        return self.converter.get_software_environments()
+        return self.model.get_software_environments()
 
     def get_definition(self):
-        return self.converter.get_definition()
+        return self.model
 
-    def get_definition_file(self) -> Path:
-        return self.converter.benchmark_file
+    def get_definition_file(self) -> Optional[Path]:
+        # TODO: This should be passed from the execution context when needed
+        # For now, return None - serialization methods should get the path separately
+        return None
 
     def get_inputs(self):
         return self.inputs.values() if self.inputs else []
@@ -64,8 +67,8 @@ class BenchmarkNode:
 
     def get_explicit_inputs(self):
         explicit_inputs = [
-            self.converter.get_explicit_inputs(i)
-            for i in self.converter.get_stage_implicit_inputs(self.stage)
+            self.model.get_explicit_inputs(i)
+            for i in self.model.get_stage_implicit_inputs(self.stage)
         ]
         return explicit_inputs
 
@@ -129,13 +132,13 @@ class BenchmarkNode:
         return self.parameters
 
     def get_repository(self):
-        return self.converter.get_module_repository(module=self.module)
+        return self.model.get_module_repository(module=self.module)
 
     def get_software_environment(self):
-        return self.converter.get_module_environment(module=self.module)
+        return self.model.get_module_environment(module=self.module)
 
     def is_initial(self):
-        return self.converter.is_initial(self.stage)
+        return self.model.is_initial(self.stage)
 
     def get_stage(self):
         return self.stage
