@@ -72,7 +72,7 @@ build = "*"
 
 [tasks]
 # Basic test tasks - only short tests
-test-short = "pytest -m short"
+test-short = "pytest -m short --cov --cov-branch --cov-report=xml"
 test = { cmd = "pytest -m short", description = "Run short tests only" }
 
 # Linting and type checking
