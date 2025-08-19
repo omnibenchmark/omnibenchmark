@@ -162,10 +162,8 @@ cython_debug/
 # tildes
 *~
 
-# pixi environments (not using it officially yet)
+# pixi environments 
 .pixi
-pixi.lock
-pixi.toml
 
 # snakemake stuff
 Snakefile

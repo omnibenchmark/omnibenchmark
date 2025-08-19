@@ -1,9 +1,0 @@
-channels:
-  - conda-forge
-  - bioconda
-  - nodefaults
-dependencies:
-  - conda-forge::python == 3.12
-  - conda-forge::pip >= 24.1.2
-  - pip:
-     - "."

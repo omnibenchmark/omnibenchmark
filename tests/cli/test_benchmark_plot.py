@@ -35,8 +35,15 @@ def test_benchmark_computational_plot():
         assert "metrics-m3-default-after_methods" in result.stdout
 
 
-def test_benchmark_topology_plot():
-    benchmark = Benchmark(benchmark_data_path / "Benchmark_001.yaml")
+def test_benchmark_topology_plot(tmp_path):
+    import shutil
+
+    # Copy benchmark file to tmp_path to avoid writing to current directory
+    benchmark_file = benchmark_data_path / "Benchmark_001.yaml"
+    copied_benchmark_path = tmp_path / "Benchmark_001.yaml"
+    shutil.copy(benchmark_file, copied_benchmark_path)
+
+    benchmark = Benchmark(copied_benchmark_path, out_dir=tmp_path / "out")
     # XXX what is this testing, exactly? that cli is calling the right method?
     # for that we could use a mock object to test the export_to_mermaid method is called
     expected_output = benchmark.export_to_mermaid()

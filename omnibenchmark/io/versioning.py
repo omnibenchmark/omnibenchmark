@@ -85,13 +85,16 @@ def filter_objects_to_tag(
             for t in storage_options.tracked_directories
             if t not in storage_options.results_directories
         ]
-        return zip(
-            *[
-                (obj, versionid_of_objects_to_tag[i])
-                for i, obj in enumerate(object_names_to_tag)
-                if obj in object_names_to_keep or rootdirs[i] in overwrite_dirs_to_keep
-            ]
-        )
+        filtered_items = [
+            (obj, versionid_of_objects_to_tag[i])
+            for i, obj in enumerate(object_names_to_tag)
+            if obj in object_names_to_keep or rootdirs[i] in overwrite_dirs_to_keep
+        ]
+        if filtered_items:
+            objects, versions = zip(*filtered_items)
+            return list(objects), list(versions)
+        else:
+            return [], []
 
 
 def get_single_remoteversion_from_bmversion(

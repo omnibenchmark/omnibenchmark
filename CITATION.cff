@@ -55,7 +55,7 @@ abstract: >-
   Snakemake, S3-compatible storage handling, and
   reproducible software environments using EasyBuild, lmod,
   Apptainer or conda. Tutorials and installation
-  instructions are available from this https URL. 
+  instructions are available from this https URL.
 keywords:
   - benchmarking
   - reproducible
@@ -71,5 +71,5 @@ keywords:
   - Apptainer
   - workflow
 license: Apache
-commit: 9a71537
-version: 0.2.1
+commit: bbac0c1
+version: 0.3.0

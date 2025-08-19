@@ -1,8 +1,8 @@
 id: timeout_benchmark
 description: simple benchmark, used for fast testing
-version: 1.0
+version: "1.0"
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-benchmark_yaml_spec: 0.1
+api_version: "0.3.0"
 software_backend: host
 software_environments:
   python:

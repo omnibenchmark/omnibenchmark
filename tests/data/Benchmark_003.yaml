@@ -1,11 +1,12 @@
 id: Benchmark_003
 description: simple benchmark, somewhat explicit, simple params
-version: 1.0
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-storage: https://storage.github.com/
-benchmark_yaml_spec: 0.01
-storage_api: S3
-storage_bucket_name: benchmark003
+version: "1.0"
+api_version: "0.3.0"
+storage:
+  api: S3
+  bucket_name: benchmark003
+  endpoint: https://storage.github.com/
 software_backend: host
 software_environments:
   zlib_old:

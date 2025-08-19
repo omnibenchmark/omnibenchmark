@@ -8,16 +8,17 @@ from pathlib import Path
 import click
 import humanfriendly
 
+from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.cli.utils.validation import validate_benchmark
+
+from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.io.storage import get_storage_from_benchmark
 from omnibenchmark.io.storage import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
 from .debug import add_debug_option
-from .utils.args import parse_extra_args
 
 
 @click.group(name="run")
@@ -133,13 +134,12 @@ def run_benchmark(
         )
         sys.exit(1)
 
-    b = validate_benchmark(benchmark, out_dir)
-    if b is None:
-        # this should not happen, because validate raises, but that's not proper behavior.
-        # We should sys.exit from here instead. But just to keep the signature valid.
-        log_error_and_quit(logger, "Invalid benchmark file")
+    try:
+        b = BenchmarkExecution(Path(benchmark), Path(out_dir))
+        logger.info("Benchmark YAML file integrity check passed.")
+    except Exception as e:
+        log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
-
     assert b is not None
 
     # it is as --continue_on_error originally
@@ -176,7 +176,6 @@ def run_benchmark(
         backend=b.get_benchmark_software_backend(),
         debug=debug,
         executor=executor,
-        out_dir=out_dir,
         local_timeout=timeout_s,
         **storage_options,
         **extra_args,
@@ -279,13 +278,11 @@ def run_module(
 
     logger.info("Running module on a local dataset.")
 
-    b = validate_benchmark(benchmark, "/tmp")
-    if b is None:
-        # this should not happen, because validate raises, but that's not proper behavior. We should sys.exit
-        # from here instead. But just to keep the signature valid.
-        log_error_and_quit(logger, "Error: Invalid benchmark file.")
+    try:
+        b = BenchmarkExecution(Path(benchmark), Path("/tmp"))
+    except Exception as e:
+        log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
-
     assert b is not None
     benchmark_nodes = b.get_nodes_by_module_id(module_id=module)
 
@@ -379,6 +376,7 @@ def run_module(
             keep_module_logs=keep_module_logs,
             backend=b.get_benchmark_software_backend(),
             executor=executor,
+            benchmark_file_path=b.get_definition_file(),
             **extra_args,
         )
 
@@ -397,7 +395,11 @@ def run_module(
 def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     logger.info("Validating a benchmark yaml.")
-    _ = validate_benchmark(benchmark, "/tmp")
+    try:
+        _ = BenchmarkExecution(Path(benchmark), Path("/tmp"))
+        logger.info("Benchmark YAML file integrity check passed.")
+    except Exception as e:
+        log_error_and_quit(logger, f"Failed to load benchmark: {e}")
 
 
 def log_error_and_quit(logger, error):

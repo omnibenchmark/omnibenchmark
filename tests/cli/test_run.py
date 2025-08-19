@@ -9,8 +9,8 @@ data = Path(__file__).parent.parent / "data"
 
 
 @pytest.fixture
-def mock_validate_benchmark():
-    with patch("omnibenchmark.cli.run.validate_benchmark") as mock:
+def mock_benchmark_execution():
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock:
         mock.return_value = MagicMock()
         yield mock
 
@@ -30,7 +30,7 @@ def mock_click_confirm():
 
 @pytest.mark.short
 def test_run_benchmark_without_yes(
-    mock_validate_benchmark, mock_workflow_run_workflow, mock_click_confirm
+    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
     Test that if we call run benchmark with --update and a valid benchmark file
@@ -57,7 +57,7 @@ def test_run_benchmark_without_yes(
 
 @pytest.mark.short
 def test_run_benchmark_with_yes(
-    mock_validate_benchmark, mock_workflow_run_workflow, mock_click_confirm
+    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
     Test that if we call run benchmark with -k, a valid benchmark file and the --yes flag
@@ -88,7 +88,7 @@ def test_run_benchmark_with_yes(
 
 @pytest.mark.short
 def test_run_benchmark_with_slurm_executor(
-    mock_validate_benchmark, mock_workflow_run_workflow, mock_click_confirm
+    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
     Test that the benchmark runs with the SLURM executor and

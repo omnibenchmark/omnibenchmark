@@ -1,11 +1,14 @@
 from functools import wraps
+from typing import TypeVar, Union, cast
 
 import click
 
 from .utils.logging import configure_logging
 
+T = TypeVar("T", bound=Union[click.Command, click.Group])
 
-def add_debug_option(cmd):
+
+def add_debug_option(cmd: T) -> T:
     """Decorator to add debug option to commands and groups"""
     if isinstance(cmd, click.Command):
         # For existing commands/groups
@@ -20,7 +23,7 @@ def add_debug_option(cmd):
                     help="Enable debug mode",
                 ),
             )
-        return cmd
+        return cast(T, cmd)
 
     # For functions that will become commands/groups
     @click.option(

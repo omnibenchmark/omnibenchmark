@@ -8,7 +8,7 @@ from pathlib import Path
 from snakemake.cli import args_to_api as snakemake_cli, parse_args
 from typing import TextIO, List, Optional
 
-from omni_schema.datamodel.omni_schema import SoftwareBackendEnum
+from omnibenchmark.model import SoftwareBackendEnum
 
 from omnibenchmark.benchmark import Benchmark, BenchmarkNode
 from omnibenchmark.workflow.workflow import WorkflowEngine
@@ -38,7 +38,6 @@ class SnakemakeEngine(WorkflowEngine):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
-        out_dir: str = "out",
         local_timeout: Optional[int] = None,
         debug: bool = False,
         **snakemake_kwargs,
@@ -56,13 +55,15 @@ class SnakemakeEngine(WorkflowEngine):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
-            out_dir (str): output directory. Default: `out`
 
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
         - Status code (bool) of the workflow run.
         """
+
+        # Get output directory from benchmark context
+        out_dir = str(benchmark.context.out_dir)
 
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(
@@ -98,7 +99,7 @@ class SnakemakeEngine(WorkflowEngine):
         benchmark: Benchmark,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk=True,
-        local_timeout=1000,
+        local_timeout: Optional[int] = 1000,
     ) -> Path:
         """
         Serializes a Snakefile for the benchmark.
@@ -146,7 +147,7 @@ class SnakemakeEngine(WorkflowEngine):
             f.write("nodes = benchmark.get_nodes()\n")
             f.write("for node in nodes:\n")
             f.write(
-                f"    create_node_rule(node, benchmark, config, {local_timeout})\n\n"
+                f"    create_node_rule(node, benchmark, config, {local_timeout or 1000})\n\n"
             )
 
             # Create metric collector rules
@@ -171,6 +172,7 @@ class SnakemakeEngine(WorkflowEngine):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
+        benchmark_file_path: Optional[Path] = None,
         **snakemake_kwargs,
     ) -> bool:
         """
@@ -197,7 +199,9 @@ class SnakemakeEngine(WorkflowEngine):
         os.makedirs(work_dir, exist_ok=True)
 
         # Serialize Snakefile for node workflow
-        snakefile = self.serialize_node_workflow(node, work_dir, write_to_disk=True)
+        snakefile = self.serialize_node_workflow(
+            node, work_dir, write_to_disk=True, benchmark_file_path=benchmark_file_path
+        )
 
         # Prepare the argv list
         argv = self._prepare_argv(
@@ -228,7 +232,8 @@ class SnakemakeEngine(WorkflowEngine):
         self,
         node: BenchmarkNode,
         output_dir: Path = Path(os.getcwd()),
-        write_to_disk=True,
+        write_to_disk: bool = True,
+        benchmark_file_path: Optional[Path] = None,
     ) -> Path:
         """
         Serializes a Snakefile for a benchmark node.
@@ -243,7 +248,11 @@ class SnakemakeEngine(WorkflowEngine):
         """
         os.makedirs(output_dir, exist_ok=True)
 
-        benchmark_file = node.get_definition_file()
+        benchmark_file = benchmark_file_path or node.get_definition_file()
+        if benchmark_file is None:
+            raise ValueError(
+                "benchmark_file_path must be provided when node.get_definition_file() returns None"
+            )
         name = node.get_benchmark_name()
         version = node.get_benchmark_version()
         author = node.get_benchmark_author()

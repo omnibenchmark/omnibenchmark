@@ -33,12 +33,26 @@ def list_files(
     if not local_storage:
         auth_options = remote_storage_args(benchmark)
 
+        storage_api = benchmark.get_storage_api()
+        bucket_name = benchmark.get_storage_bucket_name()
+
+        if storage_api is None:
+            logger.error("Error: No storage API found.")
+            raise ValueError("No storage API found")
+        if bucket_name is None:
+            logger.error("Error: No storage bucket found.")
+            raise ValueError("No storage bucket found")
+
         ss = get_storage(
-            str(benchmark.converter.model.storage_api),
+            storage_api,
             auth_options,
-            str(benchmark.converter.model.storage_bucket_name),
+            bucket_name,
             storage_options,
         )
+        if ss is None:
+            logger.error("Error: No storage found.")
+            raise ValueError("No storage found")
+
         ss.set_version(benchmark.get_benchmark_version())
         ss._get_objects()
         files = {k: v for k, v in ss.files.items() if k in expected_files}
@@ -56,7 +70,7 @@ def list_files(
                 if not file_local_is_local[i]:
                     logger.info(f)
         # make unique
-        objectnames = list(set([Path(f) for f in expected_files]))
+        objectnames = list(set([str(Path(f)) for f in expected_files]))
         etags = []
 
     return objectnames, etags
@@ -87,11 +101,25 @@ def download_files(
 
     auth_options = remote_storage_args(benchmark)
 
+    storage_api = benchmark.get_storage_api()
+    bucket_name = benchmark.get_storage_bucket_name()
+
+    if storage_api is None:
+        logger.error("Error: No storage API found.")
+        raise ValueError("No storage API found")
+    if bucket_name is None:
+        logger.error("Error: No storage bucket found.")
+        raise ValueError("No storage bucket found")
+
     ss = get_storage(
-        str(benchmark.converter.model.storage_api),
+        storage_api,
         auth_options,
-        str(benchmark.converter.model.storage_bucket_name),
+        bucket_name,
     )
+    if ss is None:
+        logger.error("Error: No storage found.")
+        raise ValueError("No storage found")
+
     ss.set_version(benchmark.get_benchmark_version())
     ss._get_objects()
 
@@ -101,7 +129,7 @@ def download_files(
         zip(filenames, etags), delay=5, disable=not verbose
     ):
         if Path(filename).is_file():
-            if etag.replace('"', "") == checksum(filename.as_posix()):
+            if etag.replace('"', "") == checksum(filename):
                 do_download_file.append(False)
             else:
                 if overwrite:
@@ -164,7 +192,7 @@ def checksum_files(
     for etag, filename in tqdm.tqdm(
         zip(etags, filenames), delay=5, disable=not verbose
     ):
-        md5sum_val = checksum(filename.as_posix())
+        md5sum_val = checksum(filename)
         if not etag.replace('"', "") == md5sum_val:
             failed_checksums.append(filename)
     return failed_checksums

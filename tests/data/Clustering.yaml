@@ -1,9 +1,9 @@
 id: clustering_benchmark
 description: Clustering benchmark on Iris and Penguins Dataset.
-version: 1.0
+version: "1.0"
 benchmarker: "OmniBenchmark Team at Robinsons Lab"
 storage: https://play.min.io
-benchmark_yaml_spec: 0.01
+api_version: "0.3.0"
 storage_api: S3
 storage_bucket_name: clustering_benchmark
 software_backend: host
@@ -28,10 +28,13 @@ metric_collectors:
       url: https://github.com/omnibenchmark-example/metric-collector.git
       commit: ef4a601
     inputs:
-      - metrics.mapping
+      - id: metrics.mapping
+        path: "{dataset}.mapping.json"
     outputs:
-      - "biometrics_report.html"
-      - "biometrics.tsv"
+      - id: biometrics_report.html
+        path: "biometrics_report.html"
+      - id: biometrics.tsv
+        path: "biometrics.tsv"
 stages:
   - id: data
     modules:
@@ -46,7 +49,7 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/penguins.git
-          commit: 9032478
+          commit: "9032478"
     outputs:
       - id: data.features
         path: "{dataset}.features.csv"
