@@ -77,6 +77,14 @@ jobs:
 
       - name: Run short tests
         run: pixi run test-short
+        # TODO: make sure we do coverage in pixi target:
+        # uv run pytest -m short --cov --cov-branch --cov-report=xml
+
+      # just an example of integration, CI is re-done in coming PRs
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   test-python-versions:
     name: Test Python 3.13

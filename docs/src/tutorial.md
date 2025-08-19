@@ -337,10 +337,10 @@ flowchart LR
     m1 -- produces --> M2_m1
     m2 -- produces --> M1_m2
     m2 -- produces --> M2_m2
-    M1_m1:::thing -- "is collected by\n(metric collector)" --> c1
-    M1_m2:::thing -- "is collected by\n(metric collector)" --> c1
-    M2_m1:::thing -- "is collected by\n(metric collector)" --> c1
-    M2_m2:::thing -- "is collected by\n(metric collector)" --> c1
+    M1_m1:::thing -- "is collected by\n (metric collector)" --> c1
+    M1_m2:::thing -- "is collected by\n (metric collector)" --> c1
+    M2_m1:::thing -- "is collected by\n (metric collector)" --> c1
+    M2_m2:::thing -- "is collected by\n (metric collector)" --> c1
     c1 -- "renders" --> report
     report:::thing
 ```
