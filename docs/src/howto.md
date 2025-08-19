@@ -7,9 +7,9 @@ Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/proje
 | Backend      | Linux | MacOS | Windows |
 |--------------|-------|-------|---------|
 | Conda        | ✅    | ✅    | ❌       |
-| Apptainer    | ✅    | ❌    | ❌       |
-| Easybuild    | ✅    | ✅    | ❌       |
-| Lmod         | ✅    | ✅    | ❌       |
+| Apptainer    | ✅    | ❌     | ❌       |
+| Easybuild    | ✅    | ⚠️     | ❌       |
+| Lmod         | ✅    | ⚠️     | ❌       |
 
 
 ### Quick Start (Recommended: Conda)
