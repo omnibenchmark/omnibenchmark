@@ -1,0 +1,37 @@
+# OmniBenchmark Module Configuration
+# This file defines the execution semantics for your module
+
+entrypoints:
+  # Default entrypoint for this module
+  default: {{ entrypoint }}
+
+{% if environment_type == 'conda' -%}
+environments:
+  conda: {{ conda_environment }}
+{%- elif environment_type == 'apptainer' -%}
+environments:
+  apptainer: {{ apptainer_container }}
+{%- elif environment_type == 'envmodules' -%}
+environments:
+  envmodules: {{ envmodules_spec }}
+{%- elif environment_type == 'none (I will use the environments defined by the benchmarker)' -%}
+# No specific environment - using benchmark-defined environments
+# {{ none_environment_note }}
+{%- endif %}
+
+# Module metadata (execution-related only)
+# For citation and attribution, see CITATION.cff
+module:
+  name: {{ module_name }}
+  version: "1.0.0"
+
+# Optional: Resource requirements (future extension)
+# resources:
+#   memory: 4GB
+#   cpu: 2
+#   time: 1h
+
+# Optional: Container specifications (future extension)
+# containers:
+#   docker: your-org/your-module:1.0.0
+#   singularity: your-module.sif

@@ -1,0 +1,54 @@
+_templates_suffix: .jinja
+_envops:
+  block_start_string: "{%"
+  block_end_string: "%}"
+  variable_start_string: "{{"
+  variable_end_string: "}}"
+  comment_start_string: "{#"
+  comment_end_string: "#}"
+
+# Git initialization and commits are handled by the CLI
+
+benchmark_name:
+  type: str
+  help: What is the name of your benchmark?
+  placeholder: my-awesome-benchmark
+  default: my-awesome-benchmark
+
+author_name:
+  type: str
+  help: What is your name?
+  placeholder: Your Name
+  default: Your Name
+
+author_email:
+  type: str
+  help: What is your email?
+  placeholder: you@example.com
+  default: you@example.com
+
+license:
+  type: str
+  help: Choose a license for your benchmark
+  choices:
+    - MIT
+    - Apache-2.0
+    - GPL-3.0
+    - BSD-3-Clause
+    - CC0-1.0
+  default: MIT
+
+description:
+  type: str
+  help: Brief description of your benchmark
+  placeholder: A brief description of what this benchmark does
+  default: ""
+
+software_backend:
+  type: str
+  help: Choose the default software environment backend
+  choices:
+    - conda
+    - apptainer
+    - envmodules
+  default: conda

@@ -3,6 +3,10 @@
 This document records all notable changes to `omnibenchmark`.
 This project uses [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [0.4.0](main) UNRELEASED
+
+- feat: add create benchmark & create module command (#171)
+
 ## [0.3.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.3.0) (Aug 15th 2025)
 
 - feat: SLURM support (#147)

@@ -52,6 +52,9 @@ dependencies = [
     "omni-schema>=0.0.6",                               # To be deprecated
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
 
+    # Templating
+    "copier>=9.0.0",
+
 ]
 
 [project.urls]
@@ -79,7 +82,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["omnibenchmark"]
+include = ["omnibenchmark*"]
+
+[tool.setuptools.package-data]
+omnibenchmark = ["templates/**/*"]
 
 [tool.setuptools_scm]
 # Optional settings (or leave empty for default)
