@@ -85,7 +85,7 @@ references:
 ```
 
 
-It remains to be defined what omnibenchmark execution should do with the provided environments. One conservative option is to use the benchmark YAML environments, but make use of the contributor provided environment (if any) as references of known, good working environments (in terms of version compativbility, it's understood that module contributors only provide assurances about the tested list of explicit and implicit dependencies.)
+It remains to be defined what omnibenchmark execution should do with the provided environments. One conservative option is to use the benchmark YAML environments, but make use of the contributor provided environment (if any) as references of known, good working environments (in terms of version compatibility, it's understood that module contributors only provide assurances about the tested list of explicit and implicit dependencies.)
 
 ### Semantic Fields
 
