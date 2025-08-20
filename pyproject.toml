@@ -40,13 +40,15 @@ dependencies = [
     "easybuild-easyblocks>=5.0.0",
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
 
+    # Templating
+    "copier>=9.0.0",
+
     # graph visualization (can be made optional)
     "matplotlib==3.8.0",
     "pydot>=3.0.2",
 
     # can probably move to optional deps
     "tqdm>=4.66.4",
-
 ]
 
 [project.urls]
@@ -74,7 +76,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["omnibenchmark"]
+include = ["omnibenchmark*"]
+
+[tool.setuptools.package-data]
+omnibenchmark = ["templates/**/*"]
 
 [tool.setuptools_scm]
 # Optional settings (or leave empty for default)
