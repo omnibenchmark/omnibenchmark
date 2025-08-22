@@ -1,0 +1,30 @@
+"""Main functions for the OmniBenchmark module."""
+
+def add_numbers(a, b):
+    """Add two numbers together.
+
+    Args:
+        a: First number
+        b: Second number
+
+    Returns:
+        Sum of a and b
+    """
+    return a + b
+
+
+def process_data(input_path, output_path):
+    """Process data from input to output file.
+
+    Args:
+        input_path: Path to input file
+        output_path: Path to output file
+    """
+    print(f"Processing data from {input_path} to {output_path}")
+
+    # Example processing
+    result = add_numbers(1, 2)
+
+    # Write result to output file
+    with open(output_path, 'w') as f:
+        f.write(f"Result: {result}\n")
