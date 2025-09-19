@@ -2,10 +2,10 @@
 
 import sys
 from pathlib import Path
-import subprocess
 
 import click
 import copier
+import git
 
 from omnibenchmark import __version__
 from omnibenchmark.cli.utils.logging import logger
@@ -50,29 +50,22 @@ def _initialize_git_repo(
     try:
         # Initialize git repository if it doesn't exist
         if not git_dir.exists():
-            subprocess.run(
-                ["git", "init"], cwd=target_path, check=True, capture_output=True
-            )
+            repo = git.Repo.init(target_path)
             logger.info("Initialized Git repository")
+        else:
+            repo = git.Repo(target_path)
 
         # Add all files and create initial commit
-        subprocess.run(
-            ["git", "add", "."], cwd=target_path, check=True, capture_output=True
-        )
+        repo.git.add(A=True)
 
         commit_msg = f"Initial commit: Create {project_name} {project_type}\n\nGenerated with OmniBenchmark v{__version__}"
 
-        subprocess.run(
-            ["git", "commit", "-m", commit_msg],
-            cwd=target_path,
-            check=True,
-            capture_output=True,
-        )
+        repo.index.commit(commit_msg)
         logger.info("Created initial commit")
-    except subprocess.CalledProcessError as e:
+    except git.exc.GitCommandError as e:
         logger.warning(f"Git initialization failed: {e}")
-    except FileNotFoundError:
-        logger.warning("Git not found. Please install Git to initialize repository.")
+    except Exception as e:
+        logger.warning(f"Git initialization failed: {e}")
 
 
 def _make_file_executable(file_path: Path) -> None:
