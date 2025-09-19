@@ -62,7 +62,7 @@ def _initialize_git_repo(
 
         repo.index.commit(commit_msg)
         logger.info("Created initial commit")
-    except git.exc.GitCommandError as e:
+    except git.GitCommandError as e:
         logger.warning(f"Git initialization failed: {e}")
     except Exception as e:
         logger.warning(f"Git initialization failed: {e}")
@@ -72,6 +72,178 @@ def _make_file_executable(file_path: Path) -> None:
     """Make a file executable."""
     if file_path.exists():
         file_path.chmod(0o755)
+
+
+def _create_env_skeleton_files(
+    target_path: Path, software_backend: str, benchmark_name: str
+) -> None:
+    """Create skeleton/recipe files and placeholders for non-conda environment backends."""
+    envs_dir = target_path / "envs"
+    envs_dir.mkdir(exist_ok=True)
+
+    if software_backend == "apptainer":
+        # Create Apptainer definition file (recipe to build SIF)
+        def_file = envs_dir / "example.def"
+        with open(def_file, "w") as f:
+            f.write(f"""Bootstrap: docker
+From: ubuntu:20.04
+
+%labels
+    Author {benchmark_name} Team
+    Version v1.0
+
+%help
+    Container for {benchmark_name} benchmark
+
+    This definition file can be used to build the Apptainer image:
+        sudo apptainer build example.sif example.def
+
+%post
+    # Update system packages
+    apt-get update && apt-get install -y \\
+        python3 \\
+        python3-pip \\
+        r-base \\
+        wget \\
+        curl \\
+        git
+
+    # TODO: Install your benchmark-specific software here
+    # Examples:
+    # pip3 install numpy pandas scikit-learn
+    # R -e "install.packages(c('tidyverse', 'ggplot2'))"
+
+    # Clean up
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    echo "Container for {benchmark_name} benchmark"
+    exec "$@"
+""")
+
+        # Create conversion script for Docker images
+        convert_script = envs_dir / "docker_to_sif.sh"
+        with open(convert_script, "w") as f:
+            f.write("""#!/bin/bash
+# Convert Docker image to Apptainer SIF format
+# Usage: ./docker_to_sif.sh <docker_image> [output_name]
+
+DOCKER_IMAGE=${{1:-ubuntu:20.04}}
+OUTPUT_NAME=${{2:-example.sif}}
+
+echo "Converting Docker image $DOCKER_IMAGE to $OUTPUT_NAME"
+apptainer build "$OUTPUT_NAME" "docker://$DOCKER_IMAGE"
+
+# TODO: Replace with your actual Docker image
+# Examples:
+# apptainer build example.sif docker://continuumio/miniconda3
+# apptainer build example.sif docker://rocker/r-ver:4.1.0
+""")
+        convert_script.chmod(0o755)
+
+        # Create minimal placeholder SIF (just for validation)
+        placeholder_sif = envs_dir / "example.sif"
+        with open(placeholder_sif, "w") as f:
+            f.write("""# PLACEHOLDER FILE - NOT A REAL SIF IMAGE
+# This is a placeholder to prevent validation errors.
+#
+# To create the actual SIF file, use one of:
+# 1. Build from definition: sudo apptainer build example.sif example.def
+# 2. Convert from Docker: ./docker_to_sif.sh your-docker-image example.sif
+# 3. Pull from registry: apptainer pull example.sif library://your-image
+#
+# Replace this file with your actual .sif image file.
+""")
+
+        logger.info(
+            "Created Apptainer skeleton files: definition file, conversion script, and placeholder"
+        )
+
+    elif software_backend == "envmodules":
+        # Create EasyBuild recipe skeleton
+        eb_file = envs_dir / f"{benchmark_name}-1.0.0.eb"
+        with open(eb_file, "w") as f:
+            f.write(f"""easyblock = 'Bundle'
+
+name = '{benchmark_name}'
+version = '1.0.0'
+
+homepage = 'https://github.com/your-org/{benchmark_name}'
+description = "Software environment for {benchmark_name} benchmark"
+
+toolchain = {{'name': 'foss', 'version': '2023a'}}
+
+dependencies = [
+    # TODO: Add your software dependencies here
+    # Examples:
+    # ('Python', '3.11.3'),
+    # ('R', '4.3.0'),
+    # ('numpy', '1.24.3', '-Python-%(pyver)s'),
+    # ('pandas', '2.0.3', '-Python-%(pyver)s'),
+]
+
+# Allow system to figure out module hierarchy
+moduleclass = 'tools'
+
+# TODO: Add any additional configuration needed
+""")
+
+        # Create module file template
+        module_template = envs_dir / "module-template.lua"
+        with open(module_template, "w") as f:
+            f.write(f"""-- Template for {benchmark_name} environment module
+-- This file shows the structure needed for your environment module
+-- The actual module file should be installed by your system administrator
+
+help([[
+{benchmark_name} benchmark environment
+
+This module provides all software dependencies for the {benchmark_name} benchmark.
+]])
+
+whatis("Name: {benchmark_name}")
+whatis("Version: 1.0.0")
+whatis("Description: Software environment for {benchmark_name} benchmark")
+
+-- TODO: Load required modules (these must be available on your system)
+-- Examples:
+-- load("GCC/11.3.0")
+-- load("Python/3.11.3-GCCcore-11.3.0")
+-- load("R/4.3.0-foss-2023a")
+
+-- TODO: Set environment variables if needed
+-- Examples:
+-- setenv("BENCHMARK_HOME", "/path/to/benchmark")
+-- prepend_path("PATH", "/path/to/benchmark/bin")
+
+conflict("{benchmark_name}")
+""")
+
+        # Create placeholder module file (just for validation)
+        placeholder_module = envs_dir / "module-x_y_z.lua"
+        with open(placeholder_module, "w") as f:
+            f.write(f"""-- PLACEHOLDER MODULE FILE
+-- This is a placeholder to prevent validation errors.
+--
+-- The actual module file should be:
+-- 1. Built using EasyBuild with the provided .eb file, OR
+-- 2. Created by system admin based on the module-template.lua, AND
+-- 3. Installed in your system's module path
+--
+-- This placeholder will be replaced when you load the actual module.
+
+help("PLACEHOLDER - Replace with actual module")
+whatis("Name: {benchmark_name} PLACEHOLDER")
+whatis("Version: placeholder")
+""")
+
+        logger.info(
+            "Created Environment Modules skeleton files: EasyBuild recipe, module template, and placeholder"
+        )
 
 
 def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
@@ -300,20 +472,30 @@ def create_benchmark(
                 unsafe=True,
             )
 
-        # Read benchmark name for git commit
+        # Read benchmark name and software backend for post-processing
         benchmark_name = name or "OmniBenchmark project"
-        if not name:
-            benchmark_yaml = target_path / "benchmark.yaml"
-            if benchmark_yaml.exists():
-                try:
-                    import yaml
+        software_backend_used = "conda"  # default
 
-                    with open(benchmark_yaml, "r") as f:
-                        config = yaml.safe_load(f)
-                        if config and "name" in config:
+        benchmark_yaml = target_path / "benchmark.yaml"
+        if benchmark_yaml.exists():
+            try:
+                import yaml
+
+                with open(benchmark_yaml, "r") as f:
+                    config = yaml.safe_load(f)
+                    if config:
+                        if not name and "name" in config:
                             benchmark_name = config["name"]
-                except Exception:
-                    pass  # Fall back to default name
+                        if "software_backend" in config:
+                            software_backend_used = config["software_backend"]
+            except Exception:
+                pass  # Fall back to defaults
+
+        # Create skeleton/recipe files for non-conda backends
+        if software_backend_used in ["apptainer", "envmodules"]:
+            _create_env_skeleton_files(
+                target_path, software_backend_used, benchmark_name
+            )
 
         # Initialize git repository and create initial commit
         _initialize_git_repo(target_path, benchmark_name, "benchmark")
