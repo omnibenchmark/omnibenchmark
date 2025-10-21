@@ -33,35 +33,102 @@ def _create_initial_node(benchmark, node, config, local_timeout):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
-    rule:
-        name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
-        wildcard_constraints:
-            stage=stage_id,
-            module=module_id,
-            params=param_id,
-            dataset=module_id
-        benchmark:
-            formatter.format_performance_file(node, out_dir)
-        output:
-            formatter.format_output_templates_to_be_expanded(node)
+    software_backend = benchmark.get_benchmark_software_backend()
 
-        # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
-        # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
-        # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
-        conda:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda) or "conda_not_provided.yml"
-        envmodules:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
-        container:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
-        params:
-            repository_url = repository_url,
-            commit_hash = commit_hash,
-            parameters = node.get_parameters(),
-            dataset = module_id,
-            keep_module_logs=config['keep_module_logs'],
-            local_task_timeout=local_timeout
-        script: get_script_path(RUN_MODULE)
+    # Only set environment directive for the backend that's actually being used
+    if software_backend == SoftwareBackendEnum.conda:
+        conda_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                stage=stage_id,
+                module=module_id,
+                params=param_id,
+                dataset=module_id
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output:
+                formatter.format_output_templates_to_be_expanded(node)
+            conda:
+                conda_env
+            params:
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                dataset = module_id,
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
+
+    elif software_backend == SoftwareBackendEnum.envmodules:
+        envmodules_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                stage=stage_id,
+                module=module_id,
+                params=param_id,
+                dataset=module_id
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output:
+                formatter.format_output_templates_to_be_expanded(node)
+            envmodules:
+                envmodules_env
+            params:
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                dataset = module_id,
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
+
+    elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
+        container_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                stage=stage_id,
+                module=module_id,
+                params=param_id,
+                dataset=module_id
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output:
+                formatter.format_output_templates_to_be_expanded(node)
+            container:
+                container_env
+            params:
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                dataset = module_id,
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
+
+    else:
+        # host or other backend - no environment directive needed
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                stage=stage_id,
+                module=module_id,
+                params=param_id,
+                dataset=module_id
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output:
+                formatter.format_output_templates_to_be_expanded(node)
+            params:
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                dataset = module_id,
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
 
 
 def _create_intermediate_node(benchmark, node, config, local_timeout):
@@ -90,35 +157,100 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
 
     fmt_fn = formatter.format_output_templates_to_be_expanded
 
-    rule:
-        name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
-        wildcard_constraints:
-            post=post,
-            stage=stage_id,
-            module=module_id
-        input:
-            lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
-        benchmark:
-            formatter.format_performance_file(node, out_dir)
-        output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
+    # Get the software backend and corresponding environment path
+    software_backend = benchmark.get_benchmark_software_backend()
 
-        # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
-        # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
-        # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
-        conda:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.conda) or "conda_not_provided.yml"
-        envmodules:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
-        container:
-            _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
-        params:
-            inputs_map = inputs_map,
-            repository_url = repository_url,
-            commit_hash = commit_hash,
-            parameters = node.get_parameters(),
-            keep_module_logs=config['keep_module_logs'],
-            local_task_timeout=local_timeout
-        script: get_script_path(RUN_MODULE)
+    # Only set environment directive for the backend that's actually being used
+    if software_backend == SoftwareBackendEnum.conda:
+        conda_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                post=post,
+                stage=stage_id,
+                module=module_id
+            input:
+                lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
+            conda:
+                conda_env
+            params:
+                inputs_map = inputs_map,
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
+    elif software_backend == SoftwareBackendEnum.envmodules:
+        envmodules_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                post=post,
+                stage=stage_id,
+                module=module_id
+            input:
+                lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
+            envmodules:
+                envmodules_env
+            params:
+                inputs_map = inputs_map,
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
+    elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
+        container_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                post=post,
+                stage=stage_id,
+                module=module_id
+            input:
+                lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
+            container:
+                container_env
+            params:
+                inputs_map = inputs_map,
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
+    else:
+        # host or other backend - no environment directive needed
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                post=post,
+                stage=stage_id,
+                module=module_id
+            input:
+                lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
+            benchmark:
+                formatter.format_performance_file(node, out_dir)
+            output: touch(fmt_fn(node)) if keep_going else fmt_fn(node)
+            params:
+                inputs_map = inputs_map,
+                repository_url = repository_url,
+                commit_hash = commit_hash,
+                parameters = node.get_parameters(),
+                keep_module_logs=config['keep_module_logs'],
+                local_task_timeout=local_timeout
+            script: get_script_path(RUN_MODULE)
 
 
 def create_standalone_node_rule(node, config):

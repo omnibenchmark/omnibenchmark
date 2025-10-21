@@ -54,28 +54,74 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
         updated_inputs.extend(filtered_input_paths)
         updated_inputs_map[key] = filtered_input_paths
 
-    rule:
-        name: f"metric_collector_{{name}}".format(name=collector.id)
-        input:
-            expand(updated_inputs, allow_missing=True)
-        output:
-            formatter.format_metric_collector_output(benchmark.out_dir, collector)
+    software_backend = benchmark.get_benchmark_software_backend()
 
-        # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
-        # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
-        # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
-        conda:
-            _get_environment_paths(benchmark,collector,SoftwareBackendEnum.conda) or "conda_not_provided.yml"
-        envmodules:
-            _get_environment_paths(benchmark,collector,SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
-        container:
-            _get_environment_paths(benchmark,collector,SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
-        params:
-            inputs_map=updated_inputs_map,
-            repository_url=repository_url,
-            commit_hash=commit_hash,
-            keep_module_logs=config['keep_module_logs']
-        script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+    # Only set environment directive for the backend that's actually being used
+    if software_backend == SoftwareBackendEnum.conda:
+        conda_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.conda)
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            conda:
+                conda_env
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=config['keep_module_logs']
+            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+
+    elif software_backend == SoftwareBackendEnum.envmodules:
+        envmodules_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.envmodules)
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            envmodules:
+                envmodules_env
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=config['keep_module_logs']
+            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+
+    elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
+        container_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.apptainer)
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            container:
+                container_env
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=config['keep_module_logs']
+            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+
+    else:
+        # host or other backend - no environment directive needed
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=config['keep_module_logs']
+            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
 
 
 def _compile_regex_pattern_for_collectors_input(pattern: str) -> re.Pattern[str]:
