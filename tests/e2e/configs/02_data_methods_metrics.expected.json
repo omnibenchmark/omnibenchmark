@@ -1,0 +1,7 @@
+{
+  "data/D1/*/D1_data.json": 2,
+  "data/D2/*/D2_data.json": 4,
+  "data/D1/*/methods/M1/*/D1_data.json": 102,
+  "data/D2/*/methods/M1/*/D2_data.json": 104,
+  "metrics/metrics.json": { "avg": 103, "max": 104 }
+}

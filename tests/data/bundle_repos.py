@@ -11,7 +11,8 @@ from typing import Dict, Tuple
 
 REPOS = {
     "https://github.com/omnibenchmark-example/data.git": "bundles/data.bundle",
-    "https://github.com/btraven00/dummymodule/": "bundles/dummymodule.bundle",
+    "https://github.com/btraven00/dummymodule": "bundles/dummymodule.bundle",
+    "https://github.com/btraven00/ob-test-collector": "bundles/dummycollector.bundle",
 }
 
 

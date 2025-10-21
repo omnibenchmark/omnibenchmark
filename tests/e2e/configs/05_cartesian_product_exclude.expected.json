@@ -1,0 +1,11 @@
+{
+  "data/D1/*/D1_data.json": 100,
+  "data/D2/*/D2_data.json": 200,
+  "data/D3/*/D3_data.json": 300,
+  "data/D1/*/methods/M1/*/D1_method.json": 1100,
+  "data/D1/*/methods/M2/*/D1_method.json": 2100,
+  "data/D2/*/methods/M1/*/D2_method.json": 1200,
+  "data/D3/*/methods/M1/*/D3_method.json": 1300,
+  "data/D3/*/methods/M2/*/D3_method.json": 2300,
+  "metrics/metrics.json": { "avg": 1600.0, "max": 2300.0 }
+}
