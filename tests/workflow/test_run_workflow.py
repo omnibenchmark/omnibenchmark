@@ -12,7 +12,7 @@ from tests.workflow.Snakemake_setup import SnakemakeSetup
 from .path import data
 
 
-def pytest_addoption(parser):
+def pytest_adoption(parser):
     parser.addoption(
         "--keep-files",
         action="store_true",
