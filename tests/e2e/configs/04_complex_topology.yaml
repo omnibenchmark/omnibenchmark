@@ -1,0 +1,258 @@
+id: ComplexTopologyBenchmark
+description: Complex pipeline demonstrating asymmetric dataset-method aggregation patterns and cross-group processing
+version: "1.0"
+benchmarker: "E2E Test Suite"
+benchmark_yaml_spec: 0.3
+#api_version: "0.3.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data_primary
+    modules:
+      - id: D1
+        name: "Primary Dataset 1"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "100"]
+
+      - id: D2
+        name: "Primary Dataset 2"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "200"]
+    outputs:
+      - id: data_primary.raw
+        path: "{dataset}_data.json"
+
+  - id: data_secondary
+    modules:
+      - id: D3
+        name: "Secondary Dataset 3"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "300"]
+
+      - id: D4
+        name: "Secondary Dataset 4"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "400"]
+    outputs:
+      - id: data_secondary.raw
+        path: "{dataset}_data.json"
+
+  - id: preprocessing_primary
+    modules:
+      - id: P1
+        name: "Primary Preprocessing - Normalize"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+10",
+                "--input",
+                "data_primary.raw",
+                "--kind",
+                "normalized",
+              ]
+    inputs:
+      - entries:
+          - data_primary.raw
+    outputs:
+      - id: preprocessing_primary.normalized
+        path: "{dataset}_normalized.json"
+
+  - id: preprocessing_secondary
+    modules:
+      - id: P2
+        name: "Secondary Preprocessing - Normalize"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+10",
+                "--input",
+                "data_secondary.raw",
+                "--kind",
+                "normalized",
+              ]
+    inputs:
+      - entries:
+          - data_secondary.raw
+    outputs:
+      - id: preprocessing_secondary.normalized
+        path: "{dataset}_normalized.json"
+
+  - id: methods_group1
+    modules:
+      - id: M1
+        name: "Group 1 Method 1 - Works on primary preprocessed data"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+1000",
+                "--input",
+                "preprocessing_primary.normalized",
+                "--kind",
+                "method",
+              ]
+
+      - id: M2
+        name: "Group 1 Method 2 - Works on primary preprocessed data"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+2000",
+                "--input",
+                "preprocessing_primary.normalized",
+                "--kind",
+                "method",
+              ]
+    inputs:
+      - entries:
+          - preprocessing_primary.normalized
+    outputs:
+      - id: methods_group1.result
+        path: "{dataset}_method.json"
+
+  - id: methods_group1_secondary
+    modules:
+      - id: M1S
+        name: "Group 1S Method 1 - Works on secondary preprocessed data"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+1000",
+                "--input",
+                "preprocessing_secondary.normalized",
+                "--kind",
+                "method",
+              ]
+
+      - id: M2S
+        name: "Group 1S Method 2 - Works on secondary preprocessed data"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+2000",
+                "--input",
+                "preprocessing_secondary.normalized",
+                "--kind",
+                "method",
+              ]
+    inputs:
+      - entries:
+          - preprocessing_secondary.normalized
+    outputs:
+      - id: methods_group1_secondary.result
+        path: "{dataset}_method.json"
+
+  - id: methods_group2
+    modules:
+      - id: M3
+        name: "Group 2 Method - Works only on primary datasets"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+3000",
+                "--input",
+                "data_primary.raw",
+                "--kind",
+                "method",
+              ]
+    inputs:
+      - entries:
+          - data_primary.raw
+    outputs:
+      - id: methods_group2.result
+        path: "{dataset}_method.json"
+
+  - id: methods_group3
+    modules:
+      - id: M4
+        name: "Group 3 Method - Works on secondary datasets"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+4000",
+                "--input",
+                "data_secondary.raw",
+                "--kind",
+                "method",
+              ]
+    inputs:
+      - entries:
+          - data_secondary.raw
+    outputs:
+      - id: methods_group3.result
+        path: "{dataset}_method.json"
+
+metric_collectors:
+  - id: MC1
+    name: "Gather and calculate metrics from all method groups"
+    software_environment: "host"
+    repository:
+      url: bundles/dummycollector_9e3a99a.bundle
+      commit: 9e3a99a
+    inputs:
+      - methods_group1.result
+      - methods_group1_secondary.result
+      - methods_group2.result
+      - methods_group3.result
+    outputs:
+      - id: metrics.summary
+        path: "{input}/metrics/metrics.json"
