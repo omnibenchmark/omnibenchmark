@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Any
 
 from omnibenchmark.model import MetricCollector, SoftwareBackendEnum
 
@@ -13,8 +13,9 @@ from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_com
 import logging
 logging.getLogger('snakemake').setLevel(logging.DEBUG)
 
+def create_all_rule(config, paths: List[str], aggregate_performance: bool = False):
+    out_dir = config['out_dir']
 
-def create_all_rule(paths: List[str], aggregate_performance: bool = False):
     if not aggregate_performance:
         rule all:
             input: paths,
@@ -39,10 +40,13 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
                 write_combined_performance_file(output_dir, performances)
 
 
-def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, node_output_paths: List[str]):
+def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, config: dict[str, Any], node_output_paths: List[str]):
     repository = collector.repository
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
+
+    software_backend = config['backend']
+    keep_module_logs = config.get('keep_module_logs', False)
 
     inputs_map = formatter.format_metric_collector_input(benchmark, collector, return_as_dict=True)
 
@@ -54,28 +58,74 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
         updated_inputs.extend(filtered_input_paths)
         updated_inputs_map[key] = filtered_input_paths
 
-    rule:
-        name: f"metric_collector_{{name}}".format(name=collector.id)
-        input:
-            expand(updated_inputs, allow_missing=True)
-        output:
-            formatter.format_metric_collector_output(benchmark.context.out_dir, collector)
+    # Only set environment directive for the backend that's actually being used
+    # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
+    # TODO Factor out the conditional rule generation when working on the above issue
+    if software_backend == SoftwareBackendEnum.conda:
+        conda_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.conda)
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            conda:
+                conda_env
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=keep_module_logs
+            script: get_script_path(RUN_MODULE)
 
-        # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
-        # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
-        # See https://github.com/snakemake/snakemake/releases/tag/v8.25.2
-        conda:
-            _get_environment_paths(benchmark,collector,SoftwareBackendEnum.conda) or "conda_not_provided.yml"
-        envmodules:
-            _get_environment_paths(benchmark,collector,SoftwareBackendEnum.envmodules) or "module/not_provided/0.0.0"
-        container:
-            _get_environment_paths(benchmark,collector,SoftwareBackendEnum.apptainer) or "container_not_provided.sif"
-        params:
-            inputs_map=updated_inputs_map,
-            repository_url=repository_url,
-            commit_hash=commit_hash,
-            keep_module_logs=config['keep_module_logs']
-        script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+    elif software_backend == SoftwareBackendEnum.envmodules:
+        envmodules_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.envmodules)
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            envmodules:
+                envmodules_env
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=keep_module_logs
+            script: get_script_path(RUN_MODULE)
+
+    elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
+        container_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.apptainer)
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            container:
+                container_env
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=keep_module_logs
+            script: get_script_path(RUN_MODULE)
+
+    else:
+        # host or other backend - no environment directive needed
+        rule:
+            name: f"metric_collector_{{name}}".format(name=collector.id)
+            input:
+                expand(updated_inputs, allow_missing=True)
+            output:
+                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            params:
+                inputs_map=updated_inputs_map,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                keep_module_logs=keep_module_logs
+            script: get_script_path(RUN_MODULE)
 
 
 def _compile_regex_pattern_for_collectors_input(pattern: str) -> re.Pattern[str]:
