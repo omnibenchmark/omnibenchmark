@@ -53,7 +53,7 @@ stages:
           - values: ["-a 2", "-b 0.5"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
       - id: P2
         software_environment: "zlib_new"
         parameters:
@@ -62,11 +62,11 @@ stages:
           - values: ["-a 2", "-b 0.5"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries:
           - data.counts
           - data.meta
     outputs:
       - id: process.filtered
-        path: "{dataset}.txt.gz"
+        path: "{dataset}.processed.txt.gz"

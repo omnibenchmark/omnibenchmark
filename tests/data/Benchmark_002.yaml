@@ -47,7 +47,7 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries: [
           data.counts,
@@ -55,7 +55,7 @@ stages:
         ]
     outputs:
       - id: data.normalized
-        path: "{dataset}.txt.gz"
+        path: "{dataset}.processed.txt.gz"
 
   - id: select_counts
     modules:
@@ -63,12 +63,12 @@ stages:
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
       - id: seurat
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries:
           - data.normalized
@@ -76,7 +76,7 @@ stages:
           - data.meta
     outputs:
       - id: select_counts.selected
-        path: "{dataset}.txt.gz"
+        path: "{dataset}_counts.txt.gz"
 
   - id: select_lognorm
     modules:
@@ -85,13 +85,13 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
       - id: scran
         exclude: [select_counts]
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries:
           - data.normalized
@@ -99,7 +99,7 @@ stages:
           - data.coord
     outputs:
       - id: select_lognorm.selected
-        path: "{dataset}.txt.gz"
+        path: "{dataset}_lognorm.txt.gz"
 
   - id: dimred
     modules:
@@ -118,7 +118,7 @@ stages:
           - select_counts.selected
     outputs:
       - id: pca.matrix
-        path: "{dataset}.txt.gz"
+        path: "{dataset}_dimred.txt.gz"
 
   - id: methods
     modules:
