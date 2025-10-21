@@ -3,6 +3,9 @@
 This document records all notable changes to `omnibenchmark`.
 This project uses [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## 0.3.1 Unreleased
+- fix: the need to define dummy software environments for unused backends
+
 ## [0.3.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.3.0) (Aug 15th 2025)
 
 - feat: SLURM support (#147)
@@ -11,7 +14,7 @@ This project uses [Semantic Versioning](https://semver.org/) and [Conventional C
 - feat: add extra profiler to the snakemake execution (#151)
 - fix: Restrict yaml output paths and hide implementation details (#138)
 - refactor: remove the software command
-- tests: disable snakemake-only tests that only exercise environemtes, under rework
+- tests: disable snakemake-only tests that only exercise environments, under rework
 - chore(pkg): use setuptools for builds instead of poetry
 
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Aug 1st 2025)
