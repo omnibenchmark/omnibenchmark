@@ -91,7 +91,9 @@ class TestValidationConsistency:
                 }
             ],
         )
-        assert valid_benchmark.validate_software_environments() is None
+        errors = []
+        valid_benchmark._validate_software_environments(errors)
+        assert len(errors) == 0
 
         # Invalid: environment doesn't exist
         with pytest.raises((ValidationError, OmnibenchmarkValidationError)):
@@ -276,37 +278,6 @@ class TestValidationConsistency:
                 ]
             )
 
-    def test_unused_environment_warning(self):
-        """Test that unused environments generate warnings."""
-        import warnings
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-
-            benchmark = make_benchmark(
-                software_environments=[
-                    {"id": "used_env", "conda": "used.yaml"},
-                    {
-                        "id": "unused_env",
-                        "conda": "unused.yaml",
-                    },  # This should trigger warning
-                ],
-                stages=[
-                    {
-                        "id": "stage1",
-                        "modules": [{"id": "mod1", "software_environment": "used_env"}],
-                        "outputs": [],
-                    }
-                ],
-            )
-
-            # Trigger validation that checks for unused environments
-            benchmark.validate_software_environments()
-
-            # Check that warning was issued for unused environment
-            warning_messages = [str(warning.message) for warning in w]
-            assert any("unused_env" in msg for msg in warning_messages)
-
     def test_comprehensive_valid_benchmark(self):
         """Test creation of a comprehensive, fully valid benchmark."""
         benchmark = make_benchmark(
@@ -355,7 +326,9 @@ class TestValidationConsistency:
 
         # Validate the benchmark structure
         benchmark.validate_model_structure()
-        benchmark.validate_software_environments()
+        errors = []
+        benchmark._validate_software_environments(errors)
+        assert len(errors) == 0
 
         # Verify relationships are consistent
         env_ids = {env.id for env in benchmark.software_environments}

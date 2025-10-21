@@ -14,7 +14,22 @@ from .path import data
 from ..fixtures import bundled_repos  # noqa: F401 - pytest fixture
 
 
-def test_run_workflow_001(snakemake_env, tmp_path, bundled_repos):  # noqa: F811
+def pytest_adoption(parser):
+    parser.addoption(
+        "--keep-files",
+        action="store_true",
+        default=False,
+        help="Keep temporary files after test execution",
+    )
+    parser.addoption(
+        "--current-dir",
+        action="store_true",
+        default=False,
+        help="Use current directory instead of temporary one",
+    )
+
+
+def test_run_workflow_001(snakemake_env, tmp_path):
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
     if snakemake_env["current_dir"]:

@@ -259,7 +259,7 @@ stages:
           - values: ["-a 1", "-b 0.1"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: ac5365e
+          commit: 706edb9
 [snip]
 
 ```

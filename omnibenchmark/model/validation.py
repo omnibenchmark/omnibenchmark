@@ -1,12 +1,12 @@
 """Validation logic for benchmark models."""
 
 import os
-import warnings
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Any, Optional
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    pass
+    from .benchmark import SoftwareEnvironment, SoftwareBackendEnum
 
 
 class ValidationError(Exception):
@@ -124,13 +124,13 @@ class BenchmarkValidator:
                             )
 
         # 4. Validate that software environment references exist
-        self._validate_environment_references(errors)
+        self._validate_software_environments(errors)
 
         # Raise error if any validation failed
         if errors:
             raise ValidationError(errors)
 
-    def _validate_environment_references(self, errors: List[str]) -> None:
+    def _validate_software_environments(self, errors: List[str]) -> None:
         """Validate software environment references without checking file paths."""
         env_ids = {env.id for env in self.software_environments}  # type: ignore
 
@@ -165,75 +165,66 @@ class BenchmarkValidator:
                             f"Input with id '{input_id}' for metric collector '{collector.id}' is not valid."  # type: ignore
                         )
 
-    def validate_software_environments(self) -> None:
-        """
-        Validate that all software environment references exist.
-
-        Raises:
-            ValueError: If any validation errors are found
-        """
-        # Import here to avoid circular imports
-        from .benchmark import SoftwareBackendEnum
-
-        errors: List[str] = []
-        env_ids = {env.id for env in self.software_environments}  # type: ignore
-        used_env_ids: set[str] = set()
-
-        # Check modules
-        for stage in self.stages:  # type: ignore
-            for module in stage.modules:  # type: ignore
-                if module.software_environment not in env_ids:  # type: ignore
-                    errors.append(
-                        f"Module '{module.id}' references undefined software environment: '{module.software_environment}'"  # type: ignore
-                    )
-                else:
-                    used_env_ids.add(module.software_environment)  # type: ignore
-
-        # Check metric collectors
-        if self.metric_collectors:  # type: ignore
-            for collector in self.metric_collectors:  # type: ignore
-                if collector.software_environment not in env_ids:  # type: ignore
-                    errors.append(
-                        f"Metric collector '{collector.id}' references undefined software environment: '{collector.software_environment}'"  # type: ignore
-                    )
-                else:
-                    used_env_ids.add(collector.software_environment)  # type: ignore
-
-        # Validate backend-specific configurations
-        for env in self.software_environments:  # type: ignore
-            if self.software_backend == SoftwareBackendEnum.conda:  # type: ignore
-                if not env.conda:  # type: ignore
-                    errors.append(
-                        f"Cannot use conda backend, no conda configuration found for environment '{env.id}'"  # type: ignore
-                    )
-            elif self.software_backend == SoftwareBackendEnum.apptainer:  # type: ignore
-                if not env.apptainer:  # type: ignore
-                    errors.append(
-                        f"Cannot use apptainer backend, no apptainer configuration found for environment '{env.id}'"  # type: ignore
-                    )
-            elif self.software_backend == SoftwareBackendEnum.envmodules:  # type: ignore
-                if not env.envmodule:  # type: ignore
-                    errors.append(
-                        f"Cannot use envmodules backend, no envmodule configuration for environment '{env.id}'"  # type: ignore
-                    )
-
-        # Check for unused environments
-        unused_envs = env_ids - used_env_ids  # type: ignore
-        for unused_env in unused_envs:  # type: ignore
-            warnings.warn(
-                f"Software environment '{unused_env}' is defined but not used",  # type: ignore
-                UserWarning,
-            )
-
-        if errors:
-            raise ValueError(
-                f"Software environment validation failed: {'; '.join(errors)}. Environment not defined."
-            )
-
     # Note: The old validate_structure method has been split into:
     # - validate_model_structure() for pure model validation (above)
     # - validate_execution_context() in the Benchmark class for path validation
 
+    # Utility methods
+
+    @staticmethod
     def is_initial(self, stage: Any) -> bool:
         """Check if a stage is an initial stage (has no inputs)."""
         return not stage.inputs or len(stage.inputs) == 0  # type: ignore
+
+    @staticmethod
+    def is_url(string: str) -> bool:
+        """Check if the string is a valid URL using urlparse."""
+        try:
+            result = urlparse(string)
+            return all(
+                [result.scheme, result.netloc]
+            )  # Valid if both scheme and netloc are present
+        except ValueError:
+            return False
+
+    @staticmethod
+    def is_absolute_path(string: str) -> bool:
+        """Check if the string is an absolute path."""
+        return Path(string).is_absolute()
+
+    @staticmethod
+    def get_environment_path(
+        software_backend: "SoftwareBackendEnum",
+        software: "SoftwareEnvironment",
+        benchmark_dir: Path,
+    ) -> Optional[str]:
+        """Get the environment path based on software backend and environment configuration."""
+        # Import here to avoid circular imports
+        from .benchmark import SoftwareBackendEnum
+
+        environment = None
+        if (
+            software_backend == SoftwareBackendEnum.apptainer
+            or software_backend == SoftwareBackendEnum.docker
+        ):
+            environment = software.apptainer
+
+        elif software_backend == SoftwareBackendEnum.conda:
+            environment = software.conda
+
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment = software.envmodule
+
+        if not environment:
+            return None
+
+        if BenchmarkValidator.is_url(
+            environment
+        ) or BenchmarkValidator.is_absolute_path(environment):
+            environment_path = environment
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment_path = environment
+        else:
+            environment_path = os.path.join(benchmark_dir, environment)
+
+        return environment_path
