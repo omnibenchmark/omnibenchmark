@@ -90,7 +90,7 @@ jobs:
 
       - name: Run short tests
         run: |
-          uv run pytest -m short --cov --cov-branch --cov-report=xml
+          uv run pytest -m "short and not e2e" --cov --cov-branch --cov-report=xml
         if: matrix.os == 'ubuntu-latest'
 
       # just an example of integration, CI is re-done in coming PRs
@@ -116,7 +116,7 @@ jobs:
       - name: Run longer tests (integration)
         run: |
           mkdir -p ./reports
-          uv run pytest -m "not short and not conda" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
+          uv run pytest -m "not short and not conda and not e2e" --cov=omnibenchmark --cov-report=xml:./reports/coverage.xml --junitxml=./reports/junit.xml \
               tests/benchmark tests/cli tests/workflow tests/io tests/config tests/model
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 

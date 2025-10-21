@@ -15,6 +15,7 @@ def cartesian_product_exclude_config():
     return config_path
 
 
+@pytest.mark.e2e
 def test_cartesian_product_exclude_pipeline(
     cartesian_product_exclude_config, tmp_path, bundled_repos, keep_files
 ):
@@ -45,6 +46,7 @@ def test_cartesian_product_exclude_pipeline(
     runner.verify_output_file_count(5, "*_method.json")
 
 
+@pytest.mark.e2e
 def test_cartesian_product_exclude_idempotent(
     cartesian_product_exclude_config, tmp_path, bundled_repos, keep_files
 ):

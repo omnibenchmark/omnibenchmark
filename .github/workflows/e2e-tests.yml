@@ -1,0 +1,84 @@
+name: End-to-End Tests
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}-e2e
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+jobs:
+  e2e-tests:
+    name: End-to-End Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies with uv
+        run: |
+          uv pip install -e ".[s3,test]"
+          uv pip install pytest-xdist
+
+      - name: Get number of CPU cores
+        id: cpu-cores
+        run: echo "count=$(nproc)" >> $GITHUB_OUTPUT
+
+      - name: Run e2e tests with xdist
+        run: |
+          uv run pytest tests/e2e/ -m e2e -v \
+            --tb=short \
+            --maxfail=3 \
+            -n ${{ steps.cpu-cores.outputs.count }} \
+            --dist=worksteal \
+            --junitxml=e2e-test-results.xml
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: e2e-test-results.xml
+          retention-days: 7
+
+      - name: Upload test logs on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-test-logs
+          path: |
+            **/.snakemake/log/
+            **/pytest-*.log
+          retention-days: 7
