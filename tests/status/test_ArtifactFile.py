@@ -5,6 +5,7 @@ from omnibenchmark.benchmark.execution_path import (
 )
 
 
+@pytest.mark.short
 def test_n2f():
     # Test None converts to False
     assert n2f(None) is False
@@ -16,6 +17,7 @@ def test_n2f():
     assert n2f(False) is False
 
 
+@pytest.mark.short
 def test_local_artifact_file_exists(tmp_path):
     # Create a temporary file to test LocalArtifactFile
     test_file = tmp_path / "test_file.txt"
@@ -27,6 +29,7 @@ def test_local_artifact_file_exists(tmp_path):
     assert artifact_file.exists() is True
 
 
+@pytest.mark.short
 def test_local_artifact_file_is_empty(tmp_path):
     # Create a temporary empty file to test LocalArtifactFile
     empty_file = tmp_path / "empty_file.txt"
@@ -38,6 +41,7 @@ def test_local_artifact_file_is_empty(tmp_path):
     assert artifact_file.is_empty() is True
 
 
+@pytest.mark.short
 def test_local_artifact_file_get_timestamp(tmp_path):
     # Create a temporary file to test LocalArtifactFile
     test_file = tmp_path / "timestamp_file.txt"
@@ -51,6 +55,7 @@ def test_local_artifact_file_get_timestamp(tmp_path):
     assert isinstance(timestamp, float)
 
 
+@pytest.mark.short
 def test_artifact_file_config_default():
     # Test that default implementation is LocalArtifactFile
     ArtifactFileConfig._implementation = None  # Reset to default
@@ -58,6 +63,7 @@ def test_artifact_file_config_default():
     assert implementation == LocalArtifactFile
 
 
+@pytest.mark.short
 def test_artifact_file_config_set_implementation():
     # Create a mock implementation class
     class MockArtifactFile:
@@ -76,6 +82,7 @@ def test_artifact_file_config_set_implementation():
     assert ArtifactFileConfig.get_implementation() == LocalArtifactFile
 
 
+@pytest.mark.short
 def test_create_artifact_file_with_default(tmp_path):
     # Ensure default implementation is set
     ArtifactFileConfig._implementation = None
@@ -91,6 +98,7 @@ def test_create_artifact_file_with_default(tmp_path):
     assert artifact.exists() is True
 
 
+@pytest.mark.short
 def test_create_artifact_file_with_custom_implementation(tmp_path):
     # Create a custom implementation
     class CustomArtifactFile:

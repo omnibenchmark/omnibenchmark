@@ -75,7 +75,7 @@ class SnakemakeEngine(WorkflowEngine):
         """
 
         # Get output directory from benchmark context
-        out_dir = str(benchmark.context.out_dir)
+        out_dir = benchmark.context.out_dir
 
         # Serialize Snakefile for workflow
         snakefile = self.serialize_workflow(
@@ -92,8 +92,8 @@ class SnakemakeEngine(WorkflowEngine):
             keep_module_logs=keep_module_logs,
             backend=backend,
             work_dir=work_dir,
-            debug=debug,
             out_dir=out_dir,
+            debug=debug,
             **snakemake_kwargs,
         )
 
@@ -158,7 +158,9 @@ class SnakemakeEngine(WorkflowEngine):
                 "mc_paths = sorted(benchmark.get_metric_collector_output_paths())\n"
             )
             f.write("all_paths = node_paths + mc_paths\n")
-            f.write("create_all_rule(all_paths, True)\n\n")
+            f.write(
+                "create_all_rule(config, all_paths, aggregate_performance=True)\n\n"
+            )
 
             # Create node rules
             f.write("nodes = benchmark.get_nodes()\n")
@@ -171,7 +173,7 @@ class SnakemakeEngine(WorkflowEngine):
             f.write("collectors = benchmark.get_metric_collectors()\n")
             f.write("for collector in collectors:\n")
             f.write(
-                "    create_metric_collector_rule(benchmark, collector, node_paths)\n\n"
+                "    create_metric_collector_rule(benchmark, collector, config, node_paths)\n\n"
             )
 
         return snakefile_path
@@ -230,6 +232,7 @@ class SnakemakeEngine(WorkflowEngine):
             keep_module_logs=keep_module_logs,
             backend=backend,
             work_dir=work_dir,
+            out_dir=work_dir,
             input_dir=input_dir,
             dataset=dataset,
             **snakemake_kwargs,
@@ -299,7 +302,7 @@ class SnakemakeEngine(WorkflowEngine):
             f.write("input_paths = node.get_input_paths(config)\n")
             f.write("output_paths = node.get_output_paths(config)\n")
             f.write("all_paths = input_paths + output_paths\n\n")
-            f.write("create_all_rule(all_paths)\n\n")
+            f.write("create_all_rule(config, all_paths)\n\n")
 
             # Create node rules
             f.write("create_standalone_node_rule(node, config)\n\n")
@@ -352,10 +355,10 @@ class SnakemakeEngine(WorkflowEngine):
         continue_on_error: bool,
         backend: SoftwareBackendEnum,
         work_dir: Path,
+        out_dir: Path,
         input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
         debug: bool = False,
-        out_dir: Optional[str] = None,
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
@@ -370,13 +373,12 @@ class SnakemakeEngine(WorkflowEngine):
             f"dataset={dataset}",
             f"keep_module_logs={keep_module_logs}",
             f"keep_going={continue_on_error}",
+            f"backend={backend.value}",
+            f"out_dir={out_dir.as_posix()}",
         ]
 
         if input_dir:
             argv.extend([f"input={input_dir.as_posix()}"])
-
-        if out_dir:
-            argv.extend([f"out_dir={out_dir}"])
 
         if debug:
             argv.extend(["--verbose", "--debug"])
