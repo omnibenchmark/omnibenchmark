@@ -76,12 +76,11 @@ jobs:
           pixi-version: ${{ env.PIXI_VERSION }}
           cache: true
 
-      - name: Run short tests
+      - name: Run short tests (excluding e2e)
         run: pixi run test-short
         # TODO: make sure we do coverage in pixi target:
         # uv run pytest -m short --cov --cov-branch --cov-report=xml
 
-      # just an example of integration, CI is re-done in coming PRs
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -138,9 +137,10 @@ jobs:
           name: omnibenchmark-wheel
           path: dist/
 
-      - name: Install wheel for testing
+      - name: Install wheel with test extras
         run: |
-          pixi run pip install dist/*.whl
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run pip install "$WHEEL_FILE[test]"
 
       - name: Install additional system dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -157,8 +157,59 @@ jobs:
       - name: Run integration tests
         run: |
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            pixi run pytest -m "not short" && pixi run pytest tests/software/
+            pixi run pytest -m "not short and not e2e" && pixi run pytest tests/software/
           else
             # macOS - skip platform-specific tests
-            pixi run pytest -m "not short" && pixi run pytest tests/software/ -k "not apptainer"
+            pixi run pytest -m "not short and not e2e" && pixi run pytest tests/software/ -k "not apptainer"
           fi
+
+  test-e2e:
+    name: End-to-End Tests
+    needs: [build]
+    runs-on: ubuntu-latest
+    # Run on workflow_dispatch, or if not a docs-only change
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        !contains(github.event.head_commit.message, '[skip e2e]')
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.title, '[skip e2e]')
+      )
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install wheel with test extras
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run pip install "$WHEEL_FILE[test]"
+
+      - name: Install additional system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap
+
+      - name: Set up module environment
+        run: |
+          export MODULEPATH="$HOME/.local/easybuild/modules/all:$GITHUB_WORKSPACE/tests/data/envs"
+          echo "MODULEPATH=$MODULEPATH" >> $GITHUB_ENV
+
+      - name: Run end-to-end tests
+        run: pixi run test-e2e

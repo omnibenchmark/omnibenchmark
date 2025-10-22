@@ -16,6 +16,7 @@ def data_modules_config():
     return config_path
 
 
+@pytest.mark.e2e
 def test_data_modules_pipeline(
     data_modules_config, tmp_path, bundled_repos, keep_files
 ):
@@ -34,6 +35,7 @@ def test_data_modules_pipeline(
     )
 
 
+@pytest.mark.e2e
 def test_data_modules_output_structure(
     data_modules_config, tmp_path, bundled_repos, keep_files
 ):
@@ -49,6 +51,7 @@ def test_data_modules_output_structure(
     )
 
 
+@pytest.mark.e2e
 def test_data_modules_idempotent(
     data_modules_config, tmp_path, bundled_repos, keep_files
 ):
@@ -84,6 +87,7 @@ def test_data_modules_idempotent(
     compare_pipeline_runs(first_runner.out_dir, second_runner.out_dir)
 
 
+@pytest.mark.e2e
 def test_data_modules_cli_validation(
     data_modules_config, tmp_path, bundled_repos, keep_files
 ):

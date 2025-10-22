@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 from omnibenchmark.model import SoftwareBackendEnum, SoftwareEnvironment
 
 
@@ -10,7 +11,7 @@ class Validator:
         software_backend: SoftwareBackendEnum,
         environment: SoftwareEnvironment,
         benchmark_dir: Path,
-    ) -> str:
+    ) -> Optional[str]:
         """Get the environment path based on software backend and environment configuration."""
         if software_backend == SoftwareBackendEnum.conda:
             env_path = environment.conda
@@ -24,9 +25,8 @@ class Validator:
             env_path = None
 
         if not env_path:
-            raise ValueError(
-                f"No environment configuration found for backend {software_backend}"
-            )
+            # Return None to allow Snakemake fallback (e.g., "conda_not_provided.yml")
+            return None
 
         # If it's a relative path, resolve it relative to benchmark directory
         if not Path(env_path).is_absolute() and "://" not in env_path:

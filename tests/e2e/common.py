@@ -6,7 +6,6 @@ across E2E test files while maintaining testability and flexibility.
 """
 
 import shutil
-import tempfile
 from pathlib import Path
 from typing import List, Optional, Any
 
@@ -62,8 +61,20 @@ class E2ETestRunner:
         shutil.copy2(config_path, config_file_in_tmp)
 
         # Create dummy conda environment file for Snakemake 9.x validation
-        system_temp = Path(tempfile.gettempdir())
-        (system_temp / "conda_not_provided.yml").write_text(DUMMY_CONDA_ENV_CONTENT)
+        # Create in working directory (preferred location)
+        conda_file_path = self.tmp_path / "conda_not_provided.yml"
+        conda_file_path.write_text(DUMMY_CONDA_ENV_CONTENT)
+
+        # Also create in system temp directory for cross-platform compatibility
+        # On Linux CI systems, Snakemake may look in /tmp regardless of working directory
+        try:
+            import tempfile
+
+            system_tmp_path = Path(tempfile.gettempdir()) / "conda_not_provided.yml"
+            system_tmp_path.write_text(DUMMY_CONDA_ENV_CONTENT)
+        except (PermissionError, OSError):
+            # If we can't write to system temp, continue - working directory version might be sufficient
+            pass
 
         return config_file_in_tmp
 
@@ -177,9 +188,9 @@ class E2ETestRunner:
             for output_file in output_files:
                 print(f"  - {output_file.relative_to(self.out_dir)}")
 
-        assert (
-            len(output_files) >= min_expected
-        ), f"Expected at least {min_expected} {file_pattern} files, but found {len(output_files)}"
+        assert len(output_files) >= min_expected, (
+            f"Expected at least {min_expected} {file_pattern} files, but found {len(output_files)}"
+        )
 
 
 def filter_files_excluding_symlinked_dirs(
@@ -284,15 +295,15 @@ def compare_pipeline_runs(
             second_files_dict[str(file_path.relative_to(out_dir_second))] = f.read()
 
     # Compare file sets
-    assert (
-        set(first_files_dict.keys()) == set(second_files_dict.keys())
-    ), f"File sets differ between runs: {set(first_files_dict.keys())} vs {set(second_files_dict.keys())}"
+    assert set(first_files_dict.keys()) == set(second_files_dict.keys()), (
+        f"File sets differ between runs: {set(first_files_dict.keys())} vs {set(second_files_dict.keys())}"
+    )
 
     # Compare file contents
     for file_key in first_files_dict:
-        assert (
-            first_files_dict[file_key] == second_files_dict[file_key]
-        ), f"File {file_key} changed between runs"
+        assert first_files_dict[file_key] == second_files_dict[file_key], (
+            f"File {file_key} changed between runs"
+        )
 
 
 def run_idempotent_pipeline_test(
@@ -347,9 +358,9 @@ def run_idempotent_pipeline_test(
     second_run_checksums = _get_directory_checksums(runner.out_dir)
 
     # Compare checksums to ensure idempotency
-    assert (
-        first_run_checksums == second_run_checksums
-    ), "Pipeline is not idempotent - files changed between runs"
+    assert first_run_checksums == second_run_checksums, (
+        "Pipeline is not idempotent - files changed between runs"
+    )
 
 
 def _get_directory_checksums(directory: Path) -> dict:

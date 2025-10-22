@@ -96,6 +96,33 @@ As an example, we use the `short` tag for tests that we know _should_ run fast. 
 pytest -m short
 ```
 
+#### End-to-End (E2E) Tests
+
+E2E tests are marked with the `e2e` marker and test complete workflows from configuration to output validation. These tests:
+
+- Execute full benchmark pipelines using the CLI
+- Validate outputs against expected results
+- Test idempotency by running pipelines multiple times
+- Are excluded from regular CI runs due to their longer execution time
+
+To run only e2e tests:
+
+```bash
+pytest -m e2e tests/e2e/
+```
+
+To exclude e2e tests from other test runs:
+
+```bash
+pytest -m "not e2e"
+```
+
+E2E tests can be run in parallel using pytest-xdist:
+
+```bash
+pytest -m e2e tests/e2e/ -n auto --dist=worksteal
+```
+
 ### Running tests in parallel
 
 Use pytest `-n` flag to increase the level of paralellism. Here we use 6 workers:

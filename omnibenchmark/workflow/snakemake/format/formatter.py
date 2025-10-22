@@ -41,7 +41,14 @@ def format_metric_collector_input(
     benchmark: Benchmark, collector: MetricCollector, return_as_dict: bool = False
 ) -> Union[Dict[str, str], List[str]]:
     """Formats collector inputs that will be expanded according to Snakemake's engine"""
-    implicit_inputs = [i.id for i in collector.inputs]
+    # Handle both string and IOFile inputs
+    # We should probably decide on one or the other, keeping both is messy.
+    implicit_inputs = []
+    for i in collector.inputs:
+        if isinstance(i, str):
+            implicit_inputs.append(i)
+        else:
+            implicit_inputs.append(i.id)
     explicit_inputs = benchmark.get_explicit_input(implicit_inputs)
 
     if not return_as_dict:
