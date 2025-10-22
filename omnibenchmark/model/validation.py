@@ -105,7 +105,7 @@ class BenchmarkValidator:
         for module in all_modules.values():  # type: ignore
             if module.software_environment not in env_ids:  # type: ignore
                 errors.append(
-                    f"Software environment with id '{module.software_environment}' is not defined."  # type: ignore
+                    f"Software environment with id '{module.software_environment}' is not declared. It should be listed as part of the stanza software_environments within the benchmarking YAML header."  # type: ignore
                 )
 
         # Check metric collectors
@@ -113,7 +113,7 @@ class BenchmarkValidator:
             for collector in self.metric_collectors:  # type: ignore
                 if collector.software_environment not in env_ids:  # type: ignore
                     errors.append(
-                        f"Software environment with id '{collector.software_environment}' for metric collector '{collector.id}' is not defined."  # type: ignore
+                        f"Software environment with id '{collector.software_environment}' for metric collector '{collector.id}' is not declared."  # type: ignore
                     )
 
                 # Validate metric collector inputs
@@ -164,22 +164,17 @@ class BenchmarkValidator:
             if self.software_backend == SoftwareBackendEnum.conda:  # type: ignore
                 if not env.conda:  # type: ignore
                     errors.append(
-                        f"Conda backend requires conda configuration for environment '{env.id}'"  # type: ignore
-                    )
-            elif self.software_backend == SoftwareBackendEnum.docker:  # type: ignore
-                if not env.apptainer and not env.docker:  # type: ignore
-                    errors.append(
-                        f"Docker backend requires apptainer configuration for environment '{env.id}'"  # type: ignore
+                        f"Cannot use conda backend, no conda configuration found for environment '{env.id}'"  # type: ignore
                     )
             elif self.software_backend == SoftwareBackendEnum.apptainer:  # type: ignore
                 if not env.apptainer:  # type: ignore
                     errors.append(
-                        f"Apptainer backend requires apptainer configuration for environment '{env.id}'"  # type: ignore
+                        f"Cannot use apptainer backend, no apptainer configuration found for environment '{env.id}'"  # type: ignore
                     )
             elif self.software_backend == SoftwareBackendEnum.envmodules:  # type: ignore
                 if not env.envmodule:  # type: ignore
                     errors.append(
-                        f"Envmodules backend requires envmodule configuration for environment '{env.id}'"  # type: ignore
+                        f"Cannot use envmodules backend, no envmodule configuration for environment '{env.id}'"  # type: ignore
                     )
 
         # Check for unused environments

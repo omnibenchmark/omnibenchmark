@@ -290,7 +290,7 @@ class TestBenchmark:
         # Test with missing environment reference
         benchmark.stages[0].modules[0].software_environment = "nonexistent_env"
 
-        with pytest.raises(ValueError, match="not defined"):
+        with pytest.raises(ValueError, match="undefined"):
             benchmark.validate_software_environments()
 
     def test_validate_unused_environments(self):

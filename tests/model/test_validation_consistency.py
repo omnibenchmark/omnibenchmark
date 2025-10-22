@@ -387,6 +387,4 @@ class TestValidationConsistency:
         except (ValidationError, OmnibenchmarkValidationError) as e:
             error_msg = str(e)
             assert "undefined_env" in error_msg
-            assert (
-                "not defined" in error_msg.lower() or "not found" in error_msg.lower()
-            )
+            assert "not declared" in error_msg.lower()
