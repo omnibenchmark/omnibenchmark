@@ -1,19 +1,27 @@
 # Changelog
 
 This document records all notable changes to `omnibenchmark`.
-This project adheres to [Semantic Versioning](https://semver.org/).
+This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [0.4.0](main) UNRELEASED
 
 - refactor!: remove dependency on omni-schema and networkx
+- refactor: cleanup internal module dependencies, using a central benchmark model
+- refactor: use strict type checking (#70)
+- docs: add self-documenting spec template
+- tests: use pixi on the CI
 
-## [0.3.0](main) UNRELEASED
+## [0.3.0](Aug 15th 2025)
 
-- feature: SLURM support
-- feature: Support passing of extra arguments from CLI -> Snakemake for run commands
+- feat: SLURM support (#147)
+- feat(cli)!: --local argument has been renamed to --local-storage
+- feat: Support passing of extra arguments from CLI -> Snakemake for run commands
+- feat: add extra profiler to the snakemake execution (#151)
 - fix: Restrict yaml output paths and hide implementation details (#138)
 - refactor: remove the software command
+- tests: disable snakemake-only tests that only exercise environemtes, under rework
 - chore(pkg): use setuptools for builds instead of poetry
+
 
 ## [0.2.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.2.2) (Jul 16th 2025)
 
