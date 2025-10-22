@@ -13,16 +13,8 @@ from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
 from .validation import BenchmarkValidator, ValidationError
 
 
-def _find_duplicates(items: List[str]) -> List[str]:
-    """Find duplicate items in a list."""
-    from collections import Counter
-
-    counts = Counter(items)
-    return [item for item, count in counts.items() if count > 1]
-
-
-def _is_url(string: str) -> bool:
-    """Check if the string is a valid URL using urlparse."""
+def _is_environment_url(string: str) -> bool:
+    """Check if an environment path string is a valid URL using urlparse."""
     from urllib.parse import urlparse
 
     try:
@@ -733,7 +725,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 errors.append(
                     f"Software environment with id '{env.id}' does not have a valid backend definition for: '{self.software_backend.value}'."
                 )
-            elif not _is_url(env_path) and not Path(env_path).is_absolute():
+            elif not _is_environment_url(env_path) and not Path(env_path).is_absolute():
                 # TODO: ARCHITECTURAL ISSUE - File system checks do not belong in abstract model
                 # This should be moved to BenchmarkExecution or a separate validation layer
                 # The model should only validate structure, not check file existence
@@ -743,7 +735,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     errors.append(
                         f"Software environment path for '{self.software_backend.value}' does not exist: '{full_path}'."
                     )
-            elif not _is_url(env_path) and Path(env_path).is_absolute():
+            elif not _is_environment_url(env_path) and Path(env_path).is_absolute():
                 # TODO: ARCHITECTURAL ISSUE - File system checks do not belong in abstract model
                 # This should be moved to BenchmarkExecution or a separate validation layer
                 # The model should only validate structure, not check file existence
