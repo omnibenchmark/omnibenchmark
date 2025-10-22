@@ -117,8 +117,9 @@ stages:
         # required (string), Unique identifier
         id: example_id
 
-        # required (string), File path
-        path: /path/to/file
+        # required (string), Filename parametrized path
+        # The parameters are injected by the benchmark runner
+        path: {name}_output.txt
 
 
 
