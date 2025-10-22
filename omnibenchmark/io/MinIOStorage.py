@@ -12,12 +12,17 @@ from pathlib import Path
 from typing import Dict, Optional
 from urllib.parse import urlparse
 
-import boto3
-import minio
-import minio.commonconfig
-import minio.retention
-from minio.lifecycleconfig import LifecycleConfig, Rule, NoncurrentVersionExpiration
-from minio.commonconfig import Filter, Tags
+try:
+    import boto3
+    import minio
+    import minio.commonconfig
+    import minio.retention
+    from minio.lifecycleconfig import LifecycleConfig, Rule, NoncurrentVersionExpiration
+    from minio.commonconfig import Filter, Tags
+except ImportError:
+    # perhaps should be handled at a higher level, and advice the user to install the required packages
+    # via pip install minio boto3 or extras['s3'].
+    pass
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.io.exception import (
@@ -82,7 +87,8 @@ class MinIOStorage(RemoteStorage):
         # version validation within storage operations.
         #
         # Future consideration: Inject version manager as a dependency rather
-        # than creating it here. This would improve testability and separation of concerns.
+        # than creating it here. This would improve testability and separation of concerns,
+        # and allow for more flexibility in managing versions (monotonic, etc)
         from omnibenchmark.versioning import BenchmarkVersionManager
 
         self.version_manager = BenchmarkVersionManager(
@@ -376,7 +382,7 @@ class MinIOStorage(RemoteStorage):
         if self.version not in self.versions:
             raise MinIOStorageBucketManipulationException("Version creation failed")
 
-    # TODO(ben): review if we want this public, it's used in tests
+    # TODO(ben): review if we want to make this method public, it's used in tests
     def _get_objects(self) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
@@ -476,7 +482,7 @@ class MinIOStorage(RemoteStorage):
     ):
         from omnibenchmark.io.archive import archive_version
 
-        # TODO: upload the zip archive
+        # TODO: upload the zip archive, we're not doing anything with the result!
         _ = archive_version(benchmark, outdir, config, code, software, results)
 
     def delete_version(self, version):
