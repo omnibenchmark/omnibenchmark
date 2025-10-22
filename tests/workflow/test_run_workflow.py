@@ -14,21 +14,6 @@ from .path import data
 from ..fixtures import bundled_repos  # noqa: F401 - pytest fixture
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--keep-files",
-        action="store_true",
-        default=False,
-        help="Keep temporary files after test execution",
-    )
-    parser.addoption(
-        "--current-dir",
-        action="store_true",
-        default=False,
-        help="Use current directory instead of temporary one",
-    )
-
-
 def test_run_workflow_001(snakemake_env, tmp_path, bundled_repos):  # noqa: F811
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
@@ -316,21 +301,21 @@ def assert_parameters_output_for_module(
         for module_param_row in reader:
             base_path = module_param_row["base_path"]
             base_param_file_path = cwd / Path(base_path) / "parameters.json"
-            assert (
-                base_param_file_path.exists()
-            ), f"File not found through base path: {base_param_file_path}"
+            assert base_param_file_path.exists(), (
+                f"File not found through base path: {base_param_file_path}"
+            )
 
             alias_path = module_param_row["base_path"]
             alias_param_file_path = cwd / Path(alias_path) / "parameters.json"
-            assert (
-                alias_param_file_path.exists()
-            ), f"File not found through alias: {alias_param_file_path}"
+            assert alias_param_file_path.exists(), (
+                f"File not found through alias: {alias_param_file_path}"
+            )
 
             param_hash = module_param_row["id"]
             expected_content = expected_param_dict.get(param_hash)
             with open(base_param_file_path, "r") as file:
                 actual_content = json.load(file)
 
-            assert (
-                expected_content == actual_content
-            ), f"Mismatch in {base_param_file_path}:\nExpected: {expected_content}\nGot: {actual_content}"
+            assert expected_content == actual_content, (
+                f"Mismatch in {base_param_file_path}:\nExpected: {expected_content}\nGot: {actual_content}"
+            )

@@ -13,6 +13,7 @@ def complex_topology_config():
     return config_path
 
 
+@pytest.mark.e2e
 def test_complex_topology_pipeline(
     complex_topology_config, tmp_path, bundled_repos, keep_files
 ):
@@ -42,6 +43,7 @@ def test_complex_topology_pipeline(
     runner.verify_output_file_count(12, "*_method.json")  # 12 total method results
 
 
+@pytest.mark.e2e
 def test_complex_topology_idempotent(
     complex_topology_config, tmp_path, bundled_repos, keep_files
 ):

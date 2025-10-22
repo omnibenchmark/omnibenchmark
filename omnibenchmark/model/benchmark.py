@@ -227,7 +227,7 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
 
     repository: Repository = Field(..., description="Repository information")
     software_environment: str = Field(..., description="Software environment ID")
-    inputs: List[IOFile] = Field(..., description="Input files")
+    inputs: List[Union[str, IOFile]] = Field(..., description="Input files")
     outputs: List[IOFile] = Field(..., description="Output files")
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
@@ -269,7 +269,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     storage_bucket_name: Optional[str] = Field(
         None, description="Storage bucket name (deprecated, use storage.bucket_name)"
     )
-    benchmark_yaml_spec: Optional[str] = Field(
+    benchmark_yaml_spec: Optional[Union[str, float, int]] = Field(
         None,
         description="Benchmark YAML specification version (deprecated, use api_version)",
     )
@@ -312,13 +312,28 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
     @field_validator("benchmark_yaml_spec")
     @classmethod
-    def validate_benchmark_yaml_spec(cls, v: Optional[str]) -> Optional[str]:
+    def validate_benchmark_yaml_spec(
+        cls, v: Optional[Union[str, float, int]]
+    ) -> Optional[str]:
         """Validate benchmark_yaml_spec format if provided."""
         if v is None:
             return v
 
         if not isinstance(v, str):
-            raise ValueError("benchmark_yaml_spec must be a string")
+            # Allow float/int for backwards compatibility but warn
+            if isinstance(v, (float, int)):
+                import warnings
+
+                warnings.warn(
+                    f"benchmark_yaml_spec should be a string, not {type(v).__name__}. "
+                    f"Float/numeric values are deprecated and will be removed in future versions. "
+                    f"Please use '{v}' (string) instead of {v}.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                return str(v)
+            else:
+                raise ValueError("benchmark_yaml_spec must be a string")
 
         return v
 

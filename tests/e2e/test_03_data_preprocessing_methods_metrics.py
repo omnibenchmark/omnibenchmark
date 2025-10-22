@@ -11,6 +11,7 @@ def data_preprocessing_methods_metrics_config():
     return config_path
 
 
+@pytest.mark.e2e
 def test_data_preprocessing_methods_metrics_pipeline(
     data_preprocessing_methods_metrics_config, tmp_path, bundled_repos, keep_files
 ):

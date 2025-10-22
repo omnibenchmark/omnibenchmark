@@ -119,20 +119,24 @@ class TestVersionValidation:
 
     @pytest.mark.short
     def test_benchmark_yaml_spec_string_only(self):
-        """Test that benchmark_yaml_spec only accepts strings (no numeric coercion)."""
+        """Test that benchmark_yaml_spec accepts strings and warns for numeric values."""
         benchmark_data = self._get_minimal_benchmark_data()
 
-        # Float yaml spec should be rejected
+        # Float yaml spec should work but warn
         benchmark_data["benchmark_yaml_spec"] = 0.01
-        with pytest.raises(ValidationError) as exc_info:
-            Benchmark(**benchmark_data)
-        assert "Input should be a valid string" in str(exc_info.value)
+        with pytest.warns(
+            DeprecationWarning, match="benchmark_yaml_spec should be a string"
+        ):
+            benchmark = Benchmark(**benchmark_data)
+        assert benchmark.benchmark_yaml_spec == "0.01"
 
-        # Integer yaml spec should be rejected
+        # Integer yaml spec should work but warn
         benchmark_data["benchmark_yaml_spec"] = 1
-        with pytest.raises(ValidationError) as exc_info:
-            Benchmark(**benchmark_data)
-        assert "Input should be a valid string" in str(exc_info.value)
+        with pytest.warns(
+            DeprecationWarning, match="benchmark_yaml_spec should be a string"
+        ):
+            benchmark = Benchmark(**benchmark_data)
+        assert benchmark.benchmark_yaml_spec == "1"
 
         # Valid string yaml spec should work
         benchmark_data["benchmark_yaml_spec"] = "0.01"

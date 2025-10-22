@@ -13,6 +13,7 @@ def data_and_methods_config():
     return config_path
 
 
+@pytest.mark.e2e
 def test_data_and_methods_pipeline(
     data_and_methods_config, tmp_path, bundled_repos, keep_files
 ):

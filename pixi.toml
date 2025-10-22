@@ -21,7 +21,7 @@ pytest-cov = ">=4.1.0"
 pytest-timeout = "==2.3.1"
 
 # Type checking and linting
-pyright = ">=1.1.398,<2"
+pyright = ">=1.1.406,<2"
 ruff = "*"
 
 # Core dependencies for the package
@@ -65,15 +65,20 @@ s3fs = { version = ">=2023.12.0", extras = ["boto3"] }
 
 # Test dependencies
 testcontainers = ">=4.5.1"
+pytest-xdist = "*"
 
 # Development and testing
 tox = "*"
 build = "*"
 
 [tasks]
-# Basic test tasks - only short tests
-test-short = "pytest -m short --cov --cov-branch --cov-report=xml"
-test = { cmd = "pytest -m short", description = "Run short tests only" }
+# Basic test tasks - only short tests, excluding e2e
+test-short = "pytest -m 'short and not e2e' --cov --cov-branch --cov-report=xml"
+test = { cmd = "pytest -m 'short and not e2e'", description = "Run short tests only (excluding e2e)" }
+
+# End-to-end test tasks
+test-e2e = { cmd = "pytest -m e2e -v -n auto", description = "Run end-to-end tests with parallel workers" }
+test-all = { cmd = "pytest", description = "Run all tests including e2e" }
 
 # Linting and type checking
 lint = "ruff check ."
@@ -93,7 +98,7 @@ pip = "pip"
 # Tox for comprehensive testing (with library interactions like snakemake)
 test-tox = "tox"
 # Fast pixi alternative for CI (run with: pixi run -e py313 test-py313)
-test-py313 = "pytest -m short --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_MinIOStorage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"
+test-py313 = "pytest -m 'short and not e2e' --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_MinIOStorage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"
 
 [feature.docs.dependencies]
 # Documentation dependencies (optional feature)
@@ -132,4 +137,4 @@ omnibenchmark = { path = ".", editable = true }
 
 [feature.py313.tasks]
 # Test task for Python 3.13 environment
-test-py313 = "pytest -m short --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_MinIOStorage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"
+test-py313 = "pytest -m 'short and not e2e' --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_MinIOStorage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"
