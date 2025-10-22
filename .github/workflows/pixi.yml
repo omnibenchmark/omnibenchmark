@@ -2,7 +2,7 @@
 name: pixi
 
 env:
-  PIXI_VERSION: v0.51.0
+  PIXI_VERSION: v0.55.0
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -14,6 +14,7 @@ on:
     branches:
       - main
       - dev
+  workflow_dispatch:
 
 jobs:
   lint-and-typecheck:
