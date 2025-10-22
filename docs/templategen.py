@@ -1,5 +1,18 @@
 """
-Generate a yaml template with coments from omnibenchmark models
+Generate a yaml template with coments from omnibenchmark models.
+
+It's important to note that the output of this script is intended to be used as
+a starting point for creating a benchmark configuration file,
+but it's only informative, not normative - the pydantic validations are the
+ultimate source of truth.
+
+The generated template includes comments that describe the purpose and expected format of each field.
+
+This is a first implementation, to be improved in the future, and mostly to have a self-documentation feature.
+In the future, we should rely on a better template generation mechanism that can
+handle more complex scenarios and provide more detailed comments. One
+possibility is to extract the information from the model's docstrings, or to
+rely more on model's metadata (as in, help_messages or similar)
 """
 
 from omnibenchmark.model.benchmark import Benchmark
@@ -20,7 +33,6 @@ except ImportError:
 def _get_field_default(model_cls, field_name):
     """Extract the default value for a field from a Pydantic model."""
     try:
-        # Try Pydantic v2 style first
         if hasattr(model_cls, "model_fields"):
             field_info = model_cls.model_fields.get(field_name)
             if (
@@ -29,18 +41,8 @@ def _get_field_default(model_cls, field_name):
                 and field_info.default is not ...
             ):
                 return field_info.default
-        # Fallback to Pydantic v1 style
-        elif hasattr(model_cls, "__fields__"):
-            field_info = model_cls.__fields__.get(field_name)
-            if (
-                field_info
-                and hasattr(field_info, "default")
-                and field_info.default is not ...
-            ):
-                return field_info.default
     except Exception:
-        pass
-    return None
+        return None
 
 
 def generate_yaml_template(model_cls, indent=0, schema_defs=None):
@@ -51,7 +53,7 @@ def generate_yaml_template(model_cls, indent=0, schema_defs=None):
     yaml_lines = []
     indent_str = "  " * indent
 
-    # Example values for common field names
+    # Example values for some field names
     example_values = {
         "name": "example benchmark",
         "title": "Example Benchmark Title",
@@ -60,19 +62,14 @@ def generate_yaml_template(model_cls, indent=0, schema_defs=None):
         "author": "Your Name",
         "version": "1.0.0",
         "url": "https://example.com",
-        "email": "your.email@example.com",
-        "path": "/path/to/file",
+        "email": "you@example.com",
+        # TODO: this one is semantically wrong. In outputs, we actually ask for a "path",
+        # but internal validation does not expect a path, neither absolute or
+        # relative. It's actually treating it as a templatized filename.
+        "path": "filename.txt",
         "command": "example_command",
-        "script": "example_script.py",
-        "container": "example/container:latest",
-        "image": "example/image:latest",
         "bucket_name": "example-bucket",
-        "dataset": "example_dataset",
-        "keyword": "example_keyword",
-        "tag": "example_tag",
         "commit": "c0ffee4",
-        "hash": "c0ffee4",
-        "sha": "c0ffee4",
         "commit_hash": "c0ffee4",
         "benchmark_yaml_spec": "0.0",
         "storage_api": "...",
@@ -201,11 +198,11 @@ def generate_yaml_template(model_cls, indent=0, schema_defs=None):
                 if prop_type == "string":
                     example_value = f"example_{name}"
                 elif prop_type == "integer":
-                    example_value = 1
+                    example_value = 0
                 elif prop_type == "number":
-                    example_value = 1.0
+                    example_value = 0.0
                 elif prop_type == "boolean":
-                    example_value = True
+                    example_value = False
                 else:
                     example_value = "..."
 
