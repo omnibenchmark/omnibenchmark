@@ -22,23 +22,12 @@ class ValidationError(Exception):
             return "\n".join(map(str, self.errors))
 
 
-def _find_duplicates(items: List[str]) -> List[str]:
-    """Find duplicate items in a list."""
+def _find_duplicate_ids(items: List[str]) -> List[str]:
+    """Find duplicate IDs in a list for validation purposes."""
     from collections import Counter
 
     counts = Counter(items)
     return [item for item, count in counts.items() if count > 1]
-
-
-def _is_url(string: str) -> bool:
-    """Check if the string is a valid URL using urlparse."""
-    from urllib.parse import urlparse
-
-    try:
-        result = urlparse(string)
-        return all([result.scheme, result.netloc])
-    except ValueError:
-        return False
 
 
 class BenchmarkValidator:
@@ -59,7 +48,7 @@ class BenchmarkValidator:
 
         # 1. Validate unique IDs
         stage_ids = [stage.id for stage in self.stages]  # type: ignore
-        duplicate_stage_ids = _find_duplicates(stage_ids)  # type: ignore
+        duplicate_stage_ids = _find_duplicate_ids(stage_ids)  # type: ignore
         if duplicate_stage_ids:
             errors.append(
                 f"Found duplicate stage ids: {', '.join(duplicate_stage_ids)}"
@@ -67,7 +56,7 @@ class BenchmarkValidator:
 
         all_modules = self.get_modules()  # type: ignore
         module_ids = list(all_modules.keys())  # type: ignore
-        duplicate_module_ids = _find_duplicates(module_ids)  # type: ignore
+        duplicate_module_ids = _find_duplicate_ids(module_ids)  # type: ignore
         if duplicate_module_ids:
             errors.append(
                 f"Found duplicate module ids: {', '.join(duplicate_module_ids)}"
@@ -75,7 +64,7 @@ class BenchmarkValidator:
 
         all_outputs = self.get_outputs()  # type: ignore
         output_ids = list(all_outputs.keys())  # type: ignore
-        duplicate_output_ids = _find_duplicates(output_ids)  # type: ignore
+        duplicate_output_ids = _find_duplicate_ids(output_ids)  # type: ignore
         if duplicate_output_ids:
             errors.append(
                 f"Found duplicate output ids: {', '.join(duplicate_output_ids)}"
