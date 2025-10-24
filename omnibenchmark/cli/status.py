@@ -16,29 +16,38 @@ from datetime import datetime
 
 from .debug import add_debug_option
 
+# ndstdf = pd.DataFrame(
+#     {
+#         "stage": [st for st in stages for nd in b.get_nodes_by_stage_id(st)],
+#         "module": [
+#             nd.get_id().split("-")[1]
+#             for st in stages
+#             for nd in b.get_nodes_by_stage_id(st)
+#         ],
+#     }
+# )
+# perfdf = pd.read_csv(f"{out_dir}/performances.tsv", sep="\t")
+# perfdf = perfdf.merge(ndstdf, on = "module")
 
-def prepare_status(benchmark, out_dir, return_all=False):
-    benchmark = "tests/data/Benchmark_001.yaml"
-    out_dir = "out"
-    b = validate_benchmark(benchmark, out_dir, echo=False)
+# perfdf_grouped = perfdf.groupby(['module', 'stage'])['s'].agg([
+#     'mean',
+#     'std',
+#     'min',
+#     'max',
+#     'median',
+#     ('q25', lambda x: x.quantile(0.25)),
+#     ('q75', lambda x: x.quantile(0.75))
+# ]).reset_index()
 
-    status_dict = {}
-    status_dict["name"] = b.get_benchmark_name()
-    status_dict["version"] = b.get_benchmark_version()
-    aggr_results_files = list(b.get_metric_collector_output_paths())
-    status_dict["results"] = {
-        "observed_files": [f for f in aggr_results_files if Path(f).is_file()],
-        "missing_files": [f for f in aggr_results_files if not Path(f).is_file()],
-    }
-    stages = list(b.get_stage_ids())
 
+def get_module_timestamps(b):
     from omnibenchmark.workflow.snakemake.scripts.utils import (
         generate_unique_repo_folder_name,
     )
 
     repositories_dir = Path(".snakemake") / "repos"
     modules_repo_timestamps = {}
-    for st in stages:
+    for st in b.get_stage_ids():
         modules_repo_timestamps[st] = {}
         for node in b.get_nodes_by_stage_id(st):
             if node.module_id not in modules_repo_timestamps[st].keys():
@@ -48,7 +57,9 @@ def prepare_status(benchmark, out_dir, return_all=False):
                 )
                 if module_dir.is_dir():
                     timestamps = [
-                        f.stat().st_mtime for f in module_dir.iterdir() if f.is_file()
+                        f.stat().st_mtime
+                        for f in module_dir.iterdir()
+                        if f.is_file() and f.stat().st_size > 0
                     ]
                     if len(timestamps) > 0:
                         timestamp = max(timestamps)
@@ -57,7 +68,10 @@ def prepare_status(benchmark, out_dir, return_all=False):
                 else:
                     timestamp = None
                 modules_repo_timestamps[st][node.module_id] = timestamp
+    return modules_repo_timestamps
 
+
+def get_exec_path_dict(b, modules_repo_timestamps):
     config = {
         "input": "",
         "output": "",
@@ -77,7 +91,9 @@ def prepare_status(benchmark, out_dir, return_all=False):
         # tmp_config['input'] = os.path.commonpath(init_dirnames)
         tmp_config["dataset"] = dataset
         init_files = node.get_output_paths(tmp_config)
-        init_files_exists = [Path(f).is_file() for f in init_files]
+        init_files_exists = [
+            Path(f).is_file() and Path(f).stat().st_size > 0 for f in init_files
+        ]
 
         init_timestamps = [
             Path(f).stat().st_mtime if init_files_exists[i] else None
@@ -117,7 +133,9 @@ def prepare_status(benchmark, out_dir, return_all=False):
             tmp_config["input"] = os.path.commonpath(init_dirnames)
             tmp_config["dataset"] = dataset
             matched_files = node2.get_output_paths(tmp_config)
-            matched_files_exists = [Path(f).is_file() for f in matched_files]
+            matched_files_exists = [
+                Path(f).is_file() and Path(f).stat().st_size > 0 for f in matched_files
+            ]
 
             matched_dirnames = list(set([os.path.dirname(f) for f in matched_files]))
 
@@ -170,7 +188,10 @@ def prepare_status(benchmark, out_dir, return_all=False):
             init_timestamps = matched_timestamps
             init_is_newer_file = matched_is_newer_file
             init_timestamp_repo = matched_timestamp_repo
+    return exec_path_dict
 
+
+def get_filedict(b, exec_path_dict):
     filedict2 = {
         **{
             st: {
@@ -183,10 +204,10 @@ def prepare_status(benchmark, out_dir, return_all=False):
                 }
                 for nd in b.get_nodes_by_stage_id(st)
             }
-            for st in stages
+            for st in b.get_stage_ids()
         }
     }
-    for st in stages:
+    for st in b.get_stage_ids():
         for exec_path_id in exec_path_dict.keys():
             if st in exec_path_dict[exec_path_id].keys():
                 de = exec_path_dict[exec_path_id][st]
@@ -240,7 +261,7 @@ def prepare_status(benchmark, out_dir, return_all=False):
                     )
                 )
 
-    for st in stages:
+    for st in b.get_stage_ids():
         for nd in b.get_nodes_by_stage_id(st):
             filedict2[st][nd]["n_observed"] = len(filedict2[st][nd]["observed_files"])
             filedict2[st][nd]["n_missing"] = len(filedict2[st][nd]["missing_files"])
@@ -256,7 +277,80 @@ def prepare_status(benchmark, out_dir, return_all=False):
                 + filedict2[st][nd]["n_missing"]
                 + filedict2[st][nd]["n_invalid"]
             )
+    return filedict2
 
+
+benchmark = "tests/data/Benchmark_001.yaml"
+out_dir = "out"
+b = validate_benchmark(benchmark, out_dir, echo=False)
+modules_repo_timestamps = get_module_timestamps(b)
+exec_path_dict = get_exec_path_dict(b, modules_repo_timestamps)
+
+
+def print_exec_path_dict(exec_path_dict, stages, threshold_n_missing=None):
+    def bool_list_encode(bl):
+        if all(bl):
+            return "."
+        else:
+            return "M"
+
+    if threshold_n_missing is None:
+        threshold_n_missing = len(stages) + 1
+
+    outls = []
+    nmissls = []
+    for i in range(len(exec_path_dict)):
+        tmps1 = ""
+        nmiss = 0
+        for st in stages:
+            if st in exec_path_dict[i].keys():
+                tmpcode = bool_list_encode(exec_path_dict[i][st]["exists"])
+                if tmpcode == "M":
+                    nmiss += 1
+                tmps1 += tmpcode
+            else:
+                tmps1 += " "
+        nmissls.append(nmiss)
+        filename = exec_path_dict[i][st]["files"][0]
+        filename = filename.replace("default/", "")
+        for st in stages:
+            filename = filename.replace(f"{st}/", "")
+
+        tmps1 += "    " + filename
+        outls.append(tmps1)
+    outls_final = []
+    for out, nmiss in zip(outls, nmissls):
+        if nmiss >= threshold_n_missing:
+            outls_final.append(out)
+    return "\n".join(outls_final)
+
+
+def prepare_status(benchmark, out_dir, return_all=False):
+    benchmark = "tests/data/Benchmark_001.yaml"
+    out_dir = "out"
+    b = validate_benchmark(benchmark, out_dir, echo=False)
+
+    stages = list(b.get_stage_ids())
+    modules_repo_timestamps = get_module_timestamps(b)
+    exec_path_dict = get_exec_path_dict(b, modules_repo_timestamps)
+    filedict2 = get_filedict(b, exec_path_dict)
+
+    status_dict = {}
+    status_dict["name"] = b.get_benchmark_name()
+    status_dict["version"] = b.get_benchmark_version()
+    aggr_results_files = list(b.get_metric_collector_output_paths())
+    status_dict["results"] = {
+        "observed_files": [
+            f
+            for f in aggr_results_files
+            if Path(f).is_file() and Path(f).stat().st_size > 0
+        ],
+        "missing_files": [
+            f
+            for f in aggr_results_files
+            if not Path(f).is_file() or Path(f).stat().st_size == 0
+        ],
+    }
     status_dict["stages"] = {
         st: {
             "n": sum([filedict2[st][nd]["n"] for nd in filedict2[st].keys()]),
@@ -345,29 +439,6 @@ def stat(
     )
     stages = list(status_dict["stages"].keys())
 
-    # ndstdf = pd.DataFrame(
-    #     {
-    #         "stage": [st for st in stages for nd in b.get_nodes_by_stage_id(st)],
-    #         "module": [
-    #             nd.get_id().split("-")[1]
-    #             for st in stages
-    #             for nd in b.get_nodes_by_stage_id(st)
-    #         ],
-    #     }
-    # )
-    # perfdf = pd.read_csv(f"{out_dir}/performances.tsv", sep="\t")
-    # perfdf = perfdf.merge(ndstdf, on = "module")
-
-    # perfdf_grouped = perfdf.groupby(['module', 'stage'])['s'].agg([
-    #     'mean',
-    #     'std',
-    #     'min',
-    #     'max',
-    #     'median',
-    #     ('q25', lambda x: x.quantile(0.25)),
-    #     ('q75', lambda x: x.quantile(0.75))
-    # ]).reset_index()
-
     max_str_len_stage = max([len(st) for st in stages])
     max_file_len = len(str(status_dict["total"]["n"]))
 
@@ -388,6 +459,10 @@ file completion: {int(status_dict['total']['n_observed'] / status_dict['total'][
     file invalid because of timestamps of dependent repo:
 {"".join([f"      {st:>{max_str_len_stage}}: {int(status_dict["stages"][st]['n_invalid_repo'] / status_dict["stages"][st]['n'] * 100): 3d}% ({status_dict["stages"][st]['n_invalid_repo']:{max_file_len}d}/{status_dict["stages"][st]['n']:{max_file_len}d})\n" for st in stages])}
 
+Missing result files: (.: all files present, M: missing files)
+{"\n".join([f"{"|"*(i+1)}{st}" for i, st in enumerate(stages)])}
+{"|"*len(stages)}
+{print_exec_path_dict(exec_path_dict, stages, threshold_n_missing = 1)}
 
 aggregated results: 
 {result_file_str}
