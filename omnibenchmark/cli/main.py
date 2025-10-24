@@ -6,6 +6,7 @@ from omnibenchmark import __version__
 from omnibenchmark.cli.benchmark import info
 from omnibenchmark.cli.io import storage
 from omnibenchmark.cli.run import run
+from omnibenchmark.cli.status import status
 
 from .debug import add_debug_option
 
@@ -66,6 +67,7 @@ def cli(ctx):
 cli.add_command(add_debug_option(storage))
 cli.add_command(add_debug_option(run))
 cli.add_command(add_debug_option(info))
+cli.add_command(add_debug_option(status))
 
 add_debug_option(cli)
 
