@@ -19,11 +19,11 @@ file completion: {{ (files_total_n_observed / files_total_n * 100) | round(0) | 
 {%- endfor %}
     file invalid because of timestamps of dependent files:
 {%- for st in stages %}
-      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_invalid_file'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_invalid_file'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_invalid_input_file_is_newer'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_invalid_input_file_is_newer'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
 {%- endfor %}
     file invalid because of timestamps of dependent repo:
 {%- for st in stages %}
-      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_invalid_repo'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_invalid_repo'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_invalid_repo_is_newer'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_invalid_repo_is_newer'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
 {%- endfor %}
 {% endif %}
 {% if show_missing_files %}
@@ -32,10 +32,8 @@ Missing result files:
     M: missing output files
 {%- if show_incomplete_reason %}
     R: repo timestamp older than output files
-    F: input file timestamps older than output files
+    F: input file missing or timestamps older than output files
 {% endif %}
-{{ ascii_stages_header }}
-{{ ascii_stages_sep }}
 {{ exec_paths_block }}
 {% endif %}
 aggregated results: 

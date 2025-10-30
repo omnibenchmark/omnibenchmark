@@ -1,4 +1,4 @@
-"""cli commands related to benchmark/module execution and start"""
+"""cli commands related to benchmark status"""
 
 import sys
 
@@ -17,15 +17,15 @@ from omnibenchmark.benchmark.status.status import prepare_status, print_exec_pat
 from .debug import add_debug_option
 
 
-@click.group(name="status")
-@click.pass_context
-def status(ctx):
-    """Show the status of benchmarks or benchmark modules."""
-    ctx.ensure_object(dict)
+# @click.group(name="status")
+# @click.pass_context
+# def status(ctx):
+#     """Show the status of benchmarks or benchmark modules."""
+#     ctx.ensure_object(dict)
 
 
 @add_debug_option
-@status.command(
+@click.command(
     name="status",
     context_settings=dict(
         ignore_unknown_options=True,
@@ -57,14 +57,22 @@ def status(ctx):
     help="Show reason for missing files in the status report.",
     default=False,
 )
+@click.option(
+    "--logs",
+    "show_logs",
+    is_flag=True,
+    help="Show logs for missing files in the status report.",
+    default=False,
+)
 @click.pass_context
-def statuss(
+def status(
     ctx,
     benchmark,
     out_dir,
     report_html: bool = False,
     show_missing_files: bool = False,
     show_incomplete_reason: bool = False,
+    show_logs: bool = False,
 ):
     """Run a benchmark as specified in the yaml."""
     ctx.ensure_object(dict)
@@ -79,10 +87,10 @@ def statuss(
         [
             f"  {f} {f"({s})" if s=="missing" else ""}"
             for f, s in zip(
-                status_dict["results"]["observed_files"]
-                + status_dict["results"]["missing_files"],
-                ["observed" for f in status_dict["results"]["observed_files"]]
-                + ["missing" for f in status_dict["results"]["missing_files"]],
+                status_dict["results"]["observed_output_files"]
+                + status_dict["results"]["missing_output_files"],
+                ["observed" for f in status_dict["results"]["observed_output_files"]]
+                + ["missing" for f in status_dict["results"]["missing_output_files"]],
             )
         ]
     )
@@ -90,10 +98,6 @@ def statuss(
 
     max_str_len_stage = max([len(st) for st in stages])
     max_file_len = len(str(status_dict["total"]["n"]))
-    ascii_stages_header = "\n".join(
-        [f"{'|' * (i + 1)}{st}" for i, st in enumerate(stages)]
-    )
-    ascii_stages_sep = "|" * len(stages)
     is_complete = status_dict["total"]["n_observed"] == status_dict["total"]["n"]
 
     env = Environment(loader=FileSystemLoader("omnibenchmark/benchmark/status"))
@@ -113,10 +117,12 @@ def statuss(
         max_file_len=max_file_len,
         stages=stages,
         stage_stats={st: status_dict["stages"][st] for st in stages},
-        ascii_stages_header=ascii_stages_header,
-        ascii_stages_sep=ascii_stages_sep,
         exec_paths_block=print_exec_path_dict(
-            exec_path_dict, stages, threshold_n_missing=1, full=show_incomplete_reason
+            exec_path_dict,
+            stages,
+            threshold_n_missing=1,
+            full=show_incomplete_reason,
+            logs=show_logs,
         ),
         result_file_str=result_file_str,
         show_incomplete_reason=show_incomplete_reason and not is_complete,
@@ -126,7 +132,7 @@ def statuss(
 
 
 @add_debug_option
-@status.command(
+@click.command(
     name="report",
     context_settings=dict(
         ignore_unknown_options=True,
@@ -155,7 +161,7 @@ def report(
     status_dict, filedict = prepare_status(benchmark, out_dir, return_all=True)
     stages = list(status_dict["stages"].keys())
 
-    # filename, observed, missing, invalid_files_file, invalid_files_repo, module_id, node_id, stage
+    # filename, observed, missing, invalid_output_files_input_file_is_newer, invalid_output_files_repo_is_newer, module_id, node_id, stage
     all_files = []
     for st in stages:
         for nd in filedict[st].keys():
@@ -164,13 +170,13 @@ def report(
                     f,
                     True,
                     False,
-                    f in filedict[st][nd]["invalid_files_file"],
-                    f in filedict[st][nd]["invalid_files_repo"],
+                    f in filedict[st][nd]["invalid_output_files_input_file_is_newer"],
+                    f in filedict[st][nd]["invalid_output_files_repo_is_newer"],
                     nd.module_id,
                     nd.get_id(),
                     st,
                 ]
-                for j, f in enumerate(filedict[st][nd]["observed_files"])
+                for j, f in enumerate(filedict[st][nd]["observed_output_files"])
             ]
     alldf = pd.DataFrame(
         {
