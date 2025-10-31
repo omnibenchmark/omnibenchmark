@@ -30,6 +30,7 @@ file completion: {{ (files_total_n_observed / files_total_n * 100) | round(0) | 
 Missing result files: 
     .: all files present
     M: missing output files
+    E: empty output files
 {%- if show_incomplete_reason %}
     R: repo timestamp older than output files
     F: input file missing or timestamps older than output files
