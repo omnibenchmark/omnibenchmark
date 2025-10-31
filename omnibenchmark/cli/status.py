@@ -67,12 +67,11 @@ def status(
     ctx,
     benchmark,
     out_dir,
-    report_html: bool = False,
     show_missing_files: bool = False,
     show_incomplete_reason: bool = False,
     show_logs: bool = False,
 ):
-    """Run a benchmark as specified in the yaml."""
+    """Show the status of a benchmark."""
     ctx.ensure_object(dict)
     # extra_args = parse_extra_args(ctx.args)
 

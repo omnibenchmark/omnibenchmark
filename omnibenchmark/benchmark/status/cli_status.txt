@@ -35,6 +35,7 @@ Missing result files:
     .: all files present
     M: missing output files
     E: empty output files
+    I: invalid output files
 {%- if show_incomplete_reason %}
     R: repo timestamp older than output files
     F: input file missing or timestamps older than output files
