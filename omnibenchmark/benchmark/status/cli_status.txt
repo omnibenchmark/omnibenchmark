@@ -38,5 +38,3 @@ Missing result files:
 {% endif %}
 aggregated results: 
 {{ result_file_str }}
-
-logs: ...
