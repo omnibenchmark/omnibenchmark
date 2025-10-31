@@ -80,11 +80,9 @@ class ExecutionPathStageFile:
         self.update()
 
     def update(self):
-        self.output_file_exist = (
-            self.output_file.is_file() and self.output_file.stat().st_size > 0
-        )
+        self.output_file_exist = self.output_file.is_file()
         self.output_file_empty = (
-            self.output_file.is_file() and self.output_file.stat().st_size == 0
+            self.output_file_exist and self.output_file.stat().st_size == 0
         )
         self.timestamp = (
             self.output_file.stat().st_mtime if self.output_file_exist else None
@@ -158,8 +156,10 @@ class ExecutionPathStageFile:
                 self.repo_is_newer_cumulative if cumulative else self.repo_is_newer
             )
         else:
-            raise ValueError("type must be either 'all', 'input_file' or 'repo'")
-        return None if is_invalid is None else not is_invalid
+            raise ValueError(
+                "type must be either 'all', 'input_file_newer', 'input_files_exist' or 'repo'"
+            )
+        return not n2f(is_invalid)
 
     def output_exists(self) -> bool:
         return self.output_file_exist
@@ -173,12 +173,18 @@ class ExecutionPathStageFile:
         """
         Get the output file path based on the filter.
         Args:
-            filter (str): One of 'none', 'observed', 'empty', 'missing', 'invalid',
+            filter (str): One of 'none', 'valid', 'observed', 'empty', 'missing', 'invalid',
                 'input_files_newer', 'repo'
             cumulative (bool): Whether to use cumulative validity
         """
         if filter == "none":
             do_return = True
+        elif filter == "valid":
+            do_return = (
+                n2f(self.output_exists())
+                and n2f(self.output_is_valid(type="all", cumulative=cumulative))
+                and not n2f(self.output_is_empty())
+            )
         elif filter == "observed":
             do_return = n2f(self.output_exists()) and n2f(
                 self.output_is_valid(type="all", cumulative=cumulative)
@@ -242,6 +248,7 @@ class ExecutionPathStage:
         node: BenchmarkNode,
         dataset: str,
         input_dir: str = "",
+        input_files: list[str] = [],
         repo_timestamp: Union[float, None] = None,
     ):
         """
@@ -271,7 +278,7 @@ class ExecutionPathStage:
         }
         output_files = node.get_output_paths(config)
 
-        input_files = []
+        # input_files = []
         self.output_stage_files = [
             ExecutionPathStageFile(
                 input_files=input_files,
@@ -398,9 +405,19 @@ class ExecutionPathStage:
         """
         output_exists = n2f(self.output_exists(aggregate="all")[0])
         output_is_empty = n2f(self.output_is_empty(aggregate="all")[0])
-        if output_is_empty and self.output_is_valid(type="all", aggregate="all"):
+        if (
+            output_is_empty
+            and self.output_is_valid(
+                type="all", cumulative=cumulative, aggregate="all"
+            )[0]
+        ):
             return "E"
-        if output_exists and self.output_is_valid(type="all", aggregate="all"):
+        if (
+            output_exists
+            and self.output_is_valid(
+                type="all", cumulative=cumulative, aggregate="all"
+            )[0]
+        ):
             return "."
         if (
             not full
@@ -422,11 +439,15 @@ class ExecutionPathStage:
             )
         ):
             if not n2f(
-                self.output_is_valid(type="input_files_newer", aggregate="all")[0]
+                self.output_is_valid(
+                    type="input_files_newer", cumulative=cumulative, aggregate="all"
+                )[0]
             ):
                 return "F"
             if not n2f(
-                self.output_is_valid(type="input_files_newer", aggregate="all")[0]
+                self.output_is_valid(
+                    type="input_files_newer", cumulative=cumulative, aggregate="all"
+                )[0]
             ):
                 return "R"
         if not output_exists:
@@ -456,14 +477,17 @@ class ExecutionPath:
         # nodes = b.get_execution_paths()[0]
         self.exec_path = {}
         input_dir = ""
+        input_files = []
         for i, st in enumerate(self.stages):
             self.exec_path[st] = ExecutionPathStage(
                 nodes[i],
                 dataset=nodes[0].module_id,  # use first node's module_id as dataset
+                input_files=input_files,
                 input_dir=input_dir,
                 repo_timestamp=repo_timestamps[st] if repo_timestamps else None,
             )
             input_dir = self.exec_path[st].output_dir
+            input_files = self.exec_path[st].get_output_files(filter="none")
         self.set_cumulative()
 
     def set_cumulative(self):
@@ -501,7 +525,10 @@ class ExecutionPath:
         self.set_cumulative()
 
     def dict_encode(
-        self, full: bool = False, stages: Union[list[str], None] = None
+        self,
+        full: bool = False,
+        cumulative: bool = False,
+        stages: Union[list[str], None] = None,
     ) -> tuple[str, int, Union[str, None]]:
         """
         Encode the execution path status as a string of single character codes.
@@ -518,7 +545,9 @@ class ExecutionPath:
         is_failed_stage = None
         for st in stages:
             if st in self.stages:
-                tmpcode = self.exec_path[st].dict_encode(full=full)
+                tmpcode = self.exec_path[st].dict_encode(
+                    full=full, cumulative=cumulative
+                )
                 if tmpcode != ".":
                     if is_failed_stage is None:
                         is_failed_stage = st
@@ -599,9 +628,12 @@ class ExecutionPathSet:
         self.n_paths = len(self.exec_path_dict.keys())
         self.stages = list(b.get_stage_ids())
 
-    def get_exec_path_dict(self, b: Benchmark, modules_repo_timestamps: dict) -> dict:
+    def get_exec_path_dict(
+        self, b: Benchmark, modules_repo_timestamps: Union[dict, None]
+    ) -> dict:
         exec_paths = b.get_execution_paths()
-        modules_repo_timestamps = get_module_timestamps(b)
+        if modules_repo_timestamps is None:
+            modules_repo_timestamps = get_module_timestamps(b)
         exec_path_dict = {}
         for exec_path_id in range(len(exec_paths)):
             nodes = b.get_execution_paths()[exec_path_id]
@@ -614,22 +646,26 @@ class ExecutionPathSet:
             )
         return exec_path_dict
 
-    def create_filedict(self):
+    def create_filedict(self, cumulative: bool = False):
         """
         Get the file dictionary for the benchmark.
         Create a nested dictionary with stage ids as keys, node ids as sub-keys,
         and information about observed, missing, and invalid files as values.
         """
+        self.filedict_is_cumulative = cumulative
         filedict = {
             **{
                 st: {
                     nd: {
+                        "output_files": set(),
+                        "valid_output_files": set(),
                         "observed_output_files": set(),
                         "empty_output_files": set(),
                         "missing_output_files": set(),
                         "invalid_output_files_input_file_is_newer": set(),
                         "invalid_output_files_repo_is_newer": set(),
                         "invalid_output_files": set(),
+                        "n_valid": 0,
                         "n_observed": 0,
                         "n_empty": 0,
                         "n_missing": 0,
@@ -647,18 +683,25 @@ class ExecutionPathSet:
             for exec_path_id in self.exec_path_dict.keys():
                 if st in self.exec_path_dict[exec_path_id].stages:
                     de = self.exec_path_dict[exec_path_id].exec_path[st]
+                    filedict[st][de.node]["output_files"] = filedict[st][de.node][
+                        "output_files"
+                    ].union(set(de.get_output_files("none", cumulative=cumulative)))
+                    filedict[st][de.node]["valid_output_files"] = filedict[st][de.node][
+                        "valid_output_files"
+                    ].union(set(de.get_output_files("valid", cumulative=cumulative)))
                     filedict[st][de.node]["observed_output_files"] = filedict[st][
                         de.node
                     ]["observed_output_files"].union(
-                        set(de.get_output_files("observed"))
+                        set(de.get_output_files("observed", cumulative=cumulative))
                     )
                     filedict[st][de.node]["empty_output_files"] = filedict[st][de.node][
                         "empty_output_files"
-                    ].union(set(de.get_output_files("empty")))
-
+                    ].union(set(de.get_output_files("empty", cumulative=cumulative)))
                     filedict[st][de.node]["missing_output_files"] = filedict[st][
                         de.node
-                    ]["missing_output_files"].union(set(de.get_output_files("missing")))
+                    ]["missing_output_files"].union(
+                        set(de.get_output_files("missing", cumulative=cumulative))
+                    )
                     filedict[st][de.node]["invalid_output_files"] = filedict[st][
                         de.node
                     ]["invalid_output_files"].union(set(de.get_output_files("invalid")))
@@ -666,7 +709,13 @@ class ExecutionPathSet:
                         "invalid_output_files_input_file_is_newer"
                     ] = filedict[st][de.node][
                         "invalid_output_files_input_file_is_newer"
-                    ].union(set(de.get_output_files("input_files_newer")))
+                    ].union(
+                        set(
+                            de.get_output_files(
+                                "input_files_newer", cumulative=cumulative
+                            )
+                        )
+                    )
                     filedict[st][de.node]["invalid_output_files_repo_is_newer"] = (
                         filedict[
                             st
@@ -674,11 +723,15 @@ class ExecutionPathSet:
                             de.node
                         ][
                             "invalid_output_files_repo_is_newer"
-                        ].union(set(de.get_output_files("repo")))
+                        ].union(set(de.get_output_files("repo", cumulative=cumulative)))
                     )
 
         for st in self.b.get_stage_ids():
             for nd in self.b.get_nodes_by_stage_id(st):
+                filedict[st][nd]["n"] = len(filedict[st][nd]["output_files"])
+                filedict[st][nd]["n_valid"] = len(
+                    filedict[st][nd]["valid_output_files"]
+                )
                 filedict[st][nd]["n_observed"] = len(
                     filedict[st][nd]["observed_output_files"]
                 )
@@ -698,20 +751,16 @@ class ExecutionPathSet:
                     filedict[st][nd]["invalid_output_files_repo_is_newer"]
                 )
 
-                # don't use 'n_empty' because empty files are also observed
-                filedict[st][nd]["n"] = (
-                    filedict[st][nd]["n_observed"]
-                    + filedict[st][nd]["n_missing"]
-                    + filedict[st][nd]["n_invalid"]
-                )
         self.filedict = filedict
 
-    def get_filedict(self) -> dict:
+    def get_filedict(self, cumulative: bool = False) -> dict:
         """
         Get the file dictionary.
         """
         if not hasattr(self, "filedict"):
-            self.create_filedict()
+            self.create_filedict(cumulative=cumulative)
+        if self.filedict_is_cumulative != cumulative:
+            self.create_filedict(cumulative=cumulative)
         return self.filedict
 
 
@@ -731,3 +780,20 @@ if __name__ == "__main__":
 
     tmp2 = tmp.exec_path["process"]
     tmp3 = tmp2.output_stage_files[0]
+    tmp3.input_files
+    tmp3.input_files_exist
+    tmp3.output_file
+    eps.get_filedict()["process"]
+
+    tmp2 = tmp.exec_path["methods"]
+    tmp3 = tmp2.output_stage_files[0]
+    tmp3.input_files
+    tmp3.output_file
+    tmp3.input_files_exist
+    tmp3.output_is_valid("all")
+    tmp3.output_is_valid("repo")
+    tmp3.output_is_valid("input_files_newer")
+
+    eps = ExecutionPathSet(b)
+    out = eps.get_filedict(cumulative=True)["methods"]
+    out["n_invalid"]

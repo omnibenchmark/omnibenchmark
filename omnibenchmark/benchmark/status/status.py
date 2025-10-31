@@ -31,7 +31,7 @@ def print_exec_path_dict(
     for i in range(len(exec_path_dict)):
         outls2 = []
         tmps1, nmiss, is_failed_stage = exec_path_dict[i].dict_encode(
-            full=full, stages=stages
+            full=full, cumulative=True, stages=stages
         )
         outls2.append(tmps1)
         nmissls.append(nmiss)
@@ -48,12 +48,13 @@ def print_exec_path_dict(
                 outls2.append("")
         outls2.append(Path(exec_path_dict[i].exec_path[st].get_output_files()[0]).name)
 
-        if logs and is_failed_stage is not None:
+        if logs:
             tmps2 = ""
-            if exec_path_dict[i].exec_path[st].stdout_log is not None:
-                tmps2 += f"\n        STDOUT: {exec_path_dict[i].exec_path[st].stdout_log.as_posix()}"
-            if exec_path_dict[i].exec_path[st].stderr_log is not None:
-                tmps2 += f"\n        STDERR: {exec_path_dict[i].exec_path[st].stderr_log.as_posix()}"
+            if is_failed_stage is not None:
+                if exec_path_dict[i].exec_path[st].stdout_log is not None:
+                    tmps2 += f"\n        STDOUT: {exec_path_dict[i].exec_path[st].stdout_log.as_posix()}"
+                if exec_path_dict[i].exec_path[st].stderr_log is not None:
+                    tmps2 += f"\n        STDERR: {exec_path_dict[i].exec_path[st].stderr_log.as_posix()}"
             logls.append(tmps2)
         outls.append(outls2)
 
@@ -87,7 +88,7 @@ def print_exec_path_dict(
     for i, (out, nmiss) in enumerate(zip(outls3, nmissls)):
         if nmiss >= threshold_n_missing:
             tmpoutstr = out
-            if logs and len(logls[i]) > 0:
+            if logs and len(logls) > 0 and len(logls[i]) > 0:
                 tmpoutstr += logls[i]
             outls_final.append(tmpoutstr)
     return "\n".join(outls_final)
@@ -105,7 +106,7 @@ def prepare_status(benchmark: str, out_dir: str, return_all: bool = False):
 
     stages = eps.stages
     exec_path_dict = eps.exec_path_dict
-    filedict2 = eps.get_filedict()
+    filedict2 = eps.get_filedict(cumulative=True)
 
     status_dict = {}
     status_dict["name"] = b.get_benchmark_name()
@@ -128,6 +129,9 @@ def prepare_status(benchmark: str, out_dir: str, return_all: bool = False):
             "n": sum([filedict2[st][nd]["n"] for nd in filedict2[st].keys()]),
             "n_observed": sum(
                 [filedict2[st][nd]["n_observed"] for nd in filedict2[st].keys()]
+            ),
+            "n_empty": sum(
+                [filedict2[st][nd]["n_empty"] for nd in filedict2[st].keys()]
             ),
             "n_missing": sum(
                 [filedict2[st][nd]["n_missing"] for nd in filedict2[st].keys()]
@@ -156,6 +160,7 @@ def prepare_status(benchmark: str, out_dir: str, return_all: bool = False):
     status_dict["total"] = {
         "n": sum([status_dict["stages"][st]["n"] for st in stages]),
         "n_observed": sum([status_dict["stages"][st]["n_observed"] for st in stages]),
+        "n_empty": sum([status_dict["stages"][st]["n_empty"] for st in stages]),
         "n_missing": sum([status_dict["stages"][st]["n_missing"] for st in stages]),
         "n_nodes": sum([status_dict["stages"][st]["n_nodes"] for st in stages]),
         "n_modules": sum([status_dict["stages"][st]["n_modules"] for st in stages]),
