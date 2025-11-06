@@ -7,8 +7,13 @@ from enum import Enum
 import re
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic import ValidationError as PydanticValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+    ValidationError as PydanticValidationError,
+)
 
 from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
 from .validation import BenchmarkValidator, ValidationError, BenchmarkParseError
@@ -173,10 +178,13 @@ class Repository(BaseModel):
     def validate_url(cls, v: str) -> str:
         return validate_non_empty_string(v)
 
-    @field_validator("commit")
+    @field_validator("commit", mode="before")
     @classmethod
-    def validate_commit(cls, v: str) -> str:
-        return validate_non_empty_commit(v)
+    def validate_commit(cls, v: Union[str, int, float]) -> str:
+        # Convert numeric commit hashes to strings. Yes, they should not be numeric,
+        # but we should handle it gracefully.
+        v_str = str(v) if not isinstance(v, str) else v
+        return validate_non_empty_commit(v_str)
 
     type: RepositoryType = Field(RepositoryType.git, description="Repository type")
 
@@ -204,12 +212,13 @@ class Parameter(BaseModel):
     id: str = Field(..., description="Parameter ID")
     values: List[str] = Field(..., description="Parameter values")
 
-    @field_validator("values")
+    @field_validator("values", mode="before")
     @classmethod
-    def validate_values(cls, v: List[str]) -> List[str]:
+    def validate_values(cls, v: List[Any]) -> List[str]:
         if not v:
             raise ValueError("Parameter values cannot be empty")
-        return v
+        # Convert all values to strings to handle mixed types (float, int, str)
+        return [str(val) for val in v]
 
 
 class IOFile(IdentifiableEntity):
@@ -441,7 +450,11 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                     import hashlib
 
                                     try:
-                                        param_str = str(sorted(param["values"]))
+                                        # Convert all values to strings to handle mixed types (float, int, str)
+                                        normalized_values = [
+                                            str(v) for v in param["values"]
+                                        ]
+                                        param_str = str(sorted(normalized_values))
                                         param["id"] = hashlib.sha256(
                                             param_str.encode()
                                         ).hexdigest()[:8]

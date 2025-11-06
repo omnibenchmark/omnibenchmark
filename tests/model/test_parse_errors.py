@@ -192,8 +192,7 @@ outputs: []
             assert error.stage_id == "clustering"
             assert error.module_id == "genieclust"
             assert error.parameter_index == 0
-            # Values should be converted to strings
-            assert error.values == ["--method", "genie", "--threshold", "0.5"]
+            assert error.values == ["--method", "genie", "--threshold", 0.5]
             assert error.original_error is not None
             # Line number should be tracked (we don't care about actual value)
             assert error.line_number is not None
@@ -204,9 +203,7 @@ class TestTopLevelFieldValidationErrors:
     """Tests for error handling in top-level field validation."""
 
     def test_version_field_validation_error_includes_line_context(self, tmp_path):
-        """Test that numeric version values are converted to strings with a warning."""
-        import warnings
-
+        """Test that validation errors for top-level fields include line numbers."""
         yaml_content = """id: test_benchmark
 description: Test benchmark with invalid version
 version: 1.4
@@ -253,7 +250,6 @@ storage:
         yaml_file.write_text(yaml_content)
 
         # This should raise a BenchmarkParseError due to endpoint being an int instead of string
-        # (storage.endpoint does not have auto-conversion like version and benchmark_yaml_spec)
         with pytest.raises(BenchmarkParseError) as excinfo:
             Benchmark.from_yaml(yaml_file)
 

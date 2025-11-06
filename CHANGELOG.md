@@ -7,12 +7,13 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - feat: add create benchmark & create module command (#171)
 - feat: add ob status (#184)
+- feat: give contextual information about parsing errors (#188)
 - docs: add self-documenting spec template
 - refactor!: remove dependency on omni-schema and networkx
 - refactor: cleanup internal module dependencies, using a central benchmark model
 - refactor: use strict type checking (#70)
 - tests: use pixi on the CI
-- feat: give contextual information about parsing errors (#188)
+- bug: do not fail if numeric values given in commit or params (#187)
 
 ## 0.3.2 (Nov 13th 2025)
 
@@ -22,7 +23,6 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - hotfix: remove the need to define dummy software environments for unused backends
 - hotfix: validate yaml against ambiguous output patterns
-
 
 ## [0.3.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.3.0) (Aug 15th 2025)
 
