@@ -6,4 +6,4 @@ mkdocs-click
 boto3
 minio
 mike
-.. # that is, this very omnibenchmark version
+. # that is, this very omnibenchmark version

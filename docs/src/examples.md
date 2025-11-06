@@ -8,7 +8,7 @@ We grouped datasets and methods according to their generator and/or software env
 
 Beyond *Conda*, we also designed *EasyBuild* and *Apptainer* execution environments to evaluate the impact of the software backend on benchmarking results, both in terms of algorithmic outcomes (e.g., clustering metrics) and computational performance.
 
-### Datasets, methods, and metrics
+### Components
 
 | Stage      | Module        | Components                                                                                                                   | Count |
 |------------|---------------|------------------------------------------------------------------------------------------------------------------------------|-------|

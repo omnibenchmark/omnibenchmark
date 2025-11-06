@@ -1,3 +1,7 @@
+### November - December 2025
+
+- Community benchmarking event at the University of Copenhagen. Onsite 17-18 November and asynchronous afterwards
+
 ### March 2025
 
 - Omnibenchmark was part of the _Modern Benchmarking_ conference in Ascona, Swizerland:
