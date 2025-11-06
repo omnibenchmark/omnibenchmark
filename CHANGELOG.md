@@ -12,6 +12,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor: cleanup internal module dependencies, using a central benchmark model
 - refactor: use strict type checking (#70)
 - tests: use pixi on the CI
+- feat: give contextual information about parsing errors (#188)
 
 ## 0.3.2 (Nov 13th 2025)
 
