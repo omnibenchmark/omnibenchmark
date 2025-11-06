@@ -10,9 +10,10 @@ import humanfriendly
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
-from omnibenchmark.cli.utils.logging import logger
-
 from omnibenchmark.cli.utils.args import parse_extra_args
+from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.cli.error_formatting import pretty_print_parse_error
+from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.io.storage import get_storage_from_benchmark
 from omnibenchmark.io.storage import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
@@ -137,6 +138,11 @@ def run_benchmark(
     try:
         b = BenchmarkExecution(Path(benchmark), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
+    except BenchmarkParseError as e:
+        # Format parse errors with file location and context
+        formatted_error = pretty_print_parse_error(e)
+        log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
+        return
     except Exception as e:
         log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
@@ -280,6 +286,10 @@ def run_module(
 
     try:
         b = BenchmarkExecution(Path(benchmark), Path("/tmp"))
+    except BenchmarkParseError as e:
+        formatted_error = pretty_print_parse_error(e)
+        log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
+        return
     except Exception as e:
         log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
@@ -398,6 +408,9 @@ def validate_yaml(ctx, benchmark):
     try:
         _ = BenchmarkExecution(Path(benchmark), Path("/tmp"))
         logger.info("Benchmark YAML file integrity check passed.")
+    except BenchmarkParseError as e:
+        formatted_error = pretty_print_parse_error(e)
+        log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
     except Exception as e:
         log_error_and_quit(logger, f"Failed to load benchmark: {e}")
 
