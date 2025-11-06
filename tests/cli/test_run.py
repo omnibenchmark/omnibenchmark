@@ -303,3 +303,35 @@ def test_validate_yaml_success():
 
         # Verify the command succeeded
         assert result.exit_code == 0
+
+
+@pytest.mark.short
+def test_run_benchmark_with_top_level_field_parse_error():
+    """
+    Test that run_benchmark handles BenchmarkParseError for top-level fields
+    (e.g., 'version', 'storage') and provides line context.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    # Create a parse error for a top-level field like 'version'
+    parse_error = BenchmarkParseError("Input should be a valid string")
+    parse_error.file_path = benchmark_path
+    parse_error.line_number = 3
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = parse_error
+
+        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
+            mock_format.return_value = "Formatted top-level error"
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run_benchmark,
+                ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+            )
+
+            # Verify the error was formatted
+            mock_format.assert_called_once_with(parse_error)
+
+            # Verify the command failed
+            assert result.exit_code == 1

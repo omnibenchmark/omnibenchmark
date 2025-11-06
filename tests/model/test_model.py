@@ -117,6 +117,25 @@ class TestCoreEntities:
         with pytest.raises(ValidationError):
             make_repository(url="https://example.com", commit="")
 
+    def test_repository_numeric_commit(self):
+        """Test Repository model with numeric commit hash.
+
+        This tests the automatic conversion to strings that was added to fix
+        the issue where YAML files with numeric-looking commit hashes would
+        fail validation.
+        """
+        # Test with integer commit (e.g., 5877378)
+        repo1 = make_repository(url="https://github.com/test/repo.git", commit=5877378)
+        assert repo1.commit == "5877378"
+        assert isinstance(repo1.commit, str)
+
+        # Test with float commit (shouldn't happen but should be handled)
+        repo2 = make_repository(
+            url="https://github.com/test/repo.git", commit=6090043.0
+        )
+        assert repo2.commit == "6090043.0"
+        assert isinstance(repo2.commit, str)
+
     def test_parameter(self):
         """Test Parameter model."""
         param = Parameter(id="param1", values=["a", "b", "c"])
@@ -126,6 +145,46 @@ class TestCoreEntities:
         # Test with empty values
         with pytest.raises(ValidationError):
             Parameter(id="param1", values=[])
+
+    def test_parameter_mixed_types(self):
+        """Test Parameter model with mixed types (float, int, str, bool).
+
+        This tests the automatic conversion to strings that was added to fix
+        the issue where YAML files with mixed parameter types would fail with
+        "'<' not supported between instances of 'float' and 'str'" error.
+        """
+        # Test with mixed types
+        param = Parameter(
+            id="param1",
+            values=[
+                "--method",
+                "genie",
+                "--threshold",
+                0.5,
+                "--count",
+                10,
+                "--flag",
+                True,
+            ],
+        )
+        assert param.id == "param1"
+        # All values should be converted to strings
+        assert param.values == [
+            "--method",
+            "genie",
+            "--threshold",
+            "0.5",
+            "--count",
+            "10",
+            "--flag",
+            "True",
+        ]
+        assert all(isinstance(v, str) for v in param.values)
+
+        # Test with pure numeric types
+        param2 = Parameter(id="param2", values=[1, 2.5, 3, 4.0])
+        assert param2.values == ["1", "2.5", "3", "4.0"]
+        assert all(isinstance(v, str) for v in param2.values)
 
     def test_io_file(self):
         """Test IOFile model."""
