@@ -13,8 +13,6 @@ Almut Lütge, Anthony Sonrel, Charlotte Soneson, Daniel Incicau, Reto Gerber, Be
 ### Contact
 
 - E-mail: mark.robinson (at) mls.uzh.ch
-- Twitter: [@markrobinsonca](https://twitter.com/markrobinsonca) [@omnibenchmark](https://twitter.com/omnibenchmark)
-- GitHub: [omnibenchmark](https://github.com/omnibenchmark)
 
 **Address:**
 
