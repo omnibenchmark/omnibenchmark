@@ -6,6 +6,10 @@ We are located in the [Department of Molecular Life Sciences](https://www.mls.uz
 
 Research in our laboratory is focused on creating, comparing and understanding statistical methods and data science tools for processing and interpreting various types of genomic data. 
 
+### Team
+
+Almut Lütge, Anthony Sonrel, Charlotte Soneson, Daniel Incicau, Reto Gerber, Ben Carrillo, Izaskun Mallona, Mark D. Robinson
+
 ### Contact
 
 - E-mail: mark.robinson (at) mls.uzh.ch
