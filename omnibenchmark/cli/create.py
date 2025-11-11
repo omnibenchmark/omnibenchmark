@@ -9,6 +9,7 @@ import git
 
 from omnibenchmark import __version__
 from omnibenchmark.cli.utils.logging import logger
+
 from .debug import add_debug_option
 
 
@@ -427,6 +428,7 @@ def create_benchmark(
         # Run copier
         copier_data = {"omnibenchmark_version": __version__}
 
+        # If non-interactive, include provided parameters and enable defaults
         if non_interactive:
             # Use provided parameters for non-interactive mode
             copier_data.update(
@@ -438,39 +440,38 @@ def create_benchmark(
                     "description": description or "",
                 }
             )
-            copier.run_copy(
-                src_path=str(template_path),
-                dst_path=str(target_path),
-                defaults=True,
-                data=copier_data,
-                quiet=False,
-                pretend=False,
-                vcs_ref="HEAD",
-                unsafe=True,
+
+        # Determine whether to run copier with defaults (no questionnaire).
+        # We want to use defaults when:
+        #  - user explicitly requested non-interactive mode (flags),
+        #  - user passed --no-input, or
+        #  - stdin is not a TTY (e.g. running in CI or tests that pipe input).
+        #
+        # The last condition is necessary because the copier interactive
+        # questionnaire requires a real TTY; in many automated/test environments
+        # stdin may be present but is not a terminal. For those cases we fall
+        # back to defaults to avoid copier raising an InteractiveSessionError.
+        use_defaults = non_interactive or no_input
+
+        if not use_defaults and not sys.stdin.isatty():
+            # Documented fallback: tests/CI sometimes provide non-tty stdin, so
+            # treat that the same as requesting defaults rather than failing.
+            logger.warning(
+                "Input is not a terminal (fd=0). Falling back to defaults for copier questionnaire."
             )
-        elif no_input:
-            # Use defaults for non-interactive mode
-            copier.run_copy(
-                src_path=str(template_path),
-                dst_path=str(target_path),
-                defaults=True,
-                data=copier_data,
-                quiet=False,
-                pretend=False,
-                vcs_ref="HEAD",
-                unsafe=True,
-            )
-        else:
-            # Interactive mode
-            copier.run_copy(
-                src_path=str(template_path),
-                dst_path=str(target_path),
-                data=copier_data,
-                quiet=False,
-                pretend=False,
-                vcs_ref="HEAD",
-                unsafe=True,
-            )
+            use_defaults = True
+
+        # Single, unified copier invocation to avoid duplicated calls.
+        copier.run_copy(
+            src_path=str(template_path),
+            dst_path=str(target_path),
+            defaults=use_defaults,
+            data=copier_data,
+            quiet=False,
+            pretend=False,
+            vcs_ref="HEAD",
+            unsafe=True,
+        )
 
         # Read benchmark name and software backend for post-processing
         benchmark_name = name or "OmniBenchmark project"
