@@ -9,6 +9,7 @@ Research in our laboratory is focused on creating, comparing and understanding s
 ### Team
 
 Ben Carrillo, Reto Gerber, Izaskun Mallona, Daniel Incicau, Mark D. Robinson, Charlotte Soneson (current)
+
 Almut Lütge, Anthony Sonrel (former)
 
 ### Contact
