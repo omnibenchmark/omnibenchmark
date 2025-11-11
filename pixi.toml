@@ -1,0 +1,140 @@
+[project]
+name = "omnibenchmark"
+version = "0.3.0"
+description = "A tool for automated scientific benchmarking"
+authors = [
+    "imallona",
+    "danincicau",
+    "ben <ben.uzh@pm.me>",
+    "user <user@example.com>",
+]
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64", "osx-64", "osx-arm64"]
+
+[dependencies]
+python = "3.12.*"
+pip = ">=24.1.2"
+
+# Core testing dependencies
+pytest = ">=7.0"
+pytest-cov = ">=4.1.0"
+pytest-timeout = "==2.3.1"
+
+# Type checking and linting
+pyright = ">=1.1.406,<2"
+ruff = "*"
+
+# Core dependencies for the package
+git = "*"
+
+
+[target.linux-64.dependencies]
+# Linux-specific software testing dependencies
+apptainer = "*"
+lua = "*"
+lua-luafilesystem = "*"
+lua-luaposix = "*"
+tk = "*"
+
+[target.osx-64.dependencies]
+# macOS x86_64 specific dependencies
+
+[target.osx-arm64.dependencies]
+# macOS ARM64 specific dependencies
+
+[pypi-dependencies]
+# Install local package in development mode
+omnibenchmark = { path = ".", editable = true }
+
+# Core package dependencies
+click = ">=8.1.7"
+python-dateutil = ">=2.9.0.post0"
+filelock = ">=3.4.0"
+spdx-license-list = ">=3.19"
+PyYAML = "*"
+humanfriendly = "*"
+pydantic = "*"
+GitPython = ">=3.1.0"
+tqdm = ">=4.66.4"
+
+# S3 and storage dependencies
+minio = ">=7.2.7"
+boto3 = ">=1.34.102"
+snakemake-storage-plugin-s3 = ">=0.2.12"
+s3fs = { version = ">=2023.12.0", extras = ["boto3"] }
+
+# Test dependencies
+testcontainers = ">=4.5.1"
+pytest-xdist = "*"
+
+# Development and testing
+tox = "*"
+build = "*"
+
+[tasks]
+# Basic test tasks - only short tests, excluding e2e
+test-short = "pytest -m 'short and not e2e' --cov --cov-branch --cov-report=xml"
+test = { cmd = "pytest -m 'short and not e2e'", description = "Run short tests only (excluding e2e)" }
+
+# End-to-end test tasks
+test-e2e = { cmd = "pytest -m e2e -v -n auto", description = "Run end-to-end tests with parallel workers" }
+test-all = { cmd = "pytest", description = "Run all tests including e2e" }
+
+# Linting and type checking
+lint = "ruff check ."
+lint-fix = "ruff check . --fix"
+typecheck = "pyright"
+
+# Software testing tasks
+test-software = { cmd = "pytest -v -x --show-capture=stderr tests/software/", description = "Run software integration tests" }
+
+# Development tasks
+dev-install = "pip install -e ."
+build = "python -m build ."
+clean = "rm -rf dist/ build/ *.egg-info/ .pytest_cache/ .coverage"
+pip = "pip"
+
+# Python version testing
+# Tox for comprehensive testing (with library interactions like snakemake)
+test-tox = "tox"
+# Fast pixi alternative for CI (run with: pixi run -e py313 test-py313)
+test-py313 = "pytest -m 'short and not e2e' --ignore=tests/e2e --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_MinIOStorage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"
+
+[feature.docs.dependencies]
+# Documentation dependencies (optional feature)
+mkdocs = ">=1.6.0"
+mkdocs-material = "==9.5.28"
+mkdocs-git-revision-date-localized-plugin = "==1.2.6"
+mkdocs-bibtex = ">=2.16.0"
+mkdocs-click = "*"
+mike = "*"
+
+[feature.docs.tasks]
+# Documentation tasks (available when docs feature is enabled)
+docs-build = { cmd = "mkdocs build", cwd = "docs", description = "Build documentation" }
+docs-serve = { cmd = "mkdocs serve", cwd = "docs", description = "Serve documentation locally" }
+
+[environments]
+default = { solve-group = "default" }
+docs = { features = ["docs"], solve-group = "default" }
+py313 = { features = [
+    "py313",
+], solve-group = "py313", no-default-feature = true }
+
+[feature.py313.dependencies]
+python = "3.13.*"
+pip = ">=24.1.2"
+# Core testing dependencies for py313
+pytest = ">=7.0"
+pytest-cov = ">=4.1.0"
+pytest-timeout = "==2.3.1"
+# Core dependencies for the package
+git = "*"
+
+[feature.py313.pypi-dependencies]
+# Install local package in development mode
+omnibenchmark = { path = ".", editable = true }
+
+[feature.py313.tasks]
+# Test task for Python 3.13 environment
+test-py313 = "pytest -m 'short and not e2e' --ignore=tests/e2e --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_MinIOStorage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"

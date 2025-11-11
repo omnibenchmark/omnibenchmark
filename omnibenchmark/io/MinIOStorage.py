@@ -9,19 +9,26 @@ import re
 
 from packaging.version import Version
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional
 from urllib.parse import urlparse
 
-import boto3
-import minio
-import minio.commonconfig
-import minio.retention
+try:
+    import boto3
+    import minio
+    import minio.commonconfig
+    import minio.retention
+    from minio.lifecycleconfig import LifecycleConfig, Rule, NoncurrentVersionExpiration
+    from minio.commonconfig import Filter, Tags
+except ImportError:
+    # perhaps should be handled at a higher level, and advice the user to install the required packages
+    # via pip install minio boto3 or extras['s3'].
+    pass
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.io.exception import (
-    MinIOStorageBucketManipulationException,
-    MinIOStorageConnectionException,
     RemoteStorageInvalidInputException,
+    MinIOStorageConnectionException,
+    MinIOStorageBucketManipulationException,
 )
 from omnibenchmark.io.archive import prepare_archive_software
 from omnibenchmark.io.RemoteStorage import RemoteStorage, StorageOptions
@@ -33,6 +40,7 @@ from omnibenchmark.io.versioning import (
     get_remoteversion_from_bmversion,
     prepare_csv_remoteversion_from_bmversion,
 )
+from omnibenchmark.versioning.git import GitAwareBenchmarkVersionManager
 
 # TODO: set if we have the DEBUG flag set
 logging.getLogger("requests").setLevel(logging.DEBUG)
@@ -48,13 +56,13 @@ def set_bucket_public_readonly(client: minio.Minio, bucket_name: str):
 def set_bucket_lifecycle_config(
     client: minio.Minio, bucket_name: str, noncurrent_days: int = 1
 ):
-    lifecycle_config = minio.lifecycleconfig.LifecycleConfig(
+    lifecycle_config = LifecycleConfig(
         [
-            minio.lifecycleconfig.Rule(
+            Rule(
                 minio.commonconfig.ENABLED,
-                rule_filter=minio.lifecycleconfig.Filter(prefix="*"),
+                rule_filter=Filter(prefix="*"),
                 rule_id="rule1",
-                noncurrent_version_expiration=minio.lifecycleconfig.NoncurrentVersionExpiration(
+                noncurrent_version_expiration=NoncurrentVersionExpiration(
                     noncurrent_days=noncurrent_days
                 ),
             ),
@@ -72,6 +80,23 @@ class MinIOStorage(RemoteStorage):
     ):
         super().__init__(auth_options, benchmark, storage_options)
         assert "endpoint" in self.auth_options.keys()
+
+        # ARCHITECTURAL NOTE: Version Manager Coupling
+        # Storage directly instantiates version managers, creating tight coupling.
+        # During the LinkML → Pydantic migration, this pattern emerged to handle
+        # version validation within storage operations.
+        #
+        # Future consideration: Inject version manager as a dependency rather
+        # than creating it here. This would improve testability and separation of concerns,
+        # and allow for more flexibility in managing versions (monotonic, etc)
+        from omnibenchmark.versioning import BenchmarkVersionManager
+
+        self.version_manager = BenchmarkVersionManager(
+            benchmark_path=Path(f"/tmp/{benchmark}.yaml"),
+            lock_dir=Path("/tmp/omnibenchmark_locks"),
+            lock_timeout=30.0,
+        )
+
         if "access_key" in self.auth_options.keys():
             self.client = self.connect()
             self.roclient = self.connect(readonly=True)
@@ -110,11 +135,17 @@ class MinIOStorage(RemoteStorage):
             )
             tmp_auth_options = self.auth_options.copy()
         try:
-            return minio.Minio(**tmp_auth_options)
+            return minio.Minio(
+                endpoint=tmp_auth_options["endpoint"],
+                **{k: v for k, v in tmp_auth_options.items() if k != "endpoint"},
+            )
         except Exception:
             url = urlparse(tmp_auth_options["endpoint"])
             tmp_auth_options["endpoint"] = url.netloc
-            return minio.Minio(**tmp_auth_options)
+            return minio.Minio(
+                endpoint=tmp_auth_options["endpoint"],
+                **{k: v for k, v in tmp_auth_options.items() if k != "endpoint"},
+            )
 
     def _test_connect(self) -> None:
         try:
@@ -150,15 +181,21 @@ class MinIOStorage(RemoteStorage):
             )
         )
         allversions = [
-            os.path.basename(v.object_name).replace(".csv", "") for v in versionobjects
+            os.path.basename(v.object_name).replace(".csv", "")
+            for v in versionobjects
+            if v.object_name is not None
         ]
         versions = list()
         for version in allversions:
             if re.match("(\\d+).(\\d+)", version):
                 versions.append(Version(version))
         self.versions = versions
+        # Sync with version manager (in-memory tracking only)
+        self.version_manager.set_known_versions([str(v) for v in versions])
 
-    def create_new_version(self, benchmark: Union[None, Benchmark] = None) -> None:
+    def create_new_version(
+        self, benchmark: Optional[BenchmarkExecution] = None
+    ) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
                 "No version provided, set version first with method 'set_version'"
@@ -169,72 +206,159 @@ class MinIOStorage(RemoteStorage):
                 "Read-only mode, cannot create new version, set access_key and secret_key in auth_options"
             )
 
-        # update
+        # Refresh versions from storage
         self._get_versions()
-        if self.version in self.versions:
-            raise RemoteStorageInvalidInputException(
-                "Version already exists, set new version with method 'set_version'"
-            )
 
-        # upload benchmark definition file
+        # Initialize version manager based on whether benchmark is provided
         if benchmark is not None:
-            # read file
-            bmfile = Path(benchmark.get_definition_file())
-            with open(bmfile, "r") as fh:
-                bmstr = fh.read()
+            # Try git-aware version manager first, fall back to basic if git not available
+            try:
+                self.version_manager = GitAwareBenchmarkVersionManager(
+                    benchmark_path=benchmark.get_definition_file(),
+                    git_repo_path=benchmark.context.directory,
+                    lock_dir=Path("/tmp/omnibenchmark_locks"),
+                    lock_timeout=30.0,
+                )
+                # Sync known versions from storage
+                self.version_manager.set_known_versions([str(v) for v in self.versions])
+            except Exception:
+                # Fall back to basic version manager if git not available
+                from omnibenchmark.versioning import BenchmarkVersionManager
 
-            # upload file
-            _ = self.client.put_object(
-                self.benchmark,
-                "config/benchmark.yaml",
-                io.BytesIO(bmstr.encode()),
-                len(bmstr),
+                self.version_manager = BenchmarkVersionManager(
+                    benchmark_path=benchmark.get_definition_file(),
+                    lock_dir=Path("/tmp/omnibenchmark_locks"),
+                    lock_timeout=30.0,
+                )
+                self.version_manager.set_known_versions([str(v) for v in self.versions])
+        else:
+            # Use basic version manager for validation only (testing scenarios)
+            from omnibenchmark.versioning import BenchmarkVersionManager
+
+            self.version_manager = BenchmarkVersionManager(
+                benchmark_path=Path(f"/tmp/{self.benchmark}.yaml"),
+                lock_dir=Path("/tmp/omnibenchmark_locks"),
+                lock_timeout=30.0,
             )
+            self.version_manager.set_known_versions([str(v) for v in self.versions])
 
-            # read software files
-            software_files = prepare_archive_software(benchmark)
+        # Track uploaded objects for rollback on failure
+        uploaded_objects = []
+        tagged_objects = []
 
-            # upload software files
-            for software_file in software_files:
-                with open(software_file, "r") as fh:
-                    softstr = fh.read()
+        try:
+            # First: Create version with persistence (VersionManager updates YAML and commits to git)
+            if benchmark is not None and hasattr(
+                self.version_manager, "create_version_with_persistence"
+            ):
+                try:
+                    _created_version = (
+                        self.version_manager.create_version_with_persistence(  # type: ignore
+                            benchmark,
+                            str(self.version),
+                            f"Create benchmark version {self.version}",
+                        )
+                    )
+                except Exception:
+                    # If git-based version creation fails, fall back to basic version manager
+                    from omnibenchmark.versioning import BenchmarkVersionManager
 
-                _ = self.client.put_object(
-                    self.benchmark,
-                    f"software/{software_file.name}",
-                    io.BytesIO(softstr.encode()),
-                    len(softstr),
+                    self.version_manager = BenchmarkVersionManager(
+                        benchmark_path=benchmark.get_definition_file(),
+                        lock_dir=Path("/tmp/omnibenchmark_locks"),
+                        lock_timeout=30.0,
+                    )
+                    self.version_manager.set_known_versions(
+                        [str(v) for v in self.versions]
+                    )
+                    self.version_manager.set_known_versions(
+                        self.version_manager.get_versions() + [str(self.version)]
+                    )
+            else:
+                # Basic version tracking for testing scenarios
+                self.version_manager.set_known_versions(
+                    self.version_manager.get_versions() + [str(self.version)]
                 )
 
-        # get all objects
-        objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
+            # Then: upload the UPDATED benchmark definition file and software files
+            if benchmark is not None:
+                bmfile = Path(benchmark.get_definition_file())
+                with open(bmfile, "r") as fh:
+                    bmstr = fh.read()
 
-        # get objects to tag
-        object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
-            objdic, storage_options=self.storage_options
-        )
+                # upload updated file (now contains the new version)
+                _ = self.client.put_object(
+                    self.benchmark,
+                    "config/benchmark.yaml",
+                    io.BytesIO(bmstr.encode()),
+                    len(bmstr),
+                )
+                uploaded_objects.append("config/benchmark.yaml")
 
-        # filter objects based on workflow
-        object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(object_names_to_tag,
-                                                                                 versionid_of_objects_to_tag,
-                                                                                 self.storage_options,
-                                                                                 benchmark)
+                # read software files
+                software_files = prepare_archive_software(benchmark)
 
-        # Tag all objects with current version
-        tags = minio.datatypes.Tags.new_object_tags()
-        tags[str(self.version)] = "1"
-        for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
-            self.client.set_object_tags(self.benchmark, n, tags, version_id=v)
+                # upload software files
+                for software_file in software_files:
+                    with open(software_file, "r") as fh:
+                        softstr = fh.read()
 
-        # set retention policy of objects
-        retention_config = minio.retention.Retention(
-            minio.commonconfig.GOVERNANCE,
-            datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
-        )
-        for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
-            self.client.set_object_retention(
-                self.benchmark, n, config=retention_config, version_id=v
+                    obj_name = f"software/{software_file.name}"
+                    _ = self.client.put_object(
+                        self.benchmark,
+                        obj_name,
+                        io.BytesIO(softstr.encode()),
+                        len(softstr),
+                    )
+                    uploaded_objects.append(obj_name)
+
+            # get all objects
+            objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
+
+            # get objects to tag
+            object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
+                objdic, storage_options=self.storage_options
             )
+
+            # filter objects based on workflow
+            object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(
+                object_names_to_tag,
+                versionid_of_objects_to_tag,
+                self.storage_options,
+                benchmark,
+            )
+
+            # Tag all objects with current version
+            tags = Tags.new_object_tags()
+            tags[str(self.version)] = "1"
+            for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
+                self.client.set_object_tags(self.benchmark, n, tags, version_id=v)
+                tagged_objects.append((n, v))
+
+            # set retention policy of objects
+            retention_config = minio.retention.Retention(
+                minio.commonconfig.GOVERNANCE,
+                datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
+            )
+            for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
+                self.client.set_object_retention(
+                    self.benchmark, n, config=retention_config, version_id=v
+                )
+
+        except Exception as e:
+            # Rollback: remove tags from tagged objects
+            logger.error(f"Error creating version {self.version}, rolling back: {e}")
+            for obj_name, version_id in tagged_objects:
+                try:
+                    # Remove the version tag we just added
+                    self.client.delete_object_tags(
+                        self.benchmark, obj_name, version_id=version_id
+                    )
+                except Exception:
+                    pass  # Best effort rollback
+
+            # Re-raise the original exception
+            raise RemoteStorageInvalidInputException(f"Failed to create version: {e}")
 
         # refresh object list
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
@@ -258,7 +382,7 @@ class MinIOStorage(RemoteStorage):
         if self.version not in self.versions:
             raise MinIOStorageBucketManipulationException("Version creation failed")
 
-    # TODO(ben): review if we want this public, it's used in tests
+    # TODO(ben): review if we want to make this method public, it's used in tests
     def _get_objects(self) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
@@ -288,10 +412,11 @@ class MinIOStorage(RemoteStorage):
                 "version_id": response_headers.get("x-amz-version-id"),
                 # some parsing of date to get to consistent format
                 "last_modified": datetime.datetime.strptime(
-                    response_headers.get("last-modified"), "%a, %d %b %Y %H:%M:%S GMT"
+                    response_headers.get("last-modified") or "",
+                    "%a, %d %b %Y %H:%M:%S GMT",
                 ).strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),
                 "size": response_headers.get("content-length"),
-                "etag": response_headers.get("etag").replace('"', ""),
+                "etag": (response_headers.get("etag") or "").replace('"', ""),
             }
         else:
             # get all objects
@@ -333,7 +458,7 @@ class MinIOStorage(RemoteStorage):
 
     def archive_version(
         self,
-        benchmark: Benchmark,
+        benchmark: BenchmarkExecution,
         outdir: Path = Path(),
         config: bool = True,
         code: bool = False,
@@ -342,7 +467,22 @@ class MinIOStorage(RemoteStorage):
     ):
         from omnibenchmark.io.archive import archive_version
 
+        # TODO: outdir is in benchmarkExecution
         # TODO: upload the zip archive
+        _ = archive_version(benchmark, outdir, config, code, software, results)
+
+    def upload_version(
+        self,
+        benchmark: BenchmarkExecution,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
+        from omnibenchmark.io.archive import archive_version
+
+        # TODO: upload the zip archive, we're not doing anything with the result!
         _ = archive_version(benchmark, outdir, config, code, software, results)
 
     def delete_version(self, version):

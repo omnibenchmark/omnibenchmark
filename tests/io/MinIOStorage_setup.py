@@ -6,10 +6,9 @@ from pathlib import Path
 
 from testcontainers.minio import MinioContainer
 
-# TODO(ben): deprecate in favor of pydantic model serializer
-from linkml_runtime.dumpers import yaml_dumper
+import yaml
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.model import Benchmark
 from omnibenchmark.io.MinIOStorage import MinIOStorage
 from omnibenchmark.io.RemoteStorage import StorageOptions
 
@@ -66,12 +65,18 @@ class TmpMinIOStorage:
         os.makedirs(self.out_dir, exist_ok=True)
 
         # Prepare benchmark file by injecting bucket name and endpoint
-        benchmark_obj = Benchmark(Path(in_dir / benchmark_file))
-        benchmark_obj.converter.model.storage = self.endpoint
-        benchmark_obj.converter.model.storage_bucket_name = self.bucket_name
+        benchmark_obj = Benchmark.from_yaml(Path(in_dir / benchmark_file))
+        # Update the storage configuration in the benchmark model
+        from omnibenchmark.model import Storage, StorageAPIEnum
+
+        benchmark_obj.storage = Storage(
+            api=StorageAPIEnum.s3, endpoint=self.endpoint, bucket_name=self.bucket_name
+        )
         benchmark_file = str(self.out_dir / f"Benchmark_{self.bucket_name}.yaml")
         self.benchmark_file = benchmark_file
-        yaml_dumper.dump(benchmark_obj.converter.model, benchmark_file)
+        # Use Pydantic's model dump with mode='json' to properly serialize enums
+        with open(benchmark_file, "w") as f:
+            yaml.dump(benchmark_obj.model_dump(mode="json"), f)
 
         self.storage_options = StorageOptions(out_dir="out")
 

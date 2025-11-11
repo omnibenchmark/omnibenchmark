@@ -1,0 +1,23 @@
+{
+  "data_primary/D1/*/D1_data.json": 100,
+  "data_primary/D2/*/D2_data.json": 200,
+  "data_secondary/D3/*/D3_data.json": 300,
+  "data_secondary/D4/*/D4_data.json": 400,
+  "data_primary/D1/*/preprocessing_primary/P1/*/D1_normalized.json": 110,
+  "data_primary/D2/*/preprocessing_primary/P1/*/D2_normalized.json": 210,
+  "data_secondary/D3/*/preprocessing_secondary/P2/*/D3_normalized.json": 310,
+  "data_secondary/D4/*/preprocessing_secondary/P2/*/D4_normalized.json": 410,
+  "data_primary/D1/*/preprocessing_primary/P1/*/methods_group1/M1/*/D1_method.json": 1110,
+  "data_primary/D1/*/preprocessing_primary/P1/*/methods_group1/M2/*/D1_method.json": 2110,
+  "data_primary/D2/*/preprocessing_primary/P1/*/methods_group1/M1/*/D2_method.json": 1210,
+  "data_primary/D2/*/preprocessing_primary/P1/*/methods_group1/M2/*/D2_method.json": 2210,
+  "data_secondary/D3/*/preprocessing_secondary/P2/*/methods_group1_secondary/M1S/*/D3_method.json": 1310,
+  "data_secondary/D3/*/preprocessing_secondary/P2/*/methods_group1_secondary/M2S/*/D3_method.json": 2310,
+  "data_secondary/D4/*/preprocessing_secondary/P2/*/methods_group1_secondary/M1S/*/D4_method.json": 1410,
+  "data_secondary/D4/*/preprocessing_secondary/P2/*/methods_group1_secondary/M2S/*/D4_method.json": 2410,
+  "data_primary/D1/*/methods_group2/M3/*/D1_method.json": 3100,
+  "data_primary/D2/*/methods_group2/M3/*/D2_method.json": 3200,
+  "data_secondary/D3/*/methods_group3/M4/*/D3_method.json": 4300,
+  "data_secondary/D4/*/methods_group3/M4/*/D4_method.json": 4400,
+  "metrics/metrics.json": { "avg": 2423.3333333333335, "max": 4400 }
+}

@@ -1,0 +1,17 @@
+{
+  "data/D1/*/D1_data.json": 2,
+  "data/D2/*/D2_data.json": 4,
+  "data/D1/*/preprocessing/P1/*/D1_preprocessed.json": 3,
+  "data/D1/*/preprocessing/P2/*/D1_preprocessed.json": 4,
+  "data/D2/*/preprocessing/P1/*/D2_preprocessed.json": 5,
+  "data/D2/*/preprocessing/P2/*/D2_preprocessed.json": 8,
+  "data/D1/*/preprocessing/P1/*/methods/M1/*/D1_method.json": 13,
+  "data/D1/*/preprocessing/P2/*/methods/M1/*/D1_method.json": 14,
+  "data/D2/*/preprocessing/P1/*/methods/M1/*/D2_method.json": 15,
+  "data/D2/*/preprocessing/P2/*/methods/M1/*/D2_method.json": 18,
+  "data/D1/*/preprocessing/P1/*/methods/M2/*/D1_method.json": 15,
+  "data/D1/*/preprocessing/P2/*/methods/M2/*/D1_method.json": 20,
+  "data/D2/*/preprocessing/P1/*/methods/M2/*/D2_method.json": 25,
+  "data/D2/*/preprocessing/P2/*/methods/M2/*/D2_method.json": 40,
+  "metrics/metrics.json": { "avg": 20, "max": 40 }
+}

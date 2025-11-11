@@ -3,7 +3,7 @@
 # and installs the pinned system dependencies and an editable version of the
 # omnibenchmark python package.
 CMD=conda
-ENV_FILE=test-environment.yml
+ENV_FILE=omni-environment.yml
 ENV_NAME=omnibenchmark
 
 # Create environment

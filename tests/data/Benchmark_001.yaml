@@ -1,9 +1,9 @@
 id: Benchmark_001
 description: simple benchmark, somewhat explicit, simple params
-version: 1.0
+version: "1.0"
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
 storage: https://storage.github.com/
-benchmark_yaml_spec: 0.01
+api_version: "0.3.0"
 storage_api: S3
 storage_bucket_name: benchmark001
 software_backend: host
@@ -28,10 +28,13 @@ metric_collectors:
       url: https://github.com/omnibenchmark-example/metric-collector.git
       commit: ef4a601
     inputs:
-      - metrics.mapping
+      - id: metrics.mapping
+        path: "metrics.mapping"
     outputs:
-      - "biometrics_report.html"
-      - "biometrics.tsv"
+      - id: biometrics_report
+        path: "biometrics_report.html"
+      - id: biometrics_tsv
+        path: "biometrics.tsv"
 stages:
   - id: data
     modules:
@@ -85,7 +88,7 @@ stages:
     modules:
       - id: M1
         software_environment: "zlib_old"
-        exclude: [ D2 ]
+        exclude: [D2]
         repository:
           url: https://github.com/omnibenchmark-example/method.git
           commit: 8f2f835

@@ -125,6 +125,7 @@ stages:
     outputs:
         ## output id
       - id: data.image
+        ## output path.
         path: "{dataset}.png"
 ```
 
@@ -153,6 +154,7 @@ This stage is not initial: its modules have both inputs and outputs.
     ## stage-specific outputs
     outputs:
       - id: methods.matrix
+        ## output path.
         path: "{dataset}.matrix.tsv.gz"
 ```
 
@@ -192,12 +194,7 @@ Finally, we add the metrics stage containing modules `m1` and `m2`.
     ## stage specific-outputs
     outputs:
       - id: metrics.json
-        ## output path. Wildcards will get dynamicly resoved to:
-        ##   input: not the project root anymore, but the path to the deepest file input (a method's output)
-        ##   stage: `metrics` (current stage id)
-        ##   module: `m1` or `m2`
-        ##   params: `empty` (no parameters added)
-        ##   dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
+        ## output path.
         path: "{dataset}.json"
 ```
 
@@ -391,13 +388,7 @@ stages:
     outputs:
         ## output id
       - id: data.image
-        ## output path. Wildcards will get dynamicly resoved to:
-        ##   input: the project root working directory
-        ##   stage: `data` (current stage id)
-        ##   module: `D1` (the only module `data stage` has)
-        ##   params: `empty` (no parameters added)
-        ##   dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
-        ##     generating outputs, are reused as `dataset` wildcards)
+        ## output path.
         path: "{dataset}.png"
 ```
 

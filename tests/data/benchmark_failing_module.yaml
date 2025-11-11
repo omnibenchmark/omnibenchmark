@@ -1,12 +1,15 @@
 id: mock_benchmark_fail_intermediate
 description: benchmark with failing intermediate node for testing continue-on-error
-version: 1.0
+version: "1.0"
 benchmarker: "Bench Marker"
 software_backend: host
 software_environments:
   python:
     description: "some python env"
+    easyconfig: Python-3.9.6-GCCcore-11.2.0.eb
+    envmodule: "3.9.6-GCCcore-11.2.0"
     conda: envs/python_vX_test.yaml
+    apptainer: http://registry.ch/Python-3.9.6-GCCcore-11.2.0.eb.sif
 stages:
   - id: data
     modules:

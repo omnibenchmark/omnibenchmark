@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import List
 
-from omni_schema.datamodel.omni_schema import MetricCollector, SoftwareBackendEnum
+from omnibenchmark.model import MetricCollector, SoftwareBackendEnum
 
 from omnibenchmark.benchmark import Benchmark, Validator
 from omnibenchmark.workflow.snakemake import scripts
@@ -26,10 +26,10 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
         rule all:
             input: paths
             output:
-                f"{benchmark.out_dir}/performances.tsv"
+                f"{benchmark.context.out_dir}/performances.tsv"
             run:
-                result = glob_wildcards(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt")
-                performances = expand(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
+                result = glob_wildcards(str(benchmark.context.out_dir) + "/{path}/{dataset}_performance.txt")
+                performances = expand(str(benchmark.context.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
                 performances = sorted(list(set(performances)))
 
                 output_dir = Path(str(os.path.commonpath(output)))
@@ -59,7 +59,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
         input:
             expand(updated_inputs, allow_missing=True)
         output:
-            formatter.format_metric_collector_output(benchmark.out_dir, collector)
+            formatter.format_metric_collector_output(benchmark.context.out_dir, collector)
 
         # Snakemake 8.25.2 introduced changes that no longer allow None for environment values
         # Hence we provide alternatives for `conda`, `envmodules`, `container` which do not exist, although it will not affect the normal flow
@@ -93,7 +93,7 @@ def _compile_regex_pattern_for_collectors_input(pattern: str) -> re.Pattern[str]
 
 
 def _get_environment_paths(benchmark: Benchmark, collector: MetricCollector, software_backend: SoftwareBackendEnum) -> str:
-    benchmark_dir = benchmark.directory
+    benchmark_dir = benchmark.context.directory
     environment = benchmark.get_benchmark_software_environments()[collector.software_environment]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
 

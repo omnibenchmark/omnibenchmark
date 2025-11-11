@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
@@ -68,7 +67,7 @@ def test_benchmark_format_incorrect():
 
 def test_benchmark_software_does_not_exist():
     expected = """
-    Error: An unexpected error occurred: Software environment with id 'python' does not have a valid backend definition for: 'conda'.
+    Failed to load benchmark: Software environment with id 'python' does not have a valid backend definition for: 'conda'.
     """
     with OmniCLISetup() as omni:
         result = omni.call(
@@ -85,9 +84,8 @@ def test_benchmark_software_does_not_exist():
         assert_in_output(result.stdout, expected)
 
 
-def test_local():
-    expected = """
-    Benchmark YAML file integrity check passed.
+def test_local(tmp_path):
+    expected = """Benchmark YAML file integrity check passed.
     Running benchmark..."""
 
     with OmniCLISetup() as omni:
@@ -99,13 +97,14 @@ def test_local():
                 str(data / "mock_benchmark.yaml"),
                 "--local-storage",
             ],
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected)
 
 
-def test_custom_out_dir():
+def test_custom_out_dir(tmp_path):
     expected = """
     Benchmark YAML file integrity check passed.
     Running benchmark..."""
@@ -123,13 +122,13 @@ def test_custom_out_dir():
                 "--out-dir",
                 custom_out_dir,
             ],
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected)
 
-        assert os.path.exists(custom_out_dir)
-        shutil.rmtree(custom_out_dir)
+        assert os.path.exists(tmp_path / custom_out_dir)
 
 
 def test_local_dry():
@@ -153,7 +152,7 @@ def test_local_dry():
         assert_startswith(result.stdout, expected_output)
 
 
-def test_local_update_true():
+def test_local_update_true(tmp_path):
     expected1 = "Running benchmark"
     expected2 = "Benchmark run has finished successfully."
     with OmniCLISetup() as omni:
@@ -167,6 +166,7 @@ def test_local_update_true():
                 "--update",
             ],
             input="y",
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0

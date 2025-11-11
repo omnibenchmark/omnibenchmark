@@ -2,18 +2,28 @@ import pytest
 
 
 def pytest_addoption(parser):
-    parser.addoption(
-        "--keep-files",
-        action="store_true",
-        default=False,
-        help="Keep temporary files after test execution",
-    )
-    parser.addoption(
-        "--current-dir",
-        action="store_true",
-        default=False,
-        help="Use current directory instead of temporary one",
-    )
+    # Check if --keep-files option already exists to avoid conflicts
+    try:
+        parser.addoption(
+            "--keep-files",
+            action="store_true",
+            default=False,
+            help="Keep temporary files after test execution",
+        )
+    except ValueError:
+        # Option already exists, skip adding it
+        pass
+
+    try:
+        parser.addoption(
+            "--current-dir",
+            action="store_true",
+            default=False,
+            help="Use current directory instead of temporary one",
+        )
+    except ValueError:
+        # Option already exists, skip adding it
+        pass
 
 
 @pytest.fixture
