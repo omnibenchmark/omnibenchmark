@@ -32,7 +32,6 @@ def run(ctx):
 @run.command(
     name="benchmark",
     context_settings=dict(
-        ignore_unknown_options=True,
         allow_extra_args=True,
     ),
 )
@@ -187,7 +186,6 @@ def run_benchmark(
 @run.command(
     name="module",
     context_settings=dict(
-        ignore_unknown_options=True,
         allow_extra_args=True,
     ),
 )

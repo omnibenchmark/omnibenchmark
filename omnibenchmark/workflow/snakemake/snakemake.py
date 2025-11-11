@@ -33,8 +33,6 @@ def _print_ob_flags_help(command_type: str = "benchmark"):
         f"If you intended to use an ob-specific flag, run 'ob run {command_type} --help' for more info.",
         file=sys.stderr,
     )
-
-    print("\nAll other flags are passed to Snakemake.", file=sys.stderr)
     print("=" * 80 + "\n", file=sys.stderr)
 
 

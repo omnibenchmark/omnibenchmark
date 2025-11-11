@@ -92,7 +92,7 @@ def test_run_benchmark_with_slurm_executor(
 ):
     """
     Test that the benchmark runs with the SLURM executor and
-    extra arguments that are passed directly to nakemake.
+    extra arguments that are passed directly to Snakemake using the -- separator.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
@@ -105,16 +105,19 @@ def test_run_benchmark_with_slurm_executor(
             "-k",
             "--executor",
             "slurm",
-            "--jobs",
-            "6",
             "--cores",
             "24",
+            "--yes",
+            "--out",
+            "foo",
+            "--",
+            "--jobs",
+            "6",
             "--default-resources",
             "mem_mb=4000",
             "runtime=600",
             "--verbose",
             "--printshellcmds",
-            "--yes",
         ],
     )
 
