@@ -108,8 +108,6 @@ def test_run_benchmark_with_slurm_executor(
             "--cores",
             "24",
             "--yes",
-            "--out",
-            "foo",
             "--",
             "--jobs",
             "6",
