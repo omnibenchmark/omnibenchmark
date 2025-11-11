@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor: use strict type checking (#70)
 - docs: add self-documenting spec template
 - tests: use pixi on the CI
+- fix: Use -- separator for passing delimiting extra arguments passing to snakemake
 
 ## [0.3.0](Aug 15th 2025)
 
