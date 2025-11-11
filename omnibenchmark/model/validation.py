@@ -2,10 +2,12 @@
 
 import os
 import warnings
-from typing import List, TYPE_CHECKING, Any
+from pathlib import Path
+from typing import List, TYPE_CHECKING, Any, Optional
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    pass
+    from .benchmark import SoftwareEnvironment, SoftwareBackendEnum
 
 
 class ValidationError(Exception):
@@ -203,3 +205,113 @@ class BenchmarkValidator:
     def is_initial(self, stage: Any) -> bool:
         """Check if a stage is an initial stage (has no inputs)."""
         return not stage.inputs or len(stage.inputs) == 0  # type: ignore
+
+    def validate_output_patterns(self) -> List[ValidationError]:
+        """
+        Validates that output file patterns don't create ambiguous Snakemake rules.
+
+        Checks if different stages produce outputs with the same filename pattern
+        (e.g., both producing {dataset}.ad), which would cause Snakemake to fail
+        with an AmbiguousRuleException.
+
+        Returns:
+            List of ValidationError objects describing any ambiguous patterns found.
+        """
+        errors = []
+
+        # Collect all output patterns grouped by their base filename
+        pattern_to_stages = {}
+
+        stages_dict = self.get_stages()  # type: ignore
+        for stage_id, stage in stages_dict.items():
+            stage_outputs = stage.outputs if stage.outputs else []
+
+            for output in stage_outputs:
+                # Extract the base filename pattern (last component of the path)
+                output_path = output.path
+                base_pattern = os.path.basename(output_path)
+
+                # Track which stages produce this pattern
+                if base_pattern not in pattern_to_stages:
+                    pattern_to_stages[base_pattern] = []
+                pattern_to_stages[base_pattern].append(
+                    {"stage_id": stage_id, "output_id": output.id, "path": output_path}
+                )
+
+        # Check for patterns that appear in multiple stages
+        for pattern, stage_info_list in pattern_to_stages.items():
+            if len(stage_info_list) > 1:
+                # Build a helpful error message
+                stage_details = []
+                for info in stage_info_list:
+                    stage_details.append(
+                        f"  - Stage '{info['stage_id']}' output '{info['output_id']}': {info['path']}"
+                    )
+
+                error_msg = (
+                    f"Ambiguous output pattern '{pattern}' found in multiple stages. "
+                    f"Please ensure each stage produces outputs with unique filename patterns:\n"
+                    + "\n".join(stage_details)
+                    + f"\n\nSuggestion: Modify the output paths to include stage-specific prefixes. "
+                    f"For example, change '{pattern}' to '{{dataset}}_{stage_info_list[0]['stage_id']}.{pattern.split('.')[-1] if '.' in pattern else 'out'}' "
+                    f"in one or more stages."
+                )
+
+                errors.append(ValidationError(error_msg))
+
+        return errors
+
+    # Utility methods
+
+    @staticmethod
+    def is_url(string: str) -> bool:
+        """Check if the string is a valid URL using urlparse."""
+        try:
+            result = urlparse(string)
+            return all(
+                [result.scheme, result.netloc]
+            )  # Valid if both scheme and netloc are present
+        except ValueError:
+            return False
+
+    @staticmethod
+    def is_absolute_path(string: str) -> bool:
+        """Check if the string is an absolute path."""
+        return Path(string).is_absolute()
+
+    @staticmethod
+    def get_environment_path(
+        software_backend: "SoftwareBackendEnum",
+        software: "SoftwareEnvironment",
+        benchmark_dir: Path,
+    ) -> Optional[str]:
+        """Get the environment path based on software backend and environment configuration."""
+        # Import here to avoid circular imports
+        from .benchmark import SoftwareBackendEnum
+
+        environment = None
+        if (
+            software_backend == SoftwareBackendEnum.apptainer
+            or software_backend == SoftwareBackendEnum.docker
+        ):
+            environment = software.apptainer
+
+        elif software_backend == SoftwareBackendEnum.conda:
+            environment = software.conda
+
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment = software.envmodule
+
+        if not environment:
+            return None
+
+        if BenchmarkValidator.is_url(
+            environment
+        ) or BenchmarkValidator.is_absolute_path(environment):
+            environment_path = environment
+        elif software_backend == SoftwareBackendEnum.envmodules:
+            environment_path = environment
+        else:
+            environment_path = os.path.join(benchmark_dir, environment)
+
+        return environment_path

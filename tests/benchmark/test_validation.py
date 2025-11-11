@@ -3,8 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from omnibenchmark.benchmark.converter import LinkMLConverter
-from omnibenchmark.benchmark.validation.validator import Validator
+from omnibenchmark.model import Benchmark
 
 
 @pytest.mark.short
@@ -13,8 +12,8 @@ def test_validate_output_patterns_no_ambiguity():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
-    converter = LinkMLConverter(benchmark_file_path)
-    errors = Validator.validate_output_patterns(converter)
+    benchmark = Benchmark.from_yaml(benchmark_file_path)
+    errors = benchmark.validate_output_patterns()
 
     assert len(errors) == 0, f"Expected no errors but got: {errors}"
 
@@ -25,9 +24,9 @@ def test_validate_output_patterns_with_ambiguity():
     # Create a temporary YAML file with ambiguous patterns
     ambiguous_yaml = """id: test_ambiguous
 description: Test benchmark with ambiguous output patterns
-version: 1.0
+version: "1.0"
 benchmarker: "Test User"
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: "0.01"
 software_backend: host
 software_environments:
   env1:
@@ -63,8 +62,8 @@ stages:
         temp_file = f.name
 
     try:
-        converter = LinkMLConverter(Path(temp_file))
-        errors = Validator.validate_output_patterns(converter)
+        benchmark = Benchmark.from_yaml(Path(temp_file))
+        errors = benchmark.validate_output_patterns()
 
         # Both stages output {dataset}.txt
         assert len(errors) > 0, "Expected to find ambiguous output patterns"
@@ -89,9 +88,9 @@ def test_validate_output_patterns_different_directories():
     # Create a temporary YAML with same filename in different directories
     yaml_content = """id: test_dirs
 description: Test benchmark with outputs in different directories
-version: 1.0
+version: "1.0"
 benchmarker: "Test User"
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: "0.01"
 software_backend: host
 software_environments:
   env1:
@@ -127,8 +126,8 @@ stages:
         temp_file = f.name
 
     try:
-        converter = LinkMLConverter(Path(temp_file))
-        errors = Validator.validate_output_patterns(converter)
+        benchmark = Benchmark.from_yaml(Path(temp_file))
+        errors = benchmark.validate_output_patterns()
 
         # Note: The current implementation only checks base filenames
         # If two stages have outputs like "dir1/{dataset}.txt" and "dir2/{dataset}.txt",
@@ -146,9 +145,9 @@ def test_validate_output_patterns_multiple_ambiguities():
     """Test detection of multiple different ambiguous patterns."""
     yaml_content = """id: test_multiple
 description: Test benchmark with multiple ambiguous patterns
-version: 1.0
+version: "1.0"
 benchmarker: "Test User"
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: "0.01"
 software_backend: host
 software_environments:
   env1:
@@ -188,8 +187,8 @@ stages:
         temp_file = f.name
 
     try:
-        converter = LinkMLConverter(Path(temp_file))
-        errors = Validator.validate_output_patterns(converter)
+        benchmark = Benchmark.from_yaml(Path(temp_file))
+        errors = benchmark.validate_output_patterns()
 
         # Should find two ambiguous patterns: {dataset}.txt and {dataset}.json
         assert len(errors) == 2, f"Expected 2 ambiguous patterns but got {len(errors)}"
@@ -204,10 +203,10 @@ def test_validate_output_patterns_single_stage_multiple_outputs():
     benchmark_file = "../data/Benchmark_001.yaml"
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
-    converter = LinkMLConverter(benchmark_file_path)
+    benchmark = Benchmark.from_yaml(benchmark_file_path)
 
     # Check that at least one stage has multiple outputs
-    stages = converter.get_stages()
+    stages = benchmark.get_stages()
     has_stage_with_multiple_outputs = False
     for stage in stages.values():
         if stage.outputs and len(stage.outputs) > 1:
@@ -219,7 +218,7 @@ def test_validate_output_patterns_single_stage_multiple_outputs():
         has_stage_with_multiple_outputs
     ), "Test file should have a stage with multiple outputs"
 
-    errors = Validator.validate_output_patterns(converter)
+    errors = benchmark.validate_output_patterns()
 
     # Should have no errors for unique patterns across stages
     assert len(errors) == 0
@@ -230,9 +229,9 @@ def test_validate_output_patterns_error_message_format():
     """Test that error messages contain helpful information for fixing the issue."""
     yaml_content = """id: test_error_format
 description: Test benchmark for error message format
-version: 1.0
+version: "1.0"
 benchmarker: "Test User"
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: "0.01"
 software_backend: host
 software_environments:
   env1:
@@ -268,8 +267,8 @@ stages:
         temp_file = f.name
 
     try:
-        converter = LinkMLConverter(Path(temp_file))
-        errors = Validator.validate_output_patterns(converter)
+        benchmark = Benchmark.from_yaml(Path(temp_file))
+        errors = benchmark.validate_output_patterns()
 
         assert len(errors) > 0, "Expected to find ambiguous patterns"
 
