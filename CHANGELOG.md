@@ -10,7 +10,6 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor: use strict type checking (#70)
 - docs: add self-documenting spec template
 - tests: use pixi on the CI
-- bug: do not fail if numeric values given in commit or params (#187)
 - feat: give contextual information about parsing errors (#188)
 
 ## [0.3.0](Aug 15th 2025)

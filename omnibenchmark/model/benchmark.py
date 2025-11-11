@@ -8,9 +8,11 @@ import re
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import ValidationError as PydanticValidationError
 
 from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
 from .validation import BenchmarkValidator, ValidationError, BenchmarkParseError
+from ._parsing import convert_pydantic_error_to_parse_error
 
 
 class LineNumberLoader(yaml.SafeLoader):
@@ -430,16 +432,16 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     for module_idx, module in enumerate(stage["modules"]):
                         if "parameters" in module and module["parameters"]:
                             for param_idx, param in enumerate(module["parameters"]):
+                                # Convert all parameter values to strings to handle mixed types (float, int, str)
+                                if "values" in param:
+                                    param["values"] = [str(v) for v in param["values"]]
+
                                 if "id" not in param and "values" in param:
                                     # Generate a hash-based ID from the parameter values
                                     import hashlib
 
                                     try:
-                                        # Convert all values to strings to handle mixed types (float, int, str)
-                                        normalized_values = [
-                                            str(v) for v in param["values"]
-                                        ]
-                                        param_str = str(sorted(normalized_values))
+                                        param_str = str(sorted(param["values"]))
                                         param["id"] = hashlib.sha256(
                                             param_str.encode()
                                         ).hexdigest()[:8]
@@ -485,7 +487,14 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 "endpoint": data["storage"],
             }
 
-        return cls(**data)
+        try:
+            return cls(**data)
+        except PydanticValidationError as e:
+            # Convert Pydantic validation error to BenchmarkParseError with context
+            parse_error = convert_pydantic_error_to_parse_error(
+                e, data, line_map, yaml_file_path
+            )
+            raise parse_error from e
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Benchmark":
