@@ -1,10 +1,11 @@
 """Pydantic models for Omnibenchmark - replacing omni_schema and linkml dependencies."""
 
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
-from enum import Enum
 import re
+import warnings
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 from pydantic import (
@@ -12,12 +13,15 @@ from pydantic import (
     Field,
     field_validator,
     model_validator,
+)
+from pydantic import (
     ValidationError as PydanticValidationError,
 )
 
 from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
-from .validation import BenchmarkValidator, ValidationError, BenchmarkParseError
+
 from ._parsing import convert_pydantic_error_to_parse_error
+from .validation import BenchmarkParseError, BenchmarkValidator, ValidationError
 
 
 class LineNumberLoader(yaml.SafeLoader):
@@ -355,10 +359,22 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             raise ValueError(f"Invalid API version: {v}")
         return v
 
-    @field_validator("version")
+    @field_validator("version", mode="before")
     @classmethod
-    def validate_version(cls, v: str) -> str:
+    def validate_version(cls, v: Union[str, int, float]) -> str:
         """Validate that version follows strict semantic versioning format."""
+        # Handle numeric types with deprecation warning
+        if isinstance(v, (int, float)):
+            warnings.warn(
+                f"Field 'version' should be a string. "
+                f"Found {type(v).__name__} value: {v}. "
+                f"This will not be valid in a future release. "
+                f"Please update your YAML file to use a quoted string.",
+                FutureWarning,
+                stacklevel=4,
+            )
+            v = str(v)
+
         if not isinstance(v, str):
             raise ValueError("Version must be a string")
 
@@ -378,7 +394,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         return v
 
-    @field_validator("benchmark_yaml_spec")
+    @field_validator("benchmark_yaml_spec", mode="before")
     @classmethod
     def validate_benchmark_yaml_spec(
         cls, v: Optional[Union[str, float, int]]
@@ -390,14 +406,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         if not isinstance(v, str):
             # Allow float/int for backwards compatibility but warn
             if isinstance(v, (float, int)):
-                import warnings
-
                 warnings.warn(
-                    f"benchmark_yaml_spec should be a string, not {type(v).__name__}. "
-                    f"Float/numeric values are deprecated and will be removed in future versions. "
-                    f"Please use '{v}' (string) instead of {v}.",
-                    DeprecationWarning,
-                    stacklevel=2,
+                    f"Field 'benchmark_yaml_spec' should be a string. "
+                    f"Found {type(v).__name__} value: {v}. "
+                    f"This will not be valid in a future release. "
+                    f"Please update your YAML file to use a quoted string.",
+                    FutureWarning,
+                    stacklevel=4,
                 )
                 return str(v)
             else:

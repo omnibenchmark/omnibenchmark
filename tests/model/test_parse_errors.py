@@ -1,8 +1,11 @@
 """Tests for benchmark parsing error handling and line tracking."""
 
+import warnings
+
 import pytest
-from omnibenchmark.model.validation import BenchmarkParseError
+
 from omnibenchmark.model.benchmark import Benchmark, load_yaml_with_lines
+from omnibenchmark.model.validation import BenchmarkParseError
 
 
 @pytest.mark.short
@@ -192,7 +195,8 @@ outputs: []
             assert error.stage_id == "clustering"
             assert error.module_id == "genieclust"
             assert error.parameter_index == 0
-            assert error.values == ["--method", "genie", "--threshold", 0.5]
+            # Values should be converted to strings (conversion happens before error)
+            assert error.values == ["--method", "genie", "--threshold", "0.5"]
             assert error.original_error is not None
             # Line number should be tracked (we don't care about actual value)
             assert error.line_number is not None
@@ -205,8 +209,8 @@ class TestTopLevelFieldValidationErrors:
     def test_version_field_validation_error_includes_line_context(self, tmp_path):
         """Test that validation errors for top-level fields include line numbers."""
         yaml_content = """id: test_benchmark
-description: Test benchmark with invalid version
-version: 1.4
+description: Test benchmark with invalid version format
+version: "not-a-semver"
 benchmarker: "Test User"
 benchmark_yaml_spec: "0.3.0"
 software_backend: "conda"
@@ -219,13 +223,13 @@ outputs: []
         yaml_file = tmp_path / "test.yaml"
         yaml_file.write_text(yaml_content)
 
-        # This should raise a BenchmarkParseError due to version being a float instead of string
+        # This should raise a BenchmarkParseError due to invalid version format
         with pytest.raises(BenchmarkParseError) as excinfo:
             Benchmark.from_yaml(yaml_file)
 
         # Verify error has context
         error = excinfo.value
-        assert "Input should be a valid string" in error.message
+        assert "does not follow strict semantic versioning format" in error.message
         assert error.yaml_file == yaml_file
         assert error.line_number == 3  # version is on line 3
         assert error.original_error is not None
@@ -260,3 +264,131 @@ storage:
         # Line number should be tracked
         assert error.line_number is not None
         assert error.original_error is not None
+
+
+@pytest.mark.short
+class TestDeprecationWarningForNumericFields:
+    """Tests for deprecation warnings when version or benchmark_yaml_spec are numeric."""
+
+    def test_version_as_float_triggers_deprecation_warning(self, tmp_path):
+        """Test that numeric version triggers a future warning but still works."""
+        yaml_content = """id: test_benchmark
+description: Test benchmark with numeric version
+version: 1.4
+benchmarker: "Test User"
+benchmark_yaml_spec: "0.3.0"
+software_backend: "conda"
+software_environments:
+  - id: test_env
+    conda: test.yaml
+stages: []
+outputs: []
+"""
+        yaml_file = tmp_path / "test.yaml"
+        yaml_file.write_text(yaml_content)
+
+        # Should trigger a DeprecationWarning but still load successfully
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            benchmark = Benchmark.from_yaml(yaml_file)
+
+            # Verify warning was triggered
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "version" in str(w[0].message)
+            assert "should be a string" in str(w[0].message)
+            assert "1.4" in str(w[0].message)
+            assert "will not be valid in a future release" in str(w[0].message)
+
+        # Verify the benchmark loaded with the converted value
+        assert benchmark.version == "1.4"
+        assert benchmark.id == "test_benchmark"
+
+    def test_version_as_int_triggers_deprecation_warning(self, tmp_path):
+        """Test that integer version triggers a deprecation warning but fails validation."""
+        yaml_content = """id: test_benchmark
+description: Test benchmark with integer version
+version: 2
+benchmarker: "Test User"
+benchmark_yaml_spec: "0.3.0"
+software_backend: "conda"
+software_environments:
+  - id: test_env
+    conda: test.yaml
+stages: []
+outputs: []
+"""
+        yaml_file = tmp_path / "test.yaml"
+        yaml_file.write_text(yaml_content)
+
+        # Should trigger a DeprecationWarning and then fail because "2" is not valid semver
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            with pytest.raises(BenchmarkParseError) as exc_info:
+                Benchmark.from_yaml(yaml_file)
+
+            # Verify deprecation warning was triggered before validation error
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "version" in str(w[0].message)
+
+            # Verify the error is about semantic versioning format
+            assert "does not follow strict semantic versioning format" in str(
+                exc_info.value
+            )
+
+    def test_benchmark_yaml_spec_as_float_triggers_deprecation_warning(self, tmp_path):
+        """Test that numeric benchmark_yaml_spec triggers a deprecation warning but still works."""
+        yaml_content = """id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: "Test User"
+benchmark_yaml_spec: 0.3
+software_backend: "conda"
+software_environments:
+  - id: test_env
+    conda: test.yaml
+stages: []
+outputs: []
+"""
+        yaml_file = tmp_path / "test.yaml"
+        yaml_file.write_text(yaml_content)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            benchmark = Benchmark.from_yaml(yaml_file)
+
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "benchmark_yaml_spec" in str(w[0].message)
+            assert "should be a string" in str(w[0].message)
+
+        assert benchmark.benchmark_yaml_spec == "0.3"
+
+    def test_version_as_string_no_warning(self, tmp_path):
+        """Test that string version does not trigger a warning."""
+        yaml_content = """id: test_benchmark
+description: Test benchmark with proper string version
+version: "1.4"
+benchmarker: "Test User"
+benchmark_yaml_spec: "0.3.0"
+software_backend: "conda"
+software_environments:
+  - id: test_env
+    conda: test.yaml
+stages: []
+outputs: []
+"""
+        yaml_file = tmp_path / "test.yaml"
+        yaml_file.write_text(yaml_content)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            benchmark = Benchmark.from_yaml(yaml_file)
+
+            # No future warnings should be triggered
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) == 0
+
+        assert benchmark.version == "1.4"
