@@ -1,17 +1,18 @@
-site_name: omnibenchmark
+site_name: Omnibenchmark
 site_url: https://omnibenchmark.org
 repo_url: https://github.com/omnibenchmark/omnibenchmark
 repo_name: omnibenchmark
-site_description: Omnibenchmark is a platform for open, continuous community-driven scientific benchmarking.
+site_description: Omnibenchmark is a CLI for open and continuous scientific benchmarking.
 docs_dir: src
 
 nav:
-  - omnibenchmark: index.md
+  - Omnibenchmark: index.md
   - Philosophy: philosophy.md
   - Tutorials: tutorial.md
   - How-to guides: howto.md
   - CLI reference: reference.md
-  - Configuration: config.md
+  # - Configuration: config.md
+  - Examples: examples.md
   - News: news.md
   - Contact: team.md
 

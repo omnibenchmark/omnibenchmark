@@ -8,13 +8,13 @@ Research in our laboratory is focused on creating, comparing and understanding s
 
 ### Team
 
-Almut Lütge, Anthony Sonrel, Charlotte Soneson, Daniel Incicau, Reto Gerber, Ben Carrillo, Izaskun Mallona, Mark D. Robinson
+Ben Carrillo, Reto Gerber, Izaskun Mallona, Daniel Incicau, Mark D. Robinson, Charlotte Soneson (current)
+
+Almut Lütge, Anthony Sonrel (former)
 
 ### Contact
 
 - E-mail: mark.robinson (at) mls.uzh.ch
-- Twitter: [@markrobinsonca](https://twitter.com/markrobinsonca) [@omnibenchmark](https://twitter.com/omnibenchmark)
-- GitHub: [omnibenchmark](https://github.com/omnibenchmark)
 
 **Address:**
 
@@ -24,7 +24,5 @@ University of Zurich
 Winterthurerstrasse 190
 CH-8057 Zurich, Switzerland
 
-Office Y11-G-05
-Phone  +41 44 635 48 48
-Fax    +41 44 635 68 68
+Office Y11-G-05 (Mark D. Robinson)
 ```
