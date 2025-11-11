@@ -448,7 +448,7 @@ parser$add_argument("--data.counts", dest="data_counts", type="character", help=
 parser$add_argument("--data.meta", dest="data_meta", type="character", help="input file #2")
 ```
 
-Notice these arguments names **must match** the YAML's input ids: `data.counts` and `data.meta` are specified as inputs in the benchmark YAML; as before, `name` refers to the dataset name and `output_dir` to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and write outputs in a way compatible to the benchmark YAML specification.
+Notice these argument names **must match** the YAML's input ids: `data.counts` and `data.meta` are specified as inputs in the benchmark YAML; as before, `name` refers to the dataset name and `output_dir` to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and write outputs in a way compatible to the benchmark YAML specification.
 
 ## Run a benchmark
 
