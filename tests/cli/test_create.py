@@ -1,9 +1,12 @@
 """Tests for the create command CLI functionality"""
 
+import os
+import subprocess
+
 import pytest
 
+from .asserts import assert_in_output, assert_startswith
 from .cli_setup import OmniCLISetup
-from .asserts import assert_startswith, assert_in_output
 
 
 @pytest.mark.short
@@ -48,6 +51,37 @@ def test_create_benchmark_without_destination(tmp_path):
         assert run.returncode == 0
         assert_in_output(run.stdout, "Starting copier questionnaire for new benchmark")
         assert_in_output(run.stdout, "Benchmark scaffolding created successfully")
+
+
+@pytest.mark.short
+def test_create_benchmark_non_tty_fallback(tmp_path):
+    """
+    Make sure that that when the stdin is not a TTY (for example, when the CLI is
+    invoked with stdin redirected from /dev/null), we command fall back to
+    copier defaults instead of failing with an InteractiveSessionError.
+    """
+    # Exec CLI directly, providing stdin from /dev/null to simulate a non-TTY execution
+    result = subprocess.run(
+        [
+            "python",
+            "-m",
+            "omnibenchmark.cli.main",
+            "create",
+            "benchmark",
+            str(tmp_path),
+        ],
+        stdin=open(os.devnull, "r"),
+        capture_output=True,
+        text=True,
+    )
+
+    combined = (result.stdout or "") + "\n" + (result.stderr or "")
+    assert result.returncode == 0
+    # Confirm scaffolding was created and that the fallback to defaults was used
+    assert "Benchmark scaffolding created successfully" in combined
+    assert (
+        "Falling back to defaults" in combined or "Input is not a terminal" in combined
+    )
 
 
 @pytest.mark.short
