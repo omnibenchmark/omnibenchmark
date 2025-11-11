@@ -313,7 +313,9 @@ stages:
 
 ## Use local module repositories
 
-Git-tracked repositories can be used locally, without pushing to GitHub, GitLab, bitbucket or any other remote.
+Local Git repositories can be referenced directly in the `url` field of benchmarking YAML manifestos, without the need to push to GitHub, GitLab, Bitbucket, or any other remote. To ensure changes are tracked, remember to stage them with `git add` and commit them with `git commit` in the local repository. It is recommended to specify full paths (beginning with `/`) to the local Git repository (i.e. `/home/user/repos/data` in the example below).
+
+
 
 ```yaml
 stages:
@@ -323,8 +325,8 @@ stages:
         name: "Dataset 1"
         software_environment: "python"
         repository:
-          url: /home/user/repos/data # path to the local git repository
-          commit: 41aaa0a
+          url: /home/user/repos/data # full path to the local git repository
+          commit: 41aaa0a            # note the commit is still needed
     outputs:
       - id: data.image
         path: "{dataset}.png"
