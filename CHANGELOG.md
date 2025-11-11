@@ -14,6 +14,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor: use strict type checking (#70)
 - tests: use pixi on the CI
 - bug: do not fail if numeric values given in commit, params or version (#187)
+- bug: Use -- separator for passing delimiting extra arguments passing to snakemake
 
 ## 0.3.2 (Nov 13th 2025)
 

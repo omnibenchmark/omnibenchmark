@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import tempfile
 
 
@@ -22,6 +23,17 @@ INCLUDES = [
     "rule_node.smk",
     "rule_all.smk",
 ]
+
+
+def _print_ob_flags_help(command_type: str = "benchmark"):
+    """Print available ob-specific flags to help users identify typos."""
+    print("\n" + "=" * 80, file=sys.stderr)
+    print("HINT: The error above is from Snakemake's argument parser.", file=sys.stderr)
+    print(
+        f"If you intended to use an ob-specific flag, run 'ob run {command_type} --help' for more info.",
+        file=sys.stderr,
+    )
+    print("=" * 80 + "\n", file=sys.stderr)
 
 
 class SnakemakeEngine(WorkflowEngine):
@@ -90,9 +102,14 @@ class SnakemakeEngine(WorkflowEngine):
 
         logging.getLogger("snakemake").setLevel(logging.DEBUG)
 
-        # Execute snakemake script
-        parser, args = parse_args(argv)
-        return snakemake_cli(args, parser)
+        try:
+            parser, args = parse_args(argv)
+            return snakemake_cli(args, parser)
+        except SystemExit as e:
+            # Catch argument parsing errors and provide helpful context
+            if e.code != 0:
+                _print_ob_flags_help(command_type="benchmark")
+            raise
 
     def serialize_workflow(
         self,
@@ -221,12 +238,15 @@ class SnakemakeEngine(WorkflowEngine):
         if module_path:
             os.environ["MODULEPATH"] = module_path
 
-        # Execute snakemake script
-        parser, args = parse_args(argv)
-
-        success = snakemake_cli(args, parser)
-
-        return success
+        try:
+            parser, args = parse_args(argv)
+            success = snakemake_cli(args, parser)
+            return success
+        except SystemExit as e:
+            # Catch argument parsing errors and provide helpful context
+            if e.code != 0:
+                _print_ob_flags_help(command_type="module")
+            raise
 
     def serialize_node_workflow(
         self,
