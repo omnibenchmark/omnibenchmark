@@ -1,18 +1,22 @@
-## Install Omnibenchmark
+## Installation
 
 Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/project/omnibenchmark/), [source code](https://github.com/omnibenchmark/omnibenchmark)).
 
-### Supported Platforms
+### Supported platforms
+
+Even if Omnibenchmark installs, there are limitations of running benchmarks on some operating systems.
 
 | Backend      | Linux | MacOS | Windows |
 |--------------|-------|-------|---------|
-| Conda        | ✅    | ✅    | ❌       |
-| Apptainer    | ✅    | ❌     | ❌       |
-| Easybuild    | ✅    | ⚠️     | ❌       |
-| Lmod         | ✅    | ⚠️     | ❌       |
+| Conda        | ✅    | ✅    | ⚠️       |
+| Apptainer    | ✅    | ❌    | ❌       |
+| Easybuild    | ✅    | ⚠️    | ❌       |
+| Lmod         | ✅    | ⚠️    | ❌       |
 
 
-### Quick Start (Recommended: Conda)
+Similarly, the system architecture matters. Conda packages built for amd64 do not run on arm64 machines.
+
+### Quick start using conda
 
 ```shell
 # Install Miniforge and git if not already installed
@@ -29,7 +33,7 @@ ob --version
 
 For detailed instructions, see below.
 
-### Installation via Conda
+### Installation via conda
 
 This is the **recommended** way to install Omnibenchmark because it also enables using conda-managed workflows. Similarly, we provide a conda environment YAML to help installing other dependencies, such as `lmod` or `easybuild`.
 
@@ -104,7 +108,7 @@ You can install omnibenchmark as a python package with `pip`.
 
 ### Installation from source
 
-If you want to become a contributor, then you need to install omnibenchmark from source. For more details check out the project's [CONTRIBUTING.md](https://github.com/omnibenchmark/omnibenchmark/blob/main/CONTRIBUTING.md).
+If you want to become a contributor, then you need to install omnibenchmark from source. For more details check out [CONTRIBUTING.md](https://github.com/omnibenchmark/omnibenchmark/blob/main/CONTRIBUTING.md).
 
 ## Install Additional Dependencies
 
@@ -205,9 +209,9 @@ Check everything works with:
 
     ```
 
-#### 2. Persist Lmod Setup
+#### 2. Persist Lmod setup
 
-To ensure `lmod` is available in every terminal session, **add the following to your shell profile**:
+To ensure `lmod` is available in every terminal session, add the following to your shell profile:
 
 - For `bash`, edit `~/.bash_profile` or `~/.bashrc`
 - For `zsh` (default on modern macOS), edit `~/.zprofile` or `~/.zshrc`
@@ -287,13 +291,43 @@ software_environments:
     apptainer: /home/user/singularity_image.sif
 ```
 
-## Choosing the right software backend (lmod, apptainer, conda)
+## Simplify benchmark YAMLs using branch names instead of commit names
 
-Omnibenchmark itself is a python package. Some of its dependencies, namely those related to (reproducible) software stack management, are OS-specific.
+The `commit` field within a module stanza can accept branch names or git tags. Using commits or tags is recommended.
 
-Software can be managed:
+```yaml
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: main # pointing to the latest commit in branch main
+    outputs:
+      - id: data.image
+        path: "{dataset}.png"
+```
 
-- Using the host's binaries. If relevant interpreters/software are in your $PATH (perhaps using a virtual environment, or directly), they're accessible to omnibenchmark.
-- Using conda. For that `conda` is required. We provide a conda environment YAML to help installing all dependencies.
-- Using apptainer. For that, apptainer is needed.
-- Using environment modules (lmod). For that, lmod is needed.
+
+## Use local module repositories
+
+Local Git repositories can be referenced directly in the `url` field of benchmarking YAML manifestos, without the need to push to GitHub, GitLab, Bitbucket, or any other remote. To ensure changes are tracked, remember to stage them with `git add` and commit them with `git commit` in the local repository. It is recommended to specify full paths (beginning with `/`) to the local Git repository (i.e. `/home/user/repos/data` in the example below).
+
+
+
+```yaml
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "python"
+        repository:
+          url: /home/user/repos/data # full path to the local git repository
+          commit: 41aaa0a            # note the commit is still needed
+    outputs:
+      - id: data.image
+        path: "{dataset}.png"
+```
