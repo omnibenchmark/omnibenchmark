@@ -3,7 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project uses [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## [0.3.2](release/0.3.x) UNRELEASED
+## [0.3.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.3.2) (Nov 13th 2025)
 
 - bug: do not hardcode /tmp in run_module (#173)
 
