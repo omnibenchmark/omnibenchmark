@@ -2,6 +2,7 @@
 
 import os
 import sys
+import tempfile
 from itertools import chain
 from pathlib import Path
 
@@ -279,7 +280,7 @@ def run_module(
 
     logger.info("Running module on a local dataset.")
 
-    b = validate_benchmark(benchmark, "/tmp")
+    b = validate_benchmark(benchmark, tempfile.mkdtemp())
     if b is None:
         # this should not happen, because validate raises, but that's not proper behavior. We should sys.exit
         # from here instead. But just to keep the signature valid.
@@ -397,7 +398,7 @@ def run_module(
 def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     logger.info("Validating a benchmark yaml.")
-    _ = validate_benchmark(benchmark, "/tmp")
+    _ = validate_benchmark(benchmark, tempfile.mkdtemp())
 
 
 def log_error_and_quit(logger, error):
