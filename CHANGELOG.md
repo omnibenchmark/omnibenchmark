@@ -3,9 +3,13 @@
 This document records all notable changes to `omnibenchmark`.
 This project uses [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [0.3.2](release/0.3.x) UNRELEASED
+
+- bug: do not hardcode /tmp in run_module (#173)
+
 ## [0.3.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.3.1) (Oct 27th 2025)
 
-- bug: femove the need to define dummy software environments for unused backends
+- bug: remove the need to define dummy software environments for unused backends
 - bug: validate yaml against ambiguous output patterns
 
 ## [0.3.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.3.0) (Aug 15th 2025)
