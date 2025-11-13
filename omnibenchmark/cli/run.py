@@ -2,6 +2,7 @@
 
 import os
 import sys
+import tempfile
 from itertools import chain
 from pathlib import Path
 
@@ -285,7 +286,7 @@ def run_module(
     logger.info("Running module on a local dataset.")
 
     try:
-        b = BenchmarkExecution(Path(benchmark), Path("/tmp"))
+        b = BenchmarkExecution(Path(benchmark), Path(tempfile.mkdtemp()))
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)
         log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
@@ -406,7 +407,7 @@ def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     logger.info("Validating a benchmark yaml.")
     try:
-        _ = BenchmarkExecution(Path(benchmark), Path("/tmp"))
+        _ = BenchmarkExecution(Path(benchmark), Path(tempfile.mkdtemp()))
         logger.info("Benchmark YAML file integrity check passed.")
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)

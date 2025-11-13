@@ -14,6 +14,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor: use strict type checking (#70)
 - tests: use pixi on the CI
 - bug: do not fail if numeric values given in commit, params or version (#187)
+- bug: do not hardcode /tmp in run_module (#173)
 
 ## 0.3.2 (Nov 13th 2025)
 
