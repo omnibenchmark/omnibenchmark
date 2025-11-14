@@ -6,11 +6,83 @@ from omnibenchmark.benchmark import Benchmark, BenchmarkNode
 from omnibenchmark.workflow.snakemake.scripts.utils import (
     generate_unique_repo_folder_name,
 )
+from abc import ABCMeta, abstractmethod
 
 
 def n2f(bl: Union[bool, None]) -> bool:
     """Convert None to False, keep True as True."""
     return bl is True
+
+
+class ArtifactFile(metaclass=ABCMeta):
+    """
+    Class to represent an artifact file in the execution path.
+    """
+
+    def __init__(self, file_path: Union[str, Path]):
+        """
+        Initialize the ArtifactFile.
+        Args:
+            file_path (str): The path to the artifact file
+        """
+        self.file_path = file_path
+
+    @abstractmethod
+    def exists(self) -> bool:
+        """Check if the artifact file exists."""
+        pass
+
+    @abstractmethod
+    def is_empty(self) -> bool:
+        """Check if the artifact file is empty."""
+        pass
+
+    def get_timestamp(self) -> Union[float, None]:
+        """Get the modification timestamp of the artifact file."""
+        pass
+
+
+class LocalArtifactFile(ArtifactFile):
+    def __init__(self, file_path: Union[str, Path]):
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
+        self.file_path = file_path
+
+    def exists(self):
+        return self.file_path.is_file()
+
+    def is_empty(self):
+        return self.exists() and self.file_path.stat().st_size == 0
+
+    def get_timestamp(self) -> Union[float, None]:
+        if self.exists():
+            return self.file_path.stat().st_mtime
+        else:
+            return None
+
+
+class ArtifactFileConfig:
+    """Global configuration for ArtifactFile implementation."""
+
+    _implementation = None
+
+    @classmethod
+    def set_implementation(cls, implementation_class):
+        """Set the global ArtifactFile implementation."""
+        cls._implementation = implementation_class
+
+    @classmethod
+    def get_implementation(cls):
+        """Get the current ArtifactFile implementation."""
+        if cls._implementation is None:
+            return LocalArtifactFile  # Default implementation
+        return cls._implementation
+
+
+def create_artifact_file(file_path: Union[str, Path]) -> ArtifactFile:
+    """Factory function to create ArtifactFile instances."""
+    implementation = ArtifactFileConfig.get_implementation()
+    return implementation(file_path)
 
 
 def get_repo_timestamp(repo: dict) -> Union[float, None]:
@@ -25,10 +97,12 @@ def get_repo_timestamp(repo: dict) -> Union[float, None]:
     )
     if module_dir.is_dir():
         timestamps = [
-            f.stat().st_mtime
+            create_artifact_file(f).get_timestamp()
             for f in module_dir.iterdir()
-            if f.is_file() and f.stat().st_size > 0
+            if create_artifact_file(f).exists()
+            and not create_artifact_file(f).is_empty()
         ]
+        timestamps = [t for t in timestamps if t is not None]
         if len(timestamps) > 0:
             timestamp = max(timestamps)
         else:
@@ -63,9 +137,9 @@ class ExecutionPathStageFile:
 
     def __init__(
         self,
-        input_files: list[str],
+        input_files: list[ArtifactFile],
         repo_timestamp: Union[float, None],
-        output_file: str,
+        output_file: ArtifactFile,
     ):
         """
         Initialize the ExecutionPathStageFile.
@@ -74,26 +148,23 @@ class ExecutionPathStageFile:
             repo_timestamp (float or None): The repository timestamp
             output_file (str): The output file path
         """
-        self.output_file = Path(output_file)
+        self.output_file = output_file
+        self.output_file_path = output_file.file_path
         self.repo_timestamp = repo_timestamp
-        self.input_files = [Path(f) for f in input_files]
+        self.input_file_paths = [f.file_path for f in input_files]
+        self.input_files = input_files
         self.update()
 
     def update(self):
-        self.output_file_exist = self.output_file.is_file()
-        self.output_file_empty = (
-            self.output_file_exist and self.output_file.stat().st_size == 0
-        )
-        self.timestamp = (
-            self.output_file.stat().st_mtime if self.output_file_exist else None
-        )
-
+        self.output_file_exist = self.output_file.exists()
+        self.output_file_empty = self.output_file.is_empty()
+        self.timestamp = self.output_file.get_timestamp()
         self.input_files_exist = [
-            f.is_file() and f.stat().st_size > 0 for f in self.input_files
+            f.exists() and not f.is_empty() for f in self.input_files
         ]
         self.all_input_files_exist = all(self.input_files_exist)
         self.input_files_timestamps = [
-            f.stat().st_mtime if self.input_files_exist[i] else None
+            f.get_timestamp() if self.input_files_exist[i] else None
             for i, f in enumerate(self.input_files)
         ]
         self.max_input_file_timestamp = (
@@ -212,7 +283,7 @@ class ExecutionPathStageFile:
                 "filter must be either 'none', 'observed', 'missing', 'invalid', 'input_files_newer' or 'repo'"
             )
         if do_return:
-            return str(self.output_file)
+            return str(self.output_file_path)
         else:
             return None
 
@@ -281,15 +352,22 @@ class ExecutionPathStage:
         # input_files = []
         self.output_stage_files = [
             ExecutionPathStageFile(
-                input_files=input_files,
+                input_files=[create_artifact_file(f) for f in input_files],
                 repo_timestamp=self.repo_timestamp,
-                output_file=output_file,
+                output_file=create_artifact_file(output_file),
             )
             for output_file in output_files
         ]
 
         self.output_dir = os.path.commonpath(
-            list(set([os.path.dirname(f.output_file) for f in self.output_stage_files]))
+            list(
+                set(
+                    [
+                        os.path.dirname(f.output_file_path)
+                        for f in self.output_stage_files
+                    ]
+                )
+            )
         )
 
         # TODO: check if log file is newer than input files, can be both newer or older than output files

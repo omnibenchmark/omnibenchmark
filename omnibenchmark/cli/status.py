@@ -62,6 +62,13 @@ from .debug import add_debug_option
     help="Show logs for missing files in the status report.",
     default=False,
 )
+@click.option(
+    "--json",
+    "return_json",
+    is_flag=True,
+    help="Return the status report as JSON.",
+    default=False,
+)
 @click.pass_context
 def status(
     ctx,
@@ -70,6 +77,7 @@ def status(
     show_missing_files: bool = False,
     show_incomplete_reason: bool = False,
     show_logs: bool = False,
+    return_json: bool = False,
 ):
     """Show the status of a benchmark."""
     ctx.ensure_object(dict)
@@ -80,6 +88,13 @@ def status(
     status_dict, filedict, exec_path_dict = prepare_status(
         benchmark, out_dir, return_all=True
     )
+    if return_json:
+        import json
+
+        print(json.dumps(status_dict, indent=4))
+        # print(json.dumps(exec_path_dict, indent=4))
+        # print(exec_path_dict)
+        return
     result_file_str = "\n".join(
         [
             f"  {f} {f"({s})" if s=="missing" else ""}"
