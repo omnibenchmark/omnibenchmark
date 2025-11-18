@@ -8,12 +8,13 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: add create benchmark & create module command (#171)
 - feat: add ob status (#184)
 - feat: give contextual information about parsing errors (#188)
+- feat: parameter expansion (#191)
 - docs: add self-documenting spec template
 - refactor!: remove dependency on omni-schema and networkx
 - refactor: cleanup internal module dependencies, using a central benchmark model
 - refactor: use strict type checking (#70)
-- tests: use pixi on the CI
 - bug: do not fail if numeric values given in commit, params or version (#187)
+- tests: use pixi on the CI
 
 ## 0.3.2 (Nov 13th 2025)
 
