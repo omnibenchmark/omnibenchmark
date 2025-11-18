@@ -1,4 +1,4 @@
-"""Pydantic models for Omnibenchmark - replacing omni_schema and linkml dependencies."""
+"""Pydantic models for Omnibenchmark."""
 
 import os
 import re
@@ -211,18 +211,91 @@ class Storage(BaseModel):
 
 
 class Parameter(BaseModel):
-    """Parameter definition."""
+    """Parameter definition - supports both CLI args format and key-value dict format.
+
+    Two formats are supported:
+
+    1. Legacy CLI args format (values):
+       parameters:
+         - values: ["--method", "cosine"]
+
+    2. Key-value dict format (params):
+       parameters:
+         - method: genie
+           threshold: 0.1
+         - method: other
+           k: [1, 2, 3]  # Expands to 3 runs with k=1, k=2, k=3
+
+    IMPORTANT: In the dict format, any parameter value that is a list will trigger
+    implicit Cartesian product expansion. Lists cannot be passed as literal values -
+    they are always interpreted as grid expansion parameters.
+
+    Example of Cartesian product:
+       parameters:
+         - alpha: [0.1, 0.5]  # 2 values
+           beta: [1, 2, 3]    # 3 values
+       # Expands to 6 parameter combinations: (0.1,1), (0.1,2), (0.1,3), (0.5,1), (0.5,2), (0.5,3)
+    """
 
     id: str = Field(..., description="Parameter ID")
-    values: List[str] = Field(..., description="Parameter values")
+    values: Optional[List[str]] = Field(
+        None, description="Parameter values as CLI args (legacy format)"
+    )
+    # NOTE: The 'params' field is an internal representation only. User should never
+    # write 'params:' in YAML. When YAML like "method: genie" is parsed, the
+    # @model_validator below automatically converts it to
+    # params={"method": "genie"} internally.
+    params: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Parameter key-value pairs (supports lists for product expansion)",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_parameter_format(cls, data: Any) -> Any:
+        """Validate and normalize parameter format."""
+        if isinstance(data, dict):
+            has_values = "values" in data and data["values"] is not None
+            has_params = "params" in data and data["params"] is not None
+
+            # If neither is provided, check if data itself looks like a param dict
+            if not has_values and not has_params:
+                # Check if data has keys other than 'id'
+                keys = set(data.keys()) - {"id"}
+                if keys:
+                    # Treat remaining keys as params
+                    params_data = {k: data[k] for k in keys}
+                    data["params"] = params_data
+                    has_params = True
+
+            if not has_values and not has_params:
+                raise ValueError(
+                    "Parameter must have either 'values' or parameter keys"
+                )
+
+            if has_values and has_params:
+                raise ValueError(
+                    "Parameter cannot have both 'values' and parameter keys"
+                )
+
+        return data
 
     @field_validator("values", mode="before")
     @classmethod
-    def validate_values(cls, v: List[Any]) -> List[str]:
+    def validate_values(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return None
         if not v:
             raise ValueError("Parameter values cannot be empty")
         # Convert all values to strings to handle mixed types (float, int, str)
         return [str(val) for val in v]
+
+    @field_validator("params")
+    @classmethod
+    def validate_params(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if v is not None and not v:
+            raise ValueError("Parameter params cannot be empty")
+        return v
 
 
 class IOFile(IdentifiableEntity):
@@ -460,16 +533,23 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                 if "values" in param:
                                     param["values"] = [str(v) for v in param["values"]]
 
-                                if "id" not in param and "values" in param:
-                                    # Generate a hash-based ID from the parameter values
+                                if "id" not in param:
+                                    # Generate a hash-based ID from the parameter
                                     import hashlib
 
                                     try:
-                                        # Convert all values to strings to handle mixed types (float, int, str)
-                                        normalized_values = [
-                                            str(v) for v in param["values"]
-                                        ]
-                                        param_str = str(sorted(normalized_values))
+                                        if "values" in param:
+                                            # Legacy format: hash the values
+                                            param_str = str(sorted(param["values"]))
+                                        else:
+                                            # New format: hash the entire param dict (excluding 'id')
+                                            param_items = sorted(
+                                                (k, v)
+                                                for k, v in param.items()
+                                                if k != "id"
+                                            )
+                                            param_str = str(param_items)
+
                                         param["id"] = hashlib.sha256(
                                             param_str.encode()
                                         ).hexdigest()[:8]
@@ -735,16 +815,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
     def get_module_parameters(self, module: Union[str, Module]) -> Optional[List[Any]]:
         """Get module parameters by module/module_id."""
-        # ARCHITECTURAL NOTE: Circular Import Management
-        # This runtime import indicates inverted dependencies - the pure model layer
-        # is reaching into execution/business logic layers. During the LinkML → Pydantic
-        # migration, this pattern emerged to maintain functionality while avoiding
-        # import cycles.
-        #
-        # Future consideration: Move parameter processing logic to a service layer
-        # that depends on both model and execution modules, following dependency
-        # inversion principle.
-        from omnibenchmark.benchmark import params  # Avoid circular imports
+        from omnibenchmark.benchmark.params import Params
 
         module_obj = (
             module if isinstance(module, Module) else self.get_modules().get(module)
@@ -752,7 +823,11 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         if not module_obj or not module_obj.parameters:
             return None
 
-        return [params.Params.from_cli_args(p.values) for p in module_obj.parameters]  # type: ignore[misc]
+        result: List[Any] = []
+        for p in module_obj.parameters:
+            result.extend(Params.expand_from_parameter(p))
+
+        return result
 
     def get_module_repository(self, module: Union[str, Module]) -> Optional[Repository]:
         """Get module repository by module/module_id."""

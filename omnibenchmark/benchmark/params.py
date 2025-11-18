@@ -2,8 +2,12 @@ from collections import OrderedDict
 from collections.abc import Mapping
 import json
 import hashlib
+import itertools
 
-from typing import List
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from omnibenchmark.model.benchmark import Parameter
 
 
 class Params:
@@ -81,6 +85,62 @@ class Params:
         """Create new Params instance from serialized string."""
         params = json.loads(serialized)
         return cls(params)
+
+    @staticmethod
+    def expand_from_parameter(parameter: "Parameter") -> List["Params"]:
+        """
+        Expand a Parameter into a list of Params instances.
+
+        Handles two parameter formats:
+        1. Legacy CLI args format (values): Creates one Params from CLI args
+        2. Dict format (params): Expands list values into Cartesian product
+
+        Args:
+            parameter: A Parameter instance from the model
+
+        Returns:
+            List of Params instances after expansion
+        """
+        import warnings
+
+        result: List[Params] = []
+
+        if parameter.values is not None:
+            # Old format: list of CLI args
+            warnings.warn(
+                "The 'values' parameter format using CLI args is deprecated and will be removed in a future version. "
+                "Please use the dict format instead (e.g., 'method: value' instead of 'values: [\"--method\", \"value\"]').",
+                FutureWarning,
+                stacklevel=3,
+            )
+            result.append(Params.from_cli_args(parameter.values))
+        elif parameter.params is not None:
+            # New format: dict with potential lists for product expansion
+            # Separate list values from non-list values
+            list_params = {}
+            non_list_params = {}
+
+            for key, value in parameter.params.items():
+                if isinstance(value, list):
+                    list_params[key] = value
+                else:
+                    non_list_params[key] = value
+
+            if list_params:
+                # Create product of all list parameters
+                keys = list(list_params.keys())
+                values = [list_params[k] for k in keys]
+
+                for combination in itertools.product(*values):
+                    # Create a param dict with this combination
+                    param_dict = dict(non_list_params)
+                    param_dict.update(dict(zip(keys, combination)))
+                    result.append(Params(param_dict))
+            else:
+                # No lists, just use the params as-is
+                result.append(Params(non_list_params))
+
+        return result
 
     def to_cli_args(self, style="gnu"):
         """
