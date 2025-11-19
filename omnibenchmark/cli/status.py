@@ -8,6 +8,7 @@ from omnibenchmark.cli.utils.logging import logger
 
 
 from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
 
 from omnibenchmark.benchmark.status.status import prepare_status, print_exec_path_dict
 
@@ -112,8 +113,9 @@ def status(
     max_file_len = len(str(status_dict["total"]["n"]))
     is_complete = status_dict["total"]["n_observed"] == status_dict["total"]["n"]
 
-    env = Environment(loader=FileSystemLoader("omnibenchmark/benchmark/status"))
-    template = env.get_template("cli_status.txt")
+    template_path = Path(__file__).parent.parent / "templates" / "status"
+    env = Environment(loader=FileSystemLoader(template_path))
+    template = env.get_template("cli_status.jinja")
     result_str = template.render(
         name=status_dict["name"],
         version=status_dict["version"],
