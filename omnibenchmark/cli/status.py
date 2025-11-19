@@ -3,6 +3,7 @@
 import sys
 
 import click
+import json
 
 from omnibenchmark.cli.utils.logging import logger
 
@@ -16,19 +17,12 @@ from omnibenchmark.benchmark.status.status import prepare_status, print_exec_pat
 from .debug import add_debug_option
 
 
-# @click.group(name="status")
-# @click.pass_context
-# def status(ctx):
-#     """Show the status of benchmarks or benchmark modules."""
-#     ctx.ensure_object(dict)
-
-
 @add_debug_option
 @click.command(
     name="status",
     context_settings=dict(
-        ignore_unknown_options=True,
-        allow_extra_args=True,
+        ignore_unknown_options=False,
+        allow_extra_args=False,
     ),
 )
 @click.option(
@@ -82,20 +76,13 @@ def status(
 ):
     """Show the status of a benchmark."""
     ctx.ensure_object(dict)
-    # extra_args = parse_extra_args(ctx.args)
-
-    # b = validate_benchmark(benchmark, out_dir, echo=False)
-    print(out_dir)
     status_dict, filedict, exec_path_dict = prepare_status(
-        benchmark, out_dir, return_all=True
+        benchmark, out_dir, return_all=True, cache_dir=Path(".snakemake") / "repos"
     )
     if return_json:
-        import json
+        logger.info(json.dumps(status_dict, indent=4))
+        sys.exit(0)
 
-        print(json.dumps(status_dict, indent=4))
-        # print(json.dumps(exec_path_dict, indent=4))
-        # print(exec_path_dict)
-        return
     result_file_str = "\n".join(
         [
             f"  {f} {f"({s})" if s=="missing" else ""}"

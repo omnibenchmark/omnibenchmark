@@ -94,7 +94,12 @@ def print_exec_path_dict(
     return "\n".join(outls_final)
 
 
-def prepare_status(benchmark: str, out_dir: str, return_all: bool = False):
+def prepare_status(
+    benchmark: str,
+    out_dir: str,
+    return_all: bool = False,
+    cache_dir: Path = Path(".snakemake") / "repos",
+):
     """
     Prepare the status dictionary for the benchmark.
     If return_all is True, also return the filedict.
@@ -102,7 +107,7 @@ def prepare_status(benchmark: str, out_dir: str, return_all: bool = False):
     # benchmark = "tests/data/Benchmark_001.yaml"
     # out_dir = "out"
     b = BenchmarkExecution(Path(benchmark))
-    eps = ExecutionPathSet(b)
+    eps = ExecutionPathSet(b, cache_dir=cache_dir)
 
     stages = eps.stages
     exec_path_dict = eps.exec_path_dict

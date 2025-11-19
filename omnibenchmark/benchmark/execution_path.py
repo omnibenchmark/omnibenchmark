@@ -86,16 +86,15 @@ def create_artifact_file(file_path: Union[str, Path]) -> ArtifactFile:
     return implementation(file_path)
 
 
-def get_repo_timestamp(repo: Repository) -> Union[float, None]:
+def get_repo_timestamp(
+    repo: Repository, cache_dir: Path = Path(".snakemake") / "repos"
+) -> Union[float, None]:
     """
     Get the timestamp of the repository used in the module.
     Returns the latest modification time of files in the repository directory.
     If the repository directory does not exist, returns None.
     """
-    repositories_dir = Path(".snakemake") / "repos"
-    module_dir = repositories_dir / generate_unique_repo_folder_name(
-        repo.url, repo.commit
-    )
+    module_dir = cache_dir / generate_unique_repo_folder_name(repo.url, repo.commit)
     if module_dir.is_dir():
         timestamps = [
             create_artifact_file(f).get_timestamp()
@@ -113,7 +112,9 @@ def get_repo_timestamp(repo: Repository) -> Union[float, None]:
     return timestamp
 
 
-def get_module_timestamps(b: Benchmark) -> dict:
+def get_module_timestamps(
+    b: Benchmark, cache_dir: Path = Path(".snakemake") / "repos"
+) -> dict:
     """
     Get the timestamps of the module repositories used in the benchmark.
     Returns a dictionary with stage ids as keys and another dictionary as value,
@@ -125,7 +126,9 @@ def get_module_timestamps(b: Benchmark) -> dict:
         modules_repo_timestamps[st] = {}
         for node in b.get_nodes_by_stage_id(st):
             if node.module_id not in modules_repo_timestamps[st].keys():
-                timestamp = get_repo_timestamp(node.get_repository())
+                timestamp = get_repo_timestamp(
+                    node.get_repository(), cache_dir=cache_dir
+                )
                 modules_repo_timestamps[st][node.module_id] = timestamp
     return modules_repo_timestamps
 
@@ -695,14 +698,17 @@ class ExecutionPathSet:
     A set of execution paths for a benchmark.
     """
 
-    def __init__(self, b: Benchmark):
+    def __init__(self, b: Benchmark, cache_dir: Path = Path(".snakemake") / "repos"):
         """
         Initialize the ExecutionPathSet.
         Args:
             b (Benchmark): The benchmark object
         """
         self.b = b
-        self.modules_repo_timestamps = get_module_timestamps(b)
+        self.cache_dir = cache_dir
+        self.modules_repo_timestamps = get_module_timestamps(
+            b, cache_dir=self.cache_dir
+        )
         self.exec_path_dict = self.get_exec_path_dict(b, self.modules_repo_timestamps)
         self.n_paths = len(self.exec_path_dict.keys())
         self.stages = list(b.get_stage_ids())
@@ -712,7 +718,7 @@ class ExecutionPathSet:
     ) -> dict:
         exec_paths = b.get_execution_paths()
         if modules_repo_timestamps is None:
-            modules_repo_timestamps = get_module_timestamps(b)
+            modules_repo_timestamps = get_module_timestamps(b, cache_dir=self.cache_dir)
         exec_path_dict = {}
         for exec_path_id in range(len(exec_paths)):
             nodes = b.get_execution_paths()[exec_path_id]
@@ -733,30 +739,28 @@ class ExecutionPathSet:
         """
         self.filedict_is_cumulative = cumulative
         filedict = {
-            **{
-                st: {
-                    nd: {
-                        "output_files": set(),
-                        "valid_output_files": set(),
-                        "observed_output_files": set(),
-                        "empty_output_files": set(),
-                        "missing_output_files": set(),
-                        "invalid_output_files_input_file_is_newer": set(),
-                        "invalid_output_files_repo_is_newer": set(),
-                        "invalid_output_files": set(),
-                        "n_valid": 0,
-                        "n_observed": 0,
-                        "n_empty": 0,
-                        "n_missing": 0,
-                        "n_invalid": 0,
-                        "n_invalid_input_file_is_newer": 0,
-                        "n_invalid_repo_is_newer": 0,
-                        "n": 0,
-                    }
-                    for nd in self.b.get_nodes_by_stage_id(st)
+            st: {
+                nd: {
+                    "output_files": set(),
+                    "valid_output_files": set(),
+                    "observed_output_files": set(),
+                    "empty_output_files": set(),
+                    "missing_output_files": set(),
+                    "invalid_output_files_input_file_is_newer": set(),
+                    "invalid_output_files_repo_is_newer": set(),
+                    "invalid_output_files": set(),
+                    "n_valid": 0,
+                    "n_observed": 0,
+                    "n_empty": 0,
+                    "n_missing": 0,
+                    "n_invalid": 0,
+                    "n_invalid_input_file_is_newer": 0,
+                    "n_invalid_repo_is_newer": 0,
+                    "n": 0,
                 }
-                for st in self.b.get_stage_ids()
+                for nd in self.b.get_nodes_by_stage_id(st)
             }
+            for st in self.b.get_stage_ids()
         }
         for st in self.b.get_stage_ids():
             for exec_path_id in self.exec_path_dict.keys():
