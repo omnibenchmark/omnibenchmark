@@ -17,11 +17,20 @@ from omnibenchmark.benchmark.execution_path import (
 @pytest.fixture(
     scope="module",
     params=[
-        {"current_dir": False, "keep_files": True, "test_case": "complete"},
-        {"current_dir": False, "keep_files": True, "test_case": "missing_files"},
-        {"current_dir": False, "keep_files": True, "test_case": "invalid_files"},
+        pytest.param(
+            {"current_dir": False, "keep_files": True, "test_case": "complete"},
+            marks=pytest.mark.short,
+            id="complete",
+        ),
+        pytest.param(
+            {"current_dir": False, "keep_files": True, "test_case": "missing_files"},
+            id="missing_files",
+        ),
+        pytest.param(
+            {"current_dir": False, "keep_files": True, "test_case": "invalid_files"},
+            id="invalid_files",
+        ),
     ],
-    ids=["complete", "missing_files", "invalid_files"],
 )
 def snakemake_env(request):
     """Get environment from parametrization"""
@@ -117,9 +126,9 @@ class TestExecutionPathClasses:
             eps = ExecutionPathSet(benchmark_setup)
             assert eps is not None
             assert eps.n_paths > 0
-            assert eps.n_paths == 6
+            assert eps.n_paths == 2
             assert len(eps.stages) > 0
-            assert len(eps.stages) == 4
+            assert len(eps.stages) == 3
 
         def test_ExecutionPathSet_has_correct_stages(self, benchmark_setup):
             eps = ExecutionPathSet(benchmark_setup)

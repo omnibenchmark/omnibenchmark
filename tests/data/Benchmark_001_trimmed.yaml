@@ -52,24 +52,6 @@ stages:
       - id: data.data_specific_params
         path: "{dataset}_params.txt"
 
-  - id: process
-    modules:
-      - id: P1
-        software_environment: "zlib_old"
-        parameters:
-          - values: ["-a 0", "-b 0.1"]
-          - values: ["-a 1", "-b 0.1"]
-        repository:
-          url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
-    inputs:
-      - entries:
-          - data.counts
-          - data.meta
-    outputs:
-      - id: process.filtered
-        path: "{dataset}.txt.gz"
-
   - id: methods
     modules:
       - id: M1
@@ -80,10 +62,6 @@ stages:
     inputs:
       - entries:
           - data.counts
-          - data.meta
-          - data.data_specific_params
-      - entries:
-          - process.filtered
           - data.meta
           - data.data_specific_params
     outputs:
