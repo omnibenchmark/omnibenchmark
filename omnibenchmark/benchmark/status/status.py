@@ -3,7 +3,7 @@ from typing import Union
 from omnibenchmark.benchmark.execution_path import (
     ExecutionPathSet,
 )
-from omnibenchmark.cli.utils.validation import validate_benchmark
+from omnibenchmark.benchmark import BenchmarkExecution
 
 
 def print_exec_path_dict(
@@ -101,7 +101,7 @@ def prepare_status(benchmark: str, out_dir: str, return_all: bool = False):
     """
     # benchmark = "tests/data/Benchmark_001.yaml"
     # out_dir = "out"
-    b = validate_benchmark(benchmark, out_dir, echo=False)
+    b = BenchmarkExecution(Path(benchmark))
     eps = ExecutionPathSet(b)
 
     stages = eps.stages

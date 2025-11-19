@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Union
 from omnibenchmark.benchmark import Benchmark, BenchmarkNode
+from omnibenchmark.model.benchmark import Repository
 from omnibenchmark.workflow.snakemake.scripts.utils import (
     generate_unique_repo_folder_name,
 )
@@ -85,7 +86,7 @@ def create_artifact_file(file_path: Union[str, Path]) -> ArtifactFile:
     return implementation(file_path)
 
 
-def get_repo_timestamp(repo: dict) -> Union[float, None]:
+def get_repo_timestamp(repo: Repository) -> Union[float, None]:
     """
     Get the timestamp of the repository used in the module.
     Returns the latest modification time of files in the repository directory.
@@ -93,7 +94,7 @@ def get_repo_timestamp(repo: dict) -> Union[float, None]:
     """
     repositories_dir = Path(".snakemake") / "repos"
     module_dir = repositories_dir / generate_unique_repo_folder_name(
-        repo["url"], repo["commit"]
+        repo.url, repo.commit
     )
     if module_dir.is_dir():
         timestamps = [
@@ -840,38 +841,3 @@ class ExecutionPathSet:
         if self.filedict_is_cumulative != cumulative:
             self.create_filedict(cumulative=cumulative)
         return self.filedict
-
-
-if __name__ == "__main__":
-    from omnibenchmark.cli.utils.validation import validate_benchmark
-
-    benchmark = "tests/data/Benchmark_001.yaml"
-    out_dir = "out"
-    b = validate_benchmark(benchmark, out_dir, echo=False)
-    eps = ExecutionPathSet(b)
-    eps.create_filedict()
-    exec_path_dict = eps.exec_path_dict
-
-    tmp = eps.exec_path_dict[0]
-
-    tmp.dict_encode(full=True)
-
-    tmp2 = tmp.exec_path["process"]
-    tmp3 = tmp2.output_stage_files[0]
-    tmp3.input_files
-    tmp3.input_files_exist
-    tmp3.output_file
-    eps.get_filedict()["process"]
-
-    tmp2 = tmp.exec_path["methods"]
-    tmp3 = tmp2.output_stage_files[0]
-    tmp3.input_files
-    tmp3.output_file
-    tmp3.input_files_exist
-    tmp3.output_is_valid("all")
-    tmp3.output_is_valid("repo")
-    tmp3.output_is_valid("input_files_newer")
-
-    eps = ExecutionPathSet(b)
-    out = eps.get_filedict(cumulative=True)["methods"]
-    out["n_invalid"]

@@ -141,23 +141,4 @@ def status(
         show_missing_files=show_missing_files and not is_complete,
     )
     logger.info(result_str)
-
-
-def log_error_and_quit(logger, error):
-    logger.error(error)
-    sys.exit(1)
-
-
-def log_result_and_quit(logger, success: bool, type: str):
-    if success:
-        logger.info(f"{type} run has finished successfully.")
-        sys.exit(0)
-    logger.error(f"{type} run has failed.")
-    sys.exit(1)
-
-
-def abort_if_user_does_not_confirm(msg: str, logger):
-    _msg = f"Are you sure you want to {msg}?"
-    if not click.confirm(_msg, abort=True):
-        logger.debug("aborting")
-        raise click.Abort()
+    sys.exit(0)
