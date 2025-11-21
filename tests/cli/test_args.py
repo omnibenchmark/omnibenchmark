@@ -1,5 +1,8 @@
 """Tests for argument parsing utilities."""
 
+from click.testing import CliRunner
+
+from omnibenchmark.cli.run import run_benchmark
 from omnibenchmark.cli.utils.args import parse_extra_args
 
 
@@ -76,3 +79,28 @@ class TestParseExtraArgs:
             "default-resources": ["mem_mb=4000", "runtime=600"],
             "printshellcmds": True,
         }
+
+
+class TestCLIUnknownOptionsError:
+    """Test that unknown options without -- separator produce clear errors."""
+
+    def test_unknown_option_without_separator_errors(self):
+        """Unknown options without -- should error, not silently pass through."""
+        runner = CliRunner()
+        result = runner.invoke(
+            run_benchmark,
+            ["-b", "bench.yaml", "--dryrun"],  # --dryrun is unknown to ob
+        )
+        assert result.exit_code != 0
+        assert "No such option: --dryrun" in result.output
+
+    def test_unknown_option_with_separator_succeeds(self, tmp_path):
+        """Unknown options after -- should be accepted."""
+        runner = CliRunner()
+        # Just test that --dryrun after -- doesn't cause "No such option" error
+        result = runner.invoke(
+            run_benchmark,
+            ["-b", "nonexistent.yaml", "--", "--dryrun"],
+        )
+        # Will fail for other reasons (file not found), but NOT "No such option"
+        assert "No such option: --dryrun" not in result.output
