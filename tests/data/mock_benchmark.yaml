@@ -42,4 +42,4 @@ stages:
           - data.meta
     outputs:
       - id: process.result
-        path: "{dataset}.txt.gz"
+        path: "{dataset}.processed.txt.gz"
