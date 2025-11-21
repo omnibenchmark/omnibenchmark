@@ -134,6 +134,8 @@ git = "*"
 [feature.py313.pypi-dependencies]
 # Install local package in development mode
 omnibenchmark = { path = ".", editable = true }
+# Add minio for S3 storage tests
+minio = ">=7.0.0"
 
 [feature.py313.tasks]
 # Test task for Python 3.13 environment

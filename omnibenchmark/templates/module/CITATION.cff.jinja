@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this module in your publication, please cite as below."
+type: software
+title: "{{ module_title }}"
+abstract: |
+  {{ description if description else 'A module created with OmniBenchmark for computational benchmarking.' }}
+authors:
+  - family-names: "{{ author_name.split()[-1] if ' ' in author_name else author_name }}"
+    given-names: "{{ author_name.rsplit(' ', 1)[0] if ' ' in author_name else '' }}"
+    email: "{{ author_email }}"
+date-released: "{{ '%Y-%m-%d' | strftime }}"
+version: "1.0.0"
+license: {{ license }}
+url: "https://github.com/CHANGE_ME/{{ module_name }}"
+repository-code: "https://github.com/CHANGE_ME/{{ module_name }}"
+keywords:
+  - bioinformatics
+  - computational-biology
+  - benchmark
+  - omnibenchmark
+  - module
+references:
+  - title: "Original implementation"
+    authors:
+      - family-names: "{{ author_name.split()[-1] if ' ' in author_name else author_name }}"
+        given-names: "{{ author_name.rsplit(' ', 1)[0] if ' ' in author_name else '' }}"
+    type: software
+    url: "https://github.com/CHANGE_ME/{{ module_name }}"

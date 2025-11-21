@@ -33,12 +33,15 @@ dependencies = [
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake>=8.0", # modify constraints.txt if you need stricter pinning
+    "snakemake>=8.0,<9.10.0", # pinned to avoid duplicate rule name error in 9.10+
 
     # Build tools
     "easybuild>=5.0.0",
     "easybuild-easyblocks>=5.0.0",
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
+
+    # Templating
+    "copier>=9.0.0",
 
     # graph visualization (can be made optional)
     "matplotlib==3.8.0",
@@ -46,7 +49,6 @@ dependencies = [
 
     # can probably move to optional deps
     "tqdm>=4.66.4",
-
 ]
 
 [project.urls]
@@ -74,7 +76,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["omnibenchmark"]
+include = ["omnibenchmark*"]
+
+[tool.setuptools.package-data]
+omnibenchmark = ["templates/**/*"]
 
 [tool.setuptools_scm]
 # Optional settings (or leave empty for default)

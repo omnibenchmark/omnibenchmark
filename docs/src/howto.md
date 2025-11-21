@@ -27,6 +27,19 @@ conda env update -f omni-environment.yml
 ob --version
 ```
 
+Start a new benchmark:
+
+```bash
+ob create benchmark ~/my_benchmark
+```
+
+Creat a new module:
+
+```bash
+ob create module ~/my_new_module
+```
+
+
 For detailed instructions, see below.
 
 ### Installation via Conda

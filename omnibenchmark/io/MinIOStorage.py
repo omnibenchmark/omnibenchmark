@@ -48,13 +48,13 @@ logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-def set_bucket_public_readonly(client: minio.Minio, bucket_name: str):
+def set_bucket_public_readonly(client: "minio.Minio", bucket_name: str):
     policy = bucket_readonly_policy(bucket_name)
     client.set_bucket_policy(bucket_name, json.dumps(policy))
 
 
 def set_bucket_lifecycle_config(
-    client: minio.Minio, bucket_name: str, noncurrent_days: int = 1
+    client: "minio.Minio", bucket_name: str, noncurrent_days: int = 1
 ):
     lifecycle_config = LifecycleConfig(
         [
@@ -113,7 +113,7 @@ class MinIOStorage(RemoteStorage):
             self.roclient = self.connect(readonly=True)
             self._get_versions()
 
-    def connect(self, readonly=False) -> minio.Minio:
+    def connect(self, readonly=False) -> "minio.Minio":
         """
         Connects to the MinIO storage.
 
