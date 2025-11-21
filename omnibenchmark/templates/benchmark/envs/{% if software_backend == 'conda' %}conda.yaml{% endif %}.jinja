@@ -1,0 +1,9 @@
+name: {{ benchmark_name | lower | replace(' ', '_') | replace('-', '_') }}_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - pip
+  - pip:
+    - # Add your pip dependencies here
