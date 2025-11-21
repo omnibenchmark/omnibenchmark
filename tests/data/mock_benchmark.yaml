@@ -35,7 +35,7 @@ stages:
           - values: ["-a 1", "-b 0.1"]
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries:
           - data.counts
