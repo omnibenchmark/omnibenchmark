@@ -33,7 +33,7 @@ dependencies = [
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake>=8.0", # modify constraints.txt if you need stricter pinning
+    "snakemake>=8.0,<9.10.0", # pinned to avoid duplicate rule name error in 9.10+
 
     # Build tools
     "easybuild>=5.0.0",
