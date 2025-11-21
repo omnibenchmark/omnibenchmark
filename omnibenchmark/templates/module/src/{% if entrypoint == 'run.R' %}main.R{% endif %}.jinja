@@ -1,0 +1,25 @@
+# Main functions for the OmniBenchmark module
+
+#' Add two numbers
+#'
+#' @param a First number
+#' @param b Second number
+#' @return Sum of a and b
+add_numbers <- function(a, b) {
+  return(a + b)
+}
+
+#' Process data (example function)
+#'
+#' @param input_path Path to input file
+#' @param output_path Path to output file
+process_data <- function(input_path, output_path) {
+  # Example: read, process, and write data
+  cat("Processing data from", input_path, "to", output_path, "\n")
+
+  # Add your processing logic here
+  result <- add_numbers(1, 2)
+
+  # Write result to output file
+  writeLines(paste("Result:", result), output_path)
+}

@@ -1,0 +1,37 @@
+"""Tests for main.py functions."""
+
+import pytest
+import sys
+from pathlib import Path
+
+# Add src directory to Python path
+src_dir = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_dir))
+
+from main import add_numbers, process_data
+
+
+def test_add_numbers():
+    """Test the add_numbers function."""
+    assert add_numbers(2, 3) == 5
+    assert add_numbers(-1, 1) == 0
+    assert add_numbers(0, 0) == 0
+
+
+def test_add_numbers_floats():
+    """Test add_numbers with float inputs."""
+    assert add_numbers(2.5, 3.5) == 6.0
+    assert add_numbers(1.1, 2.2) == pytest.approx(3.3)
+
+
+def test_process_data(tmp_path):
+    """Test the process_data function."""
+    input_file = tmp_path / "input.txt"
+    output_file = tmp_path / "output.txt"
+
+    input_file.write_text("test input")
+
+    process_data(str(input_file), str(output_file))
+
+    assert output_file.exists()
+    assert "Result: 3" in output_file.read_text()

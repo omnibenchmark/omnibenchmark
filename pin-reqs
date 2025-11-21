@@ -1,3 +1,0 @@
-#!/bin/sh
-# with uv: compile a pinned requirements (taking constraints into account)
-uv pip compile pyproject.toml -o requirements.txt --constraint constraints.txt

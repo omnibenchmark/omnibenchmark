@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Tests for main.sh functions
+
+# Source the main functions
+source "$(dirname "$0")/../src/main.sh"
+
+# Test counter
+TESTS_RUN=0
+TESTS_PASSED=0
+
+# Test function
+run_test() {
+    local test_name="$1"
+    local expected="$2"
+    local actual="$3"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+
+    if [ "$expected" = "$actual" ]; then
+        echo "PASS: $test_name"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    else
+        echo "FAIL: $test_name (expected: $expected, got: $actual)"
+    fi
+}
+
+# Run tests
+echo "Running tests for main.sh..."
+
+run_test "add_numbers(2, 3)" "5" "$(add_numbers 2 3)"
+run_test "add_numbers(-1, 1)" "0" "$(add_numbers -1 1)"
+run_test "add_numbers(0, 0)" "0" "$(add_numbers 0 0)"
+
+# Test process_data
+temp_dir=$(mktemp -d)
+input_file="$temp_dir/input.txt"
+output_file="$temp_dir/output.txt"
+
+echo "test input" > "$input_file"
+process_data "$input_file" "$output_file"
+
+if [ -f "$output_file" ] && grep -q "Result: 3" "$output_file"; then
+    run_test "process_data creates output file" "pass" "pass"
+else
+    run_test "process_data creates output file" "pass" "fail"
+fi
+
+# Cleanup
+rm -rf "$temp_dir"
+
+# Summary
+echo "Tests completed: $TESTS_PASSED/$TESTS_RUN passed"
+
+if [ $TESTS_PASSED -eq $TESTS_RUN ]; then
+    exit 0
+else
+    exit 1
+fi
