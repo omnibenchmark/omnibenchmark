@@ -7,5 +7,5 @@ Do note that, if relative paths are used wherever a path is expected, they are r
 This template is automatically generated from the application's source code and is always up-to-date.
 
 ```yaml title="benchmark_template.yaml"
---8<-- "docs/templates/benchmark_template.yaml"
+--8<-- "templates/benchmark_template.yaml"
 ```
