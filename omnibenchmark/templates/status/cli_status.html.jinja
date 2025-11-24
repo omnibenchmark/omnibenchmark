@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ name }} - Status Report</title>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+
+    <!-- Vis.js Network -->
+    <link rel="stylesheet" href="https://unpkg.com/vis-network@latest/styles/vis-network.min.css">
+
+    <!-- jQuery UI -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.min.css">
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+
+    <!-- Buttons extension -->
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+
+    <!-- Vis.js Network -->
+    <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
+
+<style>
+    body { 
+        font-family: Arial, sans-serif; 
+        margin: 20px; 
+        background-color: #f5f5f5;
+    }
+    .container {
+        width: 95%;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .completion { 
+        font-size: 24px; 
+        font-weight: bold; 
+        color: #2c5aa0; 
+        margin: 20px 0;
+    }
+    h2 {
+        color: #2c5aa0;
+        margin-top: 40px;
+        border-bottom: 2px solid #e0e0e0;
+        padding-bottom: 10px;
+    }
+    .dataTables_wrapper {
+        margin: 20px 0;
+    }
+    /* Column filter styling */
+    tfoot input {
+        width: 100%;
+        padding: 3px;
+        box-sizing: border-box;
+    }
+    tfoot select {
+        width: 100%;
+        padding: 3px;
+    }
+    #graph-container {
+        width: 100%;
+        height: 600px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin: 20px 0;
+        background: #fafafa;
+    }
+    .graph-legend {
+        display: flex;
+        gap: 20px;
+        margin: 10px 0;
+        flex-wrap: wrap;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 1px solid #ccc;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>{{ name }} (v{{ version }})</h1>
+    <p class="completion">Overall completion: {{ total_pct }}%</p>
+    
+    <h2>Stage Summary</h2>
+    {{ table1|safe }}
+
+    <h2>Benchmark Graph</h2>
+    <div id="graph-container"></div>
+    <div class="graph-legend">
+        {% for stage in graph_legend %}
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: {{ stage.color }};"></div>
+            <span>{{ stage.name }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2>Detailed File Status</h2>
+    {{ table2|safe }}
+</div>
+
+<script>
+$(document).ready(function() {
+    // Render the interactive graph
+    var nodes = new vis.DataSet({{ graph_nodes|tojson }});
+    var edges = new vis.DataSet({{ graph_edges|tojson }});
+    
+    var container = document.getElementById('graph-container');
+    var data = {
+        nodes: nodes,
+        edges: edges
+    };
+    var options = {
+        nodes: {
+            shape: 'box',
+            margin: 10,
+            widthConstraint: {
+                maximum: 200
+            },
+            font: {
+                size: 12,
+                color: '#ffffff'
+            },
+            borderWidth: 2,
+            shadow: true
+        },
+        edges: {
+            arrows: 'to',
+            smooth: {
+                type: 'cubicBezier',
+                forceDirection: 'horizontal'
+            },
+            color: {
+                color: '#cccccc',
+                highlight: '#2c5aa0'
+            }
+        },
+        layout: {
+            hierarchical: {
+                direction: 'LR',
+                sortMethod: 'directed',
+                levelSeparation: 200,
+                nodeSpacing: 150
+            }
+        },
+        physics: false,
+        interaction: {
+            hover: true,
+            tooltipDelay: 100,
+            zoomView: true,
+            dragView: true
+        }
+    };
+    var network = new vis.Network(container, data, options);
+    
+    // Add click event to show node details with file and log links
+    network.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            var nodeId = params.nodes[0];
+            var node = nodes.get(nodeId);
+            
+            // Build the details popup
+            var details = '<div style="font-family: Arial, sans-serif;">';
+            details += '<h3>Node: ' + node.module + '</h3>';
+            details += '<p><strong>Stage:</strong> ' + node.stage + '</p>';
+            details += '<p><strong>Status:</strong> ' + node.status + '</p>';
+            
+            // Add output files
+            if (node.files && node.files.length > 0) {
+                details += '<p><strong>Output Files:</strong></p><ul>';
+                node.files.forEach(function(file) {
+                    var fileName = file.split('/').pop();
+                    var relPath = file.indexOf('/out/') !== -1 ? file.substring(file.indexOf('/out/') + 1) : file;
+                    details += '<li><a href="file://' + file + '" target="_blank">' + relPath + '</a></li>';
+                });
+                details += '</ul>';
+            } else {
+                details += '<p><strong>Output Files:</strong> None</p>';
+            }
+            
+            // Add log files
+            if (node.logs && node.logs.length > 0) {
+                details += '<p><strong>Log Files:</strong></p><ul>';
+                node.logs.forEach(function(log) {
+                    var logName = log.split('/').pop();
+                    details += '<li><a href="file://' + log + '" target="_blank">' + logName + '</a></li>';
+                });
+                details += '</ul>';
+            } else {
+                details += '<p><strong>Log Files:</strong> None</p>';
+            }
+            
+            details += '</div>';
+            
+            // Create modal-style popup
+            var popup = $('<div>')
+                .html(details)
+                .dialog({
+                    title: 'Node Details',
+                    width: 500,
+                    modal: false,
+                    buttons: {
+                        'Close': function() {
+                            $(this).dialog('close');
+                        }
+                    }
+                });
+        }
+    });
+    
+    // Stage summary table - simple with export buttons
+    $('#status_table').DataTable({
+        order: [[4, 'desc']],
+        pageLength: 10,
+        searching: false,
+        paging: false,
+        info: false,
+        autoWidth: false,
+        responsive: true,
+        dom: 'Bfrtip',
+        buttons: [
+            'copy', 'csv', 'excel', 'pdf', 'print'
+        ]
+    });
+    
+    // Detailed file table - with column filtering and export
+    $('#all_table thead tr').clone(true).addClass('filters').appendTo('#all_table thead');
+    
+    var table = $('#all_table').DataTable({
+        orderCellsTop: true,
+        fixedHeader: true,
+        order: [[1, 'desc']],  // Sort by observed
+        pageLength: 25,
+        autoWidth: false,
+        responsive: true,
+        dom: 'Blfrtip',
+        buttons: [
+            'copy', 
+            'csv', 
+            'excel', 
+            {
+                extend: 'pdf',
+                orientation: 'landscape',
+                pageSize: 'A4'
+            },
+            'print'
+        ],
+            columnDefs: [
+                {
+                    // File column - wrap long paths and add clickable links
+                    targets: 0,
+                    width: '30%',
+                    render: function(data, type, row) {
+                        if (type === 'display') {
+                            // Extract relative path (assumes paths contain 'out/')
+                            var relativePath = data;
+                            var outIndex = data.indexOf('/out/');
+                            if (outIndex !== -1) {
+                                relativePath = data.substring(outIndex + 1);
+                            }
+                            var link = '<a href="file://' + data + '" title="' + data + '">' + relativePath + '</a>';
+                            return link;
+                        }
+                        return data;
+                    },
+                    createdCell: function(td, cellData, rowData, row, col) {
+                        $(td).css({
+                            'word-wrap': 'break-word',
+                            'word-break': 'break-all',
+                            'white-space': 'normal'
+                        });
+                    }
+                },
+                {
+                    // Boolean columns - narrower
+                    targets: [1, 2, 3, 4],
+                    width: '8%'
+                },
+                {
+                    // Module and node columns
+                    targets: [5, 6],
+                    width: '12%',
+                    createdCell: function(td, cellData, rowData, row, col) {
+                        $(td).css({
+                            'word-wrap': 'break-word'
+                        });
+                    }
+                },
+                {
+                    // Stage column
+                    targets: 7,
+                    width: '8%'
+                },
+                {
+                    // Logs column - make clickable links for log files
+                    targets: 8,
+                    width: '10%',
+                    render: function(data, type, row) {
+                        if (type === 'display' && data) {
+                            var logs = data.split(', ');
+                            var links = logs.map(function(log) {
+                                var fileName = log.split('/').pop();
+                                return '<a href="file://' + log + '" title="' + log + '">' + fileName + '</a>';
+                            });
+                            return links.join(', ');
+                        }
+                        return data;
+                    },
+                    createdCell: function(td, cellData, rowData, row, col) {
+                        $(td).css({
+                            'word-wrap': 'break-word'
+                        });
+                    }
+                }
+            ],
+        initComplete: function () {
+            var api = this.api();
+            
+            // Add column filters in second header row
+            api.columns().eq(0).each(function (colIdx) {
+                var cell = $('.filters th').eq(colIdx);
+                var title = $(cell).text();
+                
+                // Boolean columns (columns 1-4) and stage column (7) - use select dropdown
+                if (colIdx === 1 || colIdx === 2 || colIdx === 3 || colIdx === 4 || colIdx === 7) {
+                    var select = $('<select><option value="">All</option></select>')
+                        .appendTo($(cell).empty())
+                        .on('change', function () {
+                            var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                            api.column(colIdx).search(val ? '^' + val + '$' : '', true, false).draw();
+                        });
+                    
+                    api.column(colIdx).data().unique().sort().each(function (d, j) {
+                        select.append('<option value="' + d + '">' + d + '</option>');
+                    });
+                } 
+                // Text columns - use text input
+                else {
+                    $(cell).html('<input type="text" placeholder="Filter ' + title + '..." />');
+                    
+                    $('input', $('.filters th').eq(colIdx)).on('keyup change clear', function () {
+                        if (api.column(colIdx).search() !== this.value) {
+                            api.column(colIdx).search(this.value).draw();
+                        }
+                    });
+                }
+            });
+        }
+    });
+});
+</script>
+</body>
+</html>

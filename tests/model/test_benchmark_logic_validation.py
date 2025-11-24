@@ -22,9 +22,9 @@ class TestBenchmarkLogicValidation:
 
             assert benchmark.benchmark_yaml_spec == "0.3"
             assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "benchmark_yaml_spec should be a string" in str(w[0].message)
-            assert "Float/numeric values are deprecated" in str(w[0].message)
+            assert issubclass(w[0].category, FutureWarning)
+            assert "benchmark_yaml_spec" in str(w[0].message)
+            assert "should be a string" in str(w[0].message)
 
         # Test integer value
         with warnings.catch_warnings(record=True) as w:
@@ -33,8 +33,9 @@ class TestBenchmarkLogicValidation:
 
             assert benchmark.benchmark_yaml_spec == "1"
             assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "benchmark_yaml_spec should be a string" in str(w[0].message)
+            assert issubclass(w[0].category, FutureWarning)
+            assert "benchmark_yaml_spec" in str(w[0].message)
+            assert "should be a string" in str(w[0].message)
 
         # Test that strings work without warnings
         with warnings.catch_warnings(record=True) as w:

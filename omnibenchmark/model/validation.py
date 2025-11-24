@@ -24,6 +24,39 @@ class ValidationError(Exception):
             return "\n".join(map(str, self.errors))
 
 
+class BenchmarkParseError(Exception):
+    """Exception raised during benchmark parsing with location information.
+
+    This exception carries additional context about where in the YAML file
+    the error occurred, allowing the CLI layer to format it appropriately.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        yaml_file: Optional[Path] = None,
+        line_number: Optional[int] = None,
+        stage_id: Optional[str] = None,
+        module_id: Optional[str] = None,
+        parameter_index: Optional[int] = None,
+        values: Optional[List[Any]] = None,
+        original_error: Optional[Exception] = None,
+    ):
+        self.message = message
+        self.yaml_file = yaml_file
+        self.line_number = line_number
+        self.stage_id = stage_id
+        self.module_id = module_id
+        self.parameter_index = parameter_index
+        self.values = values
+        self.original_error = original_error
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        # Simple string representation for non-CLI contexts
+        return self.message
+
+
 def _find_duplicate_ids(items: List[str]) -> List[str]:
     """Find duplicate IDs in a list for validation purposes."""
     from collections import Counter

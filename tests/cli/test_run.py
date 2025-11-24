@@ -3,7 +3,8 @@ import pytest
 from click.testing import CliRunner
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from omnibenchmark.cli.run import run_benchmark
+from omnibenchmark.cli.run import run_benchmark, run_module, validate_yaml
+from omnibenchmark.model.validation import BenchmarkParseError
 
 data = Path(__file__).parent.parent / "data"
 
@@ -132,3 +133,205 @@ def test_run_benchmark_with_slurm_executor(
     assert kwargs["printshellcmds"] is True
 
     assert result.exit_code == 0
+
+
+@pytest.mark.short
+def test_run_benchmark_with_parse_error():
+    """
+    Test that run_benchmark handles BenchmarkParseError correctly
+    and displays formatted error message.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    parse_error = BenchmarkParseError("Invalid parameter type")
+    parse_error.file_path = benchmark_path
+    parse_error.line_number = 10
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = parse_error
+
+        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
+            mock_format.return_value = "Formatted error message"
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run_benchmark,
+                ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+            )
+
+            # Verify the error was formatted
+            mock_format.assert_called_once_with(parse_error)
+
+            # Verify the command failed
+            assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_benchmark_with_generic_exception():
+    """
+    Test that run_benchmark handles generic exceptions correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = RuntimeError("Something went wrong")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run_benchmark,
+            ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+        )
+
+        # Verify the command failed
+        assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_module_with_parse_error():
+    """
+    Test that run_module handles BenchmarkParseError correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    parse_error = BenchmarkParseError("Invalid module configuration")
+    parse_error.stage_id = "clustering"
+    parse_error.module_id = "test_module"
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = parse_error
+
+        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
+            mock_format.return_value = "Formatted module error"
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run_module,
+                ["--benchmark", benchmark_path, "--module", "test_module"],
+            )
+
+            # Verify the error was formatted
+            mock_format.assert_called_once_with(parse_error)
+
+            # Verify the command failed
+            assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_module_with_generic_exception():
+    """
+    Test that run_module handles generic exceptions correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = ValueError("Invalid configuration")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run_module,
+            ["--benchmark", benchmark_path, "--module", "test_module"],
+        )
+
+        # Verify the command failed
+        assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_validate_yaml_with_parse_error():
+    """
+    Test that validate_yaml handles BenchmarkParseError correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    parse_error = BenchmarkParseError("Validation failed")
+    parse_error.file_path = benchmark_path
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = parse_error
+
+        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
+            mock_format.return_value = "Formatted validation error"
+
+            runner = CliRunner()
+            result = runner.invoke(
+                validate_yaml,
+                ["--benchmark", benchmark_path],
+            )
+
+            # Verify the error was formatted
+            mock_format.assert_called_once_with(parse_error)
+
+            # Verify the command failed
+            assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_validate_yaml_with_generic_exception():
+    """
+    Test that validate_yaml handles generic exceptions correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = IOError("Cannot read file")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            validate_yaml,
+            ["--benchmark", benchmark_path],
+        )
+
+        # Verify the command failed
+        assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_validate_yaml_success():
+    """
+    Test that validate_yaml succeeds with a valid benchmark.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.return_value = MagicMock()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            validate_yaml,
+            ["--benchmark", benchmark_path],
+        )
+
+        # Verify the command succeeded
+        assert result.exit_code == 0
+
+
+@pytest.mark.short
+def test_run_benchmark_with_top_level_field_parse_error():
+    """
+    Test that run_benchmark handles BenchmarkParseError for top-level fields
+    (e.g., 'version', 'storage') and provides line context.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    # Create a parse error for a top-level field like 'version'
+    parse_error = BenchmarkParseError("Input should be a valid string")
+    parse_error.file_path = benchmark_path
+    parse_error.line_number = 3
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = parse_error
+
+        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
+            mock_format.return_value = "Formatted top-level error"
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run_benchmark,
+                ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+            )
+
+            # Verify the error was formatted
+            mock_format.assert_called_once_with(parse_error)
+
+            # Verify the command failed
+            assert result.exit_code == 1

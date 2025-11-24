@@ -52,20 +52,34 @@ class TestVersionValidation:
 
     @pytest.mark.short
     def test_numeric_version_rejected(self):
-        """Test that numeric values are rejected (no auto-conversion)."""
+        """Test that numeric values trigger FutureWarning and are converted to strings."""
+        import warnings
+
         benchmark_data = self._get_minimal_benchmark_data()
 
-        # Float version should be rejected
+        # Float version should work with FutureWarning
         benchmark_data["version"] = 1.0
-        with pytest.raises(ValidationError) as exc_info:
-            Benchmark(**benchmark_data)
-        assert "Input should be a valid string" in str(exc_info.value)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            benchmark = Benchmark(**benchmark_data)
+            assert benchmark.version == "1.0"
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "version" in str(w[0].message).lower()
 
-        # Integer version should be rejected
-        benchmark_data["version"] = 2
-        with pytest.raises(ValidationError) as exc_info:
-            Benchmark(**benchmark_data)
-        assert "Input should be a valid string" in str(exc_info.value)
+        # Integer version should work with FutureWarning (using valid semver)
+        benchmark_data["version"] = 1
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # This will fail because "1" is not valid semver
+            with pytest.raises(ValidationError) as exc_info:
+                benchmark = Benchmark(**benchmark_data)
+            # Should still have the warning
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "version" in str(w[0].message).lower()
+            # And should fail semver validation
+            assert "does not follow strict semantic versioning" in str(exc_info.value)
 
     @pytest.mark.short
     def test_invalid_version_formats(self):
@@ -109,34 +123,45 @@ class TestVersionValidation:
 
     @pytest.mark.short
     def test_single_integer_rejected(self):
-        """Test that single integers are rejected (no conversion)."""
+        """Test that single integers trigger validation error after conversion."""
         benchmark_data = self._get_minimal_benchmark_data()
-        benchmark_data["version"] = 1  # Integer should be rejected
+        benchmark_data["version"] = (
+            1  # Integer should be converted to "1" and then rejected
+        )
 
         with pytest.raises(ValidationError) as exc_info:
             Benchmark(**benchmark_data)
-        assert "Input should be a valid string" in str(exc_info.value)
+        # After conversion to "1", it should fail semantic versioning validation
+        assert "does not follow strict semantic versioning" in str(exc_info.value)
 
     @pytest.mark.short
     def test_benchmark_yaml_spec_string_only(self):
         """Test that benchmark_yaml_spec accepts strings and warns for numeric values."""
+        import warnings
+
         benchmark_data = self._get_minimal_benchmark_data()
 
         # Float yaml spec should work but warn
         benchmark_data["benchmark_yaml_spec"] = 0.01
-        with pytest.warns(
-            DeprecationWarning, match="benchmark_yaml_spec should be a string"
-        ):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
             benchmark = Benchmark(**benchmark_data)
-        assert benchmark.benchmark_yaml_spec == "0.01"
+            assert benchmark.benchmark_yaml_spec == "0.01"
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "benchmark_yaml_spec" in str(w[0].message)
+            assert "should be a string" in str(w[0].message)
 
         # Integer yaml spec should work but warn
         benchmark_data["benchmark_yaml_spec"] = 1
-        with pytest.warns(
-            DeprecationWarning, match="benchmark_yaml_spec should be a string"
-        ):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
             benchmark = Benchmark(**benchmark_data)
-        assert benchmark.benchmark_yaml_spec == "1"
+            assert benchmark.benchmark_yaml_spec == "1"
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "benchmark_yaml_spec" in str(w[0].message)
+            assert "should be a string" in str(w[0].message)
 
         # Valid string yaml spec should work
         benchmark_data["benchmark_yaml_spec"] = "0.01"

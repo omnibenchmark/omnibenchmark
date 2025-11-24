@@ -49,7 +49,11 @@ if len(snakemake.output) == 1:
     output_dir = Path(os.path.dirname(output_dir))
 
 manager = SymlinkManager(output_dir.parent)
-manager.store(parameters)
+symlink_info = manager.store(parameters)
+
+# Use symlink path instead of original output_dir
+if symlink_info:
+    output_dir = symlink_info["symlink_path"]
 
 # Clone git repository
 repositories_dir = Path(".snakemake") / "repos"

@@ -56,6 +56,10 @@ class Params:
         canonical = self.serialize()
         return hashlib.sha256(canonical.encode()).hexdigest()
 
+    def hash_short(self):
+        """Generate short 8-character hash for folder names."""
+        return self.hash()[:8]
+
     def items(self):
         """Return items iterator."""
         return self._params.items()

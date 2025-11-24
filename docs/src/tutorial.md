@@ -4,7 +4,6 @@ Benchmark specification files are written in YAML. They specify the formal
 dependencies of benchmark components, as well as some metadata (e.g. the
 repository containing their implementation, parameters to be run with, etc.).
 
-
 Let's construct a simple example benchmark, shaped as follows:
 
 - `D1` is a single (starting) dataset. (In real life, datasets will have meaningful
@@ -30,7 +29,6 @@ flowchart LR
     M2 --> m2
   end
 ```
-
 
 Benchmark specification files have a header and a body.
 
@@ -60,7 +58,7 @@ storage_api: S3
 ##   not sharing results from our benchmark yet.
 storage: https://s3_object_storage_url.ch
 
-## Benchmark YAML schema/specification version. Currently `0.01`.
+## Benchmark YAML schema/specification version.
 benchmark_yaml_spec: 0.01
 
 ## License
@@ -194,7 +192,7 @@ Finally, we add the metrics stage containing modules `m1` and `m2`.
     ## stage specific-outputs
     outputs:
       - id: metrics.json
-        ## output path.
+        ##  wildcard dataset: `D1` (here datasets refer to the initial stage above, not to the module name)
         path: "{dataset}.json"
 ```
 
@@ -231,7 +229,7 @@ storage_api: S3
 ##   not sharing results from our benchmark yet.
 storage: https://s3_object_storage_url.ch
 
-## Benchmark YAML schema/specification version. Currently `0.01`.
+## Benchmark YAML schema/specification version.
 benchmark_yaml_spec: 0.01
 
 ## License
@@ -301,7 +299,7 @@ stages:
 
 ### Metric collectors
 
-The yaml stanzas above aim to scaffold a workflow by nesting inputs and outputs. Omnibenchmark automatically organizes files in a hierarchical directory structure where each module's outputs are stored in dedicated directories for provenance tracking. These files can be further processed by other modules, creating linear lineages with implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
+The YAML stanzas above aim to scaffold a workflow by nesting inputs and outputs. Omnibenchmark automatically organizes files in a hierarchical directory structure where each module's outputs are stored in dedicated directories for provenance tracking. These files can be further processed by other modules, creating linear lineages with implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
 An independent syntax allows collecting _multiple inputs across multiple folders and lineages_ to process them jointly. This usecase is typically needed when collecting metrics, that is, gathering all output files from some stage(s) to build a final aggregated report. Graphically, collection means adding the rightmost step  (`is collected by`) to the benchmarking workflow to produce `c1` (again, naming is flexible):
 
@@ -388,7 +386,8 @@ stages:
     outputs:
         ## output id
       - id: data.image
-        ## output path.
+        ##   wildcard dataset: `D1` (module ids in initial stages - that is, the ones not ingesting inputs and only
+        ##     generating outputs, are reused as `dataset` wildcards)
         path: "{dataset}.png"
 ```
 
@@ -451,7 +450,7 @@ parser$add_argument("--data.counts", dest="data_counts", type="character", help=
 parser$add_argument("--data.meta", dest="data_meta", type="character", help="input file #2")
 ```
 
-Notice these arguments match the YAML's: `data.counts` and `data.meta` are specified as inputs in the benchmark YAML; as before, `name` refers to the dataset name and `output_dir` to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and write outputs in a way compatible to the benchmark YAML specification.
+Notice these argument names **must match** the YAML's input ids: `data.counts` and `data.meta` are specified as inputs in the benchmark YAML; as before, `name` refers to the dataset name and `output_dir` to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and write outputs in a way compatible to the benchmark YAML specification.
 
 ## Run a benchmark
 
@@ -667,8 +666,6 @@ alternatively `OB_STORAGE_S3_ACCESS_KEY` and `OB_STORAGE_S3_SECRET_KEY` can be s
 ```
 OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob run benchmark -b tests/data/Benchmark_003.yaml
 ```
-
-
 
 ### Versioning
 

@@ -1,16 +1,84 @@
 """Pydantic models for Omnibenchmark - replacing omni_schema and linkml dependencies."""
 
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
-from enum import Enum
 import re
+import warnings
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
+from pydantic import (
+    ValidationError as PydanticValidationError,
+)
 
 from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
-from .validation import BenchmarkValidator, ValidationError
+
+from ._parsing import convert_pydantic_error_to_parse_error
+from .validation import BenchmarkParseError, BenchmarkValidator, ValidationError
+
+
+class LineNumberLoader(yaml.SafeLoader):
+    """Custom YAML loader that tracks line numbers for better error reporting."""
+
+    def compose_node(self, parent, index):
+        # Get the line number where the node starts
+        line = self.line + 1  # YAML lines are 0-indexed, we need 1-indexed for the user
+        node = super().compose_node(parent, index)
+        # I use setattr to avoid type checker errors with dynamic attributes (__line__ is our custom attribute)
+        setattr(node, "__line__", line)
+        return node
+
+
+def load_yaml_with_lines(file_path: Path) -> tuple[Dict[str, Any], Dict[str, int]]:
+    """
+    Load YAML file and track line numbers for error reporting.
+
+    Returns:
+        tuple: (data dict, line_map dict mapping paths to line numbers)
+    """
+    with open(file_path, "r") as f:
+        yaml_content = f.read()
+        loader = LineNumberLoader(yaml_content)
+        data = loader.get_single_data()
+
+    # Build a map of paths to line numbers
+    line_map = {}
+
+    def traverse(node, path=""):
+        """Traverse YAML nodes and build line map."""
+        if hasattr(node, "__line__"):
+            line_map[path] = node.__line__
+
+        if node.id == "mapping":
+            # Dictionary node
+            for key_node, value_node in node.value:
+                key = key_node.value
+                new_path = f"{path}.{key}" if path else key
+                if hasattr(value_node, "__line__"):
+                    line_map[new_path] = value_node.__line__
+                traverse(value_node, new_path)
+        elif node.id == "sequence":
+            # List node
+            for i, item_node in enumerate(node.value):
+                new_path = f"{path}[{i}]"
+                if hasattr(item_node, "__line__"):
+                    line_map[new_path] = item_node.__line__
+                traverse(item_node, new_path)
+
+    # Parse again with line tracking
+    with open(file_path, "r") as f:
+        loader = LineNumberLoader(f)
+        root_node = loader.get_single_node()
+        traverse(root_node)
+
+    return data, line_map
 
 
 def _is_environment_url(string: str) -> bool:
@@ -114,10 +182,13 @@ class Repository(BaseModel):
     def validate_url(cls, v: str) -> str:
         return validate_non_empty_string(v)
 
-    @field_validator("commit")
+    @field_validator("commit", mode="before")
     @classmethod
-    def validate_commit(cls, v: str) -> str:
-        return validate_non_empty_commit(v)
+    def validate_commit(cls, v: Union[str, int, float]) -> str:
+        # Convert numeric commit hashes to strings. Yes, they should not be numeric,
+        # but we should handle it gracefully.
+        v_str = str(v) if not isinstance(v, str) else v
+        return validate_non_empty_commit(v_str)
 
     type: RepositoryType = Field(RepositoryType.git, description="Repository type")
 
@@ -145,12 +216,13 @@ class Parameter(BaseModel):
     id: str = Field(..., description="Parameter ID")
     values: List[str] = Field(..., description="Parameter values")
 
-    @field_validator("values")
+    @field_validator("values", mode="before")
     @classmethod
-    def validate_values(cls, v: List[str]) -> List[str]:
+    def validate_values(cls, v: List[Any]) -> List[str]:
         if not v:
             raise ValueError("Parameter values cannot be empty")
-        return v
+        # Convert all values to strings to handle mixed types (float, int, str)
+        return [str(val) for val in v]
 
 
 class IOFile(IdentifiableEntity):
@@ -287,10 +359,22 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             raise ValueError(f"Invalid API version: {v}")
         return v
 
-    @field_validator("version")
+    @field_validator("version", mode="before")
     @classmethod
-    def validate_version(cls, v: str) -> str:
+    def validate_version(cls, v: Union[str, int, float]) -> str:
         """Validate that version follows strict semantic versioning format."""
+        # Handle numeric types with deprecation warning
+        if isinstance(v, (int, float)):
+            warnings.warn(
+                f"Field 'version' should be a string. "
+                f"Found {type(v).__name__} value: {v}. "
+                f"This will not be valid in a future release. "
+                f"Please update your YAML file to use a quoted string.",
+                FutureWarning,
+                stacklevel=4,
+            )
+            v = str(v)
+
         if not isinstance(v, str):
             raise ValueError("Version must be a string")
 
@@ -310,7 +394,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         return v
 
-    @field_validator("benchmark_yaml_spec")
+    @field_validator("benchmark_yaml_spec", mode="before")
     @classmethod
     def validate_benchmark_yaml_spec(
         cls, v: Optional[Union[str, float, int]]
@@ -322,14 +406,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         if not isinstance(v, str):
             # Allow float/int for backwards compatibility but warn
             if isinstance(v, (float, int)):
-                import warnings
-
                 warnings.warn(
-                    f"benchmark_yaml_spec should be a string, not {type(v).__name__}. "
-                    f"Float/numeric values are deprecated and will be removed in future versions. "
-                    f"Please use '{v}' (string) instead of {v}.",
-                    DeprecationWarning,
-                    stacklevel=2,
+                    f"Field 'benchmark_yaml_spec' should be a string. "
+                    f"Found {type(v).__name__} value: {v}. "
+                    f"This will not be valid in a future release. "
+                    f"Please update your YAML file to use a quoted string.",
+                    FutureWarning,
+                    stacklevel=4,
                 )
                 return str(v)
             else:
@@ -342,12 +425,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     @classmethod
     def from_yaml(cls, path_or_content: Union[str, Path]) -> "Benchmark":
         """Load benchmark from YAML file or string content."""
+        line_map = {}
+        yaml_file_path = None
+
         if isinstance(path_or_content, (str, Path)) and "\n" not in str(
             path_or_content
         ):
             # Treat as file path
-            with open(path_or_content, "r") as f:
-                data = yaml.safe_load(f)
+            yaml_file_path = Path(path_or_content)
+            data, line_map = load_yaml_with_lines(yaml_file_path)
         else:
             # Treat as YAML content string
             data = yaml.safe_load(str(path_or_content))
@@ -365,19 +451,62 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         # Generate parameter IDs for modules
         if "stages" in data:
-            for stage in data["stages"]:
+            for stage_idx, stage in enumerate(data["stages"]):
                 if "modules" in stage:
-                    for module in stage["modules"]:
+                    for module_idx, module in enumerate(stage["modules"]):
                         if "parameters" in module and module["parameters"]:
-                            for param in module["parameters"]:
+                            for param_idx, param in enumerate(module["parameters"]):
+                                # Convert all parameter values to strings to handle mixed types (float, int, str)
+                                if "values" in param:
+                                    param["values"] = [str(v) for v in param["values"]]
+
                                 if "id" not in param and "values" in param:
                                     # Generate a hash-based ID from the parameter values
                                     import hashlib
 
-                                    param_str = str(sorted(param["values"]))
-                                    param["id"] = hashlib.sha256(
-                                        param_str.encode()
-                                    ).hexdigest()[:8]
+                                    try:
+                                        # Convert all values to strings to handle mixed types (float, int, str)
+                                        normalized_values = [
+                                            str(v) for v in param["values"]
+                                        ]
+                                        param_str = str(sorted(normalized_values))
+                                        param["id"] = hashlib.sha256(
+                                            param_str.encode()
+                                        ).hexdigest()[:8]
+                                    except Exception as e:
+                                        # Provide detailed error information
+                                        stage_id = stage.get(
+                                            "id", f"<stage index {stage_idx}>"
+                                        )
+                                        module_id = module.get(
+                                            "id", f"<module index {module_idx}>"
+                                        )
+
+                                        # Try to find the line number in the YAML file
+                                        line_num = None
+                                        if line_map and yaml_file_path:
+                                            # Try different path patterns to find the line
+                                            possible_paths = [
+                                                f"stages[{stage_idx}].modules[{module_idx}].parameters[{param_idx}]",
+                                                f"stages[{stage_idx}].modules[{module_idx}].parameters[{param_idx}].values",
+                                            ]
+                                            for path in possible_paths:
+                                                if path in line_map:
+                                                    line_num = line_map[path]
+                                                    break
+
+                                        # Raise a BenchmarkParseError with all context information
+                                        # The CLI layer will handle formatting
+                                        raise BenchmarkParseError(
+                                            message="Failed to process parameter values",
+                                            yaml_file=yaml_file_path,
+                                            line_number=line_num,
+                                            stage_id=stage_id,
+                                            module_id=module_id,
+                                            parameter_index=param_idx,
+                                            values=param.get("values"),
+                                            original_error=e,
+                                        ) from e
 
         # Convert string storage to Storage object
         if "storage" in data and isinstance(data["storage"], str):
@@ -386,7 +515,14 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 "endpoint": data["storage"],
             }
 
-        return cls(**data)
+        try:
+            return cls(**data)
+        except PydanticValidationError as e:
+            # Convert Pydantic validation error to BenchmarkParseError with context
+            parse_error = convert_pydantic_error_to_parse_error(
+                e, data, line_map, yaml_file_path
+            )
+            raise parse_error from e
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Benchmark":
