@@ -1,4 +1,6 @@
 """MinIO class for remote storage."""
+# pyright: reportCallIssue=false
+# TODO: Fix boto3/minio API call type errors
 
 import datetime
 import io
