@@ -68,3 +68,4 @@ markdown_extensions:
   - pymdownx.snippets:
       # Allows you to check that included files exist during build
       check_paths: true
+      base_path: !relative $config_dir
