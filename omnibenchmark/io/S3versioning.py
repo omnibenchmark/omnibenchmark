@@ -1,3 +1,5 @@
+# pyright: reportCallIssue=false
+# TODO: Fix boto3/minio API call type errors
 from itertools import groupby
 from typing import Dict
 

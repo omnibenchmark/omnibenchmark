@@ -36,7 +36,13 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
                 if len(output) == 1:
                     output_dir = Path(os.path.dirname(output_dir))
 
-                write_combined_performance_file(output_dir, performances)
+                # Only write performance file if there are actual performance files to aggregate
+                if performances:
+                    write_combined_performance_file(output_dir, performances)
+                else:
+                    # Create empty performance file for consistency
+                    with open(output[0], 'w') as f:
+                        f.write("# No performance files found to aggregate\n")
 
 
 def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, node_output_paths: List[str]):

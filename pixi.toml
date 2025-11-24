@@ -26,6 +26,7 @@ ruff = "*"
 
 # Core dependencies for the package
 git = "*"
+conda = ">=25.11.0,<26"
 
 
 [target.linux-64.dependencies]
@@ -58,7 +59,7 @@ GitPython = ">=3.1.0"
 tqdm = ">=4.66.4"
 
 # S3 and storage dependencies
-minio = ">=7.2.7"
+minio = "==7.2.18"  # Pin to 7.2.18, 7.2.19 has breaking API changes
 boto3 = ">=1.34.102"
 snakemake-storage-plugin-s3 = ">=0.2.12"
 s3fs = { version = ">=2023.12.0", extras = ["boto3"] }
@@ -135,7 +136,7 @@ git = "*"
 # Install local package in development mode
 omnibenchmark = { path = ".", editable = true }
 # Add minio for S3 storage tests
-minio = ">=7.0.0"
+minio = "==7.2.18"  # Pin to 7.2.18, 7.2.19 has breaking API changes
 
 [feature.py313.tasks]
 # Test task for Python 3.13 environment

@@ -8,7 +8,9 @@ import json
 from omnibenchmark.cli.utils.logging import logger
 
 
+# TODO: try to do without pandas, it's an indirect dependency
 import pandas as pd
+
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
