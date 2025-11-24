@@ -94,6 +94,9 @@ class BenchmarkValidator:
         # 4. Validate that software environment references exist
         self._validate_environment_references(errors)
 
+        # 5. Validate that output patterns are not ambiguous
+        self._validate_output_patterns(errors)
+
         # Raise error if any validation failed
         if errors:
             raise ValidationError(errors)
@@ -133,17 +136,13 @@ class BenchmarkValidator:
                             f"Input with id '{input_id}' for metric collector '{collector.id}' is not valid."  # type: ignore
                         )
 
-    def validate_software_environments(self) -> None:
+    def _validate_software_environments(self, errors: List[str]) -> None:
         """
         Validate that all software environment references exist.
-
-        Raises:
-            ValueError: If any validation errors are found
         """
         # Import here to avoid circular imports
         from .benchmark import SoftwareBackendEnum
 
-        errors: List[str] = []
         env_ids = {env.id for env in self.software_environments}  # type: ignore
         used_env_ids: set[str] = set()
 
@@ -193,20 +192,11 @@ class BenchmarkValidator:
                 UserWarning,
             )
 
-        if errors:
-            raise ValueError(
-                f"Software environment validation failed: {'; '.join(errors)}. Environment not defined."
-            )
-
     # Note: The old validate_structure method has been split into:
     # - validate_model_structure() for pure model validation (above)
     # - validate_execution_context() in the Benchmark class for path validation
 
-    def is_initial(self, stage: Any) -> bool:
-        """Check if a stage is an initial stage (has no inputs)."""
-        return not stage.inputs or len(stage.inputs) == 0  # type: ignore
-
-    def validate_output_patterns(self) -> List[ValidationError]:
+    def _validate_output_patterns(self, errors: List[str]) -> None:
         """
         Validates that output file patterns don't create ambiguous Snakemake rules.
 
@@ -217,7 +207,6 @@ class BenchmarkValidator:
         Returns:
             List of ValidationError objects describing any ambiguous patterns found.
         """
-        errors = []
 
         # Collect all output patterns grouped by their base filename
         pattern_to_stages = {}
@@ -257,11 +246,14 @@ class BenchmarkValidator:
                     f"in one or more stages."
                 )
 
-                errors.append(ValidationError(error_msg))
-
-        return errors
+                errors.append(error_msg)
 
     # Utility methods
+
+    @staticmethod
+    def is_initial(self, stage: Any) -> bool:
+        """Check if a stage is an initial stage (has no inputs)."""
+        return not stage.inputs or len(stage.inputs) == 0  # type: ignore
 
     @staticmethod
     def is_url(string: str) -> bool:
