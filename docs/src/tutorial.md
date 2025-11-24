@@ -45,7 +45,7 @@ id: bench1
 description: a simple benchmark
 
 ## Benchmark version. `1.0`. This is our first attempt, so let's call it major version 1, minor version 0: `1.0`.
-version: 1.0
+version: "1.0"
 
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
@@ -59,10 +59,7 @@ storage_api: S3
 storage: https://s3_object_storage_url.ch
 
 ## Benchmark YAML schema/specification version.
-benchmark_yaml_spec: 0.01
-
-## License
-## license: MIT  # not yet part of the schema
+benchmark_yaml_spec: "0.0.1"
 
 ## The software backend used to run the benchmark
 software_backend: apptainer
@@ -216,7 +213,7 @@ id: bench1
 description: a simple benchmark
 
 ## Benchmark version. `1.0`. This is our first attempt, so let's call it major version 1, minor version 0: `1.0`.
-version: 1.0
+version: "1.0"
 
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
@@ -230,7 +227,7 @@ storage_api: S3
 storage: https://s3_object_storage_url.ch
 
 ## Benchmark YAML schema/specification version.
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: "0.0.1"
 
 ## License
 # license: MIT # not yet part of the schema
