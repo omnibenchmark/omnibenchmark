@@ -389,6 +389,37 @@ class Stage(DescribableEntity):
     inputs: Optional[List[InputCollection]] = Field(None, description="Stage inputs")
     outputs: List[IOFile] = Field(..., description="Stage outputs")
 
+    @field_validator("inputs", mode="before")
+    @classmethod
+    def validate_inputs(cls, v):
+        """Convert legacy string format to InputCollection."""
+        if v is None:
+            return v
+
+        result = []
+        for item in v:
+            # If it's a plain string (legacy format), wrap it
+            if isinstance(item, str):
+                result.append(InputCollection(entries=[item]))
+            # If it's a dict with 'entries' (legacy format with explicit entries field)
+            elif isinstance(item, dict) and "entries" in item:
+                import warnings
+
+                warnings.warn(
+                    "Using 'entries' field in inputs is deprecated. "
+                    "Please use a simple list of strings instead: "
+                    "inputs: ['data.matrix', 'data.true_labels'] instead of "
+                    "inputs: [{entries: ['data.matrix', 'data.true_labels']}]. "
+                    "Support for 'entries' will be removed in a future release.",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                result.append(item)
+            # If it's already an InputCollection or other dict, keep as-is
+            else:
+                result.append(item)
+        return result
+
 
 class Benchmark(DescribableEntity, BenchmarkValidator):
     """Main benchmark definition."""
