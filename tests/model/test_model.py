@@ -344,13 +344,18 @@ class TestBenchmark:
         )
 
         # Should not raise any errors
-        benchmark.validate_software_environments()
+        errors = []
+        benchmark._validate_software_environments(errors)
+        assert len(errors) == 0
 
         # Test with missing environment reference
         benchmark.stages[0].modules[0].software_environment = "nonexistent_env"
 
-        with pytest.raises(ValueError, match="undefined"):
-            benchmark.validate_software_environments()
+        # Should detect the error
+        errors = []
+        benchmark._validate_software_environments(errors)
+        assert len(errors) > 0
+        assert "undefined" in errors[0] or "nonexistent_env" in errors[0]
 
     def test_validate_unused_environments(self):
         """Test detection of unused software environments."""
@@ -360,8 +365,9 @@ class TestBenchmark:
         )
 
         # Should detect unused environment
+        errors = []
         with pytest.warns(UserWarning, match="unused_env"):
-            benchmark.validate_software_environments()
+            benchmark._validate_software_environments(errors)
 
     def test_software_backend_flexibility(self):
         """Test that different software backends work with appropriate environments."""
@@ -536,4 +542,6 @@ outputs:
         assert benchmark.id == "integration_test"
 
         # Validate software environments
-        benchmark.validate_software_environments()
+        errors = []
+        benchmark._validate_software_environments(errors)
+        assert len(errors) == 0

@@ -91,7 +91,9 @@ class TestValidationConsistency:
                 }
             ],
         )
-        assert valid_benchmark.validate_software_environments() is None
+        errors = []
+        valid_benchmark._validate_software_environments(errors)
+        assert len(errors) == 0
 
         # Invalid: environment doesn't exist
         with pytest.raises((ValidationError, OmnibenchmarkValidationError)):
@@ -301,7 +303,8 @@ class TestValidationConsistency:
             )
 
             # Trigger validation that checks for unused environments
-            benchmark.validate_software_environments()
+            errors = []
+            benchmark._validate_software_environments(errors)
 
             # Check that warning was issued for unused environment
             warning_messages = [str(warning.message) for warning in w]
@@ -355,7 +358,9 @@ class TestValidationConsistency:
 
         # Validate the benchmark structure
         benchmark.validate_model_structure()
-        benchmark.validate_software_environments()
+        errors = []
+        benchmark._validate_software_environments(errors)
+        assert len(errors) == 0
 
         # Verify relationships are consistent
         env_ids = {env.id for env in benchmark.software_environments}
