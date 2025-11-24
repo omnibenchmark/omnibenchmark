@@ -8,7 +8,14 @@ import os.path
 from pathlib import Path
 from typing import List
 
-import pandas
+# TODO: Remove pandas dependency - refactor this script to use standard library only
+try:
+    import pandas
+except ImportError:
+    raise ImportError(
+        "pandas is required for parse_performance.py. "
+        "Please install omnibenchmark with pandas support or refactor this script."
+    )
 import os.path as op
 
 
