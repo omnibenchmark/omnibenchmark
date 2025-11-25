@@ -13,7 +13,9 @@ from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_com
 
 RUN_MODULE = "run_module.py"
 
-def create_all_rule(out_dir: Path, paths: List[str], aggregate_performance: bool = False):
+def create_all_rule(config, paths: List[str], aggregate_performance: bool = False):
+    out_dir = config['out_dir']
+
     if not aggregate_performance:
         rule all:
             input: paths,
@@ -38,10 +40,13 @@ def create_all_rule(out_dir: Path, paths: List[str], aggregate_performance: bool
                 write_combined_performance_file(output_dir, performances)
 
 
-def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, node_output_paths: List[str]):
+def create_metric_collector_rule(benchmark, collector, config, node_output_paths):
     repository = collector.repository
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
+
+    software_backend = config['backend']
+    keep_module_logs = config.get('keep_module_logs', False)
 
     inputs_map = formatter.format_metric_collector_input(benchmark, collector, return_as_dict=True)
 
@@ -52,8 +57,6 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
         filtered_input_paths = [path for path in node_output_paths if pattern.match(path)]
         updated_inputs.extend(filtered_input_paths)
         updated_inputs_map[key] = filtered_input_paths
-
-    software_backend = benchmark.get_benchmark_software_backend()
 
     # Only set environment directive for the backend that's actually being used
     if software_backend == SoftwareBackendEnum.conda:
@@ -70,7 +73,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 inputs_map=updated_inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
-                keep_module_logs=config['keep_module_logs']
+                keep_module_logs=keep_module_logs
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.envmodules:
@@ -87,7 +90,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 inputs_map=updated_inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
-                keep_module_logs=config['keep_module_logs']
+                keep_module_logs=keep_module_logs
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
@@ -104,7 +107,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 inputs_map=updated_inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
-                keep_module_logs=config['keep_module_logs']
+                keep_module_logs=keep_module_logs
             script: get_script_path(RUN_MODULE)
 
     else:
@@ -119,7 +122,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 inputs_map=updated_inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
-                keep_module_logs=config['keep_module_logs']
+                keep_module_logs=keep_module_logs
             script: get_script_path(RUN_MODULE)
 
 

@@ -19,13 +19,13 @@ def _create_initial_node(benchmark, node, config, local_timeout):
     module_id = node.module_id
     param_id = node.param_id
 
-    out_dir = config['out_dir']
-
     repository = node.get_repository()
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
-    software_backend = benchmark.get_benchmark_software_backend()
+    out_dir = config['out_dir']
+    software_backend = config['backend']
+    keep_module_logs = config.get('keep_module_logs', False)
 
     # Only set environment directive for the backend that's actually being used
     if software_backend == SoftwareBackendEnum.conda:
@@ -48,7 +48,7 @@ def _create_initial_node(benchmark, node, config, local_timeout):
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
                 dataset = module_id,
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
 
@@ -72,7 +72,7 @@ def _create_initial_node(benchmark, node, config, local_timeout):
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
                 dataset = module_id,
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
 
@@ -96,7 +96,7 @@ def _create_initial_node(benchmark, node, config, local_timeout):
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
                 dataset = module_id,
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
 
@@ -118,7 +118,7 @@ def _create_initial_node(benchmark, node, config, local_timeout):
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
                 dataset = module_id,
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
 
@@ -130,8 +130,6 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
 
     outputs = node.get_outputs()
 
-    out_dir = config['out_dir']
-
     post = stage_id + '/' + module_id
     if any(['{params}' in o for o in outputs]):
         post += '/' + param_id
@@ -140,17 +138,18 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
+    out_dir = config['out_dir']
+    software_backend = config['backend']
+    keep_module_logs = config.get('keep_module_logs', False)
+    keep_going = config.get("keep_going", False)
+
     inputs_map = lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards, return_as_dict=True)
 
-    keep_going = config.get("keep_going", False)
     # just for intermediate notes, we allow the rules to touch their expected
     # outputs. the logic is that for initial nodes we want to fail hard,
     # but we want the collectors to meet the preconditions for execution.
 
     fmt_fn = formatter.format_output_templates_to_be_expanded
-
-    # Get the software backend and corresponding environment path
-    software_backend = benchmark.get_benchmark_software_backend()
 
     # Only set environment directive for the backend that's actually being used
     if software_backend == SoftwareBackendEnum.conda:
@@ -173,9 +172,10 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
+
     elif software_backend == SoftwareBackendEnum.envmodules:
         envmodules_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
         rule:
@@ -196,9 +196,10 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
+
     elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
         container_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
         rule:
@@ -219,9 +220,10 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
+
     else:
         # host or other backend - no environment directive needed
         rule:
@@ -240,7 +242,7 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters = node.get_parameters(),
-                keep_module_logs=config['keep_module_logs'],
+                keep_module_logs=keep_module_logs,
                 local_task_timeout=local_timeout
             script: get_script_path(RUN_MODULE)
 
@@ -254,21 +256,24 @@ def create_standalone_node_rule(node, config):
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
+    dataset = config['dataset']
+    keep_module_logs = config.get('keep_module_logs', False)
+
     # TODO(ben): can factor out common parts?
 
     if node.is_initial():
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
-                dataset=config['dataset']
+                dataset=dataset
             output:
                 node.get_output_paths(config)
             params:
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters=node.get_parameters(),
-                dataset=config['dataset'],
-                keep_module_logs=config['keep_module_logs'],
+                dataset=dataset,
+                keep_module_logs=keep_module_logs,
             benchmark:
                 node.get_benchmark_path(config)
             script: get_script_path(RUN_MODULE)
@@ -284,8 +289,8 @@ def create_standalone_node_rule(node, config):
                 repository_url = repository_url,
                 commit_hash = commit_hash,
                 parameters=node.get_parameters(),
-                dataset=config['dataset'],
-                keep_module_logs=config['keep_module_logs'],
+                dataset=dataset,
+                keep_module_logs=keep_module_logs,
             benchmark:
                 node.get_benchmark_path(config)
             script: get_script_path(RUN_MODULE)
