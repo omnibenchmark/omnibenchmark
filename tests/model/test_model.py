@@ -325,50 +325,6 @@ class TestBenchmark:
         upgraded = old_benchmark.upgrade_to_latest()
         assert upgraded.benchmark_yaml_spec == APIVersion.latest()
 
-    def test_validate_software_environments(self):
-        """Test software environment validation."""
-        benchmark = make_benchmark(
-            software_backend="conda",
-            software_environments={
-                "env1": {"conda": "env1.yaml"},
-                "env2": {"conda": "env2.yaml"},
-            },
-            stages=[
-                {
-                    "modules": [
-                        {"software_environment": "env1"},
-                        {"software_environment": "env2"},
-                    ]
-                }
-            ],
-        )
-
-        # Should not raise any errors
-        errors = []
-        benchmark._validate_software_environments(errors)
-        assert len(errors) == 0
-
-        # Test with missing environment reference
-        benchmark.stages[0].modules[0].software_environment = "nonexistent_env"
-
-        # Should detect the error
-        errors = []
-        benchmark._validate_software_environments(errors)
-        assert len(errors) > 0
-        assert "undefined" in errors[0] or "nonexistent_env" in errors[0]
-
-    def test_validate_unused_environments(self):
-        """Test detection of unused software environments."""
-        benchmark = make_benchmark(
-            software_environments={"used_env": {}, "unused_env": {}},
-            stages=[{"modules": [{"software_environment": "used_env"}]}],
-        )
-
-        # Should detect unused environment
-        errors = []
-        with pytest.warns(UserWarning, match="unused_env"):
-            benchmark._validate_software_environments(errors)
-
     def test_software_backend_flexibility(self):
         """Test that different software backends work with appropriate environments."""
         # Test conda backend

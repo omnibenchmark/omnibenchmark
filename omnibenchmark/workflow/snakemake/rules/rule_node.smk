@@ -39,7 +39,7 @@ def _create_initial_node(benchmark, node, config, local_timeout):
             stage=stage_id,
             module=module_id,
             params=param_id,
-            dataset=module_id
+            dataset="[^/]+"
         benchmark:
             formatter.format_performance_file(node, out_dir)
         output:
@@ -95,7 +95,8 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
         wildcard_constraints:
             post=post,
             stage=stage_id,
-            module=module_id
+            module=module_id,
+            dataset="[^/]+"
         input:
             lambda wildcards: formatter.format_input_templates_to_be_expanded(benchmark, wildcards)
         benchmark:

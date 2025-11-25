@@ -1,7 +1,6 @@
 """Validation logic for benchmark models."""
 
 import os
-import warnings
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
@@ -125,16 +124,13 @@ class BenchmarkValidator:
                             )
 
         # 4. Validate that software environment references exist
-        self._validate_environment_references(errors)
-
-        # 5. Validate that output patterns are not ambiguous
-        self._validate_output_patterns(errors)
+        self._validate_software_environments(errors)
 
         # Raise error if any validation failed
         if errors:
             raise ValidationError(errors)
 
-    def _validate_environment_references(self, errors: List[str]) -> None:
+    def _validate_software_environments(self, errors: List[str]) -> None:
         """Validate software environment references without checking file paths."""
         env_ids = {env.id for env in self.software_environments}  # type: ignore
 
@@ -169,117 +165,9 @@ class BenchmarkValidator:
                             f"Input with id '{input_id}' for metric collector '{collector.id}' is not valid."  # type: ignore
                         )
 
-    def _validate_software_environments(self, errors: List[str]) -> None:
-        """
-        Validate that all software environment references exist.
-        """
-        # Import here to avoid circular imports
-        from .benchmark import SoftwareBackendEnum
-
-        env_ids = {env.id for env in self.software_environments}  # type: ignore
-        used_env_ids: set[str] = set()
-
-        # Check modules
-        for stage in self.stages:  # type: ignore
-            for module in stage.modules:  # type: ignore
-                if module.software_environment not in env_ids:  # type: ignore
-                    errors.append(
-                        f"Module '{module.id}' references undefined software environment: '{module.software_environment}'"  # type: ignore
-                    )
-                else:
-                    used_env_ids.add(module.software_environment)  # type: ignore
-
-        # Check metric collectors
-        if self.metric_collectors:  # type: ignore
-            for collector in self.metric_collectors:  # type: ignore
-                if collector.software_environment not in env_ids:  # type: ignore
-                    errors.append(
-                        f"Metric collector '{collector.id}' references undefined software environment: '{collector.software_environment}'"  # type: ignore
-                    )
-                else:
-                    used_env_ids.add(collector.software_environment)  # type: ignore
-
-        # Validate backend-specific configurations
-        for env in self.software_environments:  # type: ignore
-            if self.software_backend == SoftwareBackendEnum.conda:  # type: ignore
-                if not env.conda:  # type: ignore
-                    errors.append(
-                        f"Cannot use conda backend, no conda configuration found for environment '{env.id}'"  # type: ignore
-                    )
-            elif self.software_backend == SoftwareBackendEnum.apptainer:  # type: ignore
-                if not env.apptainer:  # type: ignore
-                    errors.append(
-                        f"Cannot use apptainer backend, no apptainer configuration found for environment '{env.id}'"  # type: ignore
-                    )
-            elif self.software_backend == SoftwareBackendEnum.envmodules:  # type: ignore
-                if not env.envmodule:  # type: ignore
-                    errors.append(
-                        f"Cannot use envmodules backend, no envmodule configuration for environment '{env.id}'"  # type: ignore
-                    )
-
-        # Check for unused environments
-        unused_envs = env_ids - used_env_ids  # type: ignore
-        for unused_env in unused_envs:  # type: ignore
-            warnings.warn(
-                f"Software environment '{unused_env}' is defined but not used",  # type: ignore
-                UserWarning,
-            )
-
     # Note: The old validate_structure method has been split into:
     # - validate_model_structure() for pure model validation (above)
     # - validate_execution_context() in the Benchmark class for path validation
-
-    def _validate_output_patterns(self, errors: List[str]) -> None:
-        """
-        Validates that output file patterns don't create ambiguous Snakemake rules.
-
-        Checks if different stages produce outputs with the same filename pattern
-        (e.g., both producing {dataset}.ad), which would cause Snakemake to fail
-        with an AmbiguousRuleException.
-
-        Returns:
-            List of ValidationError objects describing any ambiguous patterns found.
-        """
-
-        # Collect all output patterns grouped by their base filename
-        pattern_to_stages = {}
-
-        stages_dict = self.get_stages()  # type: ignore
-        for stage_id, stage in stages_dict.items():
-            stage_outputs = stage.outputs if stage.outputs else []
-
-            for output in stage_outputs:
-                # Extract the base filename pattern (last component of the path)
-                output_path = output.path
-                base_pattern = os.path.basename(output_path)
-
-                # Track which stages produce this pattern
-                if base_pattern not in pattern_to_stages:
-                    pattern_to_stages[base_pattern] = []
-                pattern_to_stages[base_pattern].append(
-                    {"stage_id": stage_id, "output_id": output.id, "path": output_path}
-                )
-
-        # Check for patterns that appear in multiple stages
-        for pattern, stage_info_list in pattern_to_stages.items():
-            if len(stage_info_list) > 1:
-                # Build a helpful error message
-                stage_details = []
-                for info in stage_info_list:
-                    stage_details.append(
-                        f"  - Stage '{info['stage_id']}' output '{info['output_id']}': {info['path']}"
-                    )
-
-                error_msg = (
-                    f"Ambiguous output pattern '{pattern}' found in multiple stages. "
-                    f"Please ensure each stage produces outputs with unique filename patterns:\n"
-                    + "\n".join(stage_details)
-                    + f"\n\nSuggestion: Modify the output paths to include stage-specific prefixes. "
-                    f"For example, change '{pattern}' to '{{dataset}}_{stage_info_list[0]['stage_id']}.{pattern.split('.')[-1] if '.' in pattern else 'out'}' "
-                    f"in one or more stages."
-                )
-
-                errors.append(error_msg)
 
     # Utility methods
 

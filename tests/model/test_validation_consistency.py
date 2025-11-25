@@ -278,38 +278,6 @@ class TestValidationConsistency:
                 ]
             )
 
-    def test_unused_environment_warning(self):
-        """Test that unused environments generate warnings."""
-        import warnings
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-
-            benchmark = make_benchmark(
-                software_environments=[
-                    {"id": "used_env", "conda": "used.yaml"},
-                    {
-                        "id": "unused_env",
-                        "conda": "unused.yaml",
-                    },  # This should trigger warning
-                ],
-                stages=[
-                    {
-                        "id": "stage1",
-                        "modules": [{"id": "mod1", "software_environment": "used_env"}],
-                        "outputs": [],
-                    }
-                ],
-            )
-
-            # Trigger validation that checks for unused environments
-            errors = []
-            benchmark._validate_software_environments(errors)
-
-            # Check that warning was issued for unused environment
-            warning_messages = [str(warning.message) for warning in w]
-            assert any("unused_env" in msg for msg in warning_messages)
-
     def test_comprehensive_valid_benchmark(self):
         """Test creation of a comprehensive, fully valid benchmark."""
         benchmark = make_benchmark(

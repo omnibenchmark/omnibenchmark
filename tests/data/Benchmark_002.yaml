@@ -48,12 +48,12 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 706edb9
+          commit: 3b17081
     inputs:
       - entries: [data.counts, data.meta]
     outputs:
       - id: data.normalized
-        path: "{dataset}.processed.txt.gz"
+        path: "{dataset}.txt.gz"
 
   - id: select_counts
     modules:

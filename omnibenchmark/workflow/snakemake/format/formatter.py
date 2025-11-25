@@ -81,6 +81,10 @@ def format_input_templates_to_be_expanded(
     post = wildcards.post
     dataset = wildcards.dataset
 
+    assert not dataset.__contains__(
+        "/"
+    ), "Dataset wildcard should not contain a path prefix"
+
     nodes = benchmark.get_nodes()
     stage_ids = set(benchmark.get_stage_ids())
 
