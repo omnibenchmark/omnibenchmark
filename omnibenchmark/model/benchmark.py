@@ -500,15 +500,22 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                     param["values"] = [str(v) for v in param["values"]]
 
                                 if "id" not in param and "values" in param:
-                                    # Generate a hash-based ID from the parameter values
+                                    # Legacy format: auto-generate ID from values
                                     import hashlib
+                                    import warnings
+
+                                    # Emit deprecation warning
+                                    stage_id = stage.get("id", f"stage {stage_idx}")
+                                    module_id = module.get("id", f"module {module_idx}")
+                                    warnings.warn(
+                                        f"Parameter in {stage_id}/{module_id} using deprecated --values [...] format. "
+                                        f"Pleas use the newer key-value format.",
+                                        FutureWarning,
+                                        stacklevel=2,
+                                    )
 
                                     try:
-                                        # Convert all values to strings to handle mixed types (float, int, str)
-                                        normalized_values = [
-                                            str(v) for v in param["values"]
-                                        ]
-                                        param_str = str(sorted(normalized_values))
+                                        param_str = str(sorted(param["values"]))
                                         param["id"] = hashlib.sha256(
                                             param_str.encode()
                                         ).hexdigest()[:8]
@@ -547,7 +554,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                             original_error=e,
                                         ) from e
 
-        # Convert string storage to Storage object
+        # Convert string storage to Storage object (TODO: deprecate in 0.6)
         if "storage" in data and isinstance(data["storage"], str):
             data["storage"] = {
                 "api": data.get("storage_api", "S3"),
