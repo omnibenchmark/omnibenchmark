@@ -1,33 +1,20 @@
 import json
 from pathlib import Path
 import os
-from typing import Dict
+import shutil
+from typing import Dict, Any
 
-import pandas as pd
+import csv
 
 
 from omnibenchmark.benchmark import Benchmark
 from tests.workflow.Snakemake_setup import SnakemakeSetup
 
 from .path import data
+from ..fixtures import bundled_repos  # noqa: F401 - pytest fixture
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--keep-files",
-        action="store_true",
-        default=False,
-        help="Keep temporary files after test execution",
-    )
-    parser.addoption(
-        "--current-dir",
-        action="store_true",
-        default=False,
-        help="Use current directory instead of temporary one",
-    )
-
-
-def test_run_workflow_001(snakemake_env, tmp_path):
+def test_run_workflow_001(snakemake_env, tmp_path, bundled_repos):  # noqa: F811
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
     if snakemake_env["current_dir"]:
@@ -36,8 +23,22 @@ def test_run_workflow_001(snakemake_env, tmp_path):
     benchmark_file = data / "Benchmark_001.yaml"
     keep_files = snakemake_env["keep_files"]
 
+    # Copy benchmark YAML to tmp_path so workflow can find it
+    benchmark_file_in_tmp = tmp_path / "Benchmark_001.yaml"
+    with open(benchmark_file, "rb") as src, open(benchmark_file_in_tmp, "wb") as dst:
+        dst.write(src.read())
+
+    # Copy envs directory to tmp_path so environment files are available
+    envs_src = data / "envs"
+    envs_dst = tmp_path / "envs"
+    if envs_src.exists():
+        shutil.copytree(envs_src, envs_dst, dirs_exist_ok=True)
+
     with SnakemakeSetup(
-        benchmark_file, keep_files=keep_files, cwd=tmp_path.as_posix()
+        benchmark_file_in_tmp,
+        keep_files=keep_files,
+        cwd=tmp_path.as_posix(),
+        out_dir=(tmp_path / "out").absolute(),
     ) as setup:
         benchmark = setup.benchmark
         assert benchmark.get_benchmark_name() == "Benchmark_001"
@@ -51,7 +52,7 @@ def test_run_workflow_001(snakemake_env, tmp_path):
         assert success is True
 
 
-def test_single_run_workflow_with_parameters(snakemake_env, tmp_path):
+def test_single_run_workflow_with_parameters(snakemake_env, tmp_path):  # noqa: F811
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
     if snakemake_env["current_dir"]:
@@ -59,6 +60,20 @@ def test_single_run_workflow_with_parameters(snakemake_env, tmp_path):
 
     benchmark_file = data / "Benchmark_003.yaml"
     keep_files = snakemake_env["keep_files"]
+
+    # Copy benchmark YAML to tmp_path so workflow can find it
+    benchmark_file_in_tmp = tmp_path / "Benchmark_003.yaml"
+    with open(benchmark_file, "rb") as src, open(benchmark_file_in_tmp, "wb") as dst:
+        dst.write(src.read())
+
+    # Copy envs directory to tmp_path so environment files are available
+    envs_src = data / "envs"
+    envs_dst = tmp_path / "envs"
+    if envs_src.exists():
+        shutil.copytree(envs_src, envs_dst, dirs_exist_ok=True)
+
+    # The bundled_repos fixture already creates a symlink to the bundles directory
+    # at tmp_path/bundles, so we don't need to copy it manually
 
     expected_P1_param_dict = {
         "dca5d812e76298d5365cbc90ae29d54f867c0b23b0a3d4098826595b9a023054": {
@@ -76,7 +91,10 @@ def test_single_run_workflow_with_parameters(snakemake_env, tmp_path):
     }
 
     with SnakemakeSetup(
-        benchmark_file, keep_files=keep_files, cwd=tmp_path.as_posix()
+        benchmark_file_in_tmp,
+        keep_files=keep_files,
+        cwd=tmp_path.as_posix(),
+        out_dir=(tmp_path / "out").absolute(),
     ) as setup:
         benchmark = setup.benchmark
 
@@ -104,7 +122,7 @@ def test_single_run_workflow_with_parameters(snakemake_env, tmp_path):
             )
 
 
-def test_multi_run_workflow_with_parameters(snakemake_env, tmp_path):
+def test_multi_run_workflow_with_parameters(snakemake_env, tmp_path, bundled_repos):  # noqa: F811
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
     if snakemake_env["current_dir"]:
@@ -112,6 +130,20 @@ def test_multi_run_workflow_with_parameters(snakemake_env, tmp_path):
 
     benchmark_file = data / "Benchmark_003.yaml"
     keep_files = snakemake_env["keep_files"]
+
+    # Copy benchmark YAML to tmp_path so workflow can find it
+    benchmark_file_in_tmp = tmp_path / "Benchmark_003.yaml"
+    with open(benchmark_file, "rb") as src, open(benchmark_file_in_tmp, "wb") as dst:
+        dst.write(src.read())
+
+    # Copy envs directory to tmp_path so environment files are available
+    envs_src = data / "envs"
+    envs_dst = tmp_path / "envs"
+    if envs_src.exists():
+        shutil.copytree(envs_src, envs_dst, dirs_exist_ok=True)
+
+    # The bundled_repos fixture already creates a symlink to the bundles directory
+    # at tmp_path/bundles, so we don't need to copy it manually
 
     P1_output_folder_path = (
         tmp_path / "out" / "data" / "D1" / "default" / "process" / "P1"
@@ -133,7 +165,10 @@ def test_multi_run_workflow_with_parameters(snakemake_env, tmp_path):
     }
 
     with SnakemakeSetup(
-        benchmark_file, keep_files=keep_files, cwd=tmp_path.as_posix()
+        benchmark_file_in_tmp,
+        keep_files=keep_files,
+        cwd=tmp_path.as_posix(),
+        out_dir=(tmp_path / "out").absolute(),
     ) as setup:
         benchmark = setup.benchmark
 
@@ -156,7 +191,11 @@ def test_multi_run_workflow_with_parameters(snakemake_env, tmp_path):
         )
 
 
-def test_multi_run_workflow_with_parameter_removal(snakemake_env, tmp_path):
+def test_multi_run_workflow_with_parameter_removal(
+    snakemake_env,
+    tmp_path,
+    bundled_repos,  # noqa: F811
+):
     # Use current directory if specified, otherwise use tmp_path
     # tmp_path is already provided by pytest fixture if not using current dir
     if snakemake_env["current_dir"]:
@@ -165,12 +204,29 @@ def test_multi_run_workflow_with_parameter_removal(snakemake_env, tmp_path):
     benchmark_file = data / "Benchmark_003.yaml"
     keep_files = snakemake_env["keep_files"]
 
+    # Copy benchmark YAML to tmp_path so workflow can find it
+    benchmark_file_in_tmp = tmp_path / "Benchmark_003.yaml"
+    with open(benchmark_file, "rb") as src, open(benchmark_file_in_tmp, "wb") as dst:
+        dst.write(src.read())
+
+    # Copy envs directory to tmp_path so environment files are available
+    envs_src = data / "envs"
+    envs_dst = tmp_path / "envs"
+    if envs_src.exists():
+        shutil.copytree(envs_src, envs_dst, dirs_exist_ok=True)
+
+    # The bundled_repos fixture already creates a symlink to the bundles directory
+    # at tmp_path/bundles, so we don't need to copy it manually
+
     P1_output_folder_path = (
         tmp_path / "out" / "data" / "D1" / "default" / "process" / "P1"
     )
 
     with SnakemakeSetup(
-        benchmark_file, keep_files=keep_files, cwd=tmp_path.as_posix()
+        benchmark_file_in_tmp,
+        keep_files=keep_files,
+        cwd=tmp_path.as_posix(),
+        out_dir=(tmp_path / "out").absolute(),
     ) as setup:
         benchmark = setup.benchmark
 
@@ -203,8 +259,14 @@ def test_multi_run_workflow_with_parameter_removal(snakemake_env, tmp_path):
 
         # assert benchmark 2nd run is successful
         benchmark_file_trimmed = data / "Benchmark_003_trimmed.yaml"
-        benchmark_file_trimmed_path = Path(__file__).parent / benchmark_file_trimmed
-        benchmark_without_param = Benchmark(benchmark_file_trimmed_path)
+        # Copy trimmed benchmark YAML to tmp_path
+        benchmark_file_trimmed_in_tmp = tmp_path / "Benchmark_003_trimmed.yaml"
+        with (
+            open(benchmark_file_trimmed, "rb") as src,
+            open(benchmark_file_trimmed_in_tmp, "wb") as dst,
+        ):
+            dst.write(src.read())
+        benchmark_without_param = Benchmark(benchmark_file_trimmed_in_tmp)
         success = setup.workflow.run_workflow(
             benchmark_without_param, work_dir=tmp_path
         )
@@ -228,32 +290,32 @@ def test_multi_run_workflow_with_parameter_removal(snakemake_env, tmp_path):
 
 
 def assert_parameters_output_for_module(
-    cwd: Path, module_output_path: Path, expected_param_dict: Dict[str, any]
+    cwd: Path, module_output_path: Path, expected_param_dict: Dict[str, Any]
 ):
     module_param_tsv = module_output_path / "parameters_dict.tsv"
     assert module_param_tsv.exists(), f"File not found: {module_param_tsv}"
 
-    module_param_df = pd.read_csv(module_param_tsv, sep="\t")
+    # Read the TSV file using the csv module
+    with open(module_param_tsv, newline="") as tsvfile:
+        reader = csv.DictReader(tsvfile, delimiter="\t")
+        for module_param_row in reader:
+            base_path = module_param_row["base_path"]
+            base_param_file_path = cwd / Path(base_path) / "parameters.json"
+            assert base_param_file_path.exists(), (
+                f"File not found through base path: {base_param_file_path}"
+            )
 
-    # check that the content of the subfolder actually contains the parameters specified in the dict
-    for _, module_param_row in module_param_df.iterrows():
-        base_path = module_param_row["base_path"]
-        base_param_file_path = cwd / Path(base_path) / "parameters.json"
-        assert (
-            base_param_file_path.exists()
-        ), f"File not found through base path: {base_param_file_path}"
+            alias_path = module_param_row["base_path"]
+            alias_param_file_path = cwd / Path(alias_path) / "parameters.json"
+            assert alias_param_file_path.exists(), (
+                f"File not found through alias: {alias_param_file_path}"
+            )
 
-        alias_path = module_param_row["base_path"]
-        alias_param_file_path = cwd / Path(alias_path) / "parameters.json"
-        assert (
-            alias_param_file_path.exists()
-        ), f"File not found through alias: {alias_param_file_path}"
+            param_hash = module_param_row["id"]
+            expected_content = expected_param_dict.get(param_hash)
+            with open(base_param_file_path, "r") as file:
+                actual_content = json.load(file)
 
-        param_hash = module_param_row["id"]
-        expected_content = expected_param_dict.get(param_hash)
-        with open(base_param_file_path, "r") as file:
-            actual_content = json.load(file)
-
-        assert (
-            expected_content == actual_content
-        ), f"Mismatch in {base_param_file_path}:\nExpected: {expected_content}\nGot: {actual_content}"
+            assert expected_content == actual_content, (
+                f"Mismatch in {base_param_file_path}:\nExpected: {expected_content}\nGot: {actual_content}"
+            )

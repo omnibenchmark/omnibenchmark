@@ -1,20 +1,19 @@
 import os
 import re
+from importlib import resources
 from pathlib import Path
 from typing import List
 
-from omni_schema.datamodel.omni_schema import MetricCollector, SoftwareBackendEnum
+from omnibenchmark.model import MetricCollector, SoftwareBackendEnum
 
-from omnibenchmark.benchmark import Benchmark, Validator
 from omnibenchmark.workflow.snakemake import scripts
+from omnibenchmark.benchmark import Benchmark, Validator
 from omnibenchmark.workflow.snakemake.format import formatter
 from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
 
-import logging
-logging.getLogger('snakemake').setLevel(logging.DEBUG)
+RUN_MODULE = "run_module.py"
 
-
-def create_all_rule(paths: List[str], aggregate_performance: bool = False):
+def create_all_rule(out_dir: Path, paths: List[str], aggregate_performance: bool = False):
     if not aggregate_performance:
         rule all:
             input: paths,
@@ -26,10 +25,10 @@ def create_all_rule(paths: List[str], aggregate_performance: bool = False):
         rule all:
             input: paths
             output:
-                f"{benchmark.out_dir}/performances.tsv"
+                f"{out_dir}/performances.tsv"
             run:
-                result = glob_wildcards(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt")
-                performances = expand(str(benchmark.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
+                result = glob_wildcards(str(out_dir) + "/{path}/{dataset}_performance.txt")
+                performances = expand(str(out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
                 performances = sorted(list(set(performances)))
 
                 output_dir = Path(str(os.path.commonpath(output)))
@@ -64,7 +63,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(benchmark.context.out_dir, collector)
             conda:
                 conda_env
             params:
@@ -72,7 +71,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 keep_module_logs=config['keep_module_logs']
-            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+            script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.envmodules:
         envmodules_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.envmodules)
@@ -81,7 +80,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(benchmark.context.out_dir, collector)
             envmodules:
                 envmodules_env
             params:
@@ -89,7 +88,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 keep_module_logs=config['keep_module_logs']
-            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+            script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
         container_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.apptainer)
@@ -98,7 +97,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(benchmark.context.out_dir, collector)
             container:
                 container_env
             params:
@@ -106,7 +105,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 keep_module_logs=config['keep_module_logs']
-            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+            script: get_script_path(RUN_MODULE)
 
     else:
         # host or other backend - no environment directive needed
@@ -115,13 +114,13 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(benchmark.context.out_dir, collector)
             params:
                 inputs_map=updated_inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 keep_module_logs=config['keep_module_logs']
-            script: os.path.join(os.path.dirname(os.path.realpath(scripts.__file__)),'run_module.py')
+            script: get_script_path(RUN_MODULE)
 
 
 def _compile_regex_pattern_for_collectors_input(pattern: str) -> re.Pattern[str]:
@@ -139,8 +138,14 @@ def _compile_regex_pattern_for_collectors_input(pattern: str) -> re.Pattern[str]
 
 
 def _get_environment_paths(benchmark: Benchmark, collector: MetricCollector, software_backend: SoftwareBackendEnum) -> str:
-    benchmark_dir = benchmark.directory
+    benchmark_dir = benchmark.context.directory
     environment = benchmark.get_benchmark_software_environments()[collector.software_environment]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
 
     return environment_path
+
+def get_script_path(script_name: str) -> str:
+    """Get the filesystem path to a script in the scripts package."""
+
+    path = Path(resources.files(scripts) / script_name)
+    return str(path)

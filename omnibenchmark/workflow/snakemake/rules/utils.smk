@@ -1,6 +1,7 @@
 from pathlib import Path
 from omnibenchmark.benchmark import Benchmark
 
+
 def load(benchmark_yaml: str, config):
     out_dir = config['out_dir']
     return Benchmark(Path(benchmark_yaml), Path(out_dir))

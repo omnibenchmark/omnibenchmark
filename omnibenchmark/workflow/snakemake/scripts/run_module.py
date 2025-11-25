@@ -5,12 +5,14 @@ import logging
 import os
 import sys
 import traceback
+from typing import Any, Dict, Optional
 
 from pathlib import Path
 
 from snakemake.script import Snakemake
 
 from omnibenchmark.benchmark import constants
+from omnibenchmark.benchmark.params import Params
 from omnibenchmark.io.code import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 from omnibenchmark.benchmark.symlinks import SymlinkManager
@@ -21,44 +23,54 @@ from omnibenchmark.workflow.snakemake.scripts.utils import (
 logger = logging.getLogger("SNAKEMAKE_RUNNER")
 
 try:
-    snakemake: Snakemake = snakemake
+    snakemake: Snakemake = snakemake  # type: ignore[name-defined]
 except NameError:
     raise RuntimeError("This script must be run from within a Snakemake workflow")
 
-params = dict(snakemake.params)
+params: Dict[str, Any] = dict(snakemake.params)
 
-repository_url = params.get("repository_url")
-commit_hash = params.get("commit_hash")
-parameters = params.get("parameters")
-inputs_map = params.get("inputs_map")
-dataset = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
+repository_url: Optional[str] = params.get("repository_url")
+commit_hash: Optional[str] = params.get("commit_hash")
+parameters: Optional[Any] = params.get("parameters")
+inputs_map: Optional[Dict[str, Any]] = params.get("inputs_map")
+dataset: str = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
 
 # For now we're handling timeout in seconds.
 # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
-timeout = params.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
+timeout: int = params.get(
+    constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS
+)
 
-keep_module_logs = params.get("keep_module_logs", False)
-keep_going = snakemake.config.get("keep_going", False)
-
-# For now we're handling timeout in seconds as runtime.
-# When implementing cluster resource handling, we will need to convert this to minutes (e.g. slurm takes it in min)
-timeout = params.get(constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS)
+keep_module_logs: bool = params.get("keep_module_logs", False)
+keep_going: bool = snakemake.config.get("keep_going", False)
 
 output_dir = Path(str(os.path.commonpath(snakemake.output)))
 if len(snakemake.output) == 1:
     output_dir = Path(os.path.dirname(output_dir))
 
 manager = SymlinkManager(output_dir.parent)
-manager.store(parameters)
+symlink_info = manager.store(parameters)
+
+# Use symlink path instead of original output_dir
+if symlink_info:
+    output_dir = symlink_info["symlink_path"]
 
 # Clone git repository
 repositories_dir = Path(".snakemake") / "repos"
+if repository_url is None or commit_hash is None:
+    raise RuntimeError("repository_url and commit_hash must be provided")
 module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 
 # Execute module code
 module_name = get_module_name_from_rule_name(snakemake.rule)
 
 try:
+    # Handle None parameters and inputs_map by providing defaults
+    if inputs_map is None:
+        inputs_map = {}
+    if parameters is None:
+        parameters = Params()
+
     exit_code = execution(
         module_dir,
         module_name=module_name,

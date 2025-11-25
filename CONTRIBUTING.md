@@ -96,6 +96,33 @@ As an example, we use the `short` tag for tests that we know _should_ run fast. 
 pytest -m short
 ```
 
+#### End-to-End (E2E) Tests
+
+E2E tests are marked with the `e2e` marker and test complete workflows from configuration to output validation. These tests:
+
+- Execute full benchmark pipelines using the CLI
+- Validate outputs against expected results
+- Test idempotency by running pipelines multiple times
+- Are excluded from regular CI runs due to their longer execution time
+
+To run only e2e tests:
+
+```bash
+pytest -m e2e tests/e2e/
+```
+
+To exclude e2e tests from other test runs:
+
+```bash
+pytest -m "not e2e"
+```
+
+E2E tests can be run in parallel using pytest-xdist:
+
+```bash
+pytest -m e2e tests/e2e/ -n auto --dist=worksteal
+```
+
 ### Running tests in parallel
 
 Use pytest `-n` flag to increase the level of paralellism. Here we use 6 workers:
@@ -144,21 +171,3 @@ When adding or modifying configuration options in the codebase:
 3. Include examples for common usage patterns
 
 This ensures that the documentation stays in sync with the actual configuration options available.
-
-## Internal project dependencies
-
-### omni-schema
-
-Please note the [omni-schema](https://github.com/omnibenchmark/omni-schema) dependency. Benchmark YAML schemas are updated by:
-
-```
-- Update src/omni_schema/schema/omni_schema.yaml manually
-- `make all`
-- Consider `make deploy`
-```
-
-And that omni-schema versions are tagged and pinned at the pytoml level ([example](https://github.com/omnibenchmark/omnibenchmark/blob/2ce768bb2cfb693f3e555f751979093964eef63b/pyproject.toml#L38)), so omni-schema changes must be in sync with omnibenchmark changes.
-
-Before investing too much time, do note that we're planning to phase out the external omni-schema package.
-
-

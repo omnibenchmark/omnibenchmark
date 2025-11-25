@@ -1,9 +1,9 @@
 import zipfile
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import os
 
-from omni_schema.datamodel import omni_schema
+from omnibenchmark.model import SoftwareBackendEnum
 
 from omnibenchmark.io.RemoteStorage import StorageOptions
 from omnibenchmark.io.code import clone_module
@@ -48,12 +48,12 @@ def prepare_archive_software(benchmark: Benchmark) -> List[Path]:
     # decide on software type
     which_env = benchmark.get_benchmark_software_backend()
     files = []
-    if which_env != omni_schema.SoftwareBackendEnum.host:
-        if which_env == omni_schema.SoftwareBackendEnum.envmodules:
+    if which_env != SoftwareBackendEnum.host:
+        if which_env == SoftwareBackendEnum.envmodules:
             files += prepare_archive_software_easyconfig(benchmark)
-        elif which_env == omni_schema.SoftwareBackendEnum.apptainer:
+        elif which_env == SoftwareBackendEnum.apptainer:
             files += prepare_archive_software_apptainer(benchmark)
-        elif which_env == omni_schema.SoftwareBackendEnum.conda:
+        elif which_env == SoftwareBackendEnum.conda:
             files += prepare_archive_software_conda(benchmark)
         else:
             raise NotImplementedError(
@@ -75,15 +75,19 @@ def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        envmodule_file = (benchmark.directory / Path(softenv.envmodule)).relative_to(
-            Path(os.getcwd())
-        )
+        if softenv.envmodule is None:
+            continue
+        envmodule_file = (
+            benchmark.context.directory / Path(softenv.envmodule)
+        ).relative_to(Path(os.getcwd()))
         if envmodule_file.is_file():
             files.append(envmodule_file)
         else:
             raise FileNotFoundError(f"File {envmodule_file} not found.")
+        if softenv.easyconfig is None:
+            continue
         easyconfig_file = (
-            benchmark.directory / Path(softenv.easyconfig_file)
+            benchmark.context.directory / Path(softenv.easyconfig)
         ).relative_to(Path(os.getcwd()))
         if easyconfig_file.is_file():
             files.append(easyconfig_file)
@@ -109,9 +113,9 @@ def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        conda_file = (benchmark.directory / Path(softenv.conda)).relative_to(
-            Path(os.getcwd())
-        )
+        if softenv.conda is None:
+            continue
+        conda_file = benchmark.context.directory / Path(softenv.conda)
         if conda_file.is_file():
             files.append(conda_file)
         else:
@@ -134,9 +138,11 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
     files = []
     softenvs = benchmark.get_benchmark_software_environments()
     for softenv in softenvs.values():
-        apptainer_file = (benchmark.directory / Path(softenv.apptainer)).relative_to(
-            Path(os.getcwd())
-        )
+        if softenv.apptainer is None:
+            continue
+        apptainer_file = (
+            benchmark.context.directory / Path(softenv.apptainer)
+        ).relative_to(Path(os.getcwd()))
         if apptainer_file.is_file():
             files.append(apptainer_file)
         else:
@@ -176,7 +182,7 @@ def prepare_archive_results(
             file_id="",
             overwrite=True,
         )
-    return objectnames
+    return [Path(obj) for obj in objectnames]
 
 
 def archive_version(
@@ -188,7 +194,7 @@ def archive_version(
     results: bool = False,
     results_dir: str = "out",
     compression=zipfile.ZIP_STORED,
-    compresslevel: int = None,
+    compresslevel: Optional[int] = None,
     dry_run: bool = False,
     local_storage: bool = False,
 ):
@@ -232,7 +238,7 @@ def archive_version(
             case _:
                 file_extension = ".zip"
         # save all files to zip archive
-        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.get_converter().get_version()}{file_extension}"
+        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.model.get_version()}{file_extension}"
         with zipfile.ZipFile(
             outdir / outfile, "w", compression=compression, compresslevel=compresslevel
         ) as archive:
@@ -240,6 +246,3 @@ def archive_version(
                 archive.write(filename, filename)
 
         return outdir / outfile
-
-
-# archive_version(benchmark, outdir=Path(), config=True, code=True, software=False, results=False)

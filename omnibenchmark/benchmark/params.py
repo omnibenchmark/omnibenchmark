@@ -3,6 +3,8 @@ from collections.abc import Mapping
 import json
 import hashlib
 
+from typing import List
+
 
 class Params:
     """
@@ -54,6 +56,10 @@ class Params:
         canonical = self.serialize()
         return hashlib.sha256(canonical.encode()).hexdigest()
 
+    def hash_short(self):
+        """Generate short 8-character hash for folder names."""
+        return self.hash()[:8]
+
     def items(self):
         """Return items iterator."""
         return self._params.items()
@@ -102,7 +108,7 @@ class Params:
         return args
 
     @classmethod
-    def from_cli_args(cls, args):
+    def from_cli_args(cls, args: List[str]) -> "Params":
         """
         Create Params from command line arguments.
         Supports:

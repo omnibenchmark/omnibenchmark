@@ -24,19 +24,20 @@ def test_benchmark_computational_plot():
         )
 
         assert result.returncode == 0
-        assert (
-            "process-P1-.317a506603d7cb7f079fcc6a38cdf99e3955e1729540d38b9b0f36bd7c16d2a3-after_data"
-            in result.stdout
-        )
-        assert (
-            "methods-M2-.3297cc0b9f48521ab602a4a90143602c416f1f5029c70182a62e6092166d3bc9-after_data"
-            in result.stdout
-        )
+        assert "process-P1-.317a5066-after_data" in result.stdout
+        assert "methods-M2-.3297cc0b-after_data" in result.stdout
         assert "metrics-m3-default-after_methods" in result.stdout
 
 
-def test_benchmark_topology_plot():
-    benchmark = Benchmark(benchmark_data_path / "Benchmark_001.yaml")
+def test_benchmark_topology_plot(tmp_path):
+    import shutil
+
+    # Copy benchmark file to tmp_path to avoid writing to current directory
+    benchmark_file = benchmark_data_path / "Benchmark_001.yaml"
+    copied_benchmark_path = tmp_path / "Benchmark_001.yaml"
+    shutil.copy(benchmark_file, copied_benchmark_path)
+
+    benchmark = Benchmark(copied_benchmark_path, out_dir=tmp_path / "out")
     # XXX what is this testing, exactly? that cli is calling the right method?
     # for that we could use a mock object to test the export_to_mermaid method is called
     expected_output = benchmark.export_to_mermaid()

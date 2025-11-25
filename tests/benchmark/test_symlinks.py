@@ -171,7 +171,7 @@ def test_human_folder_identifier_max_len_exceeded(manager):
     """Test folder identifier with max length exceeded."""
     p = Params({"key1": "value1" * 50, "key2": "value2" * 50})
     info = manager.store(p)
-    assert info["human"].endswith("_" + p.hash()[:8])
+    assert info["human"].endswith("_" + p.hash_short())
 
 
 @pytest.mark.short
@@ -199,3 +199,67 @@ def test_human_folder_identifier_with_boolean_values(manager):
     info = manager.store(p)
     expected_folder_id = "key1-True_key2-False"
     assert info["human"] == expected_folder_id
+
+
+@pytest.mark.short
+def test_symlink_path_returned(manager):
+    """Test that symlink_path is returned for snakemake usage."""
+    params = Params({"a": 1, "b": 2})
+    info = manager.store(params)
+
+    # Check that symlink_path is returned
+    assert "symlink_path" in info
+    assert info["symlink_path"] == Path(manager.base_dir) / info["human"]
+
+    # Verify the symlink_path actually exists
+    assert info["symlink_path"].exists()
+
+
+@pytest.mark.short
+def test_hash_is_8_characters(manager):
+    """Test that hash folders use only 8 characters."""
+    params = Params({"test": "value"})
+    info = manager.store(params)
+
+    # Hash folder should be .XXXXXXXX (dot + 8 chars)
+    assert len(info["folder"]) == 9  # dot + 8 characters
+    assert info["folder"].startswith(".")
+
+    # Verify the actual folder exists with 8-char hash
+    hash_path = Path(manager.base_dir) / info["folder"]
+    assert hash_path.exists()
+
+    # Verify it's actually 8 characters after the dot
+    hash_part = info["folder"][1:]  # Remove the dot
+    assert len(hash_part) == 8
+
+
+@pytest.mark.short
+def test_complete_workflow_integration(manager):
+    """Test complete workflow: human-readable symlinks visible, hash folders hidden, symlink path for snakemake."""
+    params = Params({"algorithm": "method_a", "dataset": "test_data", "param1": 42})
+    info = manager.store(params)
+
+    # Human-readable symlink should be visible (no dot prefix)
+    assert not info["human"].startswith(".")
+    assert info["human"] == "algorithm-method_a_dataset-test_data_param1-42"
+
+    # Hash folder should be hidden (with dot prefix) and 8 characters
+    assert info["folder"].startswith(".")
+    assert len(info["folder"]) == 9  # dot + 8 chars
+
+    # symlink_path should be provided for snakemake usage
+    assert "symlink_path" in info
+    symlink_path = info["symlink_path"]
+    assert symlink_path.exists()
+    assert symlink_path.is_symlink()
+
+    # Verify the symlink points to the correct hidden hash folder
+    target = symlink_path.readlink()
+    expected_target = manager.base_dir / info["folder"]
+    actual_target = (symlink_path.parent / target).resolve()
+    assert actual_target == expected_target.resolve()
+
+    # Verify parameters can be retrieved
+    retrieved_params = manager.get_params(info["human"])
+    assert retrieved_params == params

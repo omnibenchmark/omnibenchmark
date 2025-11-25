@@ -1,10 +1,12 @@
 ## omnibenchmark
 
-<a href="https://github.com/omnibenchmark/omnibenchmark/actions/workflows/pipeline.yml"><img alt="CI Pipeline" src="https://github.com/omnibenchmark/omnibenchmark/actions/workflows/pipeline.yml/badge.svg?branch=main"></a>
-<a href="https://pypi.org/project/omnibenchmark/"><img alt="PyPI" src="https://img.shields.io/pypi/v/omnibenchmark"></a>
-<a href="https://codecov.io/gh/omnibenchmark/omnibenchmark"><img alt="codecov" src="https://codecov.io/gh/omnibenchmark/omnibenchmark/branch/main/graph/badge.svg"></a>
+<p align="center">
+<a href="https://github.com/omnibenchmark/omnibenchmark/tree/refs/heads/main"><img alt="tests result" src="https://github.com/omnibenchmark/omnibenchmark/actions/workflows/tests.yml/badge.svg?branch=main"></a>
+<a href="https://github.com/omnibenchmark/omnibenchmark"><img alt="Coverage Status" src="./reports/coverage.svg"></a>
 <a href="https://github.com/omnibenchmark/omnibenchmark/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
-<a href="https://github.com/astral-sh/ruff"><img alt="Linter: Ruff" src="https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square"></a>
+</p>
+
+[![Linter: Ruff](https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square)](https://github.com/astral-sh/ruff)
 
 
 [Omnibenchmark](https://omnibenchmark.org), a continuous benchmarking tool.

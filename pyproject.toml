@@ -22,10 +22,6 @@ dynamic = ["version"]
 
 dependencies = [
     "click>=8.1.7",
-    "aiohttp>=3.9.5",
-    "async>=0.6.2",
-    "tqdm>=4.66.4",
-    "requests>=2.31.0",
     "python-dateutil>=2.9.0.post0",
     "filelock>=3.4.0",
     "spdx-license-list>=3.19",
@@ -33,25 +29,26 @@ dependencies = [
     "humanfriendly",
     "pydantic",
 
-    # DAG & Visualization
-    "networkx>=3.3",     # this might be overkill for the DAG
-    "matplotlib==3.8.0",
-    "pydot>=3.0.2",
-
     # Cloning modules
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake>=8.0", # modify constraints.txt if you need stricter pinning
+    "snakemake>=8.0,<9.10.0", # pinned to avoid duplicate rule name error in 9.10+
 
     # Build tools
     "easybuild>=5.0.0",
     "easybuild-easyblocks>=5.0.0",
-
-    # Other runtime dependencies
-    "omni-schema>=0.0.6",                               # To be deprecated
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
 
+    # Templating
+    "copier>=9.0.0",
+
+    # graph visualization (can be made optional)
+    "matplotlib==3.8.0",
+    "pydot>=3.0.2",
+
+    # can probably move to optional deps
+    "tqdm>=4.66.4",
 ]
 
 [project.urls]
@@ -79,7 +76,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["omnibenchmark"]
+include = ["omnibenchmark*"]
+
+[tool.setuptools.package-data]
+omnibenchmark = ["templates/**/*"]
 
 [tool.setuptools_scm]
 # Optional settings (or leave empty for default)
@@ -92,6 +92,66 @@ profile = "black"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+typeCheckingMode = "standard"
+
+# Strict type checking for new modules
+include = ["omnibenchmark"]
+strict = [
+    "omnibenchmark/dag/**",
+    "omnibenchmark/model/**",
+    "omnibenchmark/io/**",
+]
+
+# Type checking rules
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportGeneralTypeIssues = "error"
+reportPropertyTypeMismatch = "error"
+reportFunctionMemberAccess = "error"
+reportMissingParameterType = "error"
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
+reportUnknownMemberType = "error"
+reportUnknownArgumentType = "error"
+reportUnknownLambdaType = "error"
+reportIncompatibleMethodOverride = "error"
+reportUntypedFunctionDecorator = "error"
+reportUntypedClassDecorator = "error"
+reportUnboundVariable = "error"
+reportInvalidStringEscapeSequence = "error"
+reportMissingTypeArgument = "error"
+reportCallInDefaultInitializer = "error"
+reportUnnecessaryIsInstance = "warning"
+reportUnnecessaryCast = "warning"
+reportUnnecessaryComparison = "warning"
+reportUnnecessaryContains = "warning"
+reportImplicitStringConcatenation = "warning"
+reportInvalidStubStatement = "error"
+reportIncompleteStub = "warning"
+reportUnsupportedDunderAll = "warning"
+reportUnusedExpression = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportMatchNotExhaustive = "error"
+reportArgumentType = "error"
+reportAssignmentType = "error"
+reportReturnType = "error"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+
+# Strict mode settings for new modules
+[tool.pyright.strictListInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model", "omnibenchmark/io"]
+
+[tool.pyright.strictDictionaryInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model", "omnibenchmark/io"]
+
+[tool.pyright.strictSetInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model", "omnibenchmark/io"]
+
 
 [tool.ruff]
 line-length = 88 # Match Black's default line length
