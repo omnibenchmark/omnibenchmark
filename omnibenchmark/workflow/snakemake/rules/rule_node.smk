@@ -1,4 +1,5 @@
 from importlib import resources
+from typing import Any
 
 from omnibenchmark.model import SoftwareBackendEnum
 
@@ -8,13 +9,13 @@ from omnibenchmark.workflow.snakemake.format import formatter
 
 RUN_MODULE = "run_module.py"
 
-def create_node_rule(node, benchmark, config, local_timeout):
+def create_node_rule(node: BenchmarkNode, benchmark: Benchmark, config: dict[str, Any], local_timeout: int):
     if node.is_initial():
         return _create_initial_node(benchmark, node, config, local_timeout)
     else:
         return _create_intermediate_node(benchmark, node, config, local_timeout)
 
-def _create_initial_node(benchmark, node, config, local_timeout):
+def _create_initial_node(benchmark: Benchmark, node: BenchmarkNode, config: dict[str, Any], local_timeout: int):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -28,6 +29,8 @@ def _create_initial_node(benchmark, node, config, local_timeout):
     keep_module_logs = config.get('keep_module_logs', False)
 
     # Only set environment directive for the backend that's actually being used
+    # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
+    # TODO Factor out the conditional rule generation when working on the above issue
     if software_backend == SoftwareBackendEnum.conda:
         conda_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
         rule:
@@ -123,7 +126,7 @@ def _create_initial_node(benchmark, node, config, local_timeout):
             script: get_script_path(RUN_MODULE)
 
 
-def _create_intermediate_node(benchmark, node, config, local_timeout):
+def _create_intermediate_node(benchmark: Benchmark, node: BenchmarkNode, config: dict[str, Any], local_timeout: int):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -152,6 +155,8 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
     fmt_fn = formatter.format_output_templates_to_be_expanded
 
     # Only set environment directive for the backend that's actually being used
+    # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
+    # TODO Factor out the conditional rule generation when working on the above issue
     if software_backend == SoftwareBackendEnum.conda:
         conda_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
         rule:
@@ -247,7 +252,7 @@ def _create_intermediate_node(benchmark, node, config, local_timeout):
             script: get_script_path(RUN_MODULE)
 
 
-def create_standalone_node_rule(node, config):
+def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any]):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id

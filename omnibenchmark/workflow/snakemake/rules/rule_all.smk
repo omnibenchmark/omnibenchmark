@@ -2,7 +2,7 @@ import os
 import re
 from importlib import resources
 from pathlib import Path
-from typing import List
+from typing import List, Any
 
 from omnibenchmark.model import MetricCollector, SoftwareBackendEnum
 
@@ -40,7 +40,7 @@ def create_all_rule(config, paths: List[str], aggregate_performance: bool = Fals
                 write_combined_performance_file(output_dir, performances)
 
 
-def create_metric_collector_rule(benchmark, collector, config, node_output_paths):
+def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, config: dict[str, Any], node_output_paths: List[str]):
     repository = collector.repository
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
@@ -59,6 +59,8 @@ def create_metric_collector_rule(benchmark, collector, config, node_output_paths
         updated_inputs_map[key] = filtered_input_paths
 
     # Only set environment directive for the backend that's actually being used
+    # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
+    # TODO Factor out the conditional rule generation when working on the above issue
     if software_backend == SoftwareBackendEnum.conda:
         conda_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.conda)
         rule:
