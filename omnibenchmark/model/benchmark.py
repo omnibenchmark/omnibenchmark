@@ -323,6 +323,14 @@ class Stage(DescribableEntity):
         if v is None:
             return v
 
+        # Check if this is the NEW format: a flat list of strings
+        # NEW format: ['data.matrix', 'data.true_labels']
+        # This should be treated as ONE InputCollection with multiple entries
+        if isinstance(v, list) and all(isinstance(item, str) for item in v):
+            # Wrap all strings into a single InputCollection
+            return [InputCollection(entries=v)]
+
+        # Otherwise, process the OLD format: list of dicts or mixed types
         result = []
         for item in v:
             # If it's a plain string (legacy format), wrap it
