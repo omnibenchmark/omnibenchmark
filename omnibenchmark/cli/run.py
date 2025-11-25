@@ -90,7 +90,7 @@ def run(ctx):
     "--task-timeout",
     type=str,
     default=DEFAULT_TIMEOUT_HUMAN,
-    help="Timeout for each separate task execution (local only). Do note that total runtime is not additive.",
+    help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
 )
 @click.option(
     "--executor",
