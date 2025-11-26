@@ -5454,8 +5454,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: omnibenchmark
-  version: 0.3.0.post74
-  sha256: 41cb844e51725dc49b0c40933c2ae9ed40b409da792c256c720e94711dba3a57
+  version: 0.3.0.post49
+  sha256: 49938b18c3fa09bcf265e45cdadad353d3058539d8d10f00d1afc07fc8ceae02
   requires_dist:
   - click>=8.1.7
   - python-dateutil>=2.9.0.post0
@@ -5471,6 +5471,7 @@ packages:
   - pydot>=3.0.2
   - tqdm>=4.66.4
   - pandas
+  - packaging
   - minio==7.2.18 ; extra == 's3'
   - boto3>=1.34.102 ; extra == 's3'
   - snakemake-storage-plugin-s3>=0.2.12 ; extra == 's3'

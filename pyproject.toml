@@ -48,6 +48,9 @@ dependencies = [
     # TODO: try to do without pandas, it's an indirect dependency (currently used by status)
     "pandas",
 
+    # packaging is used for comparing versions in cli, can simplify
+    "packaging",
+
     # Build tools: what do we introduced this for? the user is responsible for these,
     # not our job to build easyblocks.
     # "easybuild>=5.0.0",
