@@ -28,6 +28,10 @@ class Validator:
             # Return None to allow Snakemake fallback (e.g., "conda_not_provided.yml")
             return None
 
+        # For envmodules, return the module name as-is (it's not a file path)
+        if software_backend == SoftwareBackendEnum.envmodules:
+            return env_path
+
         # If it's a relative path, resolve it relative to benchmark directory
         if not Path(env_path).is_absolute() and "://" not in env_path:
             return str(benchmark_dir / env_path)
