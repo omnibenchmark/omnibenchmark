@@ -15,7 +15,6 @@ from omnibenchmark.io.storage import get_storage, remote_storage_args
 
 @click.group(name="info")
 @click.pass_context
-# @debug_option
 def info(ctx):
     """List benchmarks and/or information about them."""
     ctx.ensure_object(dict)
