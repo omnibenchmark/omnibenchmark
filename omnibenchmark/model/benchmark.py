@@ -283,7 +283,9 @@ class Parameter(BaseModel):
     @field_validator("values", mode="before")
     @classmethod
     def validate_values(cls, v: Optional[List[str]]) -> Optional[List[str]]:
-        if v is not None and not v:
+        if v is None:
+            return None
+        if not v:
             raise ValueError("Parameter values cannot be empty")
         # Convert all values to strings to handle mixed types (float, int, str)
         return [str(val) for val in v]
@@ -813,18 +815,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
     def get_module_parameters(self, module: Union[str, Module]) -> Optional[List[Any]]:
         """Get module parameters by module/module_id."""
-        # ARCHITECTURAL NOTE: Circular Import Management
-        # This runtime import indicates inverted dependencies - the pure model layer
-        # is reaching into execution/business logic layers. During the LinkML → Pydantic
-        # migration, this pattern emerged to maintain functionality while avoiding
-        # import cycles.
-        #
-        # Future consideration: Move parameter processing logic to a service layer
-        # that depends on both model and execution modules, following dependency
-        # inversion principle.
-        import itertools
-
-        from omnibenchmark.benchmark import params  # Avoid circular imports
+        from omnibenchmark.benchmark.params import Params
 
         module_obj = (
             module if isinstance(module, Module) else self.get_modules().get(module)
@@ -833,36 +824,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             return None
 
         result: List[Any] = []
-
         for p in module_obj.parameters:
-            if p.values is not None:
-                # Old format: list of CLI args
-                result.append(params.Params.from_cli_args(p.values))
-            elif p.params is not None:
-                # New format: dict with potential lists for product expansion
-                # Separate list values from non-list values
-                list_params = {}
-                non_list_params = {}
-
-                for key, value in p.params.items():
-                    if isinstance(value, list):
-                        list_params[key] = value
-                    else:
-                        non_list_params[key] = value
-
-                if list_params:
-                    # Create product of all list parameters
-                    keys = list(list_params.keys())
-                    values = [list_params[k] for k in keys]
-
-                    for combination in itertools.product(*values):
-                        # Create a param dict with this combination
-                        param_dict = dict(non_list_params)
-                        param_dict.update(dict(zip(keys, combination)))
-                        result.append(params.Params(param_dict))
-                else:
-                    # No lists, just use the params as-is
-                    result.append(params.Params(non_list_params))
+            result.extend(Params.expand_from_parameter(p))
 
         return result
 
