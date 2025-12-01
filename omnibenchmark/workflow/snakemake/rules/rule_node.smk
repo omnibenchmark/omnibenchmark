@@ -1,4 +1,5 @@
 from importlib import resources
+from pathlib import Path
 from typing import Any
 
 from omnibenchmark.model import SoftwareBackendEnum, Benchmark
@@ -8,6 +9,13 @@ from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
 
 RUN_MODULE = "run_module.py"
+
+
+def get_script_path(script_name: str) -> str:
+    """Get the filesystem path to a script in the scripts package.
+    """
+    path = Path(resources.files(scripts) / script_name)
+    return str(path)
 
 def create_node_rule(node: BenchmarkNode, benchmark: Benchmark, config: dict[str, Any], local_timeout: int):
     if node.is_initial():
