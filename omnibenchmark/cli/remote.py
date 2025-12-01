@@ -4,7 +4,6 @@ import json
 import sys
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import click
 
@@ -16,6 +15,8 @@ from omnibenchmark.remote.files import download_files
 from packaging.version import Version
 from datetime import datetime
 from difflib import unified_diff
+
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from omnibenchmark.remote.MinIOStorage import MinIOStorage

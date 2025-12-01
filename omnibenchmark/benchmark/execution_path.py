@@ -4,9 +4,7 @@ from pathlib import Path
 from typing import Union
 from omnibenchmark.benchmark import Benchmark, BenchmarkNode
 from omnibenchmark.model.benchmark import Repository
-from omnibenchmark.workflow.snakemake.scripts.utils import (
-    generate_unique_repo_folder_name,
-)
+from omnibenchmark.model.repo import get_repo_hash
 from abc import ABCMeta, abstractmethod
 
 
@@ -94,7 +92,7 @@ def get_repo_timestamp(
     Returns the latest modification time of files in the repository directory.
     If the repository directory does not exist, returns None.
     """
-    module_dir = cache_dir / generate_unique_repo_folder_name(repo.url, repo.commit)
+    module_dir = cache_dir / get_repo_hash(repo.url, repo.commit)
     if module_dir.is_dir():
         timestamps = [
             create_artifact_file(f).get_timestamp()
