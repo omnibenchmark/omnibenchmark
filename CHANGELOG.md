@@ -3,6 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+<<<<<<< HEAD
 ## [0.4.0](main) UNRELEASED
 
 - feat: add create benchmark & create module command (#171)
@@ -21,6 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - bug: do not hardcode /tmp in run_module (#173)
 - bug: timeout should indicate SIGKILL to child process (Closes #222)
 - bug: `ob run module` should properly activate software backends (#174)
+- cli: added `ob info cite` command to extract citation metadata from CITATION.cff files in benchmark modules with support for multiple output formats (json, yaml, bibtex)
+- cli: added `ob check` command for comprehensive benchmark and module validation including CITATION.cff, LICENSE, and omnibenchmark.yaml file validation with license consistency checking
 - tests: use pixi on the CI
 
 ## 0.3.2 (Nov 13th 2025)
@@ -83,7 +86,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 
 ## [0.1.0-rc.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.2)
-- example: added a realistic `tests/data/Clustering.yaml` defining a clustering benchmark 
+- example: added a realistic `tests/data/Clustering.yaml` defining a clustering benchmark
 - tests: replaced `tests/data/Benchmark_001.yaml` by `tests/data/Clustering.yaml` during benchmark execution testing (e.g. envmodules)
 - tests: added dummy envmodule (lua) files to `./tests/data/envs` so envmodules are not only searched at and loaded from the easybuild modulepath
 - tests: fixed several aspects of envmodule validations so envmodules are tested by searching their availability and load-ability from the modulepath
@@ -92,7 +95,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - workflow: added benchmark layout exporting to a graph or plot via `mermaid`
 - workflow: decoupled workflow rule setup software backends (e.g. adding `conda`, `envmodules` etc to rules) from execution (e.g. `--use conda` during the snmk syscall)
 
-## [0.1.0rc.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.1) 
+## [0.1.0rc.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.1.0-rc.1)
 - Snakemake-based workflow dynamic generation
 - Snakemake execution: benchmarks or modules
 - Local and remote (s3) storage handling
@@ -106,4 +109,3 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.0.1](https://pypi.org/project/omnibenchmark/0.0.1/)
 - Renku-based omnibenchmark (first release)
-
