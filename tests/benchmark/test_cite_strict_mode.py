@@ -12,7 +12,7 @@ from omnibenchmark.benchmark.cite import (
     create_cite_issue,
     _extract_single_module_citation,
 )
-from omnibenchmark.benchmark.validation_core import (
+from omnibenchmark.benchmark.metadata import (
     ValidationSeverity,
 )
 

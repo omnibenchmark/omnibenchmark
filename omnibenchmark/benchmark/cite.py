@@ -10,7 +10,7 @@ from omnibenchmark.benchmark.repository_utils import (
     get_module_repository_info,
     resolve_module_repository,
 )
-from omnibenchmark.benchmark.validation_core import (
+from omnibenchmark.benchmark.metadata import (
     ValidationResult,
     ValidationIssue,
     ValidationSeverity,
