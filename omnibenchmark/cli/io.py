@@ -17,7 +17,11 @@ from omnibenchmark.io.files import download_files
 from omnibenchmark.io.S3config import benchmarker_access_token_policy
 from omnibenchmark.io.tree import tree_string_from_list
 from omnibenchmark.io.storage import get_storage, remote_storage_args
-from omnibenchmark.io.MinIOStorage import MinIOStorage
+
+try:
+    from omnibenchmark.io.MinIOStorage import MinIOStorage
+except ImportError:
+    MinIOStorage = None
 
 from .debug import add_debug_option
 

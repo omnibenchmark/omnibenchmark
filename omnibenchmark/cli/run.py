@@ -393,28 +393,6 @@ def run_module(
         log_result_and_quit(logger, success, type="Module")
 
 
-@run.command(no_args_is_help=True, name="validate")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
-)
-@click.pass_context
-def validate_yaml(ctx, benchmark):
-    """Validate a benchmark yaml."""
-    logger.info("Validating a benchmark yaml.")
-    try:
-        _ = BenchmarkExecution(Path(benchmark), Path("/tmp"))
-        logger.info("Benchmark YAML file integrity check passed.")
-    except BenchmarkParseError as e:
-        formatted_error = pretty_print_parse_error(e)
-        log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
-    except Exception as e:
-        log_error_and_quit(logger, f"Failed to load benchmark: {e}")
-
-
 def log_error_and_quit(logger, error):
     logger.error(error)
     sys.exit(1)

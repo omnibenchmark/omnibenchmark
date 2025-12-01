@@ -2,7 +2,7 @@ import logging
 
 from typing import Optional
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.benchmark import BenchmarkExecution
 from .RemoteStorage import StorageOptions
 
 try:
@@ -53,12 +53,14 @@ def get_storage(
         return MinIOStorage(auth_options, benchmark, storage_options)
 
 
-def get_storage_from_benchmark(benchmark: Benchmark) -> Optional["MinIOStorage"]:
+def get_storage_from_benchmark(
+    benchmark: BenchmarkExecution,
+) -> Optional["MinIOStorage"]:
     """
     Selects a remote storage type from a benchmark object.
 
     Args:
-    - benchmark (Benchmark): The benchmark object.
+    - benchmark (BenchmarkExecution): The benchmark object.
 
     Returns:
     - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
