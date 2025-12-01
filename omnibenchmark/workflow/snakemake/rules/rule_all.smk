@@ -1,5 +1,6 @@
 import os
 import re
+from importlib import resources
 from pathlib import Path
 from typing import List, Any
 
@@ -12,6 +13,15 @@ from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_com
 
 import logging
 logging.getLogger('snakemake').setLevel(logging.DEBUG)
+
+RUN_MODULE = "run_module.py"
+
+
+def get_script_path(script_name: str) -> str:
+    """Get the filesystem path to a script in the scripts package.
+    """
+    path = Path(resources.files(scripts) / script_name)
+    return str(path)
 
 def create_all_rule(config, paths: List[str], aggregate_performance: bool = False):
     out_dir = config['out_dir']
@@ -45,6 +55,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
     repository_url = repository.url if repository else None
     commit_hash = repository.commit if repository else None
 
+    out_dir = config['out_dir']
     software_backend = config['backend']
     keep_module_logs = config.get('keep_module_logs', False)
 
@@ -68,7 +79,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(out_dir, collector)
             conda:
                 conda_env
             params:
@@ -85,7 +96,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(out_dir, collector)
             envmodules:
                 envmodules_env
             params:
@@ -102,7 +113,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(out_dir, collector)
             container:
                 container_env
             params:
@@ -119,7 +130,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             input:
                 expand(updated_inputs, allow_missing=True)
             output:
-                formatter.format_metric_collector_output(benchmark.out_dir, collector)
+                formatter.format_metric_collector_output(out_dir, collector)
             params:
                 inputs_map=updated_inputs_map,
                 repository_url=repository_url,
