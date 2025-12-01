@@ -4,6 +4,8 @@ from omnibenchmark.benchmark.execution_path import (
     ArtifactFileConfig,
 )
 
+import pytest
+
 
 @pytest.mark.short
 def test_n2f():
