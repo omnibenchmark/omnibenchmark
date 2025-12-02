@@ -172,7 +172,7 @@ class BenchmarkValidator:
     # Utility methods
 
     @staticmethod
-    def is_initial(self, stage: Any) -> bool:
+    def is_initial(stage: Any) -> bool:
         """Check if a stage is an initial stage (has no inputs)."""
         return not stage.inputs or len(stage.inputs) == 0  # type: ignore
 

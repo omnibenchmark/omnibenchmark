@@ -94,9 +94,7 @@ class RemoteStorage(metaclass=ABCMeta):
         self.auth_options = auth_options
 
     def _parse_storage_options(self, storage_options: StorageOptions) -> None:
-        expected_attributes = [
-            t for t in dir(storage_options) if not t.startswith("_")
-        ]
+        expected_attributes = [t for t in dir(storage_options) if not t.startswith("_")]
         if not all([hasattr(storage_options, t) for t in expected_attributes]):
             raise RemoteStorageInvalidInputException(
                 "storage_options must be a StorageOptions object"
@@ -111,7 +109,7 @@ class RemoteStorage(metaclass=ABCMeta):
         Returns:
             - Storage Client / Service
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def _test_connect(self) -> None:
@@ -119,7 +117,7 @@ class RemoteStorage(metaclass=ABCMeta):
         This method is used to test the connection to the remote storage.
         It does not perform any actual operations, but checks if the connection is successful.
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def _create_benchmark(self, benchmark: str, update: bool = True) -> None:
@@ -130,7 +128,7 @@ class RemoteStorage(metaclass=ABCMeta):
             benchmark: The name of the benchmark.
             update: Whether to update the list of benchmarks. Defaults to True.
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def _get_versions(self, update: bool = True, readonly: bool = False) -> None:
@@ -187,7 +185,7 @@ class RemoteStorage(metaclass=ABCMeta):
         """
         Creates a new version of the benchmark.
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def _get_objects(self):
@@ -197,7 +195,7 @@ class RemoteStorage(metaclass=ABCMeta):
         Args:
             readonly (bool, optional): Whether to retrieve the objects in read-only mode. Defaults to False.
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def download_object(self, object_name: str, local_path: str):
@@ -208,7 +206,7 @@ class RemoteStorage(metaclass=ABCMeta):
             object_name (str): The name of the object.
             local_path (str): The local path to download the object.
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def archive_version(
@@ -226,7 +224,7 @@ class RemoteStorage(metaclass=ABCMeta):
         Args:
             version (str): The version to archive.
         """
-        NotImplementedError
+        raise NotImplementedError
 
     @abstractmethod
     def delete_version(self, version):
@@ -236,4 +234,4 @@ class RemoteStorage(metaclass=ABCMeta):
         Args:
             version (str): The version to delete.
         """
-        NotImplementedError
+        raise NotImplementedError
