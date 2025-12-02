@@ -34,7 +34,7 @@ dependencies = [
 
     # Workflow
     "snakemake>=8.0,<9.10.0", # pinned to avoid duplicate rule name error in 9.10+ (FIXME!)
-    "pandas",  # TODO: Remove - only used in parse_performance.py script
+    "pandas",  # TODO: Remove when all modules stop depending on it (see #232)
 
     # Templating
     "copier>=9.0.0",
