@@ -6,20 +6,30 @@ import csv
 import glob
 import os.path
 from pathlib import Path
-from typing import List
+from typing import List, TYPE_CHECKING
 
-# TODO: Remove pandas dependency - refactor this script to use standard library only
-try:
-    import pandas
-except ImportError:
-    raise ImportError(
-        "pandas is required for parse_performance.py. "
-        "Please install omnibenchmark with pandas support or refactor this script."
-    )
+if TYPE_CHECKING:
+    pass
+
 import os.path as op
 
 
+def _import_pandas():
+    """Lazy import pandas to avoid import errors when module is loaded but pandas is not needed yet."""
+    try:
+        import pandas
+
+        return pandas
+    except ImportError:
+        raise ImportError(
+            "pandas is required for parse_performance.py. "
+            "Please install omnibenchmark with pandas support or refactor this script."
+        )
+
+
 def write_combined_performance_file(out_dir: Path, performance_files: List[str]):
+    pandas = _import_pandas()  # noqa: F841
+
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
@@ -27,9 +37,13 @@ def write_combined_performance_file(out_dir: Path, performance_files: List[str])
     fd.to_csv(out_dir / "performances.tsv", sep="\t", index=False)
 
 
-def combine_performances(
-    out_dir: Path, performance_files: List[str]
-) -> pandas.DataFrame:
+def combine_performances(out_dir: Path, performance_files: List[str]):
+    """Combine performance files into a pandas DataFrame.
+
+    Returns:
+        pandas.DataFrame: Combined performance data
+    """
+    pandas = _import_pandas()
     fd = pandas.DataFrame()
 
     for perf in performance_files:
