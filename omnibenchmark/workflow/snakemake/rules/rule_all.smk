@@ -9,7 +9,6 @@ from omnibenchmark.model import MetricCollector, SoftwareBackendEnum
 from omnibenchmark.benchmark import Benchmark, Validator
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
-from omnibenchmark.workflow.snakemake.scripts.parse_performance import write_combined_performance_file
 
 import logging
 logging.getLogger('snakemake').setLevel(logging.DEBUG)
@@ -38,16 +37,8 @@ def create_all_rule(config, paths: List[str], aggregate_performance: bool = Fals
             input: paths
             output:
                 f"{benchmark.context.out_dir}/performances.tsv"
-            run:
-                result = glob_wildcards(str(benchmark.context.out_dir) + "/{path}/{dataset}_performance.txt")
-                performances = expand(str(benchmark.context.out_dir) + "/{path}/{dataset}_performance.txt", path=result.path, dataset=result.dataset)
-                performances = sorted(list(set(performances)))
-
-                output_dir = Path(str(os.path.commonpath(output)))
-                if len(output) == 1:
-                    output_dir = Path(os.path.dirname(output_dir))
-
-                write_combined_performance_file(output_dir, performances)
+            script:
+                get_script_path("aggregate_performance.py")
 
 
 def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, config: dict[str, Any], node_output_paths: List[str]):
