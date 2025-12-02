@@ -247,9 +247,24 @@ jobs:
 
       - name: Clone clustering example repo
         run: |
-          git clone --branch minimal-debug https://github.com/btraven00/clustering_example.git
+          git clone https://github.com/omnibenchmark/clustering_example.git
           cd clustering_example
           ls -la
+
+      - name: Configure conda to use prefix.dev mirror
+        working-directory: clustering_example
+        run: |
+          # Use prefix.dev mirror to avoid anaconda.org 503 errors
+          # Replace conda-forge with prefix.dev mirror in conda env files
+          for env_file in envs/*.yml; do
+            if [ -f "$env_file" ]; then
+              sed -i 's|^  - conda-forge$|  - https://prefix.dev/conda-forge|g' "$env_file"
+              # For r channel, keep it as 'r' since prefix.dev handles it via conda-forge
+              # The r channel is typically available through conda-forge mirror
+            fi
+          done
+          echo "Patched conda environment files to use prefix.dev:"
+          grep -A 5 "^channels:" envs/*.yml || true
 
       - name: Run clustering benchmark with conda backend
         working-directory: clustering_example
