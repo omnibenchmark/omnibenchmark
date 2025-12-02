@@ -19,16 +19,26 @@
 
 ## 1. Problem Statement
 
-The benchmark artifacts (i.e., the output of a benchmark run) should be uniquely linked to the benchmark yaml file when using remote storage (i.e., S3). This is particularly important for collaborative work or when benchmarks get forked. Currently this is not done, instead manual versions are created and files are only linked to the version written in the benchmark yaml, but there is no guarantee that the benchmark yaml file has not been modified otherwise.
+The benchmark artifacts (i.e., the output of a benchmark run) should be uniquely linked to the benchmark yaml file when using remote storage (i.e., S3). More precisely, we want the remote tags to be unequivocally traced to a canonical representation of the benchmark YAML, up to equivalent block reorderings. This is particularly important for collaborative work or when benchmarks get forked. Currently this is not done, instead manual versions are created and files are only linked to the version written in the benchmark yaml, but there is no guarantee that the benchmark yaml file has not been modified otherwise. 
+Desirable properties are:
+
+- given the benchmark yaml, get artifacts (similar to `git pull`)
+- given a remote, get available versions/labels (similar to `git log`)
+- given a remote and a version/label, retrieve complete benchmark + artifacts (similar to `git checkout`)
+- given a benchmark yaml, run and add artifacts (similar to `git commit`)
+- given a benchmark yaml and artifacts, put artifacts to remote (similar to `git push`)
+
 
 ## 2. Design Goals
 
 - Consistancy/Tracking: Unique assignment of benchmark output files (artifacts) to a unique benchmark yaml file.
+- History: Retain ordering of versions
 - Linkability: Forking of benchmark yaml should retain links to artifacts from parent benchmark yaml file.
 
 ### Non-Goals
 
 - Validation: no check if artifact output is valid, should be handled separately
+- Multi-remote: do not support automatic multi-remote syncing
 
 ## 3. Proposed Solution
 
@@ -36,14 +46,14 @@ The benchmark artifacts (i.e., the output of a benchmark run) should be uniquely
 
 For creating a version string for each artifact file two possibilities are proposed:
 - `VERSION-HASH` (e.g., `0.1.0-8793a13`)
-- `VERSION-TAG-HASH` (e.g., `0.1.0-paper-8793a13`)
+- `VERSION-LABEL-HASH` (e.g., `0.1.0-paper-8793a13`)
 
 with:
 - VERSION: version specified in the benchmark yaml
 - HASH: hash of benchmark yaml (see below)
-- TAG: additional tag
+- LABEL: additional label 
 
-The optional TAG might be useful to have divergent versions on the same remote (e.g., same S3 bucket). For HASH the following is of importance:
+The optional LABEL might be useful to have divergent versions on the same remote (e.g., same S3 bucket). For HASH the following is of importance:
 - only keeping fields used for execution (no descriptions,...)
 - (?) include env files
 - (?) ...
@@ -79,7 +89,7 @@ Field `yaml` is theoretically not strictly required, but seems reasonable to tra
 ### Implementation Details
 
 The current implementation for S3 already allows versioning files (by creating tags for objects in S3), however currently this is only done when manually specified. Thus automatic versioning as proposed above should be done for each benchmark run. 
-Furthermore, so far handling the remote objects during execution has been done by snakemake. This could potentially be kept, but might require explicit remote plus file plus file version (tag) usage (because of forking the files could reside in multiple buckets), which means extending the execution module. Alternative option is to handle remote files separately by a dedicated local cache, i.e., download needed files to cache and use those during execution. This will also require changes to the execution module, but allows for more control. Especially because if snakemake handles the remote files it will automatically upload these to the remote, which will mean the versioning (tagging on S3) needs to happen after completion of the benchmark run, which means in the meantime it could potentially be overwritten by another process. A dedicated cache should be saver in this regard.
+Furthermore, so far handling the remote objects during execution has been done by snakemake. This could potentially be kept, but might require explicit remote plus file plus file version (label) usage (because of forking the files could reside in multiple buckets), which means extending the execution module. Alternative option is to handle remote files separately by a dedicated local cache, i.e., download needed files to cache and use those during execution. This will also require changes to the execution module, but allows for more control. Especially because if snakemake handles the remote files it will automatically upload these to the remote, which will mean the versioning (tagging on S3) needs to happen after completion of the benchmark run, which means in the meantime it could potentially be overwritten by another process. A dedicated cache should be saver in this regard.
 
 
 ## 4. Alternatives Considered
