@@ -26,6 +26,7 @@ ruff = "*"
 
 # Core dependencies for the package
 git = "*"
+micromamba = ">=2.4.0,<3"
 
 
 [target.linux-64.dependencies]
