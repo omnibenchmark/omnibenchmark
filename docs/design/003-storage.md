@@ -45,15 +45,18 @@ Desirable properties are:
 ### Versioning
 
 For creating a version string for each artifact file two possibilities are proposed:
+
 - `VERSION-HASH` (e.g., `0.1.0-8793a13`)
 - `VERSION-LABEL-HASH` (e.g., `0.1.0-paper-8793a13`)
 
 with:
+
 - VERSION: version specified in the benchmark yaml
 - HASH: hash of benchmark yaml (see below)
 - LABEL: additional label 
 
 The optional LABEL might be useful to have divergent versions on the same remote (e.g., same S3 bucket). For HASH the following is of importance:
+
 - only keeping fields used for execution (no descriptions,...)
 - (?) include env files
 - (?) ...
