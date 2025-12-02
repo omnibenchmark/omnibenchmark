@@ -184,14 +184,11 @@ def get_module_repository_info(
     Returns:
         Tuple of (repository_url, commit_hash) or (None, None) if not found
     """
-    repo_info = benchmark.get_converter().get_module_repository(module)
+    # Module has repository field directly
+    repo_info = module.repository
 
-    repo_url = getattr(repo_info, "url", None) or getattr(repo_info, "repository", None)
-    commit_hash = (
-        getattr(repo_info, "commit_hash", None)
-        or getattr(repo_info, "commit", None)
-        or getattr(repo_info, "version", None)
-    )
+    repo_url = getattr(repo_info, "url", None)
+    commit_hash = getattr(repo_info, "commit", None)
 
     return repo_url, commit_hash
 
