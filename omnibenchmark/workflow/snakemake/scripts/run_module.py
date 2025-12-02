@@ -13,12 +13,9 @@ from snakemake.script import Snakemake
 
 from omnibenchmark.benchmark import constants
 from omnibenchmark.benchmark.params import Params
+from omnibenchmark.benchmark.symlinks import SymlinkManager
 from omnibenchmark.io.code import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
-from omnibenchmark.benchmark.symlinks import SymlinkManager
-from omnibenchmark.workflow.snakemake.scripts.utils import (
-    get_module_name_from_rule_name,
-)
 
 logger = logging.getLogger("SNAKEMAKE_RUNNER")
 
@@ -29,10 +26,19 @@ except NameError:
 
 params: Dict[str, Any] = dict(snakemake.params)
 
+
+def extract_module_name(rule_name: str) -> str:
+    parts = rule_name.split("_")
+    if len(parts) == 0:
+        raise ValueError("Invalid rule name")
+    return parts[1]
+
+
 repository_url: Optional[str] = params.get("repository_url")
 commit_hash: Optional[str] = params.get("commit_hash")
 parameters: Optional[Any] = params.get("parameters")
-inputs_map: Optional[Dict[str, Any]] = params.get("inputs_map")
+# Use attribute access for inputs_map to allow Snakemake to evaluate lambda functions
+inputs_map: Optional[Dict[str, Any]] = getattr(snakemake.params, "inputs_map", None)
 dataset: str = params.get("dataset", getattr(snakemake.wildcards, "dataset", "unknown"))
 
 # For now we're handling timeout in seconds.
@@ -62,7 +68,7 @@ if repository_url is None or commit_hash is None:
 module_dir = clone_module(repositories_dir, repository_url, commit_hash)
 
 # Execute module code
-module_name = get_module_name_from_rule_name(snakemake.rule)
+module_name = extract_module_name(snakemake.rule)
 
 try:
     # Handle None parameters and inputs_map by providing defaults
