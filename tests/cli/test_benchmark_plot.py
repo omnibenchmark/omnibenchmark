@@ -15,7 +15,7 @@ def test_benchmark_computational_plot():
     with OmniCLISetup() as omni:
         result = omni.call(
             [
-                "info",
+                "describe",
                 "computational",
                 "-b",
                 str(benchmark_data_path / "Benchmark_001.yaml"),
@@ -60,7 +60,7 @@ def test_benchmark_topology_plot(tmp_path):
     with OmniCLISetup() as omni:
         result = omni.call(
             [
-                "info",
+                "describe",
                 "topology",
                 "-b",
                 str(benchmark_data_path / "Benchmark_001.yaml"),
