@@ -31,6 +31,10 @@ def write_combined_performance_file(out_dir: Path, performance_files: List[str])
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter="\t")
             writer.writeheader()
             writer.writerows(rows)
+    else:
+        # Create empty file to satisfy Snakemake output requirements
+        with open(output_file, "w", newline="") as f:
+            pass
 
 
 def combine_performances(
