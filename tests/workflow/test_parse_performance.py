@@ -161,7 +161,10 @@ def test_write_combined_performance_file_empty(temp_dir):
     write_combined_performance_file(temp_dir, [])
 
     output_file = temp_dir / "performances.tsv"
-    assert not output_file.exists()  # No file created for empty input
+    # An empty file should be created to satisfy Snakemake output requirements
+    assert output_file.exists()
+    # The file should be empty (no headers, no content)
+    assert output_file.stat().st_size == 0
 
 
 def test_write_combined_performance_file(temp_dir):
