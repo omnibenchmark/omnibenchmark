@@ -25,6 +25,7 @@ def info(ctx):
 @click.option(
     "--benchmark",
     "-b",
+    "benchmark_path",
     required=True,
     type=click.Path(exists=True),
     help="Path to benchmark yaml file or benchmark id.",
@@ -45,13 +46,13 @@ def info(ctx):
     help="Version to compare with.",
 )
 @click.pass_context
-def diff_benchmark(ctx, benchmark: str, version1, version2):
+def diff_benchmark(ctx, benchmark_path: str, version1, version2):
     """Show differences between 2 benchmark versions."""
     logger.info(
-        f"Found the following differences in {benchmark} for {version1} and {version2}."
+        f"Found the following differences in {benchmark_path} for {version1} and {version2}."
     )
-    b = BenchmarkExecution(Path(benchmark))
-    auth_options = remote_storage_args(benchmark)
+    b = BenchmarkExecution(Path(benchmark_path))
+    auth_options = remote_storage_args(benchmark_path)
 
     api = b.get_storage_api()
     bucket = b.get_storage_bucket_name()
