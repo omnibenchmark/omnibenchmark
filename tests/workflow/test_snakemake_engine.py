@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.model import SoftwareBackendEnum
 
@@ -24,25 +24,6 @@ class TestSnakemakeEngine:
         return node
 
     @pytest.mark.short
-    def test_serialize_node_workflow_raises_error_when_benchmark_file_none(
-        self, engine, mock_node, tmp_path
-    ):
-        """Test that serialize_node_workflow raises ValueError when benchmark_file is None."""
-        # Arrange: node returns None for get_definition_file and no benchmark_file_path provided
-        mock_node.get_definition_file.return_value = None
-
-        # Act & Assert
-        with pytest.raises(ValueError) as exc_info:
-            engine.serialize_node_workflow(
-                mock_node,
-                output_dir=tmp_path,
-                write_to_disk=True,
-                benchmark_file_path=None,
-            )
-
-        assert "benchmark_file_path must be provided" in str(exc_info.value)
-
-    @pytest.mark.short
     def test_serialize_node_workflow_uses_provided_benchmark_file_path(
         self, engine, mock_node, tmp_path
     ):
@@ -54,9 +35,9 @@ class TestSnakemakeEngine:
         # Act
         result = engine.serialize_node_workflow(
             mock_node,
+            benchmark_file,
             output_dir=tmp_path,
             write_to_disk=True,
-            benchmark_file_path=benchmark_file,
         )
 
         # Assert
@@ -65,29 +46,6 @@ class TestSnakemakeEngine:
         # Verify the benchmark file path is used in the generated Snakefile
         content = result.read_text()
         assert str(benchmark_file) in content
-
-    @pytest.mark.short
-    def test_serialize_node_workflow_falls_back_to_node_definition_file(
-        self, engine, mock_node, tmp_path
-    ):
-        """Test that serialize_node_workflow uses node.get_definition_file() when no path provided."""
-        # Arrange
-        definition_file = tmp_path / "definition.yaml"
-        definition_file.touch()
-        mock_node.get_definition_file.return_value = definition_file
-
-        # Act
-        result = engine.serialize_node_workflow(
-            mock_node,
-            output_dir=tmp_path,
-            write_to_disk=True,
-            benchmark_file_path=None,
-        )
-
-        # Assert
-        assert result.exists()
-        content = result.read_text()
-        assert str(definition_file) in content
 
     @pytest.mark.short
     def test_prepare_argv_handles_list_values(self, engine, tmp_path):
@@ -218,41 +176,3 @@ class TestSnakemakeEngine:
 
                     # Assert - verify serialize_workflow was called (which means out_dir was accessed)
                     engine.serialize_workflow.assert_called_once()
-
-    @pytest.mark.short
-    @patch("omnibenchmark.workflow.snakemake.snakemake.snakemake_cli")
-    def test_run_node_workflow_passes_benchmark_file_path_to_serialize(
-        self, mock_cli, engine, mock_node, tmp_path
-    ):
-        """Test that run_node_workflow passes benchmark_file_path to serialize_node_workflow."""
-        # Arrange
-        benchmark_file = tmp_path / "benchmark.yaml"
-        benchmark_file.touch()
-        mock_node.get_definition_file.return_value = benchmark_file
-
-        snakefile = tmp_path / "Snakefile"
-        snakefile.touch()
-
-        with patch.object(
-            engine,
-            "serialize_node_workflow",
-            return_value=snakefile,
-        ) as mock_serialize:
-            # Mock the cli to return success
-            mock_api = MagicMock()
-            mock_api.execute_workflow.return_value = True
-            mock_cli.return_value = mock_api
-
-            # Act
-            engine.run_node_workflow(
-                mock_node,
-                input_dir=tmp_path / "input",
-                dataset="test_dataset",
-                work_dir=tmp_path,
-                benchmark_file_path=benchmark_file,
-            )
-
-            # Assert
-            mock_serialize.assert_called_once()
-            call_kwargs = mock_serialize.call_args[1]
-            assert call_kwargs["benchmark_file_path"] == benchmark_file

@@ -39,6 +39,7 @@ def run(ctx):
 @click.option(
     "-b",
     "--benchmark",
+    "benchmark_path",
     help="Path to benchmark yaml file or benchmark id.",
     required=True,
     envvar="OB_BENCHMARK",
@@ -103,7 +104,7 @@ def run(ctx):
 @click.pass_context
 def run_benchmark(
     ctx,
-    benchmark,
+    benchmark_path,
     cores,
     update,
     dry,
@@ -139,7 +140,7 @@ def run_benchmark(
         sys.exit(1)
 
     try:
-        b = BenchmarkExecution(Path(benchmark), Path(out_dir))
+        b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
     except BenchmarkParseError as e:
         # Format parse errors with file location and context
@@ -202,6 +203,7 @@ def run_benchmark(
 @click.option(
     "-b",
     "--benchmark",
+    "benchmark_path",
     help="Path to benchmark yaml file or benchmark id.",
     required=True,
     envvar="OB_BENCHMARK",
@@ -250,7 +252,7 @@ def run_benchmark(
 @click.pass_context
 def run_module(
     ctx,
-    benchmark,
+    benchmark_path,
     module,
     input_dir,
     dry,
@@ -303,7 +305,7 @@ def run_module(
     logger.info("Running module on a local dataset.")
 
     try:
-        b = BenchmarkExecution(Path(benchmark), Path(tempfile.mkdtemp()))
+        b = BenchmarkExecution(Path(benchmark_path), Path(tempfile.mkdtemp()))
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)
         log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
