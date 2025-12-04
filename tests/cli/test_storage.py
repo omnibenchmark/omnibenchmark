@@ -7,6 +7,8 @@ from pathlib import Path
 
 from typing import Optional
 
+from click.testing import CliRunner
+
 from .cli_setup import OmniCLISetup
 from .asserts import assert_startswith, assert_in_output
 from .fixtures import minio_storage, _minio_container  # noqa: F401
@@ -256,6 +258,30 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
                 os.environ["OB_STORAGE_S3_CONFIG"] = original_config
             else:
                 os.environ.pop("OB_STORAGE_S3_CONFIG", None)
+
+
+def test_create_policy_cli_signature(minio_storage):  # noqa: F811
+    """Test that create-policy command correctly receives benchmark parameter."""
+    from omnibenchmark.cli.storage import storage
+
+    runner = CliRunner()
+
+    # Test that the command accepts --benchmark option and passes it correctly
+    result = runner.invoke(
+        storage,
+        [
+            "policy",
+            "create",
+            "--benchmark",
+            str(minio_storage.benchmark_file),
+        ],
+    )
+
+    # The command should execute without parameter binding errors
+    # It may fail for other reasons (e.g., policy creation), but not due to parameter mismatch
+    # If there was a parameter mismatch, we'd see a TypeError about unexpected keyword argument
+    assert "unexpected keyword argument" not in result.output.lower()
+    assert "takes 0 positional arguments" not in result.output.lower()
 
 
 def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: F811

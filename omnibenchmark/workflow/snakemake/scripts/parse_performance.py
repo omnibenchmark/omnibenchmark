@@ -100,7 +100,7 @@ def tokenize(output_path: Path, file_path: str):
         List of (stage, method, params) tuples
     """
     ## we get only after the 'out' directory
-    # TODO(ben): be more careful here
+    # TODO(ben): catch the IndexError and log a more informative error message
     try:
         fp = file_path.split(f"{output_path}/")[1].split("/")
     except IndexError:
