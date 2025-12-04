@@ -505,17 +505,18 @@ def diff_benchmark(ctx, benchmark_path: str, version1, version2):
 @click.option(
     "--benchmark",
     "-b",
+    "benchmark_path",
     required=True,
     type=click.Path(exists=True),
     help="Path to benchmark yaml file or benchmark id.",
     envvar="OB_BENCHMARK",
 )
 @click.pass_context
-def list_versions(ctx, benchmark: str):
+def list_versions(ctx, benchmark_path: str):
     """List all available benchmark versions."""
-    logger.info(f"Available versions of {benchmark}:")
+    logger.info(f"Available versions of {benchmark_path}:")
 
-    b = BenchmarkExecution(Path(benchmark))
+    b = BenchmarkExecution(Path(benchmark_path))
     auth_options = remote_storage_args(b)
     api = b.get_storage_api()
     bucket = b.get_storage_bucket_name()
