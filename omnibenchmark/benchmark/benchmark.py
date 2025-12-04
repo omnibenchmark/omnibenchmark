@@ -10,7 +10,7 @@ from omnibenchmark.benchmark._paths import (
 )
 
 from omnibenchmark.benchmark import _graph as graph
-from omnibenchmark.model import Benchmark as BenchmarkModel
+from omnibenchmark.model import Benchmark as BenchmarkModel, SoftwareBackendEnum
 from omnibenchmark.utils import format_mc_output
 
 from ._dag_builder import DAGBuilder
@@ -229,6 +229,21 @@ class BenchmarkExecution:
 
     def export_to_dot(self):
         return export_to_dot(self.G, title=self.get_benchmark_name())
+
+    def get_environment_path(
+        self, env_key: str, software_backend: SoftwareBackendEnum
+    ) -> Optional[str]:
+        from omnibenchmark.benchmark import Validator
+
+        benchmark_dir = self.context.directory
+        environment = self.get_benchmark_software_environments().get(env_key, None)
+        environment_path = (
+            Validator.get_environment_path(software_backend, environment, benchmark_dir)
+            if environment
+            else None
+        )
+
+        return environment_path
 
     def export_to_mermaid(self, show_params: bool = True) -> str:
         """Export the benchmark workflow as a Mermaid diagram.

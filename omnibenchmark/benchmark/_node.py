@@ -2,6 +2,8 @@ import os.path
 from pathlib import Path
 from typing import Optional
 
+from omnibenchmark.model import SoftwareBackendEnum
+
 
 class BenchmarkNode:
     def __init__(
@@ -53,11 +55,6 @@ class BenchmarkNode:
 
     def get_definition(self):
         return self.model
-
-    def get_definition_file(self) -> Optional[Path]:
-        # TODO: This should be passed from the execution context when needed
-        # For now, return None - serialization methods should get the path separately
-        return None
 
     def get_inputs(self):
         return self.inputs.values() if self.inputs else []
@@ -147,6 +144,20 @@ class BenchmarkNode:
         return BenchmarkNode.to_id(
             self.stage_id, self.module_id, self.param_id, self.after
         )
+
+    def get_environment_path(
+        self, env_key: str, software_backend: SoftwareBackendEnum, benchmark_dir: Path
+    ) -> Optional[str]:
+        from omnibenchmark.benchmark import Validator
+
+        environment = self.get_benchmark_software_environments().get(env_key, None)
+        environment_path = (
+            Validator.get_environment_path(software_backend, environment, benchmark_dir)
+            if environment
+            else None
+        )
+
+        return environment_path
 
     def __str__(self):
         return self.display_name()
