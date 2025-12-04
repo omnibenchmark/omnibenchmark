@@ -50,7 +50,11 @@ class WorkflowEngine(metaclass=ABCMeta):
 
     @abstractmethod
     def serialize_workflow(
-        self, benchmark: Benchmark, output_dir: Path = Path(os.getcwd())
+        self,
+        benchmark: Benchmark,
+        output_dir: Path = Path(os.getcwd()),
+        write_to_disk: bool = True,
+        local_timeout: Optional[int] = None,
     ) -> Path:
         """
         Serializes a workflow file for the benchmark.
@@ -58,6 +62,8 @@ class WorkflowEngine(metaclass=ABCMeta):
         Args:
             benchmark (Benchmark): benchmark to serialize
             output_dir (str): output directory for the workflow file
+            write_to_disk (bool): if write_to_disk is True, create workflow file on disk, else create an in-memory temp file
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
 
         Returns:
         - Workflow file path.
@@ -78,6 +84,8 @@ class WorkflowEngine(metaclass=ABCMeta):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.conda,
         executor: str = "local",
         debug: bool = False,
+        work_dir: Path = Path(os.getcwd()),
+        local_timeout: Optional[int] = None,
         benchmark_file_path: Optional[Path] = None,
         **kwargs,
     ) -> bool:
@@ -94,8 +102,11 @@ class WorkflowEngine(metaclass=ABCMeta):
             continue_on_error (bool): continue with independent jobs if a job fails. Default: False
             keep_module_logs (bool): keep module-specific log files after execution. Default: False
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
-            module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
-            work_dir (str): working directory. Default: current work directory
+            executor (str): executor to use for workflow execution. Default: local
+            debug (bool): enable debug output. Default: False
+            work_dir (Path): working directory. Default: current work directory
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
+            benchmark_file_path (Optional[Path]): path to benchmark file, if None uses node.get_definition_file()
             **kwargs: keyword arguments to pass to the workflow engine
 
         Returns:
@@ -109,6 +120,7 @@ class WorkflowEngine(metaclass=ABCMeta):
         node: BenchmarkNode,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk: bool = True,
+        local_timeout: Optional[int] = None,
         benchmark_file_path: Optional[Path] = None,
     ) -> Path:
         """
@@ -118,6 +130,7 @@ class WorkflowEngine(metaclass=ABCMeta):
             node (BenchmarkNode): benchmark node to serialize
             output_dir (str): output directory for the workflow file
             write_to_disk (bool): whether to write to disk or create temp file
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
             benchmark_file_path (Optional[Path]): path to benchmark file, if None uses node.get_definition_file()
 
         Returns:

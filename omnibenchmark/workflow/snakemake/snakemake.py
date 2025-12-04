@@ -67,7 +67,8 @@ class SnakemakeEngine(WorkflowEngine):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
-
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
+            debug (bool): enable debug output. Default: False
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
@@ -116,7 +117,7 @@ class SnakemakeEngine(WorkflowEngine):
         benchmark: Benchmark,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk=True,
-        local_timeout: Optional[int] = 1000,
+        local_timeout: Optional[int] = None,
     ) -> Path:
         """
         Serializes a Snakefile for the benchmark.
@@ -125,6 +126,7 @@ class SnakemakeEngine(WorkflowEngine):
             benchmark (Benchmark): benchmark to serialize
             output_dir (str): output directory for the Snakefile
             write_to_disk (bool): if write_to_disk is True, create Snakefile on disk, else create an in-memory temp file
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
 
         Returns:
         - Snakefile path.
@@ -166,7 +168,7 @@ class SnakemakeEngine(WorkflowEngine):
             f.write("nodes = benchmark.get_nodes()\n")
             f.write("for node in nodes:\n")
             f.write(
-                f"    create_node_rule(node, benchmark, config, {local_timeout or 1000})\n\n"
+                f"    create_node_rule(node, benchmark, config, {local_timeout})\n\n"
             )
 
             # Create metric collector rules
@@ -191,6 +193,7 @@ class SnakemakeEngine(WorkflowEngine):
         backend: SoftwareBackendEnum = SoftwareBackendEnum.host,
         module_path: str = os.environ.get("MODULEPATH", ""),
         work_dir: Path = Path(os.getcwd()),
+        local_timeout: Optional[int] = None,
         benchmark_file_path: Optional[Path] = None,
         **snakemake_kwargs,
     ) -> bool:
@@ -209,6 +212,8 @@ class SnakemakeEngine(WorkflowEngine):
             backend (SoftwareBackendEnum): which software backend to use when running the workflow. Available: `host`, `docker`, `apptainer`, `conda`, `envmodules`. Default: `host`
             module_path (str): The path where the `envmodules` are located. This path will be searched during the workflow run using `envmodules` backend.
             work_dir (str): working directory. Default: current work directory
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
+            benchmark_file_path (Optional[Path]): path to benchmark file, if None uses node.get_definition_file()
             **snakemake_kwargs: keyword arguments to pass to the snakemake engine
 
         Returns:
@@ -219,7 +224,11 @@ class SnakemakeEngine(WorkflowEngine):
 
         # Serialize Snakefile for node workflow
         snakefile = self.serialize_node_workflow(
-            node, work_dir, write_to_disk=True, benchmark_file_path=benchmark_file_path
+            node,
+            work_dir,
+            write_to_disk=True,
+            local_timeout=local_timeout,
+            benchmark_file_path=benchmark_file_path,
         )
 
         # Prepare the argv list
@@ -256,6 +265,7 @@ class SnakemakeEngine(WorkflowEngine):
         node: BenchmarkNode,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk: bool = True,
+        local_timeout: Optional[int] = None,
         benchmark_file_path: Optional[Path] = None,
     ) -> Path:
         """
@@ -265,6 +275,8 @@ class SnakemakeEngine(WorkflowEngine):
             node (BenchmarkNode): benchmark node to serialize
             output_dir (str): output directory for the Snakefile
             write_to_disk (bool): if write_to_disk is True, create Snakefile on disk, else create an in-memory temp file
+            local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
+            benchmark_file_path (Optional[Path]): path to benchmark file, if None uses node.get_definition_file()
 
         Returns:
         - Snakefile path.
@@ -305,7 +317,7 @@ class SnakemakeEngine(WorkflowEngine):
             f.write("create_all_rule(config, all_paths)\n\n")
 
             # Create node rules
-            f.write("create_standalone_node_rule(node, config)\n\n")
+            f.write(f"create_standalone_node_rule(node, config, {local_timeout})\n\n")
 
         return snakefile_path
 
