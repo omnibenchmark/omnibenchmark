@@ -232,6 +232,7 @@ def checksum_all_files(benchmark: str):
 @click.option(
     "-b",
     "--benchmark",
+    "benchmark_path",
     help="Path to benchmark yaml file or benchmark id.",
     type=click.Path(exists=True),
     required=True,
