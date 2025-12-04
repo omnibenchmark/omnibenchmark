@@ -34,7 +34,8 @@ def test_create_version(minio_storage):  # noqa: F811
         run2 = omni.call(
             [
                 "storage",
-                "create-version",
+                "version",
+                "create",
                 "--benchmark",
                 str(minio_storage.benchmark_file),
             ]
@@ -72,7 +73,8 @@ def test_list_files(minio_storage):  # noqa: F811
         run2 = omni.call(
             [
                 "storage",
-                "create-version",
+                "version",
+                "create",
                 "--benchmark",
                 str(minio_storage.benchmark_file),
             ],
@@ -85,6 +87,7 @@ def test_list_files(minio_storage):  # noqa: F811
         run3 = omni.call(
             [
                 "storage",
+                "files",
                 "list",
                 "--benchmark",
                 str(minio_storage.benchmark_file),
@@ -109,7 +112,8 @@ def test_download_files(minio_storage):  # noqa: F811
         run2 = omni.call(
             [
                 "storage",
-                "create-version",
+                "version",
+                "create",
                 "--benchmark",
                 str(minio_storage.benchmark_file),
             ],
@@ -129,6 +133,7 @@ def test_download_files(minio_storage):  # noqa: F811
         run3 = omni.call(
             [
                 "storage",
+                "files",
                 "download",
                 "--benchmark",
                 str(minio_storage.benchmark_file),
@@ -165,7 +170,8 @@ def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
             run = omni.call(
                 [
                     "storage",
-                    "create-version",
+                    "version",
+                    "create",
                     "--benchmark",
                     str(minio_storage.benchmark_file),
                 ],
@@ -221,7 +227,8 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
             run = omni.call(
                 [
                     "storage",
-                    "create-version",
+                    "version",
+                    "create",
                     "--benchmark",
                     str(minio_storage.benchmark_file),
                 ],
@@ -287,7 +294,8 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
             run = omni.call(
                 [
                     "storage",
-                    "create-version",
+                    "version",
+                    "create",
                     "--benchmark",
                     str(minio_storage.benchmark_file),
                 ],

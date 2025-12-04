@@ -66,8 +66,38 @@ def storage(ctx):
     ctx.ensure_object(dict)
 
 
+@click.group(name="files")
+@click.pass_context
+def files(ctx):
+    """Manage files in remote storage."""
+    ctx.ensure_object(dict)
+
+
+storage.add_command(files)
+
+
+@click.group(name="version")
+@click.pass_context
+def version(ctx):
+    """Manage benchmark versions."""
+    ctx.ensure_object(dict)
+
+
+storage.add_command(version)
+
+
+@click.group(name="policy")
+@click.pass_context
+def policy(ctx):
+    """Manage storage policies."""
+    ctx.ensure_object(dict)
+
+
+storage.add_command(policy)
+
+
 @add_debug_option
-@storage.command(name="create-version")
+@version.command(name="create")
 @click.option(
     "-b",
     "--benchmark",
@@ -95,7 +125,7 @@ def create_benchmark_version(benchmark: str):
 
 
 @add_debug_option
-@storage.command(name="list")
+@files.command(name="list")
 @click.option(
     "-b",
     "--benchmark",
@@ -137,7 +167,7 @@ def list_all_files(
 
 
 @add_debug_option
-@storage.command(name="download")
+@files.command(name="download")
 @click.option(
     "-b",
     "--benchmark",
@@ -198,7 +228,7 @@ def download_all_files(
 
 
 @add_debug_option
-@storage.command(name="checksum")
+@files.command(name="checksum")
 @click.option(
     "-b",
     "--benchmark",
@@ -231,7 +261,8 @@ def checksum_all_files(benchmark: str):
     logger.info("Done")
 
 
-@storage.command(name="create-policy")
+@add_debug_option
+@policy.command(name="create")
 @click.option(
     "-b",
     "--benchmark",
@@ -257,6 +288,7 @@ def create_policy(benchmark_path: str):
         raise click.Abort()
 
 
+@add_debug_option
 @storage.command("archive")
 @click.option(
     "--benchmark",
@@ -335,14 +367,14 @@ def archive_benchmark(
     local_storage,
     out_dir,
 ):
+    """Archive a benchmark and its artifacts."""
+
     # Validate out_dir usage
     if not local_storage and out_dir != "out":
         logger.error(
             "-Invalid arguments: --out-dir can only be used with --local_storage"
         )
         sys.exit(1)
-
-    """Archive a benchmark"""
 
     assert benchmark is not None
 
@@ -379,7 +411,8 @@ def archive_benchmark(
         click.echo(f"Created archive: {archive_file}")
 
 
-@storage.command("diff")
+@add_debug_option
+@version.command("diff")
 @click.option(
     "--benchmark",
     "-b",
@@ -465,7 +498,8 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
     )
 
 
-@storage.command("list-versions")
+@add_debug_option
+@version.command("list")
 @click.option(
     "--benchmark",
     "-b",
@@ -476,7 +510,7 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
 )
 @click.pass_context
 def list_versions(ctx, benchmark: str):
-    """List all available benchmarks versions at a specific endpoint."""
+    """List all available benchmark versions."""
     logger.info(f"Available versions of {benchmark}:")
 
     b = BenchmarkExecution(Path(benchmark))
