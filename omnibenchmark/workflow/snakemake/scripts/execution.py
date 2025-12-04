@@ -29,7 +29,7 @@ def execution(
     inputs_map: dict[str, str | List[str]],
     parameters: Params,
     keep_module_logs: bool,
-    timeout: int,
+    timeout: Optional[int] = None,
 ) -> int:
     config_parser = _read_config(module_dir)
     if config_parser is None:
@@ -66,7 +66,8 @@ def execution(
     stdout_file = output_dir / "stdout.log"
     stderr_file = output_dir / "stderr.log"
 
-    logging.info(f"Seting timeout to {timeout} seconds")
+    if timeout is not None:
+        logging.info(f"Setting timeout to {timeout} seconds")
 
     try:
         with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
@@ -88,8 +89,9 @@ def execution(
         )
 
     except subprocess.TimeoutExpired as e:
+        timeout_msg = f"{timeout}s" if timeout is not None else "unknown timeout"
         logging.error(
-            f"ERROR: Executing {executable} failed after timing out in {timeout}s"
+            f"ERROR: Executing {executable} failed after timing out in {timeout_msg}. "
             f"See {stderr_file} for details."
         )
         raise e

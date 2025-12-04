@@ -1,10 +1,10 @@
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-from omnibenchmark.model import SoftwareBackendEnum, Benchmark
+from omnibenchmark.model import SoftwareBackendEnum
 
-from omnibenchmark.benchmark import Validator, BenchmarkNode
+from omnibenchmark.benchmark import Validator, BenchmarkNode, BenchmarkExecution
 from omnibenchmark.workflow.snakemake import scripts
 from omnibenchmark.workflow.snakemake.format import formatter
 
@@ -17,13 +17,13 @@ def get_script_path(script_name: str) -> str:
     path = Path(resources.files(scripts) / script_name)
     return str(path)
 
-def create_node_rule(node: BenchmarkNode, benchmark: Benchmark, config: dict[str, Any], local_timeout: int):
+def create_node_rule(node: BenchmarkNode, benchmark: BenchmarkExecution, config: dict[str, Any], local_timeout: Optional[int]):
     if node.is_initial():
         return _create_initial_node(benchmark, node, config, local_timeout)
     else:
         return _create_intermediate_node(benchmark, node, config, local_timeout)
 
-def _create_initial_node(benchmark: Benchmark, node: BenchmarkNode, config: dict[str, Any], local_timeout: int):
+def _create_initial_node(benchmark: BenchmarkExecution, node: BenchmarkNode, config: dict[str, Any], local_timeout: Optional[int]):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -134,7 +134,7 @@ def _create_initial_node(benchmark: Benchmark, node: BenchmarkNode, config: dict
             script: get_script_path(RUN_MODULE)
 
 
-def _create_intermediate_node(benchmark: Benchmark, node: BenchmarkNode, config: dict[str, Any], local_timeout: int):
+def _create_intermediate_node(benchmark: BenchmarkExecution, node: BenchmarkNode, config: dict[str, Any], local_timeout: Optional[int]):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -260,7 +260,7 @@ def _create_intermediate_node(benchmark: Benchmark, node: BenchmarkNode, config:
             script: get_script_path(RUN_MODULE)
 
 
-def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any]):
+def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], local_timeout: Optional[int]):
     stage_id = node.stage_id
     module_id = node.module_id
     param_id = node.param_id
@@ -287,6 +287,7 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any]):
                 parameters=node.get_parameters(),
                 dataset=dataset,
                 keep_module_logs=keep_module_logs,
+                local_task_timeout=local_timeout
             benchmark:
                 node.get_benchmark_path(config)
             script: get_script_path(RUN_MODULE)
@@ -304,12 +305,13 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any]):
                 parameters=node.get_parameters(),
                 dataset=dataset,
                 keep_module_logs=keep_module_logs,
+                local_task_timeout=local_timeout
             benchmark:
                 node.get_benchmark_path(config)
             script: get_script_path(RUN_MODULE)
 
 
-def _get_environment_path(benchmark: Benchmark, node: BenchmarkNode, software_backend: SoftwareBackendEnum):
+def _get_environment_path(benchmark: BenchmarkExecution, node: BenchmarkNode, software_backend: SoftwareBackendEnum):
     benchmark_dir = benchmark.context.directory
     environment = benchmark.get_benchmark_software_environments()[node.get_software_environment()]
     environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
