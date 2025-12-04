@@ -1,7 +1,8 @@
 from typing import Optional
 
-
+from .cli_setup import OmniCLISetup
 from .fixtures import minio_storage, _minio_container  # noqa: F401
+from .path import get_benchmark_data_path
 
 
 def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
@@ -15,6 +16,99 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
         cwd=cwd,
     )
     assert run1.returncode == 0
+
+
+def test_run_benchmark_with_timeout_none():
+    """Test that --task-timeout=none is accepted and parsed correctly."""
+    path = get_benchmark_data_path()
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(path / "mock_benchmark.yaml"),
+                "--task-timeout",
+                "none",
+                "--dry",
+                "--local-storage",
+            ]
+        )
+        # Should not fail during argument parsing
+        # The command will fail during execution but not due to timeout parsing
+        assert "Invalid timeout value" not in result.stderr
+        assert "Invalid timeout value" not in result.stdout
+
+
+def test_run_benchmark_with_invalid_timeout():
+    """Test that invalid timeout format is rejected."""
+    path = get_benchmark_data_path()
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(path / "mock_benchmark.yaml"),
+                "--task-timeout",
+                "invalid_format",
+                "--dry",
+                "--local-storage",
+            ]
+        )
+
+        assert result.returncode == 1
+        assert (
+            "Invalid timeout value" in result.stderr
+            or "Invalid timeout value" in result.stdout
+        )
+
+
+def test_run_benchmark_out_dir_without_local_storage():
+    """Test that --out-dir fails when used without --local-storage."""
+    path = get_benchmark_data_path()
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(path / "mock_benchmark.yaml"),
+                "--out-dir",
+                "custom_output",
+                "--dry",
+            ]
+        )
+
+        assert result.returncode == 1
+        error_msg = "--out-dir can only be used with --local-storage"
+        assert error_msg in result.stderr or error_msg in result.stdout
+
+
+def test_run_benchmark_with_valid_timeout():
+    """Test that valid human-friendly timeout formats are accepted."""
+    path = get_benchmark_data_path()
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                "benchmark",
+                "--benchmark",
+                str(path / "mock_benchmark.yaml"),
+                "--task-timeout",
+                "5m",
+                "--dry",
+                "--local-storage",
+            ]
+        )
+
+        # Should not fail during timeout parsing
+        assert "Invalid timeout value" not in result.stderr
+        assert "Invalid timeout value" not in result.stdout
 
 
 # def test_default_entry_module():
