@@ -3,7 +3,7 @@
 import click
 
 from omnibenchmark import __version__
-from omnibenchmark.cli.benchmark import info
+from omnibenchmark.cli.benchmark import describe
 from omnibenchmark.cli.io import storage
 from omnibenchmark.cli.create import create
 from omnibenchmark.cli.run import run
@@ -67,7 +67,7 @@ def cli(ctx):
 # Add subcommands to the CLI
 cli.add_command(add_debug_option(storage))
 cli.add_command(add_debug_option(run))
-cli.add_command(add_debug_option(info))
+cli.add_command(add_debug_option(describe))
 cli.add_command(add_debug_option(create))
 cli.add_command(add_debug_option(status))
 
