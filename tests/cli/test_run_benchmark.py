@@ -267,27 +267,6 @@ def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos)
         )
 
 
-def test_run_benchmark_with_timeout_none():
-    """Test that --task-timeout=none is accepted and parsed correctly."""
-    with OmniCLISetup() as omni:
-        result = omni.call(
-            [
-                "run",
-                "benchmark",
-                "--benchmark",
-                str(data / "mock_benchmark.yaml"),
-                "--task-timeout",
-                "none",
-                "--dry",
-                "--local-storage",
-            ]
-        )
-        # Should not fail during argument parsing
-        # The command will fail during execution but not due to timeout parsing
-        assert "Invalid timeout value" not in result.stderr
-        assert "Invalid timeout value" not in result.stdout
-
-
 def test_run_benchmark_with_invalid_timeout():
     """Test that invalid timeout format is rejected."""
     with OmniCLISetup() as omni:

@@ -10,7 +10,6 @@ import click
 import humanfriendly
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
@@ -89,7 +88,7 @@ def run(ctx):
 @click.option(
     "--task-timeout",
     type=str,
-    default=DEFAULT_TIMEOUT_HUMAN,
+    default=None,
     help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
 )
 @click.option(
@@ -123,8 +122,7 @@ def run_benchmark(
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
 
-    # Parse timeout, with special handling for "none"
-    if task_timeout.lower() == "none":
+    if task_timeout is None:
         timeout_s = None
     else:
         try:
@@ -240,7 +238,7 @@ def run_benchmark(
 @click.option(
     "--task-timeout",
     type=str,
-    default=DEFAULT_TIMEOUT_HUMAN,
+    default=None,
     help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
 )
 @click.option(
@@ -268,8 +266,7 @@ def run_module(
     behaviours = {"input": input_dir, "example": None, "all": None}
     extra_args = parse_extra_args(ctx.args)
 
-    # Parse timeout, with special handling for "none"
-    if task_timeout.lower() == "none":
+    if task_timeout is None:
         timeout_s = None
     else:
         try:

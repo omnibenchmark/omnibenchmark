@@ -18,29 +18,6 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
     assert run1.returncode == 0
 
 
-def test_run_benchmark_with_timeout_none():
-    """Test that --task-timeout=none is accepted and parsed correctly."""
-    path = get_benchmark_data_path()
-
-    with OmniCLISetup() as omni:
-        result = omni.call(
-            [
-                "run",
-                "benchmark",
-                "--benchmark",
-                str(path / "mock_benchmark.yaml"),
-                "--task-timeout",
-                "none",
-                "--dry",
-                "--local-storage",
-            ]
-        )
-        # Should not fail during argument parsing
-        # The command will fail during execution but not due to timeout parsing
-        assert "Invalid timeout value" not in result.stderr
-        assert "Invalid timeout value" not in result.stdout
-
-
 def test_run_benchmark_with_invalid_timeout():
     """Test that invalid timeout format is rejected."""
     path = get_benchmark_data_path()
