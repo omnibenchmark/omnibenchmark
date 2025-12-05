@@ -139,12 +139,19 @@ class SymlinkManager:
 
                 # Return symlink path for snakemake usage
                 symlink_full_path = self.base_dir / human_name
-                return {
+                result = {
                     "folder": hash_folder,
                     "params": params,
                     "human": human_name,
                     "symlink_path": symlink_full_path,  # Path to use in snakemake
                 }
+
+            # Clean up lock file after releasing the lock
+            lock_path = Path(self.lock.lock_file)
+            if lock_path.exists():
+                lock_path.unlink()
+
+            return result
 
     def get_params(self, human_name):
         """

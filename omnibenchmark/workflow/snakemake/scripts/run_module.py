@@ -43,9 +43,7 @@ dataset: str = params.get("dataset", getattr(snakemake.wildcards, "dataset", "un
 
 # For now we're handling timeout in seconds.
 # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)
-timeout: int = params.get(
-    constants.LOCAL_TIMEOUT_VAR, constants.DEFAULT_TIMEOUT_SECONDS
-)
+timeout: Optional[int] = params.get(constants.LOCAL_TIMEOUT_VAR, None)
 
 keep_module_logs: bool = params.get("keep_module_logs", False)
 keep_going: bool = snakemake.config.get("keep_going", False)

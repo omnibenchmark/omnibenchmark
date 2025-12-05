@@ -263,3 +263,35 @@ def test_complete_workflow_integration(manager):
     # Verify parameters can be retrieved
     retrieved_params = manager.get_params(info["human"])
     assert retrieved_params == params
+
+
+@pytest.mark.short
+def test_storage_lock_cleanup(manager):
+    """Test that storage.lock file is cleaned up after store() completes."""
+    params = Params({"test": "value"})
+    lock_file = manager.base_dir / "storage.lock"
+
+    # Verify lock file doesn't exist before
+    assert not lock_file.exists()
+
+    # Store parameters
+    manager.store(params)
+
+    # Verify lock file is cleaned up after store completes
+    assert not lock_file.exists()
+
+
+@pytest.mark.short
+def test_storage_lock_cleanup_multiple_stores(manager):
+    """Test that storage.lock is cleaned up even with multiple consecutive stores."""
+    lock_file = manager.base_dir / "storage.lock"
+
+    # Store multiple different parameters
+    for i in range(5):
+        params = Params({"iteration": i})
+        manager.store(params)
+        # Lock should be cleaned up after each store
+        assert not lock_file.exists()
+
+    # Final check - no lock file left behind
+    assert not lock_file.exists()

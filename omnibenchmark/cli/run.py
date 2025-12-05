@@ -122,11 +122,16 @@ def run_benchmark(
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
-    try:
-        timeout_s = int(humanfriendly.parse_timespan(task_timeout))
-    except humanfriendly.InvalidTimespan:
-        logger.error(f"Invalid timeout value: {task_timeout}")
-        sys.exit(1)
+
+    # Parse timeout, with special handling for "none"
+    if task_timeout.lower() == "none":
+        timeout_s = None
+    else:
+        try:
+            timeout_s = int(humanfriendly.parse_timespan(task_timeout))
+        except humanfriendly.InvalidTimespan:
+            logger.error(f"Invalid timeout value: {task_timeout}")
+            sys.exit(1)
 
     # Validate out_dir usage
     if not local_storage and out_dir != "out":
@@ -233,6 +238,12 @@ def run_benchmark(
     help="Keep module-specific log files after execution.",
 )
 @click.option(
+    "--task-timeout",
+    type=str,
+    default=DEFAULT_TIMEOUT_HUMAN,
+    help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
+)
+@click.option(
     "--executor",
     help="Specify a custom executor to use for workflow execution. Example: slurm",
     type=str,
@@ -248,6 +259,7 @@ def run_module(
     update,
     keep_module_logs,
     continue_on_error,
+    task_timeout,
     executor,
 ):
     """
@@ -255,6 +267,16 @@ def run_module(
     """
     behaviours = {"input": input_dir, "example": None, "all": None}
     extra_args = parse_extra_args(ctx.args)
+
+    # Parse timeout, with special handling for "none"
+    if task_timeout.lower() == "none":
+        timeout_s = None
+    else:
+        try:
+            timeout_s = int(humanfriendly.parse_timespan(task_timeout))
+        except humanfriendly.InvalidTimespan:
+            logger.error(f"Invalid timeout value: {task_timeout}")
+            sys.exit(1)
 
     non_none_behaviours = {
         key: value for key, value in behaviours.items() if value is not None
@@ -385,6 +407,7 @@ def run_module(
             keep_module_logs=keep_module_logs,
             backend=b.get_benchmark_software_backend(),
             executor=executor,
+            local_timeout=timeout_s,
             benchmark_file_path=b.get_definition_file(),
             **extra_args,
         )
