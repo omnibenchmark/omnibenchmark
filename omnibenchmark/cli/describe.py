@@ -19,7 +19,6 @@ from .debug import add_debug_option
 
 @click.group(name="describe")
 @click.pass_context
-# @debug_option
 def describe(ctx):
     """Describe benchmarks and/or information about them."""
     ctx.ensure_object(dict)
