@@ -156,7 +156,7 @@ def convert_to_bettr_format(
 
         # Create unique identifier for this collapsed row
         unique_module_name = f"{module_name}_{measurement_num}"
-        record = {id_col: unique_module_name}
+        record: Dict[str, Any] = {id_col: unique_module_name}
 
         # Collect datasets for this collapsed row
         datasets_in_row = set()
