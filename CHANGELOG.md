@@ -16,6 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - bug: do not fail if numeric values given in commit, params or version (#187)
 - bug: Use -- separator for passing delimiting extra arguments passing to snakemake
 - bug: do not hardcode /tmp in run_module (#173)
+- bug: timeout should indicate SIGKILL to child process (Closes #222)
 - tests: use pixi on the CI
 
 ## 0.3.2 (Nov 13th 2025)

@@ -12,7 +12,7 @@ timeout_benchmark = "timeout_benchmark.yaml"
 
 
 def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
-    """Test that benchmark run with no timeout does not fail"""
+    """Test that benchmark run with no timeout (default None) does not fail"""
 
     shutil.copy(data / timeout_benchmark, tmp_path / timeout_benchmark)
     shutil.copytree(envs, tmp_path / "envs")
@@ -28,7 +28,7 @@ def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
             ],
             cwd=tmp_path,
         )
-    # should not fail, just wait for completion
+    # should not fail, just wait for completion (uses default timeout of None)
     assert result.returncode == 0
 
 
