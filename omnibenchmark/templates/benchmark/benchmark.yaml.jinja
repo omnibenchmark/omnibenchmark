@@ -1,7 +1,7 @@
 name: {{ benchmark_name }}
 id: {{ benchmark_name | lower | replace(' ', '_') | replace('-', '_') }}
 description: {{ description }}
-benchmarker: {{ author_name }} <{{ author_email }}>
+benchmarker: "{{ author_name }} <{{ author_email }}>"
 
 # Benchmark configuration
 version: "0.1.0"
@@ -32,34 +32,38 @@ stages:
         name: "loads the benchmark datasets"
         software_environment: "{{ software_backend }}_env"
         repository:
-          url: https://github.com/example/data_loader
+          url: https://github.com/CHANGEME/data_loader
           commit: 366c5a2
         parameters:
-            - values: ["--foo", "bar"]
+            # A single parameter dict
+            - param1: "value"
+              param2: "other_value"
+
+            # A combinatorial grid expansion
+            - param1: "value"
+              param2: ["1", "2", "3"]
 
   - id: methods
     inputs:
-      - entries:
-          - data.matrix
-          - data.true_labels
+        - data.matrix
+        - data.true_labels
     outputs:
       - id: clustering.predicted
-        path: "{dataset}_prediceted.labels.gz"
+        path: "{dataset}_predicted.labels.gz"
     modules:
       - id: cool_method_1
         name: "the only method you will ever need"
         software_environment: "{{ software_backend }}_env"
         repository:
-          url: https://github.com/example/my_method
+          url: https://github.com/CHANGEME/my_method
           commit: deadbeef
         parameters:
-          - values: ["--foo", "bar"]
+          - param1: "value"
 
   - id: metrics
     inputs:
-      - entries:
-          - clustering.predicted
-          - data.true_labels
+        - clustering.predicted
+        - data.true_labels
     outputs:
       - id: metrics.scores
         path: "{dataset}.scores.gz"
@@ -68,7 +72,7 @@ stages:
         name: "a very well defined metric"
         software_environment: "{{ software_backend }}_env"
         repository:
-          url: https://github.com/example/the_right_metric
+          url: https://github.com/CHANGEME/the_right_metric
           commit: c0ffee
         parameters:
-          - values: ["--foo", "bar"]
+          - foo: "bar"

@@ -31,8 +31,8 @@ def test_inputs_map_single_input():
     # Mock the config file reading and execution
     with (
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution._read_config"
-        ) as mock_read_config,
+            "omnibenchmark.workflow.snakemake.scripts.execution._read_entrypoint"
+        ) as mock_read_entrypoint,
         patch(
             "omnibenchmark.workflow.snakemake.scripts.execution.os.path.exists",
             return_value=True,
@@ -42,10 +42,8 @@ def test_inputs_map_single_input():
         ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
-        # Setup mock config
-        mock_config = MagicMock()
-        mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
-        mock_read_config.return_value = mock_config
+        # Setup mock entrypoint
+        mock_read_entrypoint.return_value = "run_module.py"
 
         # Setup successful subprocess Popen
         mock_process = MagicMock()
@@ -98,8 +96,8 @@ def test_inputs_map_multiple_inputs():
 
     with (
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution._read_config"
-        ) as mock_read_config,
+            "omnibenchmark.workflow.snakemake.scripts.execution._read_entrypoint"
+        ) as mock_read_entrypoint,
         patch(
             "omnibenchmark.workflow.snakemake.scripts.execution.os.path.exists",
             return_value=True,
@@ -109,9 +107,8 @@ def test_inputs_map_multiple_inputs():
         ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
-        mock_config = MagicMock()
-        mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
-        mock_read_config.return_value = mock_config
+        # Setup mock entrypoint
+        mock_read_entrypoint.return_value = "run_module.py"
 
         mock_process = MagicMock()
         mock_process.wait.return_value = 0
@@ -169,8 +166,8 @@ def test_inputs_map_list_of_inputs():
 
     with (
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution._read_config"
-        ) as mock_read_config,
+            "omnibenchmark.workflow.snakemake.scripts.execution._read_entrypoint"
+        ) as mock_read_entrypoint,
         patch(
             "omnibenchmark.workflow.snakemake.scripts.execution.os.path.exists",
             return_value=True,
@@ -180,9 +177,8 @@ def test_inputs_map_list_of_inputs():
         ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
-        mock_config = MagicMock()
-        mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
-        mock_read_config.return_value = mock_config
+        # Setup mock entrypoint
+        mock_read_entrypoint.return_value = "run_module.py"
 
         mock_process = MagicMock()
         mock_process.wait.return_value = 0
@@ -233,8 +229,8 @@ def test_inputs_map_empty_dict():
 
     with (
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution._read_config"
-        ) as mock_read_config,
+            "omnibenchmark.workflow.snakemake.scripts.execution._read_entrypoint"
+        ) as mock_read_entrypoint,
         patch(
             "omnibenchmark.workflow.snakemake.scripts.execution.os.path.exists",
             return_value=True,
@@ -244,9 +240,8 @@ def test_inputs_map_empty_dict():
         ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
-        mock_config = MagicMock()
-        mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
-        mock_read_config.return_value = mock_config
+        # Setup mock entrypoint
+        mock_read_entrypoint.return_value = "run_module.py"
 
         mock_process = MagicMock()
         mock_process.wait.return_value = 0
