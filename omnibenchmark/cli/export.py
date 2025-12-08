@@ -108,10 +108,8 @@ def export_dashboard(ctx, benchmark, dashboard_format, out_dir):
         with open(output, "w") as f:
             json.dump(dashboard_data, f, indent=2)
 
-        logger.info(
-            f"Successfully generated {dashboard_format} dashboard.",
-            f"Dashboard saved to: {output}",
-        )
+        logger.info(f"Successfully generated {dashboard_format} dashboard.")
+        logger.info(f"Dashboard saved to: {output}")
         sys.exit(0)
 
     except Exception as e:
