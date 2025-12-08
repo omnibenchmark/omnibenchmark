@@ -1,5 +1,6 @@
 import logging
 import os
+import signal
 import subprocess
 from pathlib import Path
 from typing import List, Optional
@@ -69,34 +70,72 @@ def execution(
     if timeout is not None:
         logging.info(f"Setting timeout to {timeout} seconds")
 
+    exit_code = None
+    process = None
     try:
         with open(stdout_file, "w") as stdout_f, open(stderr_file, "w") as stderr_f:
-            result = subprocess.run(
+            # Start process with new process group to enable killing entire process tree
+            process = subprocess.Popen(
                 command,
-                check=True,
                 stdout=stdout_f,
                 stderr=stderr_f,
                 text=True,
-                timeout=timeout,
+                start_new_session=True,  # Creates new process group on POSIX
             )
-            exit_code = result.returncode
-            logging.info(f"{executable} ran successfully with return code {exit_code}.")
 
-    except subprocess.CalledProcessError as e:
-        exit_code = e.returncode
-        logging.error(
-            f"ERROR: Executing {executable} failed with exit code {e.returncode}. See {stderr_file} for details."
-        )
+            try:
+                exit_code = process.wait(timeout=timeout)
+                if exit_code == 0:
+                    logging.info(
+                        f"{executable} ran successfully with return code {exit_code}."
+                    )
+                else:
+                    logging.error(
+                        f"ERROR: Executing {executable} failed with exit code {exit_code}. "
+                        f"See {stderr_file} for details."
+                    )
 
-    except subprocess.TimeoutExpired as e:
-        timeout_msg = f"{timeout}s" if timeout is not None else "unknown timeout"
-        logging.error(
-            f"ERROR: Executing {executable} failed after timing out in {timeout_msg}. "
-            f"See {stderr_file} for details."
-        )
-        raise e
+            except subprocess.TimeoutExpired:
+                timeout_msg = (
+                    f"{timeout}s" if timeout is not None else "unknown timeout"
+                )
+                logging.error(
+                    f"ERROR: Executing {executable} timed out after {timeout_msg}. "
+                    f"Terminating process and all children..."
+                )
+
+                # Try graceful termination first (SIGTERM to entire process group)
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
+                    # Wait for graceful shutdown (5 seconds)
+                    try:
+                        process.wait(timeout=5)
+                        logging.info("Process terminated gracefully.")
+                    except subprocess.TimeoutExpired:
+                        # Force kill if graceful termination failed
+                        logging.warning(
+                            "Process did not terminate gracefully, forcing kill..."
+                        )
+                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                        process.wait()
+
+                except ProcessLookupError:
+                    # Process already died
+                    pass
+
+                # Re-raise to propagate the timeout error
+                raise
 
     finally:
+        # Ensure process and all children are cleaned up
+        if process is not None and process.poll() is None:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                process.wait()
+            except (ProcessLookupError, OSError):
+                pass
+
         # Cleanup empty log files / always cleanup stdout_file if keep_module_logs is False
         if stdout_file.exists() and (
             os.path.getsize(stdout_file) == 0 or not keep_module_logs

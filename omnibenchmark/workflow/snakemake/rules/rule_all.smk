@@ -64,7 +64,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
     # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
     # TODO Factor out the conditional rule generation when working on the above issue
     if software_backend == SoftwareBackendEnum.conda:
-        conda_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.conda)
+        conda_env = benchmark.get_environment_path(collector.software_environment, SoftwareBackendEnum.conda)
         rule:
             name: f"metric_collector_{{name}}".format(name=collector.id)
             input:
@@ -81,7 +81,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.envmodules:
-        envmodules_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.envmodules)
+        envmodules_env = benchmark.get_environment_path(collector.software_environment, SoftwareBackendEnum.envmodules)
         rule:
             name: f"metric_collector_{{name}}".format(name=collector.id)
             input:
@@ -98,7 +98,7 @@ def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollecto
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
-        container_env = _get_environment_paths(benchmark, collector, SoftwareBackendEnum.apptainer)
+        container_env = benchmark.get_environment_path(collector.software_environment, SoftwareBackendEnum.apptainer)
         rule:
             name: f"metric_collector_{{name}}".format(name=collector.id)
             input:
@@ -142,11 +142,3 @@ def _compile_regex_pattern_for_collectors_input(pattern: str) -> re.Pattern[str]
 
     pattern_regex = re.compile(r'^' + pattern_regex + r'$')
     return pattern_regex
-
-
-def _get_environment_paths(benchmark: Benchmark, collector: MetricCollector, software_backend: SoftwareBackendEnum) -> str:
-    benchmark_dir = benchmark.context.directory
-    environment = benchmark.get_benchmark_software_environments()[collector.software_environment]
-    environment_path = Validator.get_environment_path(software_backend, environment, benchmark_dir)
-
-    return environment_path

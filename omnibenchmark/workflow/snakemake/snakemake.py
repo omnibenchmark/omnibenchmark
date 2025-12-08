@@ -11,7 +11,7 @@ from typing import TextIO, List, Optional
 
 from omnibenchmark.model import SoftwareBackendEnum
 
-from omnibenchmark.benchmark import Benchmark, BenchmarkNode
+from omnibenchmark.benchmark import BenchmarkNode, BenchmarkExecution
 from omnibenchmark.workflow.workflow import WorkflowEngine
 from omnibenchmark.workflow.snakemake import rules
 
@@ -41,7 +41,7 @@ class SnakemakeEngine(WorkflowEngine):
 
     def run_workflow(
         self,
-        benchmark: Benchmark,
+        benchmark: BenchmarkExecution,
         cores: int = 1,
         update: bool = True,
         dryrun: bool = False,
@@ -58,7 +58,7 @@ class SnakemakeEngine(WorkflowEngine):
         Serializes & runs benchmark workflow using snakemake.
 
         Args:
-            benchmark (Benchmark): benchmark to run
+            benchmark (BenchmarkExecution): benchmark to run
             cores (int): number of cores to run. Defaults to 1 core.
             update (bool): run workflow for non-existing outputs / changed nodes only. False means force running workflow from scratch. Default: True
             dryrun (bool): validate the workflow with the benchmark without actual execution. Default: False
@@ -114,7 +114,7 @@ class SnakemakeEngine(WorkflowEngine):
 
     def serialize_workflow(
         self,
-        benchmark: Benchmark,
+        benchmark: BenchmarkExecution,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk=True,
         local_timeout: Optional[int] = None,
@@ -123,7 +123,7 @@ class SnakemakeEngine(WorkflowEngine):
         Serializes a Snakefile for the benchmark.
 
         Args:
-            benchmark (Benchmark): benchmark to serialize
+            benchmark (BenchmarkExecution): benchmark to serialize
             output_dir (str): output directory for the Snakefile
             write_to_disk (bool): if write_to_disk is True, create Snakefile on disk, else create an in-memory temp file
             local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
@@ -222,13 +222,23 @@ class SnakemakeEngine(WorkflowEngine):
 
         os.makedirs(work_dir, exist_ok=True)
 
+        if benchmark_file_path is None:
+            raise ValueError(
+                "benchmark_file_path must be provided when node.get_definition_file() returns None"
+            )
+
         # Serialize Snakefile for node workflow
         snakefile = self.serialize_node_workflow(
             node,
-            work_dir,
+            benchmark_file_path=benchmark_file_path,
+            output_dir=work_dir,
             write_to_disk=True,
             local_timeout=local_timeout,
-            benchmark_file_path=benchmark_file_path,
+        )
+
+        backend_dir = benchmark_file_path.parent.absolute()
+        backend_env = node.get_environment_path(
+            node.get_software_environment(), backend, backend_dir
         )
 
         # Prepare the argv list
@@ -244,6 +254,7 @@ class SnakemakeEngine(WorkflowEngine):
             out_dir=work_dir,
             input_dir=input_dir,
             dataset=dataset,
+            backend_env=backend_env,
             **snakemake_kwargs,
         )
 
@@ -263,10 +274,10 @@ class SnakemakeEngine(WorkflowEngine):
     def serialize_node_workflow(
         self,
         node: BenchmarkNode,
+        benchmark_file_path: Optional[Path] = None,
         output_dir: Path = Path(os.getcwd()),
         write_to_disk: bool = True,
         local_timeout: Optional[int] = None,
-        benchmark_file_path: Optional[Path] = None,
     ) -> Path:
         """
         Serializes a Snakefile for a benchmark node.
@@ -281,13 +292,11 @@ class SnakemakeEngine(WorkflowEngine):
         Returns:
         - Snakefile path.
         """
+        if benchmark_file_path is None:
+            raise ValueError("benchmark_file_path must be provided")
+
         os.makedirs(output_dir, exist_ok=True)
 
-        benchmark_file = benchmark_file_path or node.get_definition_file()
-        if benchmark_file is None:
-            raise ValueError(
-                "benchmark_file_path must be provided when node.get_definition_file() returns None"
-            )
         name = node.get_benchmark_name()
         version = node.get_benchmark_version()
         author = node.get_benchmark_author()
@@ -307,7 +316,7 @@ class SnakemakeEngine(WorkflowEngine):
 
             # Load benchmark from yaml file
             f.write(
-                f'node = load_node("{benchmark_file.as_posix()}", "{node.get_id()}")\n\n'
+                f'node = load_node("{benchmark_file_path.as_posix()}", "{node.get_id()}")\n\n'
             )
 
             # Create capture all rule
@@ -371,6 +380,7 @@ class SnakemakeEngine(WorkflowEngine):
         input_dir: Optional[Path] = None,
         dataset: Optional[str] = None,
         debug: bool = False,
+        backend_env: Optional[str] = None,
         **snakemake_kwargs,
     ):
         """Prepare arguments to input to the snakemake cli"""
@@ -386,6 +396,7 @@ class SnakemakeEngine(WorkflowEngine):
             f"keep_module_logs={keep_module_logs}",
             f"keep_going={continue_on_error}",
             f"backend={backend.value}",
+            f"backend_env={backend_env}",
             f"out_dir={out_dir.as_posix()}",
         ]
 

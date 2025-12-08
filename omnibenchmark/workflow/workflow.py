@@ -128,6 +128,7 @@ class WorkflowEngine(metaclass=ABCMeta):
 
         Args:
             node (BenchmarkNode): benchmark node to serialize
+            benchmark_file_path (Path): path to benchmark file
             output_dir (str): output directory for the workflow file
             write_to_disk (bool): whether to write to disk or create temp file
             local_timeout (int, optional): timeout, in seconds, when executing locally. It will be passed to the subprocess invocation.
