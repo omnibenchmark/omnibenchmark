@@ -13,6 +13,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor!: remove dependency on omni-schema and networkx
 - refactor: cleanup internal module dependencies, using a central benchmark model
 - refactor: use strict type checking (#70)
+- refactor!: rename `info` cli group to `describe`
+- refactor!: change suborganization of `storage` and introduce `storage files`, `storage version` and `storage policy`
 - bug: do not fail if numeric values given in commit, params or version (#187)
 - bug: Use -- separator for passing delimiting extra arguments passing to snakemake
 - bug: do not hardcode /tmp in run_module (#173)
