@@ -23,6 +23,14 @@ def create_node_rule(node: BenchmarkNode, benchmark: BenchmarkExecution, config:
     else:
         return _create_intermediate_node(benchmark, node, config, local_timeout)
 
+
+def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any]):
+    if node.is_initial():
+        return _create_initial_standalone_node(node, config)
+    else:
+        return _create_intermediate_standalone_node(node, config)
+
+
 def _create_initial_node(benchmark: BenchmarkExecution, node: BenchmarkNode, config: dict[str, Any], local_timeout: Optional[int]):
     stage_id = node.stage_id
     module_id = node.module_id
@@ -40,7 +48,7 @@ def _create_initial_node(benchmark: BenchmarkExecution, node: BenchmarkNode, con
     # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
     # TODO Factor out the conditional rule generation when working on the above issue
     if software_backend == SoftwareBackendEnum.conda:
-        conda_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+        conda_env = benchmark.get_environment_path(node.get_software_environment(), SoftwareBackendEnum.conda)
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -64,7 +72,7 @@ def _create_initial_node(benchmark: BenchmarkExecution, node: BenchmarkNode, con
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.envmodules:
-        envmodules_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+        envmodules_env = benchmark.get_environment_path(node.get_software_environment(), SoftwareBackendEnum.envmodules)
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -88,7 +96,7 @@ def _create_initial_node(benchmark: BenchmarkExecution, node: BenchmarkNode, con
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
-        container_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+        container_env = benchmark.get_environment_path(node.get_software_environment(), SoftwareBackendEnum.apptainer)
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -166,7 +174,7 @@ def _create_intermediate_node(benchmark: BenchmarkExecution, node: BenchmarkNode
     # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
     # TODO Factor out the conditional rule generation when working on the above issue
     if software_backend == SoftwareBackendEnum.conda:
-        conda_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.conda)
+        conda_env = benchmark.get_environment_path(node.get_software_environment(), SoftwareBackendEnum.conda)
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -190,7 +198,7 @@ def _create_intermediate_node(benchmark: BenchmarkExecution, node: BenchmarkNode
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.envmodules:
-        envmodules_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.envmodules)
+        envmodules_env = benchmark.get_environment_path(node.get_software_environment(), SoftwareBackendEnum.envmodules)
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -214,7 +222,7 @@ def _create_intermediate_node(benchmark: BenchmarkExecution, node: BenchmarkNode
             script: get_script_path(RUN_MODULE)
 
     elif software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker:
-        container_env = _get_environment_path(benchmark, node, SoftwareBackendEnum.apptainer)
+        container_env = benchmark.get_environment_path(node.get_software_environment(), SoftwareBackendEnum.apptainer)
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -270,11 +278,72 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
     commit_hash = repository.commit if repository else None
 
     dataset = config['dataset']
-    keep_module_logs = config.get('keep_module_logs', False)
+    software_backend = config['backend']
+    software_env_path = config.get('backend_env',None)
+    keep_module_logs = config.get('keep_module_logs',False)
 
-    # TODO(ben): can factor out common parts?
+    # Only set environment directive for the backend that's actually being used
+    # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
+    # TODO Factor out the conditional rule generation when working on the above issue
+    if software_backend == SoftwareBackendEnum.conda:
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                dataset=dataset
+            output:
+                node.get_output_paths(config)
+            conda:
+                software_env_path
+            params:
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                parameters=node.get_parameters(),
+                dataset=dataset,
+                keep_module_logs=keep_module_logs,
+            benchmark:
+                node.get_benchmark_path(config)
+            script: get_script_path(RUN_MODULE)
 
-    if node.is_initial():
+    elif software_backend == SoftwareBackendEnum.envmodules:
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                dataset=dataset
+            output:
+                node.get_output_paths(config)
+            envmodules:
+                software_env_path
+            params:
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                parameters=node.get_parameters(),
+                dataset=dataset,
+                keep_module_logs=keep_module_logs,
+            benchmark:
+                node.get_benchmark_path(config)
+            script: get_script_path(RUN_MODULE)
+
+    elif (software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker):
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            wildcard_constraints:
+                dataset=dataset
+            output:
+                node.get_output_paths(config)
+            container:
+                software_env_path
+            params:
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                parameters=node.get_parameters(),
+                dataset=dataset,
+                keep_module_logs=keep_module_logs,
+            benchmark:
+                node.get_benchmark_path(config)
+            script: get_script_path(RUN_MODULE)
+
+    else:
+        # host or other backend - no environment directive needed
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
@@ -282,8 +351,8 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             output:
                 node.get_output_paths(config)
             params:
-                repository_url = repository_url,
-                commit_hash = commit_hash,
+                repository_url=repository_url,
+                commit_hash=commit_hash,
                 parameters=node.get_parameters(),
                 dataset=dataset,
                 keep_module_logs=keep_module_logs,
@@ -291,7 +360,87 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             benchmark:
                 node.get_benchmark_path(config)
             script: get_script_path(RUN_MODULE)
+
+
+def _create_intermediate_standalone_node(node: BenchmarkNode, config: dict[str, Any]):
+    stage_id = node.stage_id
+    module_id = node.module_id
+    param_id = node.param_id
+
+    repository = node.get_repository()
+    repository_url = repository.url if repository else None
+    commit_hash = repository.commit if repository else None
+
+    dataset = config['dataset']
+    software_backend = config['backend']
+    software_env_path = config.get('backend_env',None)
+    keep_module_logs = config.get('keep_module_logs',False)
+
+    # Only set environment directive for the backend that's actually being used
+    # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
+    # TODO Factor out the conditional rule generation when working on the above issue
+    if software_backend == SoftwareBackendEnum.conda:
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            input:
+                node.get_input_paths(config)
+            output:
+                node.get_output_paths(config)
+            conda:
+                software_env_path
+            params:
+                inputs_map=node.get_input_paths(config,return_as_dict=True),
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                parameters=node.get_parameters(),
+                dataset=dataset,
+                keep_module_logs=keep_module_logs
+            benchmark:
+                node.get_benchmark_path(config)
+            script: get_script_path(RUN_MODULE)
+
+    elif software_backend == SoftwareBackendEnum.envmodules:
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            input:
+                node.get_input_paths(config)
+            output:
+                node.get_output_paths(config)
+            envmodules:
+                software_env_path
+            params:
+                inputs_map=node.get_input_paths(config,return_as_dict=True),
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                parameters=node.get_parameters(),
+                dataset=dataset,
+                keep_module_logs=keep_module_logs
+            benchmark:
+                node.get_benchmark_path(config)
+            script: get_script_path(RUN_MODULE)
+
+    elif (software_backend == SoftwareBackendEnum.apptainer or software_backend == SoftwareBackendEnum.docker):
+        rule:
+            name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
+            input:
+                node.get_input_paths(config)
+            output:
+                node.get_output_paths(config)
+            container:
+                software_env_path
+            params:
+                inputs_map=node.get_input_paths(config,return_as_dict=True),
+                repository_url=repository_url,
+                commit_hash=commit_hash,
+                parameters=node.get_parameters(),
+                dataset=dataset,
+                keep_module_logs=keep_module_logs
+            benchmark:
+                node.get_benchmark_path(config)
+            script: get_script_path(RUN_MODULE)
+
     else:
+        # host or other backend - no environment directive needed
         rule:
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             input:
@@ -299,9 +448,9 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             output:
                 node.get_output_paths(config)
             params:
-                inputs_map = node.get_input_paths(config, return_as_dict=True),
-                repository_url = repository_url,
-                commit_hash = commit_hash,
+                inputs_map=node.get_input_paths(config,return_as_dict=True),
+                repository_url=repository_url,
+                commit_hash=commit_hash,
                 parameters=node.get_parameters(),
                 dataset=dataset,
                 keep_module_logs=keep_module_logs,

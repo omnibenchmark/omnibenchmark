@@ -10,7 +10,6 @@ import click
 import humanfriendly
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
 from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
@@ -40,6 +39,7 @@ def run(ctx):
 @click.option(
     "-b",
     "--benchmark",
+    "benchmark_path",
     help="Path to benchmark yaml file or benchmark id.",
     required=True,
     envvar="OB_BENCHMARK",
@@ -89,7 +89,7 @@ def run(ctx):
 @click.option(
     "--task-timeout",
     type=str,
-    default=DEFAULT_TIMEOUT_HUMAN,
+    default=None,
     help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
 )
 @click.option(
@@ -104,7 +104,7 @@ def run(ctx):
 @click.pass_context
 def run_benchmark(
     ctx,
-    benchmark,
+    benchmark_path,
     cores,
     update,
     dry,
@@ -123,8 +123,7 @@ def run_benchmark(
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
 
-    # Parse timeout, with special handling for "none"
-    if task_timeout.lower() == "none":
+    if task_timeout is None:
         timeout_s = None
     else:
         try:
@@ -141,7 +140,7 @@ def run_benchmark(
         sys.exit(1)
 
     try:
-        b = BenchmarkExecution(Path(benchmark), Path(out_dir))
+        b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
     except BenchmarkParseError as e:
         # Format parse errors with file location and context
@@ -204,6 +203,7 @@ def run_benchmark(
 @click.option(
     "-b",
     "--benchmark",
+    "benchmark_path",
     help="Path to benchmark yaml file or benchmark id.",
     required=True,
     envvar="OB_BENCHMARK",
@@ -240,7 +240,7 @@ def run_benchmark(
 @click.option(
     "--task-timeout",
     type=str,
-    default=DEFAULT_TIMEOUT_HUMAN,
+    default=None,
     help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
 )
 @click.option(
@@ -252,7 +252,7 @@ def run_benchmark(
 @click.pass_context
 def run_module(
     ctx,
-    benchmark,
+    benchmark_path,
     module,
     input_dir,
     dry,
@@ -268,8 +268,7 @@ def run_module(
     behaviours = {"input": input_dir, "example": None, "all": None}
     extra_args = parse_extra_args(ctx.args)
 
-    # Parse timeout, with special handling for "none"
-    if task_timeout.lower() == "none":
+    if task_timeout is None:
         timeout_s = None
     else:
         try:
@@ -306,7 +305,7 @@ def run_module(
     logger.info("Running module on a local dataset.")
 
     try:
-        b = BenchmarkExecution(Path(benchmark), Path(tempfile.mkdtemp()))
+        b = BenchmarkExecution(Path(benchmark_path), Path(tempfile.mkdtemp()))
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)
         log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")

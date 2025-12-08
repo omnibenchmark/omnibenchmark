@@ -5,6 +5,7 @@ import sys
 import zipfile
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
@@ -14,13 +15,13 @@ from omnibenchmark.io.archive import archive_version
 from omnibenchmark.io.files import checksum_files
 from omnibenchmark.io.files import list_files
 from omnibenchmark.io.files import download_files
-from omnibenchmark.io.S3config import benchmarker_access_token_policy
 from omnibenchmark.io.tree import tree_string_from_list
-from omnibenchmark.io.storage import get_storage, remote_storage_args
-from omnibenchmark.io.MinIOStorage import MinIOStorage
 from packaging.version import Version
 from datetime import datetime
 from difflib import unified_diff
+
+if TYPE_CHECKING:
+    from omnibenchmark.io.MinIOStorage import MinIOStorage
 
 from .debug import add_debug_option
 
@@ -29,6 +30,8 @@ class StorageAuth:
     """Convenience class for handling storage authentication and validation."""
 
     def __init__(self, benchmark_path: str):
+        from omnibenchmark.io.storage import remote_storage_args
+
         self.benchmark_path = benchmark_path
         self.benchmark = BenchmarkExecution(Path(benchmark_path))
         self.auth_options = remote_storage_args(self.benchmark)
@@ -48,8 +51,10 @@ class StorageAuth:
         self.api: str = api
         self.bucket: str = bucket
 
-    def get_storage_instance(self) -> MinIOStorage:
+    def get_storage_instance(self) -> "MinIOStorage":
         """Get validated storage instance."""
+        from omnibenchmark.io.storage import get_storage
+
         ss = get_storage(self.api, self.auth_options, self.bucket)
         if ss is None:
             logger.error("Error: No storage found.")
@@ -274,6 +279,7 @@ def checksum_all_files(benchmark: str):
 )
 def create_policy(benchmark_path: str):
     """Create a new policy for a benchmark."""
+    from omnibenchmark.io.S3config import benchmarker_access_token_policy
 
     assert benchmark_path is not None
 
@@ -440,6 +446,8 @@ def archive_benchmark(
 @click.pass_context
 def diff_benchmark(ctx, benchmark_path: str, version1, version2):
     """Show differences between 2 benchmark versions."""
+    from omnibenchmark.io.storage import get_storage, remote_storage_args
+
     logger.info(
         f"Found the following differences in {benchmark_path} for {version1} and {version2}."
     )
@@ -514,6 +522,8 @@ def diff_benchmark(ctx, benchmark_path: str, version1, version2):
 @click.pass_context
 def list_versions(ctx, benchmark_path: str):
     """List all available benchmark versions."""
+    from omnibenchmark.io.storage import get_storage, remote_storage_args
+
     logger.info(f"Available versions of {benchmark_path}:")
 
     b = BenchmarkExecution(Path(benchmark_path))

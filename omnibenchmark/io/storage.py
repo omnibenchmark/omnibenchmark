@@ -13,7 +13,7 @@ try:
 except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning(
-        "S3 storage not available. You might want to install the 'minio' and 'boto3' packages."
+        "S3 storage not available. Install with: pip install omnibenchmark[s3]"
     )
     S3_AVAILABLE = False
 

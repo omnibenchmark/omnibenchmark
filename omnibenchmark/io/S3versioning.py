@@ -1,16 +1,18 @@
 # pyright: reportCallIssue=false
 # TODO: Fix boto3/minio API call type errors
+from __future__ import annotations
 from itertools import groupby
-from typing import Dict
+from typing import Dict, TYPE_CHECKING, Any
 
-import minio
+if TYPE_CHECKING:
+    pass
 
 from omnibenchmark.io.exception import MinIOStorageBucketManipulationException
 from omnibenchmark.io.RemoteStorage import is_valid_version
 
 
 def get_s3_object_versions_and_tags(
-    client: minio.Minio, benchmark: str, readonly: bool = False
+    client: Any, benchmark: str, readonly: bool = False
 ) -> Dict:
     """
     Retrieve the metadata of all objects in a S3 Bucket.

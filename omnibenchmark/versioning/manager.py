@@ -194,7 +194,7 @@ class BenchmarkVersionManager:
             # Auto-increment from known versions
             if self._known_versions:
                 # Sort versions to get the latest
-                sorted_versions = sorted(self._known_versions, key=lambda v: Version(v))
+                sorted_versions = sorted(self._known_versions, key=Version)
                 last_version = sorted_versions[-1]
                 version = increment_version(last_version, "minor")
             else:
@@ -265,9 +265,7 @@ class BenchmarkVersionManager:
             # Determine version
             if version is None:
                 if self._known_versions:
-                    sorted_versions = sorted(
-                        self._known_versions, key=lambda v: Version(v)
-                    )
+                    sorted_versions = sorted(self._known_versions, key=Version)
                     last_version = sorted_versions[-1]
                     version = increment_version(last_version, "minor")
                 else:
@@ -355,7 +353,7 @@ class BenchmarkVersionManager:
         if not self._known_versions:
             return None
 
-        sorted_versions = sorted(self._known_versions, key=lambda v: Version(v))
+        sorted_versions = sorted(self._known_versions, key=Version)
         return sorted_versions[-1]
 
     def suggest_next_version(self, component: str = "minor") -> str:

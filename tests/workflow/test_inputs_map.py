@@ -38,8 +38,8 @@ def test_inputs_map_single_input():
             return_value=True,
         ),
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.run"
-        ) as mock_run,
+            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.Popen"
+        ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
         # Setup mock config
@@ -47,10 +47,11 @@ def test_inputs_map_single_input():
         mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
         mock_read_config.return_value = mock_config
 
-        # Setup successful subprocess run
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
+        # Setup successful subprocess Popen
+        mock_process = MagicMock()
+        mock_process.wait.return_value = 0
+        mock_process.poll.return_value = 0
+        mock_popen.return_value = mock_process
 
         # Execute
         exit_code = execution(
@@ -65,8 +66,8 @@ def test_inputs_map_single_input():
         )
 
         # Verify the command was called correctly
-        assert mock_run.called
-        called_command = mock_run.call_args[0][0]
+        assert mock_popen.called
+        called_command = mock_popen.call_args[0][0]
 
         # Should contain: --data.matrix /path/to/matrix.gz
         assert "--data.matrix" in called_command
@@ -104,17 +105,18 @@ def test_inputs_map_multiple_inputs():
             return_value=True,
         ),
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.run"
-        ) as mock_run,
+            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.Popen"
+        ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
         mock_config = MagicMock()
         mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
         mock_read_config.return_value = mock_config
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
+        mock_process = MagicMock()
+        mock_process.wait.return_value = 0
+        mock_process.poll.return_value = 0
+        mock_popen.return_value = mock_process
 
         exit_code = execution(
             module_dir=module_dir,
@@ -127,8 +129,8 @@ def test_inputs_map_multiple_inputs():
             timeout=100,
         )
 
-        assert mock_run.called
-        called_command = mock_run.call_args[0][0]
+        assert mock_popen.called
+        called_command = mock_popen.call_args[0][0]
 
         # Should contain both inputs
         assert "--data.matrix" in called_command
@@ -174,17 +176,18 @@ def test_inputs_map_list_of_inputs():
             return_value=True,
         ),
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.run"
-        ) as mock_run,
+            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.Popen"
+        ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
         mock_config = MagicMock()
         mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
         mock_read_config.return_value = mock_config
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
+        mock_process = MagicMock()
+        mock_process.wait.return_value = 0
+        mock_process.poll.return_value = 0
+        mock_popen.return_value = mock_process
 
         exit_code = execution(
             module_dir=module_dir,
@@ -197,8 +200,8 @@ def test_inputs_map_list_of_inputs():
             timeout=100,
         )
 
-        assert mock_run.called
-        called_command = mock_run.call_args[0][0]
+        assert mock_popen.called
+        called_command = mock_popen.call_args[0][0]
 
         # Should contain: --clustering.results /path/to/result1.gz /path/to/result2.gz /path/to/result3.gz
         assert "--clustering.results" in called_command
@@ -237,17 +240,18 @@ def test_inputs_map_empty_dict():
             return_value=True,
         ),
         patch(
-            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.run"
-        ) as mock_run,
+            "omnibenchmark.workflow.snakemake.scripts.execution.subprocess.Popen"
+        ) as mock_popen,
         patch("builtins.open", MagicMock()),
     ):
         mock_config = MagicMock()
         mock_config.__getitem__.return_value = {"SCRIPT": "run_module.py"}
         mock_read_config.return_value = mock_config
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
+        mock_process = MagicMock()
+        mock_process.wait.return_value = 0
+        mock_process.poll.return_value = 0
+        mock_popen.return_value = mock_process
 
         exit_code = execution(
             module_dir=module_dir,
@@ -260,8 +264,8 @@ def test_inputs_map_empty_dict():
             timeout=100,
         )
 
-        assert mock_run.called
-        called_command = mock_run.call_args[0][0]
+        assert mock_popen.called
+        called_command = mock_popen.call_args[0][0]
 
         # Should still have output_dir and name
         assert "--output_dir" in called_command
