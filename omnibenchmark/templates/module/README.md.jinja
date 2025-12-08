@@ -4,10 +4,6 @@
 
 **Generated with [OmniBenchmark](https://omnibenchmark.org) v{{ omnibenchmark_version }}**
 
-## Overview
-
-This module was created as part of the ... becnhmark. It provides a standardized interface for the module {{ module_name.replace('-', ' ').replace('_', ' ') }}.
-
 ## Quick Start
 
 ### Prerequisites
@@ -22,37 +18,33 @@ This module was created as part of the ... becnhmark. It provides a standardized
 
 ### Installation
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/CHANGE_ME/{{ module_name }}.git
-   cd {{ module_name }}
-   ```
+Clone this repository:
+```bash
+git clone https://github.com/CHANGE_ME/{{ module_name }}.git
+cd {{ module_name }}
+```
 
 {% if environment_type == 'conda' -%}
-2. Create and activate the conda environment:
-   ```bash
-   conda env create -f {{ conda_environment }}
-   conda activate {{ module_name }}
-   ```
+Create and activate the conda environment:
+```bash
+conda env create -f {{ conda_environment }}
+conda activate {{ module_name }}
+```
 {%- elif environment_type == 'apptainer' -%}
-2. Build or download the Apptainer container:
-   ```bash
-   # Option 1: Build from definition file (if provided)
-   apptainer build {{ apptainer_container }} container.def
-
-   # Option 2: Pull from registry (update URL as needed)
-   # apptainer pull {{ apptainer_container }} docker://your-registry/{{ module_name }}:latest
-   ```
+Build or pull the Apptainer container:
+```bash
+apptainer build {{ apptainer_container }} container.def
+```
 {%- elif environment_type == 'envmodules' -%}
-2. Load the required environment modules:
-   ```bash
-   module load {{ envmodules_spec }}
-   ```
+Load the required environment modules:
+```bash
+module load {{ envmodules_spec }}
+```
 {%- endif %}
 
 ### Usage
 
-Run the module with default settings:
+Run the module:
 
 ```bash
 {% if environment_type == 'apptainer' -%}
@@ -62,76 +54,14 @@ apptainer exec {{ apptainer_container }} ./{{ entrypoint }}
 {%- endif %}
 ```
 
-#### Customization
-
-Customize the entrypoint script (`{{ entrypoint }}`) to implement your module's functionality.
-
-## Module Metadata
-
-There are two files that contain configuration and metadata for the module:
-
-### `omnibenchmark.yaml`
-
-Defines entrypoint and suggested environments that can be used in the benchmark to run this module.
-
-### `CITATION.cff`
-Contains citation and attribution metadata following the [Citation File Format](https://citation-file-format.github.io/).
-
-## Development
-
-### Adding Dependencies
-
-{% if environment_type == 'conda' -%}
-Update the `{{ conda_environment }}` file with new dependencies and recreate the environment:
-
-```bash
-conda env update -f {{ conda_environment }}
-```
-{%- elif environment_type == 'apptainer' -%}
-Modify the container definition file and rebuild:
-
-```bash
-apptainer build {{ apptainer_container }} container.def
-```
-{%- elif environment_type == 'envmodules' -%}
-Update the module specification in `omnibenchmark.yaml` and ensure the modules are available on your system.
-{%- endif %}
-
-### Testing
-
-TODO: Add testing instructions for your module.
-
-```bash
-# Example test command
-# pytest tests/
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and test them
-4. Commit your changes: `git commit -am 'Add feature'`
-5. Push to the branch: `git push origin feature-name`
-6. Submit a pull request
-
 ## Citation
 
-If you use this module in your research, please cite it using the information in `CITATION.cff` or run:
-
-```bash
-# ob cite {{ module_name }}
-```
+If you use this module in your research, please cite it using the information in `CITATION.cff`.
 
 ## License
 
 This project is licensed under the {{ license }} License - see the `CITATION.cff` file for details.
 
-## Support
-
-- [OmniBenchmark Documentation](https://omnibenchmark.org/docs)
-- [Report Issues](https://github.com/CHANGE_ME/{{ module_name }}/issues)
-
 ---
 
-**Note**: Remember to update the GitHub URLs (`CHANGE_ME`) to point to your actual repository!
+**Note**: Remember to update the GitHub URL (`CHANGE_ME`) to point to your actual repository!

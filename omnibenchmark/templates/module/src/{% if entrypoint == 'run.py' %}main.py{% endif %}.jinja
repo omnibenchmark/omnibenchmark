@@ -1,30 +1,48 @@
 """Main functions for the OmniBenchmark module."""
 
-def add_numbers(a, b):
-    """Add two numbers together.
+from pathlib import Path
+
+
+def process_data(args):
+    """Process data using parsed command-line arguments.
 
     Args:
-        a: First number
-        b: Second number
+        args: Parsed arguments from argparse containing:
+            - output_dir: Output directory path
+            - name: Module name
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+            - {{ input.var_name }}: Input files for {{ input.id }} (CLI: --{{ input.id }})
+{%- endfor %}
 
-    Returns:
-        Sum of a and b
+    Note: Input IDs with dots (e.g., 'data.raw') are converted to underscores
+          in Python variable names (e.g., 'data_raw') but preserve dots in CLI args.
+{%- endif %}
     """
-    return a + b
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
+    print(f"Processing module: {args.name}")
+{%- if stage_inputs %}
 
-def process_data(input_path, output_path):
-    """Process data from input to output file.
+    # Access stage inputs
+{%- for input in stage_inputs %}
+    {{ input.var_name }}_files = args.{{ input.var_name }}
+    print(f"  {{ input.id }}: {{ '{' }}{{ input.var_name }}_files{{ '}' }}")
+{%- endfor %}
+{%- endif %}
 
-    Args:
-        input_path: Path to input file
-        output_path: Path to output file
-    """
-    print(f"Processing data from {input_path} to {output_path}")
+    # TODO: Implement your processing logic here
+    # Example: Read inputs, process, write outputs
 
-    # Example processing
-    result = add_numbers(1, 2)
+    # Write a simple output file
+    output_file = output_dir / f"{args.name}_result.txt"
+    with open(output_file, 'w') as f:
+        f.write(f"Processed module: {args.name}\n")
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+        f.write(f"{{ input.id }}: {len({{ input.var_name }}_files)} file(s)\n")
+{%- endfor %}
+{%- endif %}
 
-    # Write result to output file
-    with open(output_path, 'w') as f:
-        f.write(f"Result: {result}\n")
+    print(f"Results written to: {output_file}")

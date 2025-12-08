@@ -418,16 +418,8 @@ def test_create_module_python_entrypoint_template(tmp_path):
         src_main = tmp_path / "src" / "main.py"
         assert src_main.exists()
         main_content = src_main.read_text()
-        assert "def add_numbers(a, b):" in main_content
-        assert "def process_data(input_path, output_path):" in main_content
-
-        # Check that tests/test_main.py was created
-        test_file = tmp_path / "tests" / "test_main.py"
-        assert test_file.exists()
-        test_content = test_file.read_text()
-        assert "def test_add_numbers():" in test_content
-        assert "def test_process_data(tmp_path):" in test_content
-        assert "from main import add_numbers, process_data" in test_content
+        assert "def process_data(args):" in main_content
+        assert "output_dir = Path(args.output_dir)" in main_content
 
 
 @pytest.mark.short
@@ -457,9 +449,9 @@ def test_create_module_r_entrypoint_template(tmp_path):
 
         content = entrypoint_file.read_text()
         assert content.startswith("#!/usr/bin/env Rscript")
-        assert "commandArgs(trailingOnly = TRUE)" in content
-        assert "parse_args <- function(args)" in content
-        assert "opts <- parse_args(args)" in content
+        assert "library(argparse)" in content
+        assert "ArgumentParser(description=" in content
+        assert "args <- parser$parse_args()" in content
         assert 'source("src/main.R")' in content
 
         # Check that it's executable
@@ -471,15 +463,8 @@ def test_create_module_r_entrypoint_template(tmp_path):
         src_main = tmp_path / "src" / "main.R"
         assert src_main.exists()
         main_content = src_main.read_text()
-        assert "add_numbers <- function(a, b)" in main_content
-        assert "process_data <- function(input_path, output_path)" in main_content
-
-        # Check that tests/test_main.R was created
-        test_file = tmp_path / "tests" / "test_main.R"
-        assert test_file.exists()
-        test_content = test_file.read_text()
-        assert 'source("../src/main.R")' in test_content
-        assert 'test_that("add_numbers works correctly"' in test_content
+        assert "process_data <- function(args)" in main_content
+        assert "dir.create(args$output_dir" in main_content
 
 
 @pytest.mark.short
@@ -511,8 +496,8 @@ def test_create_module_bash_entrypoint_template(tmp_path):
         assert content.startswith("#!/bin/bash")
         assert "set -euo pipefail" in content
         assert "while [[ $# -gt 0 ]]" in content
-        assert "--input)" in content
-        assert "--output)" in content
+        assert "--output_dir)" in content
+        assert "--name)" in content
         assert 'source "$(dirname "$0")/src/main.sh"' in content
 
         # Check that it's executable
@@ -524,18 +509,8 @@ def test_create_module_bash_entrypoint_template(tmp_path):
         src_main = tmp_path / "src" / "main.sh"
         assert src_main.exists()
         main_content = src_main.read_text()
-        assert "add_numbers() {" in main_content
         assert "process_data() {" in main_content
-
-        # Check that tests/test_main.sh was created
-        test_file = tmp_path / "tests" / "test_main.sh"
-        assert test_file.exists()
-        test_content = test_file.read_text()
-        assert 'source "$(dirname "$0")/../src/main.sh"' in test_content
-        assert "run_test" in test_content
-
-        # Check that test file is executable
-        assert bool(test_file.stat().st_mode & stat.S_IXUSR)
+        assert 'mkdir -p "$OUTPUT_DIR"' in main_content
 
 
 @pytest.mark.short
@@ -562,7 +537,3 @@ def test_create_module_default_entrypoint_with_no_input(tmp_path):
         # Check that src/main.sh was created
         src_main = tmp_path / "src" / "main.sh"
         assert src_main.exists()
-
-        # Check that tests/test_main.sh was created
-        test_file = tmp_path / "tests" / "test_main.sh"
-        assert test_file.exists()
