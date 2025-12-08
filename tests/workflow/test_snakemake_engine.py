@@ -176,3 +176,53 @@ class TestSnakemakeEngine:
 
                     # Assert - verify serialize_workflow was called (which means out_dir was accessed)
                     engine.serialize_workflow.assert_called_once()
+
+    @pytest.mark.short
+    def test_serialize_node_workflow_raises_error_when_benchmark_file_path_is_none(
+        self, engine, mock_node, tmp_path
+    ):
+        """Test that serialize_node_workflow raises ValueError when benchmark_file_path is None."""
+        # Act & Assert
+        with pytest.raises(ValueError, match="benchmark_file_path must be provided"):
+            engine.serialize_node_workflow(
+                mock_node, benchmark_file_path=None, output_dir=tmp_path
+            )
+
+    @pytest.mark.short
+    def test_run_node_workflow_raises_error_when_benchmark_file_path_is_none(
+        self, engine, mock_node, tmp_path
+    ):
+        """Test that run_node_workflow raises ValueError when benchmark_file_path is None."""
+        # Act & Assert
+        with pytest.raises(
+            ValueError,
+            match="benchmark_file_path must be provided when node.get_definition_file\\(\\) returns None",
+        ):
+            engine.run_node_workflow(
+                mock_node,
+                input_dir=tmp_path,
+                dataset="test_dataset",
+                work_dir=tmp_path,
+                benchmark_file_path=None,
+            )
+
+    @pytest.mark.short
+    def test_prepare_argv_includes_backend_env(self, engine, tmp_path):
+        """Test that _prepare_argv includes backend_env in config."""
+        # Act
+        argv = engine._prepare_argv(
+            snakefile=tmp_path / "Snakefile",
+            cores=1,
+            update=False,
+            dryrun=False,
+            keep_module_logs=False,
+            continue_on_error=False,
+            backend=SoftwareBackendEnum.conda,
+            work_dir=tmp_path,
+            out_dir=tmp_path / "out",
+            debug=False,
+            backend_env="path/to/env.yaml",
+        )
+
+        # Assert
+        assert any("backend_env=path/to/env.yaml" in arg for arg in argv)
