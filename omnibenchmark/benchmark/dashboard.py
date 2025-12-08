@@ -1,5 +1,3 @@
-import json
-from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Any
 
 if TYPE_CHECKING:
@@ -248,19 +246,3 @@ def _serialize_to_bettr_format(
     }
 
     return result
-
-
-if __name__ == "__main__":
-    # performance_tsv = Path("/Users/dani/Documents/omni/omni-py/out/performances.tsv")
-    # performance_tsv = pd.read_csv(performance_tsv, sep="\t")
-    # simulated_tsv = simulate_performance(performance_tsv)
-    # simulated_tsv.to_csv(Path("/Users/dani/Documents/omni/omni-py/out/sim_performances2.tsv"), sep="\t", index=False)
-    performance_tsv = Path(
-        "/Users/dani/Documents/omni/omni-py/out/sim_performances.tsv"
-    )
-    bettr_json = Path("/Users/dani/Documents/omni/omni-py/out/bettr_performances.json")
-
-    performance_df = pd.read_csv(performance_tsv, sep="\t")
-    bettr_data = create_bettr_dashboard(performance_df)
-    with open(bettr_json, "w") as f:
-        json.dump(bettr_data, f, indent=2)
