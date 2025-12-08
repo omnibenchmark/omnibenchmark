@@ -1,15 +1,21 @@
 """CLI commands for generating benchmark exports"""
 
+import json
 import sys
 from pathlib import Path
 
 import click
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.dashboard import generate_bettr_dashboard
+from omnibenchmark.benchmark.dashboard import create_bettr_dashboard, EXPORT_AVAILABLE
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 
 DASHBOARD_FORMAT_EXT_DICT = {"bettr": "json"}
@@ -54,7 +60,12 @@ def export_dashboard(ctx, benchmark, dashboard_format, out_dir):
     collected during benchmark execution.
     """
     ctx.ensure_object(dict)
-    debug = ctx.obj.get("DEBUG", False)
+
+    if not EXPORT_AVAILABLE:
+        logger.error(
+            "Export functionality not available. Install with: pip install omnibenchmark[export]"
+        )
+        sys.exit(1)
 
     logger.info(
         f"Generating {dashboard_format} dashboard from benchmark performance results..."
@@ -85,21 +96,27 @@ def export_dashboard(ctx, benchmark, dashboard_format, out_dir):
         )
         sys.exit(1)
 
-    output_ext = DASHBOARD_FORMAT_EXT_DICT[dashboard_format]
-    output = out_path / f"{dashboard_format}_dashboard.{output_ext}"
-
     # Generate dashboard based on format
-    if dashboard_format.lower() == "bettr":
-        success = generate_bettr_dashboard(
-            performance_file=performance_file, output_file=output, debug=debug
-        )
-    else:
-        logger.error(f"Unsupported dashboard format: {dashboard_format}")
-        sys.exit(1)
+    try:
+        dashboard_data = {}
+        performance_df = pd.read_csv(performance_file, sep="\t")
+        if dashboard_format.lower() == "bettr":
+            dashboard_data = create_bettr_dashboard(performance_df, id_col="module")
+        else:
+            logger.error(f"Unsupported dashboard format: {dashboard_format}")
+            sys.exit(1)
 
-    if success:
-        logger.info(f"Dashboard successfully generated: {output}")
+        output_ext = DASHBOARD_FORMAT_EXT_DICT[dashboard_format]
+        output = out_path / f"{dashboard_format}_dashboard.{output_ext}"
+        with open(output, "w") as f:
+            json.dump(dashboard_data, f, indent=2)
+
+        logger.info(
+            f"Successfully generated {dashboard_format} dashboard.",
+            f"Dashboard saved to: {output}",
+        )
         sys.exit(0)
-    else:
-        logger.error("Dashboard generation failed")
+
+    except Exception as e:
+        logger.error(f"Dashboard generation failed: {e}")
         sys.exit(1)

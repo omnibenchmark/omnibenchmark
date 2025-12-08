@@ -1,10 +1,16 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import TYPE_CHECKING, Dict, List, Any
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
-from omnibenchmark.cli.utils.logging import logger
+try:
+    import pandas as pd
+
+    EXPORT_AVAILABLE = True
+except ImportError:
+    EXPORT_AVAILABLE = False
 
 
 # Performance metrics configuration
@@ -29,64 +35,35 @@ METRIC_CLASS_COLORS = {
 }
 
 
-def generate_bettr_dashboard(
-    performance_file: Path, output_file: Path, debug: bool = False
-) -> bool:
-    """Generate a bettr dashboard JSON from performance data.
+def create_bettr_dashboard(
+    df: "pd.DataFrame", id_col: str = "module"
+) -> Dict[str, Any]:
+    """Create bettr dashboard dict from performance DataFrame.
 
-    Args:
-        performance_file: Path to performances.tsv file
-        output_file: Path where the dashboard JSON should be saved
-        debug: Whether to enable debug mode
-
-    Returns:
-        True if successful, False otherwise
+    Parses metrics into structured format, then serializes to bettr JSON.
     """
-    try:
-        df = pd.read_csv(performance_file, sep="\t")
-
-        if df.empty:
-            logger.error("Performance file is empty")
-            return False
-
-        metric_cols = extract_metric_columns(df, id_col="module")
-
-        if not metric_cols:
-            logger.error("No metric columns found in performance data")
-            return False
-
-        bettr_data = convert_to_bettr_format(
-            df=df,
-            id_col="module",
-            metric_cols=metric_cols,
+    if not EXPORT_AVAILABLE:
+        raise ImportError(
+            "Export functionality is not available. Install with: pip install omnibenchmark[export]"
         )
 
-        with open(output_file, "w") as f:
-            json.dump(bettr_data, f, indent=2)
+    if df.empty:
+        raise ValueError("performance.tsv is empty")
 
-        logger.info(
-            f"Successfully generated bettr dashboard with {len(bettr_data['data'])} methods"
-        )
-        return True
+    metric_cols = _extract_metric_columns(df, id_col=id_col)
+    if not metric_cols:
+        raise ValueError("No metric columns found in performance data")
 
-    except Exception as e:
-        logger.error(f"Error generating bettr dashboard: {e}")
-        if debug:
-            import traceback
+    parsed_data = _parse_metrics(df, metric_cols, id_col=id_col)
+    bettr_data = _serialize_to_bettr_format(parsed_data, id_col=id_col)
 
-            logger.debug(traceback.format_exc())
-        return False
+    return bettr_data
 
 
-def extract_metric_columns(df: pd.DataFrame, id_col: str) -> List[str]:
-    """Extract metric columns from the DataFrame.
+def _extract_metric_columns(df: "pd.DataFrame", id_col: str) -> List[str]:
+    """Extract numeric columns that are defined in PERFORMANCE_METRICS.
 
-    Args:
-        df: DataFrame with performance data
-        id_col: Name of the ID column
-
-    Returns:
-        List of metric column names
+    Excludes metadata columns (path, params, module, dataset, lineage).
     """
     # Exclude non-metric columns
     exclude_cols = {id_col, "path", "params", "module", "dataset", "lineage"}
@@ -101,20 +78,15 @@ def extract_metric_columns(df: pd.DataFrame, id_col: str) -> List[str]:
     return metric_cols
 
 
-def convert_to_bettr_format(
-    df: pd.DataFrame,
-    id_col: str,
+def _parse_metrics(
+    df: "pd.DataFrame",
     metric_cols: List[str],
-) -> Dict[str, Any]:
-    """Convert DataFrame to bettr JSON format without pivoting.
+    id_col: str,
+) -> List[Dict]:
+    """Parse metrics into structured records with explicit metric/dataset/value dicts.
 
-    Args:
-        df: DataFrame with performance data
-        id_col: Name of the ID column (module)
-        metric_cols: List of metric column names
-
-    Returns:
-        Dictionary in bettr format
+    Groups rows by (module, measurement_num) and stores each metric as
+    {"metric": str, "dataset": str, "value": float}.
     """
     # First pass: assign measurement numbers per (module, dataset) pair
     module_dataset_counts: Dict[tuple, int] = {}
@@ -147,68 +119,99 @@ def convert_to_bettr_format(
             collapse_key_to_rows[collapse_key] = []
         collapse_key_to_rows[collapse_key].append(assignment["idx"])
 
-    # Third pass: create collapsed bettr data
-    data: List[Dict[str, Any]] = []
-    id_info: List[Dict[str, Any]] = []
+    # Third pass: create structured data records
+    records: List[Dict[str, Any]] = []
 
     for collapse_key, row_indices in sorted(collapse_key_to_rows.items()):
         module_name, measurement_num = collapse_key
 
         # Create unique identifier for this collapsed row
-        unique_module_name = f"{module_name}_{measurement_num}"
-        record: Dict[str, Any] = {id_col: unique_module_name}
+        module_id = f"{module_name}_{measurement_num}"
+        metrics = []
 
-        # Collect datasets for this collapsed row
-        datasets_in_row = set()
-
-        # Aggregate metrics from all rows with this collapse key
+        # Collect metrics from all rows with this collapse key
         for row_idx in row_indices:
             row = df.iloc[row_idx]
             dataset = str(row["dataset"])
-            datasets_in_row.add(dataset)
 
-            # Add each metric as metric_dataset column
+            # Add each metric with explicit structure
             for metric in metric_cols:
-                metric_dataset_col = f"{metric}_{dataset}"
                 value = row[metric]
                 if pd.isna(value):
-                    record[metric_dataset_col] = None
+                    parsed_value = None
                 elif isinstance(value, (int, float)):
-                    record[metric_dataset_col] = float(value)
+                    parsed_value = float(value)
                 else:
                     try:
-                        record[metric_dataset_col] = float(value)
+                        parsed_value = float(value)
                     except (ValueError, TypeError):
-                        record[metric_dataset_col] = None
+                        parsed_value = None
 
-        data.append(record)
+                metrics.append(
+                    {
+                        "metric": metric,
+                        "dataset": dataset,
+                        "value": parsed_value,
+                    }
+                )
 
-        # Create id_info for this collapsed row
+        records.append(
+            {
+                "module_id": module_id,
+                "module": module_name,
+                "measurement_num": measurement_num,
+                "metrics": metrics,
+            }
+        )
+
+    return records
+
+
+def _serialize_to_bettr_format(
+    records: List[Dict],
+    id_col: str,
+) -> Dict[str, Any]:
+    """Serialize structured metrics to bettr JSON format.
+
+    Flattens metrics into metric_dataset columns and generates bettr metadata
+    """
+
+    # Flatten structured metrics into bettr data format
+    data = []
+    id_info = []
+    seen_metric_dataset_combinations = set()
+
+    for record in records:
+        module_id = record["module_id"]
+        measurement_num = record["measurement_num"]
+
+        # Create flattened data row
+        data_row = {id_col: module_id}
+
+        # Flatten metrics into metric_dataset columns
+        for metric_entry in record["metrics"]:
+            metric = metric_entry["metric"]
+            dataset = metric_entry["dataset"]
+            value = metric_entry["value"]
+
+            metric_dataset_col = f"{metric}_{dataset}"
+            data_row[metric_dataset_col] = value
+            seen_metric_dataset_combinations.add((metric, dataset))
+
+        data.append(data_row)
+
+        # Create id_info entry
         id_info.append(
             {
-                id_col: unique_module_name,
+                id_col: module_id,
                 "Measurement": f"#{measurement_num}",
             }
         )
 
-    # Get all unique metric_dataset combinations from the data
-    all_metric_dataset_cols = set()
-    for record in data:
-        for key in record.keys():
-            if key != id_col:
-                all_metric_dataset_cols.add(key)
-
-    # Generate metricInfo for each metric_dataset column
+    # Generate metricInfo from seen combinations
     metric_info = []
-    for metric_dataset_col in sorted(all_metric_dataset_cols):
-        # Split on last underscore to get metric and dataset
-        parts = metric_dataset_col.rsplit("_", 1)
-        if len(parts) == 2:
-            metric, dataset = parts
-        else:
-            metric = metric_dataset_col
-            dataset = ""
-
+    for metric, dataset in sorted(seen_metric_dataset_combinations):
+        metric_dataset_col = f"{metric}_{dataset}"
         metric_config = PERFORMANCE_METRICS.get(
             metric, {"class": "unknown", "flip": False}
         )
@@ -220,11 +223,10 @@ def convert_to_bettr_format(
             }
         )
 
-    # Generate initialTransforms for metric_dataset columns that need flipping
+    # Generate initialTransforms
     initial_transforms = {}
-    for metric_dataset_col in all_metric_dataset_cols:
-        parts = metric_dataset_col.rsplit("_", 1)
-        metric = parts[0] if len(parts) == 2 else metric_dataset_col
+    for metric, dataset in seen_metric_dataset_combinations:
+        metric_dataset_col = f"{metric}_{dataset}"
         metric_config = PERFORMANCE_METRICS[metric]
         initial_transforms[metric_dataset_col] = {
             "flip": metric_config.get("flip", False),
@@ -234,7 +236,7 @@ def convert_to_bettr_format(
     # Generate metricColors using static configuration
     metric_colors = {"Class": METRIC_CLASS_COLORS.copy()}
 
-    bettr_json = {
+    result = {
         "idCol": id_col,
         "data": data,
         "idInfo": id_info,
@@ -245,40 +247,20 @@ def convert_to_bettr_format(
         "idColors": {},
     }
 
-    return bettr_json
+    return result
 
 
-# def simulate_performance(orig: pd.DataFrame) -> pd.DataFrame:
-#     import pandas as pd
-#     import numpy as np
-#
-#     n = len(orig)
-#
-#     sim = pd.DataFrame({
-#         's': np.random.uniform(1.0, 10.0, n),
-#         'max_rss': np.random.uniform(1e6, 5e7, n),
-#         'max_vms': np.random.uniform(5e7, 2e8, n),
-#         'max_uss': np.random.uniform(5e5, 2e7, n),
-#         'max_pss': np.random.uniform(5e5, 2e7, n),
-#         'io_in': np.random.uniform(0, 1e6, n),
-#         'io_out': np.random.uniform(0, 1e6, n),
-#         'cpu_time': np.random.uniform(0.1, 5.0, n),
-#         'mean_load': np.random.uniform(10.0, 90.0, n),
-#         'module': orig['module'],
-#         'dataset': orig['dataset'],
-#         'lineage': orig['lineage'],
-#         'path': orig['path'],
-#         'params': orig['params']
-#     })
-#
-#     return sim
-#
-#
-# if __name__ == "__main__":
-#     # performance_tsv = Path("/Users/dani/Documents/omni/omni-py/out/performances.tsv")
-#     # performance_tsv = pd.read_csv(performance_tsv, sep="\t")
-#     # simulated_tsv = simulate_performance(performance_tsv)
-#     # simulated_tsv.to_csv(Path("/Users/dani/Documents/omni/omni-py/out/sim_performances2.tsv"), sep="\t", index=False)
-#     performance_tsv = Path("/Users/dani/Documents/omni/omni-py/out/sim_performances2.tsv")
-#     bettr_json = Path("/Users/dani/Documents/omni/omni-py/out/bettr_performances.json")
-#     generate_bettr_dashboard(performance_tsv, bettr_json)
+if __name__ == "__main__":
+    # performance_tsv = Path("/Users/dani/Documents/omni/omni-py/out/performances.tsv")
+    # performance_tsv = pd.read_csv(performance_tsv, sep="\t")
+    # simulated_tsv = simulate_performance(performance_tsv)
+    # simulated_tsv.to_csv(Path("/Users/dani/Documents/omni/omni-py/out/sim_performances2.tsv"), sep="\t", index=False)
+    performance_tsv = Path(
+        "/Users/dani/Documents/omni/omni-py/out/sim_performances.tsv"
+    )
+    bettr_json = Path("/Users/dani/Documents/omni/omni-py/out/bettr_performances.json")
+
+    performance_df = pd.read_csv(performance_tsv, sep="\t")
+    bettr_data = create_bettr_dashboard(performance_df)
+    with open(bettr_json, "w") as f:
+        json.dump(bettr_data, f, indent=2)

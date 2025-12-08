@@ -63,6 +63,7 @@ slurm = [
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
     "pandas",  # Required by snakemake-executor-plugin-slurm
 ]
+export = ["pandas"]
 dev = ["ipython", "pre-commit", "ruff", "typing-extensions", "isort", "pyright"]
 test = [
     "pytest-cov>=4.1.0",
