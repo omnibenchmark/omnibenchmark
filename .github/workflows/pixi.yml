@@ -276,14 +276,14 @@ jobs:
           micromamba activate base
           ob run benchmark -b Clustering_conda.yml --local-storage --yes --continue-on-error
 
-      - name: Upload output artifacts on failure
-        if: failure()
+      - name: Upload output artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: clustbench-conda-output
           path: |
             clustering_example/
-          retention-days: 3
+          retention-days: 7
 
   e2e-clustering-apptainer:
     name: E2E Clustering Example (Apptainer)
@@ -331,10 +331,10 @@ jobs:
         run: |
           pixi run micromamba run -n base ob run benchmark -b Clustering_oras.yml --local-storage --yes --continue-on-error
 
-      - name: Upload output artifacts on failure
-        if: failure()
+      - name: Upload output artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: clustbench-apptainer-output
           path: clustering_example/
-          retention-days: 3
+          retention-days: 7
