@@ -7,6 +7,7 @@ from omnibenchmark.cli.describe import describe
 from omnibenchmark.cli.storage import storage
 from omnibenchmark.cli.create import create
 from omnibenchmark.cli.run import run
+from omnibenchmark.cli.export import export
 
 from .debug import add_debug_option
 
@@ -68,7 +69,7 @@ cli.add_command(add_debug_option(create))
 cli.add_command(add_debug_option(run))
 cli.add_command(add_debug_option(describe))
 cli.add_command(add_debug_option(storage))
-
+cli.add_command(add_debug_option(export))
 
 add_debug_option(cli)
 

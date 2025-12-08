@@ -1,10 +1,8 @@
 """cli commands related to benchmark/module execution and start"""
 
-import getpass
 import os
 import sys
 import tempfile
-from datetime import datetime
 from itertools import chain
 from pathlib import Path
 
@@ -22,19 +20,6 @@ from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
 from .debug import add_debug_option
-
-
-def create_temp_dir_with_prefix() -> str:
-    """
-    Create a temporary directory with a prefix containing username and timestamp.
-
-    Returns:
-        str: Path to the created temporary directory
-    """
-    username = getpass.getuser()
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    prefix = f"ob-run-{username}-{timestamp}-"
-    return tempfile.mkdtemp(prefix=prefix)
 
 
 @click.group(name="run")
@@ -320,9 +305,7 @@ def run_module(
     logger.info("Running module on a local dataset.")
 
     try:
-        b = BenchmarkExecution(
-            Path(benchmark_path), Path(create_temp_dir_with_prefix())
-        )
+        b = BenchmarkExecution(Path(benchmark_path), Path(tempfile.mkdtemp()))
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)
         log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
@@ -444,7 +427,7 @@ def validate_yaml(ctx, benchmark):
     """Validate a benchmark yaml."""
     logger.info("Validating a benchmark yaml.")
     try:
-        _ = BenchmarkExecution(Path(benchmark), Path(create_temp_dir_with_prefix()))
+        _ = BenchmarkExecution(Path(benchmark), Path(tempfile.mkdtemp()))
         logger.info("Benchmark YAML file integrity check passed.")
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)

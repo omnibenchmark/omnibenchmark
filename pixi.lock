@@ -4662,8 +4662,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: omnibenchmark
-  version: 0.3.0.post62
-  sha256: 08041c752c7435776a204fd76a4f573c1e17b9b6d445fd80edafa38f2e0084e9
+  version: 0.3.0.post76+dirty
+  sha256: 4c5055c48a22fd76117ee55103ef4399fc875264be5c5b61e7db9fe120fc7dd0
   requires_dist:
   - click>=8.1.7
   - python-dateutil>=2.9.0.post0
@@ -4684,6 +4684,7 @@ packages:
   - snakemake-storage-plugin-s3>=0.2.12 ; extra == 's3'
   - snakemake-executor-plugin-slurm>=1.4.0,<2.0.0 ; extra == 'slurm'
   - pandas ; extra == 'slurm'
+  - pandas ; extra == 'export'
   - ipython ; extra == 'dev'
   - pre-commit ; extra == 'dev'
   - ruff ; extra == 'dev'

@@ -55,7 +55,10 @@ def combine_performances(
         if os.path.exists(perf):
             # read_performance is a generator, get first (and only) record
             for record in read_performance(perf):
-                record["module"] = op.dirname(perf).split("/")[-2]
+                split_by_slash = op.dirname(perf).split("/")
+                record["dataset"] = split_by_slash[2]
+                record["module"] = split_by_slash[-2]
+                record["lineage"] = "/".join(split_by_slash[3:-2])
                 record["path"] = perf
                 record["params"] = read_params(out_dir, perf)
                 combined_rows.append(record)
@@ -141,5 +144,5 @@ def read_params(output_path: Path, file_path: str):
 
 
 if __name__ == "__main__":
-    files = glob.glob("**/*_performance.txt")
+    files = glob.glob("**/*_performance.txt", recursive=True)
     write_combined_performance_file(Path("out"), files)

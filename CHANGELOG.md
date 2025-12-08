@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: add ob status (#184)
 - feat: give contextual information about parsing errors (#188)
 - feat: parameter expansion (#191)
+- feat: export performance metrics to [https://bioconductor.org/packages/release/bioc/html/bettr.html](bettr) dashboard (#230)
 - docs: add self-documenting spec template
 - refactor!: remove dependency on omni-schema and networkx
 - refactor: cleanup internal module dependencies, using a central benchmark model
