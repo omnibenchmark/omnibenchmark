@@ -2,10 +2,12 @@ import logging
 import os
 import signal
 import subprocess
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
 import configparser
+import yaml
 
 from snakemake.script import Snakemake
 
@@ -32,12 +34,11 @@ def execution(
     keep_module_logs: bool,
     timeout: Optional[int] = None,
 ) -> int:
-    config_parser = _read_config(module_dir)
-    if config_parser is None:
-        logging.error(f"ERROR: Failed to load config.cfg for {module_name}.")
+    executable = _read_entrypoint(module_dir, module_name)
+    if executable is None:
+        logging.error(f"ERROR: Failed to load entrypoint for {module_name}.")
         return -1  # return exit_code -1
 
-    executable = config_parser["DEFAULT"]["SCRIPT"]
     executable_path = module_dir / executable
     if not os.path.exists(executable_path):
         logging.error(f"ERROR: {module_name} executable does not exist.")
@@ -151,17 +152,55 @@ def execution(
     return exit_code
 
 
-def _read_config(module_dir: Path) -> Optional[configparser.ConfigParser]:
+def _read_entrypoint(module_dir: Path, module_name: str) -> Optional[str]:
+    """Read entrypoint from omnibenchmark.yaml or fall back to config.cfg."""
+    # Try new-style omnibenchmark.yaml first
+    yaml_path = module_dir / "omnibenchmark.yaml"
+    if os.path.exists(yaml_path):
+        try:
+            with open(yaml_path, "r") as f:
+                config = yaml.safe_load(f)
+
+            if config and "entrypoints" in config:
+                entrypoints = config["entrypoints"]
+                if isinstance(entrypoints, dict) and "default" in entrypoints:
+                    return entrypoints["default"]
+                else:
+                    logging.error(
+                        f"ERROR: Invalid omnibenchmark.yaml format in {module_name}. "
+                        "Expected 'entrypoints.default' key."
+                    )
+                    return None
+        except yaml.YAMLError as e:
+            logging.error(
+                f"ERROR: Failed to parse omnibenchmark.yaml in {module_name}: {e}"
+            )
+            return None
+
+    # Fall back to old-style config.cfg
     config_path = module_dir / "config.cfg"
-    if not os.path.exists(config_path):
-        return None
+    if os.path.exists(config_path):
+        warnings.warn(
+            f"Module '{module_name}' is using deprecated config.cfg. "
+            "Please migrate to omnibenchmark.yaml. Support for config.cfg will be removed in a future version.",
+            FutureWarning,
+            stacklevel=3,
+        )
 
-    parser = configparser.ConfigParser()
+        parser = configparser.ConfigParser()
+        parser.read(config_path)
 
-    # Read the configuration file
-    parser.read(config_path)
+        if "DEFAULT" in parser and "SCRIPT" in parser["DEFAULT"]:
+            return parser["DEFAULT"]["SCRIPT"]
+        else:
+            logging.error(f"ERROR: Invalid config.cfg format in {module_name}.")
+            return None
 
-    return parser
+    logging.error(
+        f"ERROR: No configuration file found in {module_name}. "
+        "Expected omnibenchmark.yaml or config.cfg."
+    )
+    return None
 
 
 def _create_command(executable_path: Path) -> Optional[list[str]]:

@@ -247,6 +247,132 @@ whatis("Version: placeholder")
         )
 
 
+def _convert_github_blob_to_raw(url: str) -> str:
+    """Convert GitHub blob URL to raw URL.
+
+    Examples:
+        https://github.com/user/repo/blob/main/file.yml
+        -> https://raw.githubusercontent.com/user/repo/main/file.yml
+
+        https://github.com/user/repo/blob/branch/path/to/file.yml
+        -> https://raw.githubusercontent.com/user/repo/branch/path/to/file.yml
+    """
+    import re
+
+    # Pattern to match GitHub blob URLs
+    pattern = r"https://github\.com/([^/]+)/([^/]+)/blob/(.+)"
+    match = re.match(pattern, url)
+
+    if match:
+        user, repo, rest = match.groups()
+        raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{rest}"
+        logger.info(f"Converting GitHub blob URL to raw URL: {raw_url}")
+        return raw_url
+
+    return url
+
+
+def _extract_stage_inputs(
+    benchmark_path_or_url: str, stage_id: str, debug: bool = False
+) -> list[str] | None:
+    """Extract input IDs from a specific stage in the benchmark YAML.
+
+    Args:
+        benchmark_path_or_url: Path or URL to the benchmark YAML file
+        stage_id: ID of the stage to extract inputs from
+        debug: Whether to show debug information
+
+    Returns:
+        List of input IDs (e.g., ['data.raw', 'data.meta']) or None if error
+    """
+    import tempfile
+    from urllib.parse import urlparse
+
+    try:
+        from omnibenchmark.model.benchmark import Benchmark
+
+        # Convert GitHub blob URLs to raw URLs
+        benchmark_path_or_url = _convert_github_blob_to_raw(benchmark_path_or_url)
+
+        # Check if it's a URL
+        parsed = urlparse(benchmark_path_or_url)
+        is_url = parsed.scheme in ("http", "https")
+
+        if is_url:
+            # Fetch URL to temporary file
+            import urllib.request
+
+            logger.info(f"Fetching benchmark from URL: {benchmark_path_or_url}")
+
+            with tempfile.NamedTemporaryFile(
+                mode="w+", suffix=".yaml", delete=False
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+
+                try:
+                    with urllib.request.urlopen(benchmark_path_or_url) as response:
+                        content = response.read().decode("utf-8")
+                        tmp_file.write(content)
+                        tmp_file.flush()
+
+                    # Load benchmark from temporary file
+                    benchmark = Benchmark.from_yaml(tmp_path)
+                finally:
+                    # Clean up temporary file
+                    if tmp_path.exists():
+                        tmp_path.unlink()
+        else:
+            # Load from local path
+            benchmark_path = Path(benchmark_path_or_url)
+            if not benchmark_path.exists():
+                click.echo(f"Benchmark file not found: {benchmark_path}", err=True)
+                return None
+            benchmark = Benchmark.from_yaml(benchmark_path)
+
+        # Find the stage
+        target_stage = None
+        for stage in benchmark.stages:
+            if stage.id == stage_id:
+                target_stage = stage
+                break
+
+        if not target_stage:
+            available_stages = [s.id for s in benchmark.stages]
+            click.echo(
+                f"Stage '{stage_id}' not found in benchmark. "
+                f"Available stages: {', '.join(available_stages) if available_stages else 'none'}",
+                err=True,
+            )
+            return None
+
+        # Extract inputs
+        if not target_stage.inputs:
+            logger.info(
+                f"Stage '{stage_id}' has no inputs (initial stage). "
+                f"Module will only require --output_dir and --name."
+            )
+            return []
+
+        # Flatten inputs from InputCollection objects
+        input_ids = []
+        for input_collection in target_stage.inputs:
+            input_ids.extend(input_collection.entries)
+
+        if debug:
+            logger.debug(f"Extracted inputs for stage '{stage_id}': {input_ids}")
+
+        return input_ids
+
+    except FileNotFoundError:
+        click.echo(f"Benchmark file not found: {benchmark_path}", err=True)
+        return None
+    except Exception as e:
+        click.echo(f"Failed to extract stage inputs: {e}", err=True)
+        if debug:
+            raise
+        return None
+
+
 def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
     """Log success message and next steps."""
     logger.info(
@@ -267,14 +393,17 @@ def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
     if project_type == "benchmark":
         logger.info(f"  {step_num}. Review and customize the benchmark configuration")
         logger.info(f"  {step_num + 1}. Add your benchmark modules")
+        logger.info(
+            f"  {step_num + 2}. Run 'ob validate benchmark' to check your configuration"
+        )
     else:  # module
         logger.info(
             f"  {step_num}. Implement your module logic in the entrypoint script"
         )
         logger.info(f"  {step_num + 1}. Update documentation and tests")
-    logger.info(
-        f"  {step_num + 2}. Run 'ob validate' to check your configuration (coming soon!)"
-    )
+        logger.info(
+            f"  {step_num + 2}. Run 'ob validate module' to check your configuration"
+        )
 
 
 @click.group(name="create")
@@ -527,6 +656,19 @@ def create_benchmark(
     hidden=True,
 )
 @click.option(
+    "-b",
+    "--benchmark",
+    help="Path or URL to benchmark YAML file (for stage-specific input parsing)",
+    type=str,
+    default=None,
+)
+@click.option(
+    "--for-stage",
+    help="Stage ID to generate module for (requires --benchmark)",
+    type=str,
+    default=None,
+)
+@click.option(
     "--no-input",
     help="Do not prompt for parameters and only use defaults",
     is_flag=True,
@@ -587,6 +729,8 @@ def create_module(
     ctx,
     path,
     destination,
+    benchmark,
+    for_stage,
     no_input,
     non_interactive,
     name,
@@ -603,9 +747,35 @@ def create_module(
     copier templates. It creates the necessary configuration files (CITATION.cff,
     omnibenchmark.yaml), a sample entrypoint script, and documentation to get
     you started with your module development.
+
+    When using --benchmark and --for-stage, the generated entrypoint will include
+    CLI argument parsing for the specific inputs required by that stage.
     """
     ctx.ensure_object(dict)
     debug = ctx.obj.get("DEBUG", False)
+
+    # Validate benchmark and for_stage options
+    if for_stage and not benchmark:
+        click.echo("--for-stage requires --benchmark to be specified", err=True)
+        sys.exit(1)
+
+    # Extract stage inputs if benchmark is provided
+    stage_inputs = None
+    stage_inputs_with_vars = None
+    if benchmark and for_stage:
+        stage_inputs = _extract_stage_inputs(benchmark, for_stage, debug)
+        if stage_inputs is None:
+            sys.exit(1)
+
+        # Create a list of dicts with both original ID and sanitized variable name
+        stage_inputs_with_vars = [
+            {
+                "id": input_id,
+                "var_name": input_id.replace(".", "_"),
+                "var_name_upper": input_id.replace(".", "_").upper(),
+            }
+            for input_id in stage_inputs
+        ]
 
     # Determine the target path from positional argument or destination option
     target_destination = path or destination
@@ -668,7 +838,11 @@ def create_module(
             sys.exit(1)
 
         # Run copier
-        copier_data = {"omnibenchmark_version": __version__}
+        copier_data: dict[str, object] = {"omnibenchmark_version": __version__}
+
+        # Add stage inputs if provided
+        if stage_inputs_with_vars is not None:
+            copier_data["stage_inputs"] = stage_inputs_with_vars
 
         if non_interactive:
             # Use provided parameters for non-interactive mode

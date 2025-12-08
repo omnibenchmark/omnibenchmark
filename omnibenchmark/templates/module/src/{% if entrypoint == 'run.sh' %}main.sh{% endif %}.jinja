@@ -2,24 +2,48 @@
 
 # Main functions for the OmniBenchmark module
 
-# Add two numbers
-add_numbers() {
-    local a=$1
-    local b=$2
-    echo $((a + b))
-}
-
-# Process data from input to output file
+# Process data using parsed command-line arguments
+#
+# Expects global variables to be set:
+#   - OUTPUT_DIR: Output directory path
+#   - NAME: Module name
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+#   - {{ input.var_name_upper }}: Array of input files for {{ input.id }} (CLI: --{{ input.id }})
+{%- endfor %}
+#
+# Note: Input IDs with dots (e.g., 'data.raw') are converted to underscores and
+#   uppercased in bash variable names (e.g., 'DATA_RAW') but preserve dots in CLI args.
+{%- endif %}
 process_data() {
-    local input_path="$1"
-    local output_path="$2"
+    # Create output directory if needed
+    mkdir -p "$OUTPUT_DIR"
 
-    echo "Processing data from $input_path to $output_path"
+    echo "Processing module: $NAME"
+{%- if stage_inputs %}
 
-    # Example processing
-    local result
-    result=$(add_numbers 1 2)
+    # Access stage inputs
+{%- for input in stage_inputs %}
+    echo "  {{ input.id }}: ${{ '{' }}#{{ input.var_name_upper }}[@]{{ '}' }} file(s)"
+    for file in "${{ '{' }}{{ input.var_name_upper }}[@]{{ '}' }}"; do
+        echo "    - $file"
+    done
+{%- endfor %}
+{%- endif %}
 
-    # Write result to output file
-    echo "Result: $result" > "$output_path"
+    # TODO: Implement your processing logic here
+    # Example: Read inputs, process, write outputs
+
+    # Write a simple output file
+    local output_file="$OUTPUT_DIR/${NAME}_result.txt"
+    {
+        echo "Processed module: $NAME"
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+        echo "{{ input.id }}: ${{ '{' }}#{{ input.var_name_upper }}[@]{{ '}' }} file(s)"
+{%- endfor %}
+{%- endif %}
+    } > "$output_file"
+
+    echo "Results written to: $output_file"
 }
