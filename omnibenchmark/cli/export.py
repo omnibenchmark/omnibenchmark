@@ -12,11 +12,6 @@ from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
 
-try:
-    import pandas as pd
-except ImportError:
-    pd = None
-
 
 DASHBOARD_FORMAT_EXT_DICT = {"bettr": "json"}
 
@@ -71,6 +66,8 @@ def export_dashboard(ctx, benchmark, dashboard_format, out_dir):
         f"Generating {dashboard_format} dashboard from benchmark performance results..."
     )
 
+    import pandas
+
     try:
         _ = BenchmarkExecution(Path(benchmark), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
@@ -99,7 +96,7 @@ def export_dashboard(ctx, benchmark, dashboard_format, out_dir):
     # Generate dashboard based on format
     try:
         dashboard_data = {}
-        performance_df = pd.read_csv(performance_file, sep="\t")
+        performance_df = pandas.read_csv(performance_file, sep="\t")
         if dashboard_format.lower() == "bettr":
             dashboard_data = create_bettr_dashboard(performance_df, id_col="module")
         else:
