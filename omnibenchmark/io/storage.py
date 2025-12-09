@@ -112,6 +112,7 @@ def remote_storage_snakemake_args(benchmark) -> dict:
             "storage-s3-endpoint-url": endpoint,
             "storage-s3-access-key": auth_options["access_key"],
             "storage-s3-secret-key": auth_options["secret_key"],
+            "keep-storage-local-copies": True,
         }
     else:
         return {}
