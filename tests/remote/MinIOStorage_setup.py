@@ -9,8 +9,8 @@ from testcontainers.minio import MinioContainer
 import yaml
 
 from omnibenchmark.model import Benchmark
-from omnibenchmark.io.MinIOStorage import MinIOStorage
-from omnibenchmark.io.RemoteStorage import StorageOptions
+from omnibenchmark.remote.MinIOStorage import MinIOStorage
+from omnibenchmark.remote.RemoteStorage import StorageOptions
 
 MINIO_IMAGE = "minio/minio:RELEASE.2024-06-13T22-53-53Z"
 

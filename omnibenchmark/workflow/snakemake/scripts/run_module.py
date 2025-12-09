@@ -14,7 +14,7 @@ from snakemake.script import Snakemake
 from omnibenchmark.benchmark import constants
 from omnibenchmark.benchmark.params import Params
 from omnibenchmark.benchmark.symlinks import SymlinkManager
-from omnibenchmark.io.code import clone_module
+from omnibenchmark.remote.code import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 
 logger = logging.getLogger("SNAKEMAKE_RUNNER")

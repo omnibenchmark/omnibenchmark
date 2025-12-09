@@ -8,8 +8,8 @@ import click
 
 from omnibenchmark.cli.remote import StorageAuth
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.io.archive import archive_version
-from omnibenchmark.io.tree import tree_string_from_list
+from omnibenchmark.remote.archive import archive_version
+from omnibenchmark.remote.tree import tree_string_from_list
 
 from .debug import add_debug_option
 

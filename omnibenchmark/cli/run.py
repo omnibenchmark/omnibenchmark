@@ -14,8 +14,8 @@ from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
-from omnibenchmark.io.storage import get_storage_from_benchmark
-from omnibenchmark.io.storage import remote_storage_snakemake_args
+from omnibenchmark.remote.storage import get_storage_from_benchmark
+from omnibenchmark.remote.storage import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 

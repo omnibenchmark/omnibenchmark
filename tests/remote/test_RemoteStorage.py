@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from omnibenchmark.io.exception import RemoteStorageInvalidInputException
-from omnibenchmark.io.RemoteStorage import (
+from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
+from omnibenchmark.remote.RemoteStorage import (
     StorageOptions,
     RemoteStorage,
     is_valid_version,

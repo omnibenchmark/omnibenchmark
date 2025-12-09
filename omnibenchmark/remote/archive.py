@@ -5,10 +5,10 @@ import os
 
 from omnibenchmark.model import SoftwareBackendEnum
 
-from omnibenchmark.io.RemoteStorage import StorageOptions
-from omnibenchmark.io.code import clone_module
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.code import clone_module
 from omnibenchmark.benchmark import Benchmark
-from omnibenchmark.io.files import download_files, list_files
+from omnibenchmark.remote.files import download_files, list_files
 
 
 def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
@@ -151,7 +151,7 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
 
 
 def prepare_archive_results(
-    benchmark: Benchmark, results_dir: str, remote_storage: bool
+    benchmark: Benchmark, results_dir: str, remote_storage: bool = True
 ) -> List[Path]:
     """
     Prepare the results to archive and return list of all filenames.

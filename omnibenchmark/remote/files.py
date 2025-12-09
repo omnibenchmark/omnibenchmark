@@ -8,8 +8,8 @@ import yaml
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.io.RemoteStorage import StorageOptions
-from omnibenchmark.io.versioning import get_expected_benchmark_output_files
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
 
 
 def list_files(
