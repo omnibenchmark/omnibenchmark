@@ -71,9 +71,9 @@ from .debug import add_debug_option
     show_default=True,
 )
 @click.option(
-    "-l",
-    "--local-storage",
-    help="Execute and store results locally. Default False.",
+    "-rs",
+    "--remote-storage",
+    help="Execute and store results remotely. Default False.",
     is_flag=True,
     default=False,
 )
@@ -90,15 +90,15 @@ def archive(
     compression,
     compresslevel,
     dry_run,
-    local_storage,
+    remote_storage,
     out_dir,
 ):
     """Archive a benchmark and its artifacts."""
 
     # Validate out_dir usage
-    if not local_storage and out_dir != "out":
+    if remote_storage and out_dir != "out":
         logger.error(
-            "-Invalid arguments: --out-dir can only be used with --local_storage"
+            "-Invalid arguments: --out-dir can only be used without --remote-storage"
         )
         sys.exit(1)
 
@@ -129,7 +129,7 @@ def archive(
         compression=compression,
         compresslevel=compresslevel,
         dry_run=dry_run,
-        local_storage=local_storage,
+        remote_storage=remote_storage,
     )
     if dry_run:
         click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")

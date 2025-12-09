@@ -43,7 +43,7 @@ def test_run_benchmark_without_yes(
     runner = CliRunner()
     result = runner.invoke(
         run_benchmark,
-        ["--benchmark", benchmark_path, "--cores", "2", "--update", "--local-storage"],
+        ["--benchmark", benchmark_path, "--cores", "2", "--update"],
     )
 
     # Ensure click.confirm is NOT called
@@ -75,7 +75,6 @@ def test_run_benchmark_with_yes(
             "-k",
             "--cores",
             "2",
-            "--local-storage",
             "--yes",
         ],
     )
@@ -157,7 +156,7 @@ def test_run_benchmark_with_parse_error():
             runner = CliRunner()
             result = runner.invoke(
                 run_benchmark,
-                ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+                ["--benchmark", benchmark_path, "--yes"],
             )
 
             # Verify the error was formatted
@@ -180,7 +179,7 @@ def test_run_benchmark_with_generic_exception():
         runner = CliRunner()
         result = runner.invoke(
             run_benchmark,
-            ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+            ["--benchmark", benchmark_path, "--yes"],
         )
 
         # Verify the command failed
@@ -328,7 +327,7 @@ def test_run_benchmark_with_top_level_field_parse_error():
             runner = CliRunner()
             result = runner.invoke(
                 run_benchmark,
-                ["--benchmark", benchmark_path, "--local-storage", "--yes"],
+                ["--benchmark", benchmark_path, "--yes"],
             )
 
             # Verify the error was formatted
