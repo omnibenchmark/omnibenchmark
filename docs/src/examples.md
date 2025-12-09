@@ -33,5 +33,5 @@ To run the benchmark using *Conda* as a software backend:
 git clone git@github.com:omnibenchmark/clustering_example.git
 cd clustering_example
 
-ob run benchmark -b Clustering_conda.yml --local-storage
+ob run benchmark -b Clustering_conda.yml
 ```

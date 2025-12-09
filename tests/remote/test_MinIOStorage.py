@@ -10,9 +10,9 @@ from git import Repo
 
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.io.RemoteStorage import StorageOptions
-from omnibenchmark.io.exception import RemoteStorageInvalidInputException
-from omnibenchmark.io.MinIOStorage import MinIOStorage
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
+from omnibenchmark.remote.MinIOStorage import MinIOStorage
 
 from ..fixtures import minio_storage, _minio_container  # noqa: F401
 

@@ -1,9 +1,9 @@
 import minio
 import pytest
 
-from omnibenchmark.io.storage import get_storage
-from omnibenchmark.io.sizeof import sizeof_fmt
-from omnibenchmark.io.RemoteStorage import RemoteStorage
+from omnibenchmark.remote.storage import get_storage
+from omnibenchmark.remote.sizeof import sizeof_fmt
+from omnibenchmark.remote.RemoteStorage import RemoteStorage
 
 from ..fixtures import minio_storage, _minio_container  # noqa: F401
 

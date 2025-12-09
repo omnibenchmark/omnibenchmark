@@ -7,7 +7,7 @@ from typing import Dict, Union
 import packaging.version
 from packaging.version import Version
 
-from omnibenchmark.io.exception import RemoteStorageInvalidInputException
+from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
 
 
 class StorageOptions:

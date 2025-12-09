@@ -21,6 +21,7 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
             "benchmark",
             "--benchmark",
             file,
+            "--use-remote-storage",
         ],
         cwd=cwd,
     )
@@ -35,7 +36,7 @@ def test_create_version(minio_storage):  # noqa: F811
         # then we create a new version
         run2 = omni.call(
             [
-                "storage",
+                "remote",
                 "version",
                 "create",
                 "--benchmark",
@@ -74,7 +75,7 @@ def test_list_files(minio_storage):  # noqa: F811
         # now we create a new version of the benchmark
         run2 = omni.call(
             [
-                "storage",
+                "remote",
                 "version",
                 "create",
                 "--benchmark",
@@ -88,7 +89,7 @@ def test_list_files(minio_storage):  # noqa: F811
         # retrieve the stored files
         run3 = omni.call(
             [
-                "storage",
+                "remote",
                 "files",
                 "list",
                 "--benchmark",
@@ -113,7 +114,7 @@ def test_download_files(minio_storage):  # noqa: F811
         # Now create a version of the benchmark
         run2 = omni.call(
             [
-                "storage",
+                "remote",
                 "version",
                 "create",
                 "--benchmark",
@@ -134,7 +135,7 @@ def test_download_files(minio_storage):  # noqa: F811
         # Now download the files
         run3 = omni.call(
             [
-                "storage",
+                "remote",
                 "files",
                 "download",
                 "--benchmark",
@@ -171,7 +172,7 @@ def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
             # Try to create a version (should fail)
             run = omni.call(
                 [
-                    "storage",
+                    "remote",
                     "version",
                     "create",
                     "--benchmark",
@@ -228,7 +229,7 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
             # Try to create a version (should succeed)
             run = omni.call(
                 [
-                    "storage",
+                    "remote",
                     "version",
                     "create",
                     "--benchmark",
@@ -262,13 +263,13 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
 
 def test_create_policy_cli_signature(minio_storage):  # noqa: F811
     """Test that create-policy command correctly receives benchmark parameter."""
-    from omnibenchmark.cli.storage import storage
+    from omnibenchmark.cli.remote import remote
 
     runner = CliRunner()
 
     # Test that the command accepts --benchmark option and passes it correctly
     result = runner.invoke(
-        storage,
+        remote,
         [
             "policy",
             "create",
@@ -319,7 +320,7 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
             # Try to create a version (should fail)
             run = omni.call(
                 [
-                    "storage",
+                    "remote",
                     "version",
                     "create",
                     "--benchmark",

@@ -11,12 +11,12 @@ def strip(text):
     return "".join(text.split())
 
 
-def test_benchmark_computational_plot():
+def test_benchmark_snakemake_plot():
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "describe",
-                "computational",
+                "snakemake",
                 "-b",
                 str(benchmark_data_path / "Benchmark_001.yaml"),
             ],

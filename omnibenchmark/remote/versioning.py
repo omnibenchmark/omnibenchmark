@@ -4,8 +4,8 @@ from typing import Dict, List, Tuple, Union
 import glob
 
 from omnibenchmark.benchmark import Benchmark
-from omnibenchmark.io.RemoteStorage import StorageOptions
-from omnibenchmark.io.exception import MinIOStorageVersioningCorruptionException
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.exception import MinIOStorageVersioningCorruptionException
 
 
 def get_objects_to_tag(

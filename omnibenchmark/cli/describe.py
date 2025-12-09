@@ -25,7 +25,7 @@ def describe(ctx):
 
 
 @add_debug_option
-@describe.command("computational")
+@describe.command("snakemake")
 @click.option(
     "--benchmark",
     "-b",
@@ -35,8 +35,8 @@ def describe(ctx):
     envvar="OB_BENCHMARK",
 )
 @click.pass_context
-def computational_graph(ctx, benchmark: str):
-    """Export computational graph to dot format."""
+def snakemake_graph(ctx, benchmark: str):
+    """Export a snakemake computational graph to dot format."""
     b = BenchmarkExecution(benchmark_yaml=Path(benchmark))
     if b is None:
         return

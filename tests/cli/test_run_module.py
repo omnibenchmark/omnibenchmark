@@ -19,9 +19,8 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
     assert run1.returncode == 0
 
 
-
-def test_run_benchmark_out_dir_without_local_storage():
-    """Test that --out-dir fails when used without --local-storage."""
+def test_run_benchmark_out_dir_with_remote_storage():
+    """Test that --out-dir fails when used with --use-remote-storage."""
     path = get_benchmark_data_path()
 
     with OmniCLISetup() as omni:
@@ -31,14 +30,15 @@ def test_run_benchmark_out_dir_without_local_storage():
                 "benchmark",
                 "--benchmark",
                 str(path / "mock_benchmark.yaml"),
+                "--use-remote-storage",
                 "--out-dir",
                 "custom_output",
                 "--dry",
             ]
         )
 
-        assert result.returncode == 1
-        error_msg = "--out-dir can only be used with --local-storage"
+        assert result.returncode == 2
+        error_msg = "--out-dir can only be used with local storage"
         assert error_msg in result.stderr or error_msg in result.stdout
 
 
@@ -56,7 +56,6 @@ def test_run_benchmark_with_valid_timeout():
                 "--task-timeout",
                 "5m",
                 "--dry",
-                "--local-storage",
             ]
         )
 

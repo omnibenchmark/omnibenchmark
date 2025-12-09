@@ -27,16 +27,16 @@ except ImportError:
     pass
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.io.exception import (
+from omnibenchmark.remote.exception import (
     RemoteStorageInvalidInputException,
     MinIOStorageConnectionException,
     MinIOStorageBucketManipulationException,
 )
-from omnibenchmark.io.archive import prepare_archive_software
-from omnibenchmark.io.RemoteStorage import RemoteStorage, StorageOptions
-from omnibenchmark.io.S3config import bucket_readonly_policy
-from omnibenchmark.io.S3versioning import get_s3_object_versions_and_tags
-from omnibenchmark.io.versioning import (
+from omnibenchmark.remote.archive import prepare_archive_software
+from omnibenchmark.remote.RemoteStorage import RemoteStorage, StorageOptions
+from omnibenchmark.remote.S3config import bucket_readonly_policy
+from omnibenchmark.remote.S3versioning import get_s3_object_versions_and_tags
+from omnibenchmark.remote.versioning import (
     filter_objects_to_tag,
     get_objects_to_tag,
     get_remoteversion_from_bmversion,
@@ -467,7 +467,7 @@ class MinIOStorage(RemoteStorage):
         software: bool = False,
         results: bool = False,
     ):
-        from omnibenchmark.io.archive import archive_version
+        from omnibenchmark.remote.archive import archive_version
 
         # TODO: outdir is in benchmarkExecution
         # TODO: upload the zip archive
@@ -482,7 +482,7 @@ class MinIOStorage(RemoteStorage):
         software: bool = False,
         results: bool = False,
     ):
-        from omnibenchmark.io.archive import archive_version
+        from omnibenchmark.remote.archive import archive_version
 
         # TODO: upload the zip archive, we're not doing anything with the result!
         _ = archive_version(benchmark, outdir, config, code, software, results)

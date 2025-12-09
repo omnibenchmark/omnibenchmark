@@ -8,8 +8,8 @@ import yaml
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.io.RemoteStorage import StorageOptions
-from omnibenchmark.io.versioning import get_expected_benchmark_output_files
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
 
 
 def list_files(
@@ -18,7 +18,7 @@ def list_files(
     stage: str,
     module: str,
     file_id: str,
-    local_storage: bool = False,
+    remote_storage: bool = True,
     storage_options: StorageOptions = StorageOptions(out_dir="out"),
 ):
     """List all available files for a certain benchmark, version and stage"""
@@ -30,7 +30,7 @@ def list_files(
 
     expected_files = get_expected_benchmark_output_files(benchmark, storage_options)
 
-    if not local_storage:
+    if remote_storage:
         auth_options = remote_storage_args(benchmark)
 
         storage_api = benchmark.get_storage_api()

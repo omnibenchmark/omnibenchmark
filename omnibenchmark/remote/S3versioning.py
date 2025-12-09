@@ -7,8 +7,8 @@ from typing import Dict, TYPE_CHECKING, Any
 if TYPE_CHECKING:
     pass
 
-from omnibenchmark.io.exception import MinIOStorageBucketManipulationException
-from omnibenchmark.io.RemoteStorage import is_valid_version
+from omnibenchmark.remote.exception import MinIOStorageBucketManipulationException
+from omnibenchmark.remote.RemoteStorage import is_valid_version
 
 
 def get_s3_object_versions_and_tags(

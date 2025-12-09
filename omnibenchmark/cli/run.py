@@ -14,8 +14,8 @@ from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
-from omnibenchmark.io.storage import get_storage_from_benchmark
-from omnibenchmark.io.storage import remote_storage_snakemake_args
+from omnibenchmark.remote.storage import get_storage_from_benchmark
+from omnibenchmark.remote.storage import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
@@ -75,9 +75,9 @@ def run(ctx):
     default=False,
 )
 @click.option(
-    "-l",
-    "--local-storage",
-    help="Execute and store results locally. Default False.",
+    "-r",
+    "--use-remote-storage",
+    help="Execute and store results remotely. Default False.",
     is_flag=True,
     default=False,
 )
@@ -99,7 +99,10 @@ def run(ctx):
     default=None,
 )
 @click.option(
-    "--out-dir", type=str, default="out", help="Output folder name (local only)."
+    "--out-dir",
+    help="Output folder name (local only). Default: `out`",
+    default=None,
+    type=str,
 )
 @click.pass_context
 def run_benchmark(
@@ -109,7 +112,7 @@ def run_benchmark(
     update,
     dry,
     yes,
-    local_storage,
+    use_remote_storage,
     keep_module_logs,
     continue_on_error,
     task_timeout,
@@ -133,13 +136,11 @@ def run_benchmark(
             sys.exit(1)
 
     # Validate out_dir usage
-    if not local_storage and out_dir != "out":
-        logger.error(
-            "-Invalid arguments: --out-dir can only be used with --local-storage"
-        )
-        sys.exit(1)
+    if use_remote_storage and out_dir:
+        raise click.UsageError("--out-dir can only be used with local storage")
 
     try:
+        out_dir = out_dir if out_dir else "out"
         b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
     except BenchmarkParseError as e:
@@ -161,7 +162,7 @@ def run_benchmark(
         msg = "re-run the entire workflow"
         abort_if_user_does_not_confirm(msg, logger)
 
-    if not local_storage:
+    if use_remote_storage:
         storage_options = remote_storage_snakemake_args(b)
         # creates bucket if it doesn't exist
         _ = get_storage_from_benchmark(b)

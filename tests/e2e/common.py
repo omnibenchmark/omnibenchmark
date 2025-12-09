@@ -102,7 +102,6 @@ class E2ETestRunner:
             str(config_file),
             "--out-dir",
             str(self.out_dir),
-            "--local-storage",
         ]
 
         if additional_args:
@@ -188,9 +187,9 @@ class E2ETestRunner:
             for output_file in output_files:
                 print(f"  - {output_file.relative_to(self.out_dir)}")
 
-        assert len(output_files) >= min_expected, (
-            f"Expected at least {min_expected} {file_pattern} files, but found {len(output_files)}"
-        )
+        assert (
+            len(output_files) >= min_expected
+        ), f"Expected at least {min_expected} {file_pattern} files, but found {len(output_files)}"
 
 
 def filter_files_excluding_symlinked_dirs(
@@ -295,15 +294,15 @@ def compare_pipeline_runs(
             second_files_dict[str(file_path.relative_to(out_dir_second))] = f.read()
 
     # Compare file sets
-    assert set(first_files_dict.keys()) == set(second_files_dict.keys()), (
-        f"File sets differ between runs: {set(first_files_dict.keys())} vs {set(second_files_dict.keys())}"
-    )
+    assert (
+        set(first_files_dict.keys()) == set(second_files_dict.keys())
+    ), f"File sets differ between runs: {set(first_files_dict.keys())} vs {set(second_files_dict.keys())}"
 
     # Compare file contents
     for file_key in first_files_dict:
-        assert first_files_dict[file_key] == second_files_dict[file_key], (
-            f"File {file_key} changed between runs"
-        )
+        assert (
+            first_files_dict[file_key] == second_files_dict[file_key]
+        ), f"File {file_key} changed between runs"
 
 
 def run_idempotent_pipeline_test(
@@ -358,9 +357,9 @@ def run_idempotent_pipeline_test(
     second_run_checksums = _get_directory_checksums(runner.out_dir)
 
     # Compare checksums to ensure idempotency
-    assert first_run_checksums == second_run_checksums, (
-        "Pipeline is not idempotent - files changed between runs"
-    )
+    assert (
+        first_run_checksums == second_run_checksums
+    ), "Pipeline is not idempotent - files changed between runs"
 
 
 def _get_directory_checksums(directory: Path) -> dict:

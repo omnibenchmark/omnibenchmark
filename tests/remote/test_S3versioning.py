@@ -4,8 +4,8 @@ import datetime
 from unittest.mock import Mock
 import pytest
 
-from omnibenchmark.io.S3versioning import get_s3_object_versions_and_tags
-from omnibenchmark.io.exception import MinIOStorageBucketManipulationException
+from omnibenchmark.remote.S3versioning import get_s3_object_versions_and_tags
+from omnibenchmark.remote.exception import MinIOStorageBucketManipulationException
 
 
 @pytest.mark.short

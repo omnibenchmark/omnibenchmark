@@ -456,7 +456,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local-storage --dry
+    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --dry
     ```
 
 === "Output"
@@ -490,7 +490,7 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local-storage
+    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1
     ```
 
 === "Output"
@@ -627,7 +627,7 @@ To restrict access to a dedicated bucket an access key with a specific policy ha
 
 Create new policy with
 ```
-ob storage create-policy --benchmark tests/data/Benchmark_001.yaml
+ob remote policy create --benchmark tests/data/Benchmark_001.yaml
 ```
 The output of this command needs to be added to either MinIO or AWS as described below.
 
@@ -668,7 +668,7 @@ OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob r
 
 To version currently stored data in the remote (i.e. make it read-only) run the following:
 ```
-ob storage create-version -b tests/data/Benchmark_003.yaml
+ob remote version create -b tests/data/Benchmark_003.yaml
 ```
 
 A second execution will result in an error since this version now already exists. To create a new version, first update the version in the Benchmark.yaml file and then rerun the above command.

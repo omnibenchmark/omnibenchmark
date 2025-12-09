@@ -1,4 +1,4 @@
-"""CLI commands for generating benchmark exports"""
+"""CLI commands for generating benchmark dashboards"""
 
 import json
 import sys
@@ -11,19 +11,14 @@ from omnibenchmark.benchmark.dashboard import create_bettr_dashboard, EXPORT_AVA
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
+from .debug import add_debug_option
 
 
 DASHBOARD_FORMAT_EXT_DICT = {"bettr": "json"}
 
 
-@click.group(name="export")
-@click.pass_context
-def export(ctx):
-    """Generate exports from benchmark results."""
-    ctx.ensure_object(dict)
-
-
-@export.command(name="dashboard")
+@add_debug_option
+@click.command(name="dashboard")
 @click.option(
     "-b",
     "--benchmark",
@@ -48,8 +43,8 @@ def export(ctx):
     help="Output directory containing benchmark results (default: out).",
 )
 @click.pass_context
-def export_dashboard(ctx, benchmark, dashboard_format, out_dir):
-    """Export a dashboard from benchmark results.
+def dashboard(ctx, benchmark, dashboard_format, out_dir):
+    """Generate a dashboard from benchmark results.
 
     This command generates a dashboard from the performance data
     collected during benchmark execution.

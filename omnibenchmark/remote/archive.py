@@ -5,10 +5,10 @@ import os
 
 from omnibenchmark.model import SoftwareBackendEnum
 
-from omnibenchmark.io.RemoteStorage import StorageOptions
-from omnibenchmark.io.code import clone_module
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.code import clone_module
 from omnibenchmark.benchmark import Benchmark
-from omnibenchmark.io.files import download_files, list_files
+from omnibenchmark.remote.files import download_files, list_files
 
 
 def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
@@ -151,7 +151,7 @@ def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
 
 
 def prepare_archive_results(
-    benchmark: Benchmark, results_dir: str, local_storage: bool = False
+    benchmark: Benchmark, results_dir: str, remote_storage: bool = True
 ) -> List[Path]:
     """
     Prepare the results to archive and return list of all filenames.
@@ -170,10 +170,10 @@ def prepare_archive_results(
         stage="",
         module="",
         file_id="",
-        local_storage=local_storage,
+        remote_storage=remote_storage,
         storage_options=StorageOptions(out_dir=results_dir),
     )
-    if not local_storage:
+    if remote_storage:
         download_files(
             benchmark.get_definition_file().as_posix(),
             type="all",
@@ -196,7 +196,7 @@ def archive_version(
     compression=zipfile.ZIP_STORED,
     compresslevel: Optional[int] = None,
     dry_run: bool = False,
-    local_storage: bool = False,
+    remote_storage: bool = True,
 ):
     # retrieve all filenames to save
     filenames = []
@@ -225,7 +225,7 @@ def archive_version(
     ## results (results files)
     ### check if results match remote, if not download
     if results:
-        filenames += prepare_archive_results(benchmark, results_dir, local_storage)
+        filenames += prepare_archive_results(benchmark, results_dir, remote_storage)
 
     if dry_run:
         return filenames
