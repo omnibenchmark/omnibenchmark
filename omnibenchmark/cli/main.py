@@ -4,10 +4,11 @@ import click
 
 from omnibenchmark import __version__
 from omnibenchmark.cli.describe import describe
-from omnibenchmark.cli.storage import storage
+from omnibenchmark.cli.remote import remote
+from omnibenchmark.cli.archive import archive
 from omnibenchmark.cli.create import create
 from omnibenchmark.cli.run import run
-from omnibenchmark.cli.export import export
+from omnibenchmark.cli.dashboard import dashboard
 
 from .debug import add_debug_option
 
@@ -68,8 +69,9 @@ def cli(ctx):
 cli.add_command(add_debug_option(create))
 cli.add_command(add_debug_option(run))
 cli.add_command(add_debug_option(describe))
-cli.add_command(add_debug_option(storage))
-cli.add_command(add_debug_option(export))
+cli.add_command(add_debug_option(remote))
+cli.add_command(dashboard)
+cli.add_command(archive)
 
 add_debug_option(cli)
 

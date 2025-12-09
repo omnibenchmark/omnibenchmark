@@ -2,7 +2,6 @@
 
 import json
 import sys
-import zipfile
 
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -11,11 +10,9 @@ import click
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.io.archive import archive_version
 from omnibenchmark.io.files import checksum_files
 from omnibenchmark.io.files import list_files
 from omnibenchmark.io.files import download_files
-from omnibenchmark.io.tree import tree_string_from_list
 from packaging.version import Version
 from datetime import datetime
 from difflib import unified_diff
@@ -64,9 +61,9 @@ class StorageAuth:
         return ss
 
 
-@click.group(name="storage")
+@click.group(name="remote")
 @click.pass_context
-def storage(ctx):
+def remote(ctx):
     """Manage remote storage."""
     ctx.ensure_object(dict)
 
@@ -78,7 +75,7 @@ def files(ctx):
     ctx.ensure_object(dict)
 
 
-storage.add_command(files)
+remote.add_command(files)
 
 
 @click.group(name="version")
@@ -88,7 +85,7 @@ def version(ctx):
     ctx.ensure_object(dict)
 
 
-storage.add_command(version)
+remote.add_command(version)
 
 
 @click.group(name="policy")
@@ -98,7 +95,7 @@ def policy(ctx):
     ctx.ensure_object(dict)
 
 
-storage.add_command(policy)
+remote.add_command(policy)
 
 
 @add_debug_option
@@ -293,129 +290,6 @@ def create_policy(benchmark_path: str):
         # TODO: this belongs to validation
         logger.error("Error: Invalid storage type. Only MinIO/S3 storage is supported.")
         raise click.Abort()
-
-
-@add_debug_option
-@storage.command("archive")
-@click.option(
-    "--benchmark",
-    "-b",
-    required=True,
-    type=click.Path(exists=True),
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
-)
-@click.option(
-    "-c",
-    "--code",
-    help="Archive benchmarking code (repos).",
-    is_flag=True,
-    default=False,
-    show_default=True,
-)
-@click.option(
-    "-s",
-    "--software",
-    help="Archive software environments.",
-    is_flag=True,
-    default=False,
-    show_default=True,
-)
-@click.option(
-    "-r",
-    "--results",
-    help="Archive results files.",
-    is_flag=True,
-    default=False,
-    show_default=True,
-)
-@click.option(
-    "--compression",
-    type=click.Choice(["none", "deflated", "bzip2", "lzma"], case_sensitive=False),
-    default="none",
-    help="Compression method.",
-    show_default=True,
-)
-@click.option(
-    "--compresslevel",
-    type=int,
-    default=None,
-    help="Compression level.",
-    show_default=True,
-)
-@click.option(
-    "-n",
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    help="Do not create the archive, just show what would be done.",
-    show_default=True,
-)
-@click.option(
-    "-l",
-    "--local-storage",
-    help="Execute and store results locally. Default False.",
-    is_flag=True,
-    default=False,
-)
-@click.option(
-    "--out-dir", type=str, default="out", help="Output folder name (local only)."
-)
-@click.pass_context
-def archive_benchmark(
-    ctx,
-    benchmark,
-    code,
-    software,
-    results,
-    compression,
-    compresslevel,
-    dry_run,
-    local_storage,
-    out_dir,
-):
-    """Archive a benchmark and its artifacts."""
-
-    # Validate out_dir usage
-    if not local_storage and out_dir != "out":
-        logger.error(
-            "-Invalid arguments: --out-dir can only be used with --local_storage"
-        )
-        sys.exit(1)
-
-    assert benchmark is not None
-
-    storage_auth = StorageAuth(benchmark)
-    benchmark = storage_auth.benchmark
-
-    match compression:
-        case "none":
-            compression = zipfile.ZIP_STORED
-        case "deflated":
-            compression = zipfile.ZIP_DEFLATED
-        case "bzip2":
-            compression = zipfile.ZIP_BZIP2
-        case "lzma":
-            compression = zipfile.ZIP_LZMA
-        case _:
-            compression = zipfile.ZIP_STORED
-    archive_file = archive_version(
-        benchmark,
-        outdir=Path("."),
-        config=True,
-        code=code,
-        software=software,
-        results=results,
-        results_dir=out_dir,
-        compression=compression,
-        compresslevel=compresslevel,
-        dry_run=dry_run,
-        local_storage=local_storage,
-    )
-    if dry_run:
-        click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")
-    else:
-        click.echo(f"Created archive: {archive_file}")
 
 
 @add_debug_option
