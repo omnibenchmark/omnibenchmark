@@ -2,10 +2,10 @@ id: clustering_benchmark
 description: Clustering benchmark on Iris and Penguins Dataset.
 version: "1.0"
 benchmarker: "OmniBenchmark Team at Robinsons Lab"
-storage: https://play.min.io
 api_version: "0.3.0"
+storage: https://rgw.science-it.uzh.ch/
 storage_api: S3
-storage_bucket_name: clustering_benchmark
+storage_bucket_name: omnibenchmark-remote-testing
 software_backend: host
 software_environments:
   R:
