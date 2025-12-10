@@ -16,7 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - refactor: use strict type checking (#70)
 - refactor: rename `info` cli group to `describe`
 - refactor: change suborganization of `storage` and rename into `remote files`, `remote version` and `remote policy`
-- refactor: rename `--local-storage` flag into `--remote-storage`
+- refactor: change behaviour of `--local-storage` flag and rename into `--use-remote-storage`
 - bug: do not fail if numeric values given in commit, params or version (#187)
 - bug: Use -- separator for passing delimiting extra arguments passing to snakemake
 - bug: do not hardcode /tmp in run_module (#173)

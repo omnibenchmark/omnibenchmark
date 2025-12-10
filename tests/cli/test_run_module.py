@@ -30,7 +30,7 @@ def test_run_benchmark_out_dir_with_remote_storage():
                 "benchmark",
                 "--benchmark",
                 str(path / "mock_benchmark.yaml"),
-                "--remote-storage",
+                "--use-remote-storage",
                 "--out-dir",
                 "custom_output",
                 "--dry",
@@ -38,7 +38,7 @@ def test_run_benchmark_out_dir_with_remote_storage():
         )
 
         assert result.returncode == 1
-        error_msg = "--out-dir can only be used without --remote-storage"
+        error_msg = "--out-dir can only be used with local storage"
         assert error_msg in result.stderr or error_msg in result.stdout
 
 
