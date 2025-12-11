@@ -20,7 +20,7 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
 
 
 def test_run_benchmark_out_dir_with_remote_storage():
-    """Test that --out-dir fails when used with --remote-storage."""
+    """Test that --out-dir fails when used with --use-remote-storage."""
     path = get_benchmark_data_path()
 
     with OmniCLISetup() as omni:
@@ -37,7 +37,7 @@ def test_run_benchmark_out_dir_with_remote_storage():
             ]
         )
 
-        assert result.returncode == 1
+        assert result.returncode == 2
         error_msg = "--out-dir can only be used with local storage"
         assert error_msg in result.stderr or error_msg in result.stdout
 

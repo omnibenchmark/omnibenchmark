@@ -21,6 +21,7 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
             "benchmark",
             "--benchmark",
             file,
+            "--use-remote-storage",
         ],
         cwd=cwd,
     )

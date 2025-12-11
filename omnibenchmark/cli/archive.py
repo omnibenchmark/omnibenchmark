@@ -1,13 +1,10 @@
 """Archive command for creating benchmark archives"""
 
-import sys
+import click
 import zipfile
 from pathlib import Path
 
-import click
-
 from omnibenchmark.cli.remote import StorageAuth
-from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.remote.archive import archive_version
 from omnibenchmark.remote.tree import tree_string_from_list
 
@@ -78,7 +75,10 @@ from .debug import add_debug_option
     default=False,
 )
 @click.option(
-    "--out-dir", type=str, default="out", help="Output folder name (local only)."
+    "--out-dir",
+    help="Output folder name (local only). Default: `out`",
+    default=None,
+    type=str,
 )
 @click.pass_context
 def archive(
@@ -96,11 +96,8 @@ def archive(
     """Archive a benchmark and its artifacts."""
 
     # Validate out_dir usage
-    if use_remote_storage and out_dir != "out":
-        logger.error("Invalid arguments: --out-dir can only be used with local storage")
-        sys.exit(1)
-
-    assert benchmark is not None
+    if use_remote_storage and out_dir:
+        raise click.UsageError("--out-dir can only be used with local storage")
 
     storage_auth = StorageAuth(benchmark)
     benchmark = storage_auth.benchmark
@@ -116,6 +113,8 @@ def archive(
             compression = zipfile.ZIP_LZMA
         case _:
             compression = zipfile.ZIP_STORED
+
+    results_dir = out_dir if out_dir else "out"
     archive_file = archive_version(
         benchmark,
         outdir=Path("."),
@@ -123,7 +122,7 @@ def archive(
         code=code,
         software=software,
         results=results,
-        results_dir=out_dir,
+        results_dir=results_dir,
         compression=compression,
         compresslevel=compresslevel,
         dry_run=dry_run,

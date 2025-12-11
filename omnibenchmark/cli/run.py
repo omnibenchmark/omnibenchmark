@@ -99,7 +99,10 @@ def run(ctx):
     default=None,
 )
 @click.option(
-    "--out-dir", type=str, default="out", help="Output folder name (local only)."
+    "--out-dir",
+    help="Output folder name (local only). Default: `out`",
+    default=None,
+    type=str,
 )
 @click.pass_context
 def run_benchmark(
@@ -133,11 +136,11 @@ def run_benchmark(
             sys.exit(1)
 
     # Validate out_dir usage
-    if use_remote_storage and out_dir != "out":
-        logger.error("Invalid arguments: --out-dir can only be used with local storage")
-        sys.exit(1)
+    if use_remote_storage and out_dir:
+        raise click.UsageError("--out-dir can only be used with local storage")
 
     try:
+        out_dir = out_dir if out_dir else "out"
         b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
     except BenchmarkParseError as e:
