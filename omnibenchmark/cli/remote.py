@@ -9,6 +9,8 @@ import click
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.cli.error_formatting import pretty_print_parse_error
+from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.remote.files import checksum_files
 from omnibenchmark.remote.files import list_files
 from omnibenchmark.remote.files import download_files
@@ -31,18 +33,31 @@ class StorageAuth:
         from omnibenchmark.remote.storage import remote_storage_args
 
         self.benchmark_path = benchmark_path
-        self.benchmark = BenchmarkExecution(Path(benchmark_path))
+        try:
+            self.benchmark = BenchmarkExecution(Path(benchmark_path))
+        except BenchmarkParseError as e:
+            formatted_error = pretty_print_parse_error(e)
+            logger.error(f"Failed to load benchmark:\n{formatted_error}")
+            sys.exit(1)
         self.auth_options = remote_storage_args(self.benchmark)
 
         # Validate required storage components
+        import click
+
         api = self.benchmark.get_storage_api()
         bucket = self.benchmark.get_storage_bucket_name()
 
         if api is None:
-            logger.error("Error: No storage API found.")
+            logger.error(
+                click.style("[ERROR]", fg="red", bold=True)
+                + " No storage API configured. Set 'storage.api' in your benchmark YAML."
+            )
             sys.exit(1)
         if bucket is None:
-            logger.error("Error: No storage bucket found.")
+            logger.error(
+                click.style("[ERROR]", fg="red", bold=True)
+                + " No storage bucket configured. Set 'storage.bucket_name' in your benchmark YAML."
+            )
             sys.exit(1)
 
         # Store validated non-null values
@@ -270,27 +285,84 @@ def checksum_all_files(benchmark: str):
     "-b",
     "--benchmark",
     "benchmark_path",
-    help="Path to benchmark yaml file or benchmark id.",
+    help="Path to benchmark yaml file.",
     type=click.Path(exists=True),
-    required=True,
+    required=False,
     envvar="OB_BENCHMARK",
 )
-def create_policy(benchmark_path: str):
-    """Create a new policy for a benchmark."""
+@click.option(
+    "--bucket",
+    "bucket_name",
+    help="S3 bucket name. If not provided, reads from benchmark YAML.",
+    type=str,
+    required=False,
+)
+def create_policy(benchmark_path: str, bucket_name: str):
+    """Generate an S3/MinIO IAM policy for a benchmark bucket.
+
+    This command generates a least-privilege AWS IAM policy JSON that can be used
+    to create access keys in MinIO or AWS. The policy allows full S3 operations
+    on the bucket but denies deletion and governance bypass.
+
+    You can either:
+    - Provide a benchmark YAML file (-b) to read the bucket name from storage.bucket_name
+    - Provide the bucket name directly (--bucket)
+    """
     from omnibenchmark.remote.S3config import benchmarker_access_token_policy
+    import click
 
-    assert benchmark_path is not None
+    # Get bucket name from either parameter or benchmark YAML
+    if bucket_name:
+        # Direct bucket name provided
+        bucket = bucket_name
+    elif benchmark_path:
+        # Load from benchmark YAML
+        from omnibenchmark.model.benchmark import Benchmark
 
-    storage_auth = StorageAuth(benchmark_path)
-    if storage_auth.api and (
-        storage_auth.api.upper() == "MINIO" or storage_auth.api.upper() == "S3"
-    ):
-        policy = benchmarker_access_token_policy(storage_auth.bucket)
-        logger.error(json.dumps(policy, indent=2))
+        try:
+            benchmark = Benchmark.from_yaml(Path(benchmark_path))
+        except BenchmarkParseError as e:
+            formatted_error = pretty_print_parse_error(e)
+            logger.error(f"Failed to load benchmark:\n{formatted_error}")
+            sys.exit(1)
+
+        # Get storage configuration
+        api = benchmark.get_storage_api()
+        bucket = benchmark.get_storage_bucket_name()
+
+        # Validate we have bucket name
+        if bucket is None:
+            logger.error(
+                click.style("[ERROR]", fg="red", bold=True)
+                + " No storage bucket configured. Set 'storage.bucket_name' in your benchmark YAML or use --bucket."
+            )
+            sys.exit(1)
+
+        # Validate storage API is S3/MinIO (both use AWS IAM policies)
+        if api is None:
+            logger.error(
+                click.style("[ERROR]", fg="red", bold=True)
+                + " Storage API not configured. Set 'storage.api' to 'S3' or 'MinIO' in your benchmark YAML."
+            )
+            sys.exit(1)
+
+        if api.upper() not in ("MINIO", "S3"):
+            logger.error(
+                click.style("[ERROR]", fg="red", bold=True)
+                + f" Storage API '{api}' does not use AWS IAM policies. Only S3 and MinIO are supported."
+            )
+            sys.exit(1)
     else:
-        # TODO: this belongs to validation
-        logger.error("Error: Invalid storage type. Only MinIO/S3 storage is supported.")
-        raise click.Abort()
+        # Neither provided
+        logger.error(
+            click.style("[ERROR]", fg="red", bold=True)
+            + " Must provide either --benchmark or --bucket option."
+        )
+        sys.exit(1)
+
+    # Generate and print the policy
+    policy = benchmarker_access_token_policy(bucket)
+    print(json.dumps(policy, indent=2))
 
 
 @add_debug_option

@@ -101,18 +101,12 @@ class Params:
         Returns:
             List of Params instances after expansion
         """
-        import warnings
 
         result: List[Params] = []
 
         if parameter.values is not None:
             # Old format: list of CLI args
-            warnings.warn(
-                "The 'values' parameter format using CLI args is deprecated and will be removed in a future version. "
-                "Please use the dict format instead (e.g., 'method: value' instead of 'values: [\"--method\", \"value\"]').",
-                FutureWarning,
-                stacklevel=3,
-            )
+            # Note: Deprecation warning is emitted during YAML parsing with line context
             result.append(Params.from_cli_args(parameter.values))
         elif parameter.params is not None:
             # New format: dict with potential lists for product expansion

@@ -52,8 +52,35 @@ class BenchmarkParseError(Exception):
         super().__init__(message)
 
     def __str__(self) -> str:
-        # Simple string representation for non-CLI contexts
-        return self.message
+        """Format a compact, helpful error message with context."""
+        parts = []
+
+        # Add file and line number if available
+        if self.yaml_file:
+            location = str(self.yaml_file)
+            if self.line_number:
+                location += f":{self.line_number}"
+            parts.append(f"Error in {location}")
+
+        # Add stage/module context if available
+        if self.stage_id or self.module_id:
+            context_parts = []
+            if self.stage_id:
+                context_parts.append(f"stage '{self.stage_id}'")
+            if self.module_id:
+                context_parts.append(f"module '{self.module_id}'")
+            if self.parameter_index is not None:
+                context_parts.append(f"parameter #{self.parameter_index}")
+            parts.append(f"  in {', '.join(context_parts)}")
+
+        # Add the actual error message
+        parts.append(f"  {self.message}")
+
+        # Add parameter values if available (helps with debugging)
+        if self.values:
+            parts.append(f"  values: {self.values}")
+
+        return "\n".join(parts)
 
 
 def _find_duplicate_ids(items: List[str]) -> List[str]:

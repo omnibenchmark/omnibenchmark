@@ -128,6 +128,10 @@ def _find_line_number(
         simple_path = ".".join(str(part) for part in loc if isinstance(part, str))
         if simple_path:
             patterns.append(simple_path)
+            # For missing nested fields (e.g., storage.endpoint), also try parent path
+            if "." in simple_path:
+                parent_path = ".".join(simple_path.split(".")[:-1])
+                patterns.append(parent_path)
 
     # Try all patterns
     for pattern in patterns:
