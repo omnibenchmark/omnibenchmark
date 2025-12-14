@@ -359,8 +359,11 @@ Access keys provide authentication for reading/writing benchmark results to remo
 
 ### MinIO
 
-Do note the latest minio community edition remove the access keys from the UI:
+Do note the latest minio community edition removed the access keys from the UI:
 https://github.com/minio/minio/issues/21317#issuecomment-2910267585
+
+You need to refer to the minio documentation for creating access keys:
+https://min.io/docs/minio/linux/operations/create-access-key.html
 
 ### AWS
 
