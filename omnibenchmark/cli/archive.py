@@ -4,8 +4,9 @@ import click
 import zipfile
 from pathlib import Path
 
+from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.cli.remote import StorageAuth
-from omnibenchmark.remote.archive import archive_version
+from omnibenchmark.archive import archive_benchmark
 from omnibenchmark.remote.tree import tree_string_from_list
 
 from .debug import add_debug_option
@@ -48,15 +49,15 @@ from .debug import add_debug_option
 @click.option(
     "--compression",
     type=click.Choice(["none", "deflated", "bzip2", "lzma"], case_sensitive=False),
-    default="none",
+    default="bzip2",
     help="Compression method.",
     show_default=True,
 )
 @click.option(
     "--compresslevel",
     type=int,
-    default=None,
-    help="Compression level.",
+    default=9,
+    help="Compression level (1-9, higher is better compression).",
     show_default=True,
 )
 @click.option(
@@ -68,17 +69,23 @@ from .debug import add_debug_option
     show_default=True,
 )
 @click.option(
-    "-r",
     "--use-remote-storage",
-    help="Execute and store results remotely. Default False.",
+    help="Download results from remote storage for archiving. Default False.",
     is_flag=True,
     default=False,
 )
 @click.option(
     "--out-dir",
-    help="Output folder name (local only). Default: `out`",
+    help="Local directory name to archive from (local-only mode). Default: `out`",
     default=None,
     type=str,
+)
+@click.option(
+    "-o",
+    "--output-file",
+    help="Custom output file path for the archive. Extension must match compression type: none/deflated (.zip), bzip2 (.bz2), lzma (.xz).",
+    default=None,
+    type=click.Path(),
 )
 @click.pass_context
 def archive(
@@ -92,6 +99,7 @@ def archive(
     dry_run,
     use_remote_storage,
     out_dir,
+    output_file,
 ):
     """Archive a benchmark and its artifacts."""
 
@@ -99,8 +107,43 @@ def archive(
     if use_remote_storage and out_dir:
         raise click.UsageError("--out-dir can only be used with local storage")
 
-    storage_auth = StorageAuth(benchmark)
-    benchmark = storage_auth.benchmark
+    # Validate output_file extension against compression
+    if output_file:
+        output_path = Path(output_file)
+        expected_extensions = {
+            zipfile.ZIP_STORED: [".zip"],
+            zipfile.ZIP_DEFLATED: [".zip"],
+            zipfile.ZIP_BZIP2: [".bz2"],
+            zipfile.ZIP_LZMA: [".xz"],
+        }
+
+        # Convert compression string to zipfile constant for validation
+        compression_map = {
+            "none": zipfile.ZIP_STORED,
+            "deflated": zipfile.ZIP_DEFLATED,
+            "bzip2": zipfile.ZIP_BZIP2,
+            "lzma": zipfile.ZIP_LZMA,
+        }
+
+        compression_type = compression_map.get(compression, zipfile.ZIP_STORED)
+        valid_extensions = expected_extensions.get(compression_type, [".zip"])
+
+        if output_path.suffix.lower() not in valid_extensions:
+            all_combinations = ["none/deflated → .zip", "bzip2 → .bz2", "lzma → .xz"]
+            raise click.UsageError(
+                f"Output file extension '{output_path.suffix}' does not match "
+                f"compression type '{compression}'. Expected for '{compression}': {', '.join(valid_extensions)}.\n"
+                f"Valid combinations: {' | '.join(all_combinations)}"
+            )
+
+    # Load benchmark differently based on whether we need storage authentication
+    if use_remote_storage:
+        # For remote storage, we need full storage authentication
+        storage_auth = StorageAuth(benchmark)
+        benchmark_obj = storage_auth.benchmark
+    else:
+        # For local-only archiving, we can load benchmark without storage requirements
+        benchmark_obj = BenchmarkExecution(Path(benchmark))
 
     match compression:
         case "none":
@@ -115,9 +158,19 @@ def archive(
             compression = zipfile.ZIP_STORED
 
     results_dir = out_dir if out_dir else "out"
-    archive_file = archive_version(
-        benchmark,
-        outdir=Path("."),
+
+    # Determine output directory and filename
+    if output_file:
+        output_path = Path(output_file)
+        outdir = output_path.parent if output_path.parent != Path() else Path(".")
+        custom_filename = output_path.name
+    else:
+        outdir = Path(".")
+        custom_filename = None
+
+    archive_file = archive_benchmark(
+        benchmark_obj,
+        outdir=outdir,
         config=True,
         code=code,
         software=software,
@@ -127,8 +180,9 @@ def archive(
         compresslevel=compresslevel,
         dry_run=dry_run,
         remote_storage=use_remote_storage,
+        custom_filename=custom_filename,
     )
     if dry_run:
         click.echo(f"Files to archive:\n{tree_string_from_list(archive_file)}")
     else:
-        click.echo(f"Created archive: {archive_file}")
+        click.echo(f"Created archive: {archive_file[0]}")

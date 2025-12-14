@@ -1,192 +1,25 @@
+"""
+Backward compatibility module for remote archive functionality.
+
+This module maintains the original API while delegating to the new
+archive module to avoid breaking existing code.
+"""
+
+# Import the new archive functionality
+from omnibenchmark.archive import archive_benchmark
+
+# Keep original imports for compatibility
 import zipfile
 from pathlib import Path
-from typing import List, Optional
-import os
-
-from omnibenchmark.model import SoftwareBackendEnum
-
-from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.code import clone_module
-from omnibenchmark.benchmark import Benchmark
-from omnibenchmark.remote.files import download_files, list_files
+from typing import Optional
 
 
-def prepare_archive_code(benchmark: Benchmark) -> List[Path]:
-    """
-    Prepare the code to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all code to archive.
-    """
-
-    nodes = benchmark.get_nodes()
-    repositories = set()
-    for node in nodes:
-        repositories.add((node.get_repository().url, node.get_repository().commit))
-
-    repositories_dir = Path(".snakemake") / "repos"
-    files = []
-    while repositories:
-        repo = repositories.pop()
-        files += list(clone_module(repositories_dir, repo[0], repo[1]).iterdir())
-    return files
-
-
-def prepare_archive_software(benchmark: Benchmark) -> List[Path]:
-    """
-    Prepare the software to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all software to archive.
-    """
-    # decide on software type
-    which_env = benchmark.get_benchmark_software_backend()
-    files = []
-    if which_env != SoftwareBackendEnum.host:
-        if which_env == SoftwareBackendEnum.envmodules:
-            files += prepare_archive_software_easyconfig(benchmark)
-        elif which_env == SoftwareBackendEnum.apptainer:
-            files += prepare_archive_software_apptainer(benchmark)
-        elif which_env == SoftwareBackendEnum.conda:
-            files += prepare_archive_software_conda(benchmark)
-        else:
-            raise NotImplementedError(
-                f"Software backend {which_env} not implemented yet."
-            )
-    return files
-
-
-def prepare_archive_software_easyconfig(benchmark: Benchmark) -> List[Path]:
-    """
-    Prepare the software easyconfig to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all software easyconfig to archive.
-    """
-    files = []
-    softenvs = benchmark.get_benchmark_software_environments()
-    for softenv in softenvs.values():
-        if softenv.envmodule is None:
-            continue
-        envmodule_file = (
-            benchmark.context.directory / Path(softenv.envmodule)
-        ).relative_to(Path(os.getcwd()))
-        if envmodule_file.is_file():
-            files.append(envmodule_file)
-        else:
-            raise FileNotFoundError(f"File {envmodule_file} not found.")
-        if softenv.easyconfig is None:
-            continue
-        easyconfig_file = (
-            benchmark.context.directory / Path(softenv.easyconfig)
-        ).relative_to(Path(os.getcwd()))
-        if easyconfig_file.is_file():
-            files.append(easyconfig_file)
-        else:
-            raise FileNotFoundError(f"File {easyconfig_file} not found.")
-    return files
-
-
-def prepare_archive_software_conda(benchmark: Benchmark) -> List[Path]:
-    """
-    Prepare the conda to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all conda to archive.
-    """
-    # prepare conda, as in snakemake archive (https://github.com/snakemake/snakemake/blob/76d53290a003891c5ee41f81e8eb4821c406255d/snakemake/deployment/conda.py#L316) maybe?
-    # return all files
-    # from omnibenchmark.software.conda_backend import pin_conda_envs
-    # pin_conda_envs(benchmark.get_definition_file())
-    files = []
-    softenvs = benchmark.get_benchmark_software_environments()
-    for softenv in softenvs.values():
-        if softenv.conda is None:
-            continue
-        conda_file = benchmark.context.directory / Path(softenv.conda)
-        if conda_file.is_file():
-            files.append(conda_file)
-        else:
-            raise FileNotFoundError(f"File {conda_file} not found.")
-    return files
-
-
-def prepare_archive_software_apptainer(benchmark: Benchmark) -> List[Path]:
-    """
-    Prepare the software apptainer to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all software apptainer to archive.
-    """
-    # prepare apptainer, check if .sif file exists
-    # return all files
-    files = []
-    softenvs = benchmark.get_benchmark_software_environments()
-    for softenv in softenvs.values():
-        if softenv.apptainer is None:
-            continue
-        apptainer_file = (
-            benchmark.context.directory / Path(softenv.apptainer)
-        ).relative_to(Path(os.getcwd()))
-        if apptainer_file.is_file():
-            files.append(apptainer_file)
-        else:
-            raise FileNotFoundError(f"File {apptainer_file} not found.")
-    return files
-
-
-def prepare_archive_results(
-    benchmark: Benchmark, results_dir: str, remote_storage: bool = True
-) -> List[Path]:
-    """
-    Prepare the results to archive and return list of all filenames.
-
-    Args:
-        benchmark (str): The benchmark id.
-
-    Returns:
-        List[Path]: The filenames of all results to archive.
-    """
-    # get all results, check if exist locally, otherwise download
-
-    objectnames, etags = list_files(
-        benchmark.get_definition_file().as_posix(),
-        type="all",
-        stage="",
-        module="",
-        file_id="",
-        remote_storage=remote_storage,
-        storage_options=StorageOptions(out_dir=results_dir),
-    )
-    if remote_storage:
-        download_files(
-            benchmark.get_definition_file().as_posix(),
-            type="all",
-            stage="",
-            module="",
-            file_id="",
-            overwrite=True,
-        )
-    return [Path(obj) for obj in objectnames]
+# Re-export the functions from the new module for backward compatibility
+# These are already imported above
 
 
 def archive_version(
-    benchmark: Benchmark,
+    benchmark,
     outdir: Path = Path(),
     config: bool = True,
     code: bool = False,
@@ -198,51 +31,26 @@ def archive_version(
     dry_run: bool = False,
     remote_storage: bool = True,
 ):
-    # retrieve all filenames to save
-    filenames = []
+    """
+    Legacy function name - delegates to archive_benchmark.
 
-    ## config (benchmark.yaml)
-    if config:
-        filenames.append(benchmark.get_definition_file())
-
-    ## code (code files)
-    ### check local cache of GH repos
-    ### download repos if not in cache
-    ### iterate over all files in repos
-    if code:
-        filenames += prepare_archive_code(benchmark)
-
-    ## software (software files)
-    ### easyconfig
-    #### save easyconfig files
-    ### conda
-    #### save explicit packages list
-    ### apptainer
-    #### save .sif file
-    if software:
-        filenames += prepare_archive_software(benchmark)
-
-    ## results (results files)
-    ### check if results match remote, if not download
-    if results:
-        filenames += prepare_archive_results(benchmark, results_dir, remote_storage)
+    Maintained for backward compatibility.
+    """
+    result = archive_benchmark(
+        benchmark=benchmark,
+        outdir=outdir,
+        config=config,
+        code=code,
+        software=software,
+        results=results,
+        results_dir=results_dir,
+        compression=compression,
+        compresslevel=compresslevel,
+        dry_run=dry_run,
+        remote_storage=remote_storage,
+    )
 
     if dry_run:
-        return filenames
+        return result
     else:
-        match compression:
-            case zipfile.ZIP_BZIP2:
-                file_extension = ".bz2"
-            case zipfile.ZIP_LZMA:
-                file_extension = ".xz"
-            case _:
-                file_extension = ".zip"
-        # save all files to zip archive
-        outfile = f"{benchmark.get_benchmark_name()}_{benchmark.model.get_version()}{file_extension}"
-        with zipfile.ZipFile(
-            outdir / outfile, "w", compression=compression, compresslevel=compresslevel
-        ) as archive:
-            for filename in filenames:
-                archive.write(filename, filename)
-
-        return outdir / outfile
+        return result[0] if result else None
