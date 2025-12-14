@@ -58,8 +58,16 @@ def bucket_readonly_policy(bucket_name):
     }
 
 
-def S3_access_config_from_env() -> dict:
-    """Get S3 access config from environment variables or file"""
+def S3_access_config_from_env(required: bool = True) -> dict:
+    """Get S3 access config from environment variables or file
+
+    Args:
+        required: If True, raise error when credentials are missing.
+                 If False, return empty dict when credentials are missing.
+
+    Returns:
+        dict: Dictionary with access_key and secret_key, or empty dict if not required
+    """
     if (
         "OB_STORAGE_S3_ACCESS_KEY" in os.environ
         and "OB_STORAGE_S3_SECRET_KEY" in os.environ
@@ -74,15 +82,25 @@ def S3_access_config_from_env() -> dict:
         if "access_key" in auth_options and "secret_key" in auth_options:
             return auth_options
         else:
+            if required:
+                import click
+
+                logger.error(
+                    click.style("[ERROR]", fg="red", bold=True)
+                    + f" Missing access_key or secret_key in config file: {os.environ['OB_STORAGE_S3_CONFIG']}"
+                )
+                sys.exit(1)
+            return {}
+    else:
+        if required:
+            import click
+
             logger.error(
-                f"Invalid S3 config, missing access_key or secret_key in config file ({os.environ['OB_STORAGE_S3_CONFIG']})",
+                click.style("[ERROR]", fg="red", bold=True)
+                + " Missing S3 credentials. Set OB_STORAGE_S3_ACCESS_KEY and OB_STORAGE_S3_SECRET_KEY, or OB_STORAGE_S3_CONFIG"
             )
             sys.exit(1)
-    else:
-        logger.error(
-            "Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG",
-        )
-        sys.exit(1)
+        return {}
 
 
 if __name__ == "__main__":
