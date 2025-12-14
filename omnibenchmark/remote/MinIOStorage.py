@@ -141,6 +141,17 @@ class MinIOStorage(RemoteStorage):
                 endpoint=tmp_auth_options["endpoint"],
                 **{k: v for k, v in tmp_auth_options.items() if k != "endpoint"},
             )
+        except NameError:
+            import click
+            import sys
+
+            logger.error(
+                click.style("[ERROR]", fg="red", bold=True)
+                + " S3/MinIO storage libraries not installed. Install with: pip install omnibenchmark[s3]"
+            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.exception("Full traceback:")
+            sys.exit(1)
         except Exception:
             url = urlparse(tmp_auth_options["endpoint"])
             tmp_auth_options["endpoint"] = url.netloc
@@ -177,11 +188,40 @@ class MinIOStorage(RemoteStorage):
             )
 
     def _get_versions(self) -> None:
-        versionobjects = list(
-            self.roclient.list_objects(
-                self.benchmark, prefix="versions", recursive=True
+        try:
+            versionobjects = list(
+                self.roclient.list_objects(
+                    self.benchmark, prefix="versions", recursive=True
+                )
             )
-        )
+        except Exception as e:
+            # Catch S3 errors to provide clearer error messages
+            import click
+            import sys
+
+            # Check if debug mode is enabled (logger level is DEBUG)
+            debug_mode = logger.isEnabledFor(logging.DEBUG)
+
+            if hasattr(e, "code") and e.code == "AccessDenied":
+                logger.error(
+                    click.style("[ERROR]", fg="red", bold=True)
+                    + f" Access denied to S3 bucket '{self.benchmark}'. Check your credentials have the correct permissions."
+                )
+                if debug_mode:
+                    logger.exception("Full traceback:")
+                sys.exit(1)
+            elif hasattr(e, "code") and e.code == "NoSuchBucket":
+                logger.error(
+                    click.style("[ERROR]", fg="red", bold=True)
+                    + f" S3 bucket '{self.benchmark}' does not exist."
+                )
+                if debug_mode:
+                    logger.exception("Full traceback:")
+                sys.exit(1)
+            else:
+                # Re-raise other exceptions
+                raise
+
         allversions = [
             os.path.basename(v.object_name).replace(".csv", "")
             for v in versionobjects
