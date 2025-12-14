@@ -594,9 +594,44 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     for module_idx, module in enumerate(stage["modules"]):
                         if "parameters" in module and module["parameters"]:
                             for param_idx, param in enumerate(module["parameters"]):
-                                # Convert all parameter values to strings to handle mixed types (float, int, str)
+                                # Emit deprecation warning for old 'values' format
                                 if "values" in param:
+                                    # Convert all parameter values to strings to handle mixed types (float, int, str)
                                     param["values"] = [str(v) for v in param["values"]]
+
+                                    # Emit structured warning with line context
+                                    from omnibenchmark.cli.error_formatting import (
+                                        format_yaml_warning,
+                                    )
+                                    from omnibenchmark.cli.utils.logging import logger
+
+                                    stage_id = stage.get(
+                                        "id", f"<stage index {stage_idx}>"
+                                    )
+                                    module_id = module.get(
+                                        "id", f"<module index {module_idx}>"
+                                    )
+
+                                    # Find line number for this parameter
+                                    param_line = None
+                                    if line_map and yaml_file_path:
+                                        possible_paths = [
+                                            f"stages[{stage_idx}].modules[{module_idx}].parameters[{param_idx}].values",
+                                            f"stages[{stage_idx}].modules[{module_idx}].parameters[{param_idx}]",
+                                        ]
+                                        for path in possible_paths:
+                                            if path in line_map:
+                                                param_line = line_map[path]
+                                                break
+
+                                    warning_msg = format_yaml_warning(
+                                        message="The 'values' parameter format is deprecated. Use 'params' dict format instead.",
+                                        yaml_file=yaml_file_path,
+                                        line_number=param_line,
+                                        stage_id=stage_id,
+                                        module_id=module_id,
+                                    )
+                                    logger.warning(warning_msg)
 
                                 if "id" not in param:
                                     # Generate a hash-based ID from the parameter
@@ -653,12 +688,45 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                             original_error=e,
                                         ) from e
 
-        # Convert string storage to Storage object
-        if "storage" in data and isinstance(data["storage"], str):
-            data["storage"] = {
-                "api": data.get("storage_api", "S3"),
-                "endpoint": data["storage"],
-            }
+        # Convert string storage to Storage object and handle backward compatibility
+        if "storage" in data:
+            # Detect if using old format (top-level storage_api or storage_bucket_name)
+            has_old_format_fields = (
+                "storage_api" in data or "storage_bucket_name" in data
+            )
+            is_storage_dict = isinstance(data["storage"], dict)
+
+            if isinstance(data["storage"], str):
+                # Old format: storage: "https://endpoint.url"
+                if not has_old_format_fields:
+                    # Allow old format without storage_api/storage_bucket_name (use defaults)
+                    pass
+                storage_dict = {
+                    "api": data.get("storage_api", "S3"),
+                    "endpoint": data["storage"],
+                }
+                if "storage_bucket_name" in data:
+                    storage_dict["bucket_name"] = data["storage_bucket_name"]
+                data["storage"] = storage_dict
+            elif is_storage_dict:
+                # New format: storage: {endpoint, api, bucket_name}
+                # Check for mixed format (both new dict and old top-level fields)
+                if has_old_format_fields:
+                    # Reject mixed format
+                    line_num = None
+                    if line_map and yaml_file_path:
+                        # Try to find storage field line number
+                        for path in ["storage", "storage_api", "storage_bucket_name"]:
+                            if path in line_map:
+                                line_num = line_map[path]
+                                break
+
+                    raise BenchmarkParseError(
+                        message="Mixed storage format detected. Use either old format (storage: 'url', storage_api: 'S3', storage_bucket_name: 'name') OR new format (storage: {endpoint: 'url', api: 'S3', bucket_name: 'name'}), but not both.",
+                        yaml_file=yaml_file_path,
+                        line_number=line_num,
+                        original_error=None,
+                    )
 
         try:
             # Pass line_map through validation context for better error messages
