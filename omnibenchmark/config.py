@@ -19,7 +19,9 @@ xdg_bench_home = os.environ.get("XDG_DATA_HOME") or os.path.join(
 )
 
 
-default_cfg = {"dirs": {"datasets": f"~/{APP_NAME}/datasets"}}
+default_cfg = {
+    "dirs": {"datasets": f"~/{APP_NAME}/datasets", "git_modules": f".{APP_NAME}/git"}
+}
 
 bench_dir = os.path.join(xdg_bench_home, APP_NAME)
 
@@ -143,3 +145,21 @@ class ConfigAccessor:
 
 # Create a global config accessor instance
 config = ConfigAccessor()
+
+
+def get_git_modules_dir() -> Path:
+    """
+    Get the configured directory for caching git modules/repositories.
+
+    Returns:
+        Path to the git modules cache directory (defaults to .omnibenchmark/git)
+    """
+    git_modules_dir_str = config.get(
+        "dirs", "git_modules", default_cfg["dirs"]["git_modules"]
+    )
+    git_modules_dir = Path(git_modules_dir_str).expanduser()
+
+    # Create directory if it doesn't exist
+    git_modules_dir.mkdir(parents=True, exist_ok=True)
+
+    return git_modules_dir

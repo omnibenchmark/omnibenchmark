@@ -14,7 +14,7 @@ from snakemake.script import Snakemake
 from omnibenchmark.benchmark import constants
 from omnibenchmark.benchmark.params import Params
 from omnibenchmark.benchmark.symlinks import SymlinkManager
-from omnibenchmark.remote.code import clone_module
+from omnibenchmark.git.clone import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 
 logger = logging.getLogger("SNAKEMAKE_RUNNER")
@@ -90,10 +90,9 @@ if symlink_info:
     output_dir = symlink_info["symlink_path"]
 
 # Clone git repository
-repositories_dir = Path(".snakemake") / "repos"
 if repository_url is None or commit_hash is None:
     raise RuntimeError("repository_url and commit_hash must be provided")
-module_dir = clone_module(repositories_dir, repository_url, commit_hash)
+module_dir = clone_module(repository_url, commit_hash)
 
 # Execute module code
 module_name = extract_module_name(snakemake.rule)
