@@ -78,7 +78,10 @@ test-short = "pytest -m 'short and not e2e' --cov --cov-branch --cov-report=xml"
 test = { cmd = "pytest -m 'short and not e2e'", description = "Run short tests only (excluding e2e)" }
 
 # End-to-end test tasks
-test-e2e = { cmd = "pytest -m e2e -v -n auto", description = "Run end-to-end tests with parallel workers" }
+test-e2e = { cmd = "pytest -m 'e2e and not e2e_s3' -v -n auto", description = "Run end-to-end tests (excluding S3 tests)" }
+test-e2e-s3 = { cmd = "pytest tests/e2e/test_06_s3_remote.py -v -s", description = "Run S3 e2e tests (requires S3 setup)" }
+test-e2e-s3-local = { cmd = "tests/e2e/s3/run-local-s3-test.sh", description = "Run S3 e2e tests with local MinIO" }
+test-e2e-all = { cmd = "pytest -m e2e -v -n auto", description = "Run ALL end-to-end tests including S3" }
 test-all = { cmd = "pytest", description = "Run all tests including e2e" }
 
 # Linting and type checking

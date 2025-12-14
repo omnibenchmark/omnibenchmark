@@ -1,0 +1,229 @@
+{
+  "description": "Expected results for S3 remote storage e2e test - validates complete S3 workflow with cartesian product",
+  "test_name": "06_s3_remote",
+  "pipeline_structure": {
+    "datasets": 3,
+    "methods": 2,
+    "total_combinations": 6,
+    "excluded_combinations": 1,
+    "expected_data_files": 3,
+    "expected_method_files": 5,
+    "exclusion_rule": "D2 excludes M2"
+  },
+  "expected_files": [
+    {
+      "pattern": "D1_data.json",
+      "type": "data_output",
+      "stage": "data",
+      "module": "D1",
+      "required": true,
+      "description": "Dataset 1 output (evaluate: 100)"
+    },
+    {
+      "pattern": "D2_data.json", 
+      "type": "data_output",
+      "stage": "data",
+      "module": "D2",
+      "required": true,
+      "description": "Dataset 2 output (evaluate: 200)"
+    },
+    {
+      "pattern": "D3_data.json",
+      "type": "data_output",
+      "stage": "data", 
+      "module": "D3",
+      "required": true,
+      "description": "Dataset 3 output (evaluate: 300)"
+    },
+    {
+      "pattern": "D1.*M1.*method.json",
+      "type": "method_output",
+      "stage": "methods",
+      "module": "M1",
+      "dataset": "D1", 
+      "required": true,
+      "description": "D1-M1 method result (100 + 1000 = 1100)"
+    },
+    {
+      "pattern": "D1.*M2.*method.json",
+      "type": "method_output", 
+      "stage": "methods",
+      "module": "M2",
+      "dataset": "D1",
+      "required": true,
+      "description": "D1-M2 method result (100 + 2000 = 2100)"
+    },
+    {
+      "pattern": "D2.*M1.*method.json",
+      "type": "method_output",
+      "stage": "methods",
+      "module": "M1",
+      "dataset": "D2", 
+      "required": true,
+      "description": "D2-M1 method result (200 + 1000 = 1200)"
+    },
+    {
+      "pattern": "D3.*M1.*method.json", 
+      "type": "method_output",
+      "stage": "methods",
+      "module": "M1",
+      "dataset": "D3",
+      "required": true,
+      "description": "D3-M1 method result (300 + 1000 = 1300)"
+    },
+    {
+      "pattern": "D3.*M2.*method.json",
+      "type": "method_output",
+      "stage": "methods", 
+      "module": "M2",
+      "dataset": "D3",
+      "required": true,
+      "description": "D3-M2 method result (300 + 2000 = 2300)"
+    }
+  ],
+  "expected_content_patterns": {
+    "data_files": {
+      "D1_data.json": {
+        "expected_result": 100,
+        "json_structure": {
+          "result": "number"
+        }
+      },
+      "D2_data.json": {
+        "expected_result": 200,
+        "json_structure": {
+          "result": "number" 
+        }
+      },
+      "D3_data.json": {
+        "expected_result": 300,
+        "json_structure": {
+          "result": "number"
+        }
+      }
+    },
+    "method_files": {
+      "D1_M1": {
+        "expected_result": 1100,
+        "calculation": "100 + 1000"
+      },
+      "D1_M2": {
+        "expected_result": 2100, 
+        "calculation": "100 + 2000"
+      },
+      "D2_M1": {
+        "expected_result": 1200,
+        "calculation": "200 + 1000"
+      },
+      "D3_M1": {
+        "expected_result": 1300,
+        "calculation": "300 + 1000"  
+      },
+      "D3_M2": {
+        "expected_result": 2300,
+        "calculation": "300 + 2000"
+      }
+    }
+  },
+  "excluded_combinations": [
+    {
+      "dataset": "D2",
+      "method": "M2", 
+      "reason": "D2 module excludes M2 in configuration"
+    }
+  ],
+  "file_counts": {
+    "total_json_files": 8,
+    "data_files": 3,
+    "method_files": 5,
+    "excluded_files": 1
+  },
+  "expected_checksums": {
+    "algorithm": "md5",
+    "files": {
+      "D1_data.json": {
+        "checksum": "d3964f9dad9f60363c81b688324d95b6",
+        "expected_result": 100,
+        "size": 30,
+        "type": "data"
+      },
+      "D2_data.json": {
+        "checksum": "0cbc6611f5540bd0809a388dc95a615b",
+        "expected_result": 200,
+        "size": 30,
+        "type": "data"
+      },
+      "D3_data.json": {
+        "checksum": "6512bd43d9caa6e02c990b0a82652dca",
+        "expected_result": 300,
+        "size": 30,
+        "type": "data"
+      },
+      "D1_M1_method.json": {
+        "checksum": "b6d767d2f8ed5d21a44b0e5886680cb9",
+        "expected_result": 1100,
+        "size": 31,
+        "type": "method"
+      },
+      "D1_M2_method.json": {
+        "checksum": "14f2d4df684145dbc1c94ca182d8de5c",
+        "expected_result": 2100,
+        "size": 31,
+        "type": "method"
+      },
+      "D2_M1_method.json": {
+        "checksum": "aab3238922bcc25a6f606eb525ffdc56",
+        "expected_result": 1200,
+        "size": 31,
+        "type": "method"
+      },
+      "D3_M1_method.json": {
+        "checksum": "9bf31c7ff062936a96d3c8bd1f8f2ff3",
+        "expected_result": 1300,
+        "size": 31,
+        "type": "method"
+      },
+      "D3_M2_method.json": {
+        "checksum": "6f4922f45568161a8cdf4ad2299f6d23",
+        "expected_result": 2300,
+        "size": 31,
+        "type": "method"
+      }
+    },
+    "validation_rules": {
+      "total_json_files": 8,
+      "data_files": 3,
+      "method_files": 5,
+      "excluded_combinations": ["D2_M2"]
+    }
+  },
+  "s3_operations": {
+    "bucket_creation": true,
+    "file_upload": true,
+    "file_download": true,
+    "bucket_listing": true,
+    "object_metadata": true,
+    "bucket_cleanup": true,
+    "boto3_validation": true
+  },
+  "workflow_steps": [
+    "Run pipeline with --use-remote-storage",
+    "List files with boto3", 
+    "Check remote files list matches cartesian product",
+    "Download files from S3",
+    "Verify file checksums and content patterns"
+  ],
+  "performance_targets": {
+    "max_execution_time_seconds": 300,
+    "max_file_size_bytes": 4096,
+    "max_s3_objects": 20
+  },
+  "validation_criteria": {
+    "cli_success": "Return code 0",
+    "s3_objects_found": "At least 8 JSON files",
+    "cartesian_product": "3 data + 5 method files", 
+    "exclusion_applied": "D2-M2 combination missing",
+    "content_validation": "All numeric results match expected calculations",
+    "download_success": "All files downloadable via boto3"
+  }
+}

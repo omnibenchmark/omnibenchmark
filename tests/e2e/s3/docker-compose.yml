@@ -1,0 +1,36 @@
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-06-13T22-53-53Z
+    container_name: omnibenchmark-minio-e2e
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  mc:
+    image: quay.io/minio/mc:latest
+    container_name: omnibenchmark-mc-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MC_HOST_local: "http://minioadmin:minioadmin123@minio:9000"
+    volumes:
+      - ./setup-minio.sh:/setup-minio.sh:ro
+    entrypoint: ["/bin/sh", "/setup-minio.sh"]
+    restart: "no"
+
+volumes:
+  minio_data:
+    driver: local

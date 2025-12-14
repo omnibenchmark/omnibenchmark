@@ -1,6 +1,12 @@
 """MinIO class for remote storage."""
 # pyright: reportCallIssue=false
 # TODO: Fix boto3/minio API call type errors
+# TODO: Migrate from minio library to boto3-only
+#       The minio Python library is not actively maintained as of late 2025.
+#       Since MinIO servers are S3-compatible, we should migrate to use boto3
+#       exclusively, which is actively maintained by AWS and is the industry
+#       standard. All current minio library operations (bucket management,
+#       versioning, policies, lifecycle) can be done with boto3.
 
 import datetime
 import io
