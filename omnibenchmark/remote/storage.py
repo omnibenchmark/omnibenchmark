@@ -81,7 +81,8 @@ def get_storage_from_benchmark(
 def remote_storage_args(benchmark) -> dict:
     storage_api = benchmark.get_storage_api()
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
-        auth_options = S3_access_config_from_env()
+        # Don't require credentials here - let individual commands decide if they need them
+        auth_options = S3_access_config_from_env(required=False)
         endpoint = benchmark.get_storage_endpoint()
         if endpoint is None:
             return {}
