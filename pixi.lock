@@ -4673,7 +4673,7 @@ packages:
   - humanfriendly
   - pydantic
   - gitpython>=3.1.0
-  - snakemake>=9.0,<9.10.0
+  - snakemake>=9.0
   - pandas
   - copier>=9.0.0
   - matplotlib==3.8.0

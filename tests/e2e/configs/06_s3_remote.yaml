@@ -1,0 +1,78 @@
+id: RemoteBucketOperations
+description: cartesian pipeline to demonstrate RemoteBucketOperations
+version: "1.0"
+benchmarker: "E2E Test Suite"
+benchmark_yaml_spec: "0.3"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+storage:
+  api: S3
+  bucket_name: obdata
+  endpoint: http://localhost:9000
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "100"
+
+      - id: D2
+        name: "Dataset 2 - Generate test values with exclusions"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "200"
+        exclude: ["M2"]
+
+      - id: D3
+        name: "Dataset 3 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "300"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Method 1 - Process all datasets"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+1000"
+            input: "data.raw"
+            kind: "method"
+
+      - id: M2
+        name: "Method 2 - Process datasets (excluded by D2)"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+2000"
+            input: "data.raw"
+            kind: "method"
+    inputs:
+      - data.raw
+    outputs:
+      - id: methods.result
+        path: "{dataset}_method.json"
