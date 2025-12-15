@@ -658,16 +658,27 @@ def validate_file_structure(
         )
         result.add_issue(warning_issue)
 
-    # Check for omnibenchmark.yaml (warning only)
+    # Check for omnibenchmark.yaml or legacy config.cfg (warning only)
     if not files_present.get("omnibenchmark.yaml", False):
-        warning_issue = ValidationIssue(
-            issue_type="omnibenchmark_yaml_missing",
-            severity=ValidationSeverity.WARNING,
-            path="omnibenchmark.yaml",
-            module_id=ctx.module_id,
-            message="omnibenchmark.yaml file not found",
-        )
-        result.add_issue(warning_issue)
+        # Check for legacy config.cfg
+        if files_present.get("config.cfg", False):
+            warning_issue = ValidationIssue(
+                issue_type="omnibenchmark_legacy_config",
+                severity=ValidationSeverity.WARNING,
+                path="config.cfg",
+                module_id=ctx.module_id,
+                message="Using legacy config.cfg file. Please migrate to omnibenchmark.yaml",
+            )
+            result.add_issue(warning_issue)
+        else:
+            warning_issue = ValidationIssue(
+                issue_type="omnibenchmark_yaml_missing",
+                severity=ValidationSeverity.WARNING,
+                path="omnibenchmark.yaml",
+                module_id=ctx.module_id,
+                message="omnibenchmark.yaml file not found",
+            )
+            result.add_issue(warning_issue)
 
     return result
 

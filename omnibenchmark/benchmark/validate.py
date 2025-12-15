@@ -318,12 +318,22 @@ def _validate_license_consistency(result: ValidationResult):
 
 
 def _validate_omnibenchmark_yaml(repo_path: Path, result: ValidationResult):
-    """Validate omnibenchmark.yaml file."""
+    """Validate omnibenchmark.yaml file or legacy config.cfg."""
     omnibenchmark_file = repo_path / "omnibenchmark.yaml"
+    legacy_config_file = repo_path / "config.cfg"
 
     if not omnibenchmark_file.exists():
-        result.add_warning("omnibenchmark.yaml file not found")
-        return
+        # Check for legacy config.cfg
+        if legacy_config_file.exists():
+            result.omnibenchmark_yaml_exists = True
+            result.omnibenchmark_yaml_valid = True
+            result.add_warning(
+                "Using legacy config.cfg file. Please migrate to omnibenchmark.yaml"
+            )
+            return
+        else:
+            result.add_warning("omnibenchmark.yaml file not found")
+            return
 
     result.omnibenchmark_yaml_exists = True
 
