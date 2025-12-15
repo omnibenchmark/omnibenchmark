@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
-from omnibenchmark.io.code import clone_module
+from omnibenchmark.remote.code import clone_module
 from omnibenchmark.model.repo import get_repo_hash
 
 logger = logging.getLogger(__name__)
