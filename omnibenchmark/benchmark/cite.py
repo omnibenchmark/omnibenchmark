@@ -333,13 +333,16 @@ def convert_to_bibtex(citation_metadata: Dict[str, Optional[Dict[str, Any]]]) ->
 
 
 def format_output(
-    citation_metadata: Dict[str, Optional[Dict[str, Any]]], format_type: str
+    citation_metadata: Dict[str, Optional[Dict[str, Any]]],
+    format_type: str,
+    benchmark: "BenchmarkExecution" = None,
 ) -> str:
     """Format citation metadata for output, avoiding YAML object serialization issues.
 
     Args:
         citation_metadata: Dictionary of citation metadata
         format_type: Output format ('json', 'yaml', 'bibtex')
+        benchmark: BenchmarkExecution object (optional, for benchmark-level authors/benchmarker)
 
     Returns:
         Formatted string
@@ -349,10 +352,30 @@ def format_output(
 
         # Convert to simple dict to avoid serialization issues
         clean_data = _clean_for_serialization(citation_metadata)
+        # If benchmark is provided, add benchmark-level authors/benchmarker
+        if benchmark is not None:
+            benchmark_info = {}
+            # Try to get authors and benchmarker from the model
+            model = getattr(benchmark, "model", None)
+            if model is not None:
+                if hasattr(model, "authors") and model.authors:
+                    benchmark_info["authors"] = model.authors
+                if hasattr(model, "benchmarker"):
+                    benchmark_info["benchmarker"] = model.benchmarker
+            clean_data = {"benchmark": benchmark_info, **clean_data}
         return json.dumps(clean_data, indent=2, default=str)
     elif format_type.lower() == "yaml":
         # Convert to simple dict to avoid YAML object serialization issues
         clean_data = _clean_for_serialization(citation_metadata)
+        if benchmark is not None:
+            benchmark_info = {}
+            model = getattr(benchmark, "model", None)
+            if model is not None:
+                if hasattr(model, "authors") and model.authors:
+                    benchmark_info["authors"] = model.authors
+                if hasattr(model, "benchmarker"):
+                    benchmark_info["benchmarker"] = model.benchmarker
+            clean_data = {"benchmark": benchmark_info, **clean_data}
         return yaml.dump(clean_data, default_flow_style=False)
     elif format_type.lower() == "bibtex":
         return convert_to_bibtex(citation_metadata)

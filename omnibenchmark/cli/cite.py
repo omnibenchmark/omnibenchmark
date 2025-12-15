@@ -72,7 +72,7 @@ def cite(ctx, benchmark: str, format: str, strict: bool, out: str):
         ctx.exit(1)
 
     try:
-        output = format_output(citation_metadata, format)
+        output = format_output(citation_metadata, format, benchmark=b)
     except ValueError as e:
         logger.error(str(e))
         ctx.exit(1)
