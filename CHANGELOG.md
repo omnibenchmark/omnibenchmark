@@ -3,7 +3,6 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-<<<<<<< HEAD
 ## [0.4.0](main) UNRELEASED
 
 - feat: add create benchmark & create module command (#171)
@@ -23,8 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - bug: do not hardcode /tmp in run_module (#173)
 - bug: timeout should indicate SIGKILL to child process (Closes #222)
 - bug: `ob run module` should properly activate software backends (#174)
-- cli: added `ob info cite` command to extract citation metadata from CITATION.cff files in benchmark modules with support for multiple output formats (json, yaml, bibtex)
-- cli: added `ob check` command for comprehensive benchmark and module validation including CITATION.cff, LICENSE, and omnibenchmark.yaml file validation with license consistency checking
+- cli: added `ob cite` command to extract citation metadata from CITATION.cff files in benchmark modules with support for multiple output formats (json, yaml, bibtex)
+- cli: added `ob validate` command for benchmark and module validation including CITATION.cff, LICENSE, and omnibenchmark.yaml file validation, with license consistency checking
 - tests: use pixi on the CI
 
 ## 0.3.2 (Nov 13th 2025)
