@@ -194,7 +194,9 @@ def _validate_citation_cff(repo_path: Path, result: ValidationResult):
     citation_file = repo_path / "CITATION.cff"
 
     if not citation_file.exists():
-        result.add_error("CITATION.cff file not found")
+        result.add_error(
+            f"CITATION.cff file not found in repository at {repo_path} (module: {result.module_id})"
+        )
         return
 
     result.citation_file_exists = True
@@ -231,11 +233,11 @@ def _validate_citation_cff(repo_path: Path, result: ValidationResult):
         else:
             for i, author in enumerate(authors):
                 if not isinstance(author, dict):
-                    result.add_error(f"Author {i+1}: must be an object")
+                    result.add_error(f"Author {i + 1}: must be an object")
                     continue
                 if "family-names" not in author:
                     result.add_error(
-                        f"Author {i+1}: missing required field 'family-names'"
+                        f"Author {i + 1}: missing required field 'family-names'"
                     )
 
     # Check for license (REQUIRED)

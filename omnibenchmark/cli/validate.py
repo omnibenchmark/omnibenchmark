@@ -22,99 +22,6 @@ from omnibenchmark.benchmark.metadata import (
 from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
 
 
-def _format_warning_message(message: str) -> str:
-    """Format warning message in a concise, colored format.
-
-    Args:
-        message: The warning message
-
-    Returns:
-        Formatted warning string with yellow color
-    """
-    line_num = None
-
-    # Simplify common warning messages
-    if "should be a string" in message:
-        # Extract field name, line number, and value from message
-        field_match = re.search(
-            r"Field '(\w+)' should be a string(?: \(line (\d+)\))?\. Found \w+ value: ([\d.]+)\.",
-            message,
-        )
-        if field_match:
-            field_name = field_match.group(1)
-            line_num = field_match.group(2)
-            value = field_match.group(3)
-            message = f"Field '{field_name}' should be quoted in YAML (found: {value})"
-    elif "entries' field in inputs is deprecated" in message:
-        # Extract line number if present
-        line_match = re.search(r"deprecated(?: \(line (\d+)\))?", message)
-        if line_match and line_match.group(1):
-            line_num = line_match.group(1)
-        message = "Use simple list format for inputs instead of 'entries' field"
-    elif "values' parameter format" in message:
-        # Extract line number if present
-        line_match = re.search(r"deprecated(?: \(line (\d+)\))?", message)
-        if line_match and line_match.group(1):
-            line_num = line_match.group(1)
-        message = "Use dict format for parameters instead of 'values' CLI args"
-
-    # Yellow color for warnings (ANSI code)
-    yellow = "\033[93m"
-    reset = "\033[0m"
-
-    # Add line number if found
-    line_info = f" line {line_num}:" if line_num else ""
-
-    return f"{yellow}[WARN]{reset}{line_info} {message}"
-
-
-def convert_validation_result(
-    module_id: str,
-    core_result,
-    repo_url: Optional[str] = None,
-    commit_hash: Optional[str] = None,
-    local_repo_exists: bool = False,
-    file_contents: Optional[dict] = None,
-) -> ValidationResult:
-    """Convert validation_core result to ValidationResult format."""
-    result = ValidationResult(module_id)
-
-    # Basic info
-    result.repository_url = repo_url
-    result.commit_hash = commit_hash
-    result.local_repo_exists = local_repo_exists
-
-    # File existence
-    if file_contents:
-        result.citation_file_exists = file_contents.get("citation") is not None
-        result.license_file_exists = file_contents.get("license") is not None
-        result.omnibenchmark_yaml_exists = (
-            file_contents.get("omnibenchmark") is not None
-        )
-
-    # Extract citation information
-    if file_contents and file_contents.get("citation"):
-        try:
-            citation_data = yaml.safe_load(file_contents["citation"])
-            if isinstance(citation_data, dict):
-                result.citation_data = citation_data
-                result.citation_file_valid = True
-                result.citation_license = citation_data.get("license")
-                result.citation_has_license = bool(citation_data.get("license"))
-                result.citation_has_authors = bool(citation_data.get("authors"))
-        except Exception:
-            result.citation_file_valid = False
-
-    # Convert errors and warnings
-    if core_result:
-        for error in core_result.errors:
-            result.add_error(error.message)
-        for warning in core_result.warnings:
-            result.add_warning(warning.message)
-
-    return result
-
-
 @click.group(name="validate")
 @click.pass_context
 def validate(ctx):
@@ -123,14 +30,7 @@ def validate(ctx):
 
 
 @validate.command("plan")
-@click.option(
-    "--benchmark",
-    "-b",
-    required=True,
-    type=click.Path(exists=True),
-    help="Path to benchmark yaml file.",
-    envvar="OB_BENCHMARK",
-)
+@click.argument("benchmark", type=click.Path(exists=True))
 @click.pass_context
 def validate_plan(ctx, benchmark: str):
     """Validate benchmark YAML plan structure.
@@ -144,10 +44,9 @@ def validate_plan(ctx, benchmark: str):
     logger.info(f"Validating benchmark plan: {benchmark}")
 
     if not (benchmark.endswith(".yaml") or benchmark.endswith(".yml")):
-        logger.error(
-            "Error: Invalid benchmark input. Please provide a valid YAML file path."
+        raise click.UsageError(
+            "Invalid benchmark input. Please provide a valid YAML file path."
         )
-        ctx.exit(1)
 
     # Set up custom warning handler for FutureWarnings
     def custom_warning_handler(
@@ -208,7 +107,7 @@ def validate_plan(ctx, benchmark: str):
     help="Treat warnings as errors and fail on any validation issue.",
 )
 @click.pass_context
-def validate_module(ctx, path, strict):
+def validate_module(ctx, path, strict, format="summary"):
     """Validate module (metadata, try to run).
 
     Validates a module repository at PATH.
@@ -221,8 +120,6 @@ def validate_module(ctx, path, strict):
     By default, shows warnings but doesn't fail. Use --strict to fail on warnings.
     """
     warn = not strict  # warn=True means lenient mode (default)
-    format = "summary"
-    out = None
     logger.info(f"Validating module at: {path}")
 
     path = Path(path)
@@ -251,7 +148,7 @@ def validate_module(ctx, path, strict):
                 base_path=str(path),
             )
 
-            validation_result = convert_validation_result(
+            validation_result = _convert_validation_result(
                 module_id=module_id,
                 core_result=core_result,
                 repo_url=None,
@@ -280,7 +177,7 @@ def validate_module(ctx, path, strict):
                 logger.info("All validations passed ✅")
 
         except ValidationException as e:
-            validation_result = convert_validation_result(
+            validation_result = _convert_validation_result(
                 module_id=module_id,
                 core_result=None,
                 repo_url=None,
@@ -320,17 +217,7 @@ def validate_module(ctx, path, strict):
     else:
         validation_results = {module_id: validation_result}
         output = format_validation_results(validation_results, format)
-
-        if out:
-            try:
-                with open(out, "w", encoding="utf-8") as f:
-                    f.write(output)
-                logger.info(f"Output written to {out}")
-            except Exception as e:
-                logger.error(f"Failed to write output file: {e}")
-                ctx.exit(1)
-        else:
-            click.echo(output)
+        click.echo(output)
 
     if validation_errors and not warn:
         ctx.exit(1)
@@ -338,24 +225,94 @@ def validate_module(ctx, path, strict):
     cleanup_temp_repositories()
 
 
-# Commented out for now - will be implemented in the future
-# @validate.command("output")
-# @click.option(
-#     "--benchmark",
-#     "-b",
-#     required=True,
-#     type=click.Path(exists=True),
-#     help="Path to benchmark yaml file.",
-#     envvar="OB_BENCHMARK",
-# )
-# @click.pass_context
-# def validate_output(ctx, benchmark: str):
-#     """Validate benchmark outputs (placeholder for future implementation).
-#
-#     Future checks will include:
-#     - Output files exist at expected locations
-#     - Output files match declared schema
-#     - Output files are accessible and readable
-#     """
-#     logger.warning("Output validation is not yet implemented.")
-#     logger.info("This command is a placeholder for future functionality.")
+def _format_warning_message(message: str) -> str:
+    """Format warning message in a concise, colored format.
+
+    Args:
+        message: The warning message
+
+    Returns:
+        Formatted warning string with yellow color
+    """
+    line_num = None
+
+    # Simplify common warning messages
+    if "should be a string" in message:
+        # Extract field name, line number, and value from message
+        field_match = re.search(
+            r"Field '(\w+)' should be a string(?: \(line (\d+)\))?\. Found \w+ value: ([\d.]+)\.",
+            message,
+        )
+        if field_match:
+            field_name = field_match.group(1)
+            line_num = field_match.group(2)
+            value = field_match.group(3)
+            message = f"Field '{field_name}' should be quoted in YAML (found: {value})"
+    elif "entries' field in inputs is deprecated" in message:
+        # Extract line number if present
+        line_match = re.search(r"deprecated(?: \(line (\d+)\))?", message)
+        if line_match and line_match.group(1):
+            line_num = line_match.group(1)
+        message = "Use simple list format for inputs instead of 'entries' field"
+    elif "values' parameter format" in message:
+        # Extract line number if present
+        line_match = re.search(r"deprecated(?: \(line (\d+)\))?", message)
+        if line_match and line_match.group(1):
+            line_num = line_match.group(1)
+        message = "Use dict format for parameters instead of 'values' CLI args"
+
+    # Yellow color for warnings (ANSI code)
+    yellow = "\033[93m"
+    reset = "\033[0m"
+
+    # Add line number if found
+    line_info = f" line {line_num}:" if line_num else ""
+
+    return f"{yellow}[WARN]{reset}{line_info} {message}"
+
+
+def _convert_validation_result(
+    module_id: str,
+    core_result,
+    repo_url: Optional[str] = None,
+    commit_hash: Optional[str] = None,
+    local_repo_exists: bool = False,
+    file_contents: Optional[dict] = None,
+) -> ValidationResult:
+    """Convert validation_core result to ValidationResult format."""
+    result = ValidationResult(module_id)
+
+    # Basic info
+    result.repository_url = repo_url
+    result.commit_hash = commit_hash
+    result.local_repo_exists = local_repo_exists
+
+    # File existence
+    if file_contents:
+        result.citation_file_exists = file_contents.get("citation") is not None
+        result.license_file_exists = file_contents.get("license") is not None
+        result.omnibenchmark_yaml_exists = (
+            file_contents.get("omnibenchmark") is not None
+        )
+
+    # Extract citation information
+    if file_contents and file_contents.get("citation"):
+        try:
+            citation_data = yaml.safe_load(file_contents["citation"])
+            if isinstance(citation_data, dict):
+                result.citation_data = citation_data
+                result.citation_file_valid = True
+                result.citation_license = citation_data.get("license")
+                result.citation_has_license = bool(citation_data.get("license"))
+                result.citation_has_authors = bool(citation_data.get("authors"))
+        except Exception:
+            result.citation_file_valid = False
+
+    # Convert errors and warnings
+    if core_result:
+        for error in core_result.errors:
+            result.add_error(error.message)
+        for warning in core_result.warnings:
+            result.add_warning(warning.message)
+
+    return result

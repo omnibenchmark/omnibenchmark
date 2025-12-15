@@ -3,6 +3,7 @@
 import hashlib
 
 # TODO: model repo as its own class, for validation, housekeeping and error handling.
+# https://github.com/omnibenchmark/omnibenchmark/issues/267
 
 
 # Create a unique folder name based on the repository URL and commit hash

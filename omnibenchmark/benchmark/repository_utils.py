@@ -40,6 +40,7 @@ class RepositoryManager:
             Path to local repository directory
         """
         # TODO: Decide on a more permanent storage location, possibly ~/.local/cache
+        # should also be configurable on the omnibenchmark config.
         # TODO: Make other code paths use this manager
         repos_base_dir = Path(".snakemake/repos")
         folder_name = get_repo_hash(repo_url, commit_hash)
@@ -66,7 +67,7 @@ class RepositoryManager:
 
             # Clone the repository
             cloned_path = clone_module(temp_dir, repo_url, commit_hash)
-            logger.info(
+            logger.debug(
                 f"Successfully cloned {repo_url}@{commit_hash} to temporary location"
             )
 
@@ -225,7 +226,7 @@ def resolve_module_repository(
         return local_repo_path
 
     # Try to clone to temporary directory
-    logger.info(f"Local repository not found for {module_id}, attempting to clone...")
+    logger.debug(f"Local repository not found for {module_id}, attempting to clone...")
     temp_repo_path = repo_manager.clone_to_temp(repo_url, commit_hash, module_id)
 
     if temp_repo_path is None:
