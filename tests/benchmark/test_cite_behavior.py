@@ -1,8 +1,6 @@
 """Behavior-driven tests for citation extraction functionality."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
 
 from omnibenchmark.benchmark.cite import (
     ModuleCitationResult,
@@ -18,7 +16,6 @@ from omnibenchmark.benchmark.cite import (
 from omnibenchmark.benchmark.metadata import (
     ValidationIssue,
     ValidationSeverity,
-    ValidationResult,
 )
 
 

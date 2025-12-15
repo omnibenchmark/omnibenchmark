@@ -1,10 +1,8 @@
 """Behavior-driven tests for repository utilities."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 import tempfile
-import shutil
 
 from omnibenchmark.benchmark.repository_utils import (
     RepositoryManager,
@@ -30,7 +28,7 @@ class TestRepositoryManager:
         with patch.object(
             RepositoryManager, "cleanup_temp_directories"
         ) as mock_cleanup:
-            with RepositoryManager() as manager:
+            with RepositoryManager():
                 pass  # Do nothing
 
             mock_cleanup.assert_called_once()

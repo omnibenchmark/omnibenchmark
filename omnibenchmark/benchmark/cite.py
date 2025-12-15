@@ -335,7 +335,7 @@ def convert_to_bibtex(citation_metadata: Dict[str, Optional[Dict[str, Any]]]) ->
 def format_output(
     citation_metadata: Dict[str, Optional[Dict[str, Any]]],
     format_type: str,
-    benchmark: "BenchmarkExecution" = None,
+    benchmark: Optional["BenchmarkExecution"] = None,
 ) -> str:
     """Format citation metadata for output, avoiding YAML object serialization issues.
 

@@ -1,3 +1,5 @@
+import os
+import subprocess
 import pytest
 import tempfile
 import shutil
@@ -18,10 +20,6 @@ def temp_benchmark_dir():
     temp_dir = Path(tempfile.mkdtemp())
     yield temp_dir
     shutil.rmtree(temp_dir)
-
-
-import subprocess
-import os
 
 
 def _write_benchmark_yaml(
