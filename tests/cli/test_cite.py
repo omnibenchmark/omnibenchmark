@@ -20,6 +20,162 @@ def temp_benchmark_dir():
     shutil.rmtree(temp_dir)
 
 
+import subprocess
+import os
+
+
+def _write_benchmark_yaml(
+    path: Path, benchmarker: str, authors=None, repo_path=None, commit_hash=None
+):
+    """Helper to write a minimal benchmark YAML with benchmarker and optional authors, and a minimal module."""
+    lines = [
+        "id: test_bench",
+        "description: test benchmark for citation",
+        'version: "1.0"',
+        f'benchmarker: "{benchmarker}"',
+    ]
+    if authors is not None:
+        lines.append("authors:")
+        for a in authors:
+            lines.append(f'  - "{a}"')
+    lines += [
+        'api_version: "0.3.0"',
+        "software_backend: host",
+        "software_environments:",
+        "  env1:",
+        '    description: "test env"',
+        "    easyconfig: test.eb",
+        '    envmodule: "test/1.0"',
+        "stages:",
+        "  - id: stage1",
+        "    modules:",
+        "      - id: mod1",
+        "        name: Minimal Module",
+        "        repository:",
+        f"          url: {repo_path if repo_path else 'https://github.com/omnibenchmark-example/minimal-module.git'}",
+        f"          commit: {commit_hash if commit_hash else 'abcdef1'}",
+        "        software_environment: env1",
+        "        parameters: []",
+        "        outputs: []",
+        "    inputs: []",
+        "    outputs: []",
+    ]
+    path.write_text("\n".join(lines))
+
+
+def _create_local_git_repo_with_citation(repo_dir: Path, author_name="Jane Doe"):
+    """Create a local bare git repo with a CITATION.cff file and return the commit hash and file:// URL.
+    If git is not available, skip the test using pytest.skip.
+    """
+    import shutil
+    import pytest
+
+    if shutil.which("git") is None:
+        pytest.skip("git is not available on the system, skipping local git repo test.")
+
+    # Create a normal repo first
+    work_dir = repo_dir / "work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    parts = author_name.split()
+    if len(parts) == 1:
+        family = parts[0]
+        given = ""
+    else:
+        given = parts[0]
+        family = " ".join(parts[1:])
+    cff_content = f"""cff-version: 1.2.0
+ title: Minimal Module
+ message: Please cite this software.
+ authors:
+   - family-names: {family}
+     given-names: {given}
+ """
+    (work_dir / "CITATION.cff").write_text(cff_content)
+    env = dict(**os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["HOME"] = str(work_dir)
+
+    subprocess.run(["git", "init"], cwd=work_dir, check=True, env=env)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=work_dir,
+        check=True,
+        env=env,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=work_dir, check=True, env=env
+    )
+    subprocess.run(["git", "add", "CITATION.cff"], cwd=work_dir, check=True, env=env)
+    subprocess.run(
+        ["git", "commit", "-m", "Add CITATION.cff", "--no-gpg-sign", "--no-edit"],
+        cwd=work_dir,
+        check=True,
+        env=env,
+    )
+    commit_hash = (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=work_dir, env=env)
+        .decode()
+        .strip()
+    )
+    # Now create a bare repo and push to it
+    bare_dir = repo_dir / "bare"
+    subprocess.run(["git", "init", "--bare", str(bare_dir)], check=True, env=env)
+    subprocess.run(
+        ["git", "remote", "add", "origin", f"file://{bare_dir.resolve()}"],
+        cwd=work_dir,
+        check=True,
+        env=env,
+    )
+    subprocess.run(
+        ["git", "push", "origin", "master"],
+        cwd=work_dir,
+        check=True,
+        env=env,
+    )
+    # Return the file:// URL and commit hash
+    return f"file://{bare_dir.resolve()}", commit_hash
+
+
+def _write_benchmark_yaml(
+    path: Path, benchmarker: str, authors=None, repo_path=None, commit_hash=None
+):
+    """Helper to write a minimal benchmark YAML with benchmarker and optional authors, and a minimal module."""
+    lines = [
+        "id: test_bench",
+        "description: test benchmark for citation",
+        'version: "1.0"',
+        f'benchmarker: "{benchmarker}"',
+    ]
+    if authors is not None:
+        lines.append("authors:")
+        for a in authors:
+            lines.append(f'  - "{a}"')
+    lines += [
+        'api_version: "0.3.0"',
+        "software_backend: host",
+        "software_environments:",
+        "  env1:",
+        '    description: "test env"',
+        "    easyconfig: test.eb",
+        '    envmodule: "test/1.0"',
+        "stages:",
+        "  - id: stage1",
+        "    modules:",
+        "      - id: mod1",
+        "        name: Minimal Module",
+        "        repository:",
+        f"          url: {repo_path if repo_path else 'https://github.com/omnibenchmark-example/minimal-module.git'}",
+        f"          commit: {commit_hash if commit_hash else 'abcdef1'}",
+        "        software_environment: env1",
+        "        parameters: []",
+        "        outputs: []",
+        "    inputs: []",
+        "    outputs: []",
+    ]
+    path.write_text("\n".join(lines))
+
+
 @pytest.fixture
 def mock_benchmark_config(temp_benchmark_dir):
     """Create a mock benchmark configuration file."""
@@ -279,18 +435,30 @@ class TestCiteCLI:
         self,
         cli_setup,
         temp_benchmark_dir,
-        mock_benchmark_config,
     ):
-        """Test citation with explicitly specified benchmark."""
+        """Test citation with explicitly specified benchmark using a local repo."""
+        # Create a local bare git repo with CITATION.cff for the module
+        repo_dir = temp_benchmark_dir / "explicit_mod_repo"
+        repo_url, commit_hash = _create_local_git_repo_with_citation(
+            repo_dir, author_name="Explicit User"
+        )
+        config_file = temp_benchmark_dir / "explicit_bench.yaml"
+        _write_benchmark_yaml(
+            config_file,
+            "Explicit User <explicit@example.com>",
+            authors=None,
+            repo_path=repo_url,
+            commit_hash=commit_hash,
+        )
         # Test with explicit benchmark path
         result = cli_setup.call(
-            ["cite", "--benchmark", str(mock_benchmark_config)],
+            ["cite", "--benchmark", str(config_file)],
             cwd=str(temp_benchmark_dir),
         )
 
         # Verify the CLI command arguments
         assert "--benchmark" in " ".join(result.args)
-        assert str(mock_benchmark_config) in " ".join(result.args)
+        assert str(config_file) in " ".join(result.args)
 
     @pytest.mark.short
     def test_cite_yaml_format(

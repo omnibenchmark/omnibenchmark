@@ -20,6 +20,7 @@ from omnibenchmark.benchmark.metadata import (
     ValidationException,
 )
 from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
+from omnibenchmark.model.validation import BenchmarkParseError
 
 
 @click.group(name="validate")
@@ -83,6 +84,12 @@ def validate_plan(ctx, benchmark: str):
 
     except yaml.YAMLError as e:
         logger.error(f"Error: YAML file format error: {e}")
+        ctx.exit(1)
+
+    except BenchmarkParseError as e:
+        logger.error(
+            f"Error: Failed to parse YAML as a valid OmniBenchmark: {e.message}"
+        )
         ctx.exit(1)
 
     except ValueError as e:
@@ -170,8 +177,13 @@ def validate_module(ctx, path, strict, format="summary"):
             if core_result.warnings:
                 for warning in core_result.warnings:
                     msg = f"{warning.message}"
-                    validation_warnings.append(msg)
-                    logger.warning(msg)
+                    if warn:
+                        validation_warnings.append(msg)
+                        logger.warning(msg)
+                    else:
+                        # In strict mode, treat warnings as errors
+                        validation_errors.append(msg)
+                        logger.error(msg)
 
             if not core_result.errors and not core_result.warnings:
                 logger.info("All validations passed ✅")
@@ -198,8 +210,13 @@ def validate_module(ctx, path, strict, format="summary"):
                         logger.error(msg)
                 else:
                     validation_result.add_warning(issue.message)
-                    validation_warnings.append(msg)
-                    logger.warning(msg)
+                    if warn:
+                        validation_warnings.append(msg)
+                        logger.warning(msg)
+                    else:
+                        # In strict mode, treat warnings as errors
+                        validation_errors.append(msg)
+                        logger.error(msg)
 
     # Output results
     if format == "summary":

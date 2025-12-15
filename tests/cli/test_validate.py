@@ -211,6 +211,43 @@ license: MIT
         assert result.returncode != 0
 
     @pytest.mark.short
+    def test_validate_module_missing_omnibenchmark_yaml_non_strict(
+        self, cli_setup, temp_dir
+    ):
+        """Test validate module should pass with warning if there's no omnibenchmark.yaml file in non-strict mode."""
+        module_dir = temp_dir / "test_module"
+        module_dir.mkdir()
+
+        # Create CITATION.cff
+        citation_content = """cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: Test Module
+authors:
+  - family-names: Doe
+    given-names: John
+license: MIT
+"""
+        (module_dir / "CITATION.cff").write_text(citation_content)
+
+        # Create LICENSE
+        (module_dir / "LICENSE").write_text(
+            "MIT License\n\nPermission is hereby granted..."
+        )
+
+        # Do NOT create omnibenchmark.yaml
+
+        result = cli_setup.call(
+            ["validate", "module", str(module_dir)],  # No --strict flag
+            cwd=str(temp_dir),
+        )
+
+        # Should pass in non-strict mode but show warnings
+        assert result.returncode == 0
+        assert (
+            "omnibenchmark.yaml" in result.stdout or "warning" in result.stdout.lower()
+        )
+
+    @pytest.mark.short
     def test_validate_module_with_legacy_config_cfg(self, cli_setup, temp_dir):
         """Test validate module with legacy config.cfg (should pass with deprecation warning)."""
         module_dir = temp_dir / "test_module"
@@ -345,7 +382,6 @@ title: Test Module
 authors:
   - family-names: Doe
     given-names: John
-license: MIT
 """
         (module_dir / "CITATION.cff").write_text(citation_content)
         (module_dir / "omnibenchmark.yaml").write_text("name: test\nversion: 1.0.0")

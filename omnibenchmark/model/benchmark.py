@@ -436,7 +436,15 @@ class Stage(DescribableEntity):
 class Benchmark(DescribableEntity, BenchmarkValidator):
     """Main benchmark definition."""
 
+    @model_validator(mode="after")
+    def set_authors_if_missing(self):
+        # If authors is missing or empty, set it to [benchmarker]
+        if not self.authors or len(self.authors) == 0:
+            self.authors = [self.benchmarker]
+        return self
+
     benchmarker: str = Field(..., description="Benchmark author")
+    authors: Optional[List[str]] = Field(None, description="List of benchmark authors")
     version: str = Field(..., description="Benchmark version")
     software_backend: SoftwareBackendEnum = Field(..., description="Software backend")
     software_environments: List[SoftwareEnvironment] = Field(

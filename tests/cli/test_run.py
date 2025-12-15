@@ -253,7 +253,7 @@ def test_validate_yaml_with_parse_error():
         runner = CliRunner()
         result = runner.invoke(
             validate_plan,
-            ["--benchmark", benchmark_path],
+            [benchmark_path],
         )
 
         # Verify the command failed
@@ -273,7 +273,7 @@ def test_validate_yaml_with_generic_exception():
         runner = CliRunner()
         result = runner.invoke(
             validate_plan,
-            ["--benchmark", benchmark_path],
+            [benchmark_path],
         )
 
         # Verify the command failed
@@ -293,7 +293,7 @@ def test_validate_yaml_success():
         runner = CliRunner()
         result = runner.invoke(
             validate_plan,
-            ["--benchmark", benchmark_path],
+            [benchmark_path],
         )
 
         # Verify the command succeeded
