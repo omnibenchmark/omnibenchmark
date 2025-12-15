@@ -451,6 +451,8 @@ def _format_bibtex_authors(authors: List[Dict]) -> str:
 
 def _extract_year_from_date(date_str) -> Optional[str]:
     """Extract year from date string."""
+    if date_str is None:
+        return None
     try:
         return str(date_str).split("-")[0]
     except (AttributeError, IndexError):

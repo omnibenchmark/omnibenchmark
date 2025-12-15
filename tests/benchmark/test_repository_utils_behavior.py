@@ -153,17 +153,28 @@ class TestCleanupTempRepositories:
 
     def test_when_temp_dir_missing_then_does_nothing(self):
         """When temp directory doesn't exist, should do nothing."""
-        with patch("omnibenchmark.benchmark.repository_utils.Path") as mock_path_class:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = False
-            mock_path_class.return_value = mock_path
-
+        with patch("tempfile.gettempdir", return_value="/tmp"):
             with patch(
-                "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
-            ) as mock_rmtree:
-                cleanup_temp_repositories()
+                "omnibenchmark.benchmark.repository_utils.Path"
+            ) as mock_path_class:
+                # Mock the path construction chain: Path(gettempdir()) / "omnibenchmark" / "tmp_repos"
+                mock_final_path = MagicMock()
+                mock_final_path.exists.return_value = False
 
-                mock_rmtree.assert_not_called()
+                mock_intermediate_path = MagicMock()
+                mock_intermediate_path.__truediv__.return_value = mock_final_path
+
+                mock_base_path = MagicMock()
+                mock_base_path.__truediv__.return_value = mock_intermediate_path
+
+                mock_path_class.return_value = mock_base_path
+
+                with patch(
+                    "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
+                ) as mock_rmtree:
+                    cleanup_temp_repositories()
+
+                    mock_rmtree.assert_not_called()
 
 
 class TestGetModuleRepositoryInfo:

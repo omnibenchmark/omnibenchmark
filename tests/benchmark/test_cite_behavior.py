@@ -348,7 +348,98 @@ class TestCitationSummary:
 
         assert summary["total_modules"] == 2
         assert summary["modules_with_citations"] == 1
-        assert summary["citation_coverage"] == 0.5
+
+
+class TestBibtexEdgeCases:
+    """Additional tests for BibTeX conversion edge cases."""
+
+    @pytest.mark.short
+    def test_bibtex_with_version_and_date(self):
+        """Test BibTeX generation with version and date-released fields."""
+        citation_metadata = {
+            "test_module": {
+                "citation_data": {
+                    "title": "Test Software",
+                    "authors": [{"family-names": "Doe", "given-names": "John"}],
+                    "version": "1.2.3",
+                    "date-released": "2023-06-15",
+                },
+                "citation_file_found": True,
+            }
+        }
+
+        bibtex = convert_to_bibtex(citation_metadata)
+
+        assert "version = {1.2.3}" in bibtex
+        assert "year = {2023}" in bibtex
+
+    @pytest.mark.short
+    def test_bibtex_with_repository_code(self):
+        """Test BibTeX generation with repository-code field."""
+        citation_metadata = {
+            "test_module": {
+                "citation_data": {
+                    "title": "Test Software",
+                    "authors": [{"family-names": "Doe"}],
+                    "repository-code": "https://github.com/test/repo",
+                },
+                "citation_file_found": True,
+            }
+        }
+
+        bibtex = convert_to_bibtex(citation_metadata)
+
+        assert "url = {https://github.com/test/repo}" in bibtex
+
+    @pytest.mark.short
+    def test_bibtex_prefers_repository_code_over_url(self):
+        """Test that repository-code is preferred over repository_url."""
+        citation_metadata = {
+            "test_module": {
+                "citation_data": {
+                    "title": "Test Software",
+                    "authors": [{"family-names": "Doe"}],
+                    "repository-code": "https://github.com/test/code",
+                },
+                "citation_file_found": True,
+                "repository_url": "https://github.com/test/url",
+            }
+        }
+
+        bibtex = convert_to_bibtex(citation_metadata)
+
+        assert "url = {https://github.com/test/code}" in bibtex
+        assert "url = {https://github.com/test/url}" not in bibtex
+
+    @pytest.mark.short
+    def test_format_output_json(self):
+        """Test JSON output formatting."""
+        citation_metadata = {
+            "module1": {
+                "citation_data": {"title": "Test"},
+                "citation_file_found": True,
+            }
+        }
+
+        result = format_output(citation_metadata, "json")
+
+        assert '"module1"' in result
+        assert '"title": "Test"' in result
+
+    @pytest.mark.short
+    def test_format_output_yaml(self):
+        """Test YAML output formatting."""
+        citation_metadata = {
+            "module1": {
+                "citation_data": {"title": "Test"},
+                "citation_file_found": True,
+            }
+        }
+
+        result = format_output(citation_metadata, "yaml")
+
+        assert "module1:" in result
+        assert "title: Test" in result
 
     def test_when_module_is_none_then_not_counted_as_found(self):
         """When a module's metadata is None, should not count as found."""

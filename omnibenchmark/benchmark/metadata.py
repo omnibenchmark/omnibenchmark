@@ -214,6 +214,40 @@ class ValidationResult:
         """Get user-facing warning messages (backward compatibility)."""
         return [warning.message for warning in self.warnings]
 
+    def add_error(
+        self,
+        message: str,
+        issue_type: str = "generic_error",
+        path: str = ".",
+        module_id: str = "unknown",
+    ):
+        """Convenience method to add an error issue."""
+        error_issue = ValidationIssue(
+            issue_type=issue_type,
+            severity=ValidationSeverity.ERROR,
+            path=path,
+            module_id=module_id,
+            message=message,
+        )
+        self.add_issue(error_issue)
+
+    def add_warning(
+        self,
+        message: str,
+        issue_type: str = "generic_warning",
+        path: str = ".",
+        module_id: str = "unknown",
+    ):
+        """Convenience method to add a warning issue."""
+        warning_issue = ValidationIssue(
+            issue_type=issue_type,
+            severity=ValidationSeverity.WARNING,
+            path=path,
+            module_id=module_id,
+            message=message,
+        )
+        self.add_issue(warning_issue)
+
 
 class ValidationContext:
     """Context for validation operations with strategy pattern."""
@@ -225,6 +259,11 @@ class ValidationContext:
         self.module_id = module_id
         self.base_path = base_path
         self.result = ValidationResult()
+
+    @property
+    def warn_mode(self) -> bool:
+        """Check if context is in warn mode."""
+        return isinstance(self.strategy, WarnValidationStrategy)
 
     def add_issue(self, issue_type: str, path: str, message: str, **context):
         """Add a validation issue using the current strategy."""
@@ -252,15 +291,13 @@ def validate_citation_cff_content(
     content: str, ctx: ValidationContext, file_path: str = "CITATION.cff"
 ) -> Tuple[ValidationResult, Optional[Dict[str, Any]]]:
     """Validate CITATION.cff file content."""
-    result = ValidationResult()
-
     if not content or not content.strip():
         ctx.add_issue(
             issue_type="citation_missing",
             path=file_path,
             message="CITATION.cff file is empty",
         )
-        return result, None
+        return ctx.result, None
 
     try:
         data = yaml.safe_load(content)
@@ -271,13 +308,13 @@ def validate_citation_cff_content(
             message=f"Invalid YAML syntax in CITATION.cff: {str(e)}",
             yaml_error=str(e),
         )
-        return result, None
+        return ctx.result, None
 
     # Validate the parsed data
     validation_result, validated_data = validate_citation_cff_data(data, ctx, file_path)
-    result.add_issues(validation_result.issues)
+    ctx.merge_result(validation_result)
 
-    return result, validated_data
+    return ctx.result, validated_data
 
 
 def validate_citation_cff_data(
@@ -465,6 +502,7 @@ def validate_omnibenchmark_yaml_content(
             message="omnibenchmark.yaml file is empty or missing",
         )
         result.add_issue(warning_issue)
+        ctx.merge_result(result)
         return result, None
 
     try:
@@ -480,6 +518,7 @@ def validate_omnibenchmark_yaml_content(
             yaml_error=str(e),
         )
         result.add_issue(warning_issue)
+        ctx.merge_result(result)
         return result, None
 
     # Validate the parsed data
@@ -488,6 +527,7 @@ def validate_omnibenchmark_yaml_content(
     )
     result.add_issues(validation_result.issues)
 
+    ctx.merge_result(result)
     return result, validated_data
 
 
@@ -508,6 +548,28 @@ def validate_omnibenchmark_yaml_data(
         )
         result.add_issue(warning_issue)
         return result, None
+
+    # Check for required fields
+    if "name" not in data:
+        warning_issue = ValidationIssue(
+            issue_type="omnibenchmark_yaml_missing_name",
+            severity=ValidationSeverity.WARNING,
+            path=file_path,
+            module_id=ctx.module_id,
+            message="omnibenchmark.yaml is missing required 'name' field",
+        )
+        result.add_issue(warning_issue)
+
+    # Validate version format (should be a string)
+    if "version" in data and not isinstance(data["version"], str):
+        warning_issue = ValidationIssue(
+            issue_type="omnibenchmark_yaml_invalid_version_format",
+            severity=ValidationSeverity.WARNING,
+            path=file_path,
+            module_id=ctx.module_id,
+            message=f"omnibenchmark.yaml 'version' field should be a string, got {type(data['version']).__name__}",
+        )
+        result.add_issue(warning_issue)
 
     return result, data
 
@@ -541,6 +603,7 @@ def validate_license_file_content(
         )
         result.add_issue(warning_issue)
 
+    ctx.merge_result(result)
     return result
 
 
@@ -560,8 +623,8 @@ def validate_license_consistency(
         )
         return result
 
+    # If no citation_license but LICENSE file exists, warn about missing license in citation
     if not citation_license and license_content:
-        # This is typically a warning
         warning_issue = ValidationIssue(
             issue_type="license_in_file_but_not_citation",
             severity=ValidationSeverity.WARNING,
