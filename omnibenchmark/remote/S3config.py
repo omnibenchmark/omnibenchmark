@@ -1,9 +1,27 @@
 import json
 import os
 import sys
+from pathlib import Path
 
+from dotenv import load_dotenv
 
 from omnibenchmark.cli.utils.logging import logger
+
+
+# Load .env file from the current working directory if it exists
+# This allows users to store S3 credentials in a .env file
+dotenv_path = Path.cwd() / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=dotenv_path, override=False)
+else:
+    # Try loading from the project root (in case we're running from a subdirectory)
+    # Walk up the directory tree to find .env
+    current_path = Path.cwd()
+    for parent in [current_path] + list(current_path.parents):
+        dotenv_path = parent / ".env"
+        if dotenv_path.exists():
+            load_dotenv(dotenv_path=dotenv_path, override=False)
+            break
 
 
 def benchmarker_access_token_policy(benchmark):
