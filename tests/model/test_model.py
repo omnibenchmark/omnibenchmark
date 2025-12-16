@@ -19,6 +19,8 @@ from omnibenchmark.model import (
     IOFile,
     Parameter,
     Benchmark,
+    Stage,
+    InputCollection,
 )
 
 from .factories import (
@@ -195,6 +197,87 @@ class TestCoreEntities:
         # Test validation
         with pytest.raises(ValidationError):
             IOFile(id="output1", path="")
+
+    def test_input_collection_no_expansion(self):
+        """Test that InputCollection does not expand when using list of strings format.
+
+        This tests the fix for the issue where a simple list of input IDs like:
+        inputs: ['data.matrix', 'data.true_labels']
+
+        Should create ONE InputCollection with all items, not expand into multiple
+        InputCollection objects (one per input).
+        """
+        # Create a stage with inputs as a simple list of strings (non-legacy format)
+        stage_dict = {
+            "id": "stage1",
+            "name": "Test Stage",
+            "modules": [
+                {
+                    "id": "module1",
+                    "software_environment": "python_env",
+                    "repository": {
+                        "url": "https://github.com/test/repo.git",
+                        "commit": "abc123",
+                    },
+                    "outputs": [{"id": "out1", "path": "output.txt"}],
+                }
+            ],
+            "inputs": ["data.matrix", "data.true_labels"],  # Simple list of strings
+            "outputs": [{"id": "out1", "path": "output.txt"}],
+        }
+
+        stage = Stage(**stage_dict)
+
+        # Should create ONE InputCollection with both entries
+        assert stage.inputs is not None
+        assert (
+            len(stage.inputs) == 1
+        ), f"Expected 1 InputCollection, got {len(stage.inputs)}"
+        assert isinstance(stage.inputs[0], InputCollection)
+        assert stage.inputs[0].entries == ["data.matrix", "data.true_labels"]
+
+    def test_input_collection_legacy_format_with_entries(self):
+        """Test that legacy format with explicit 'entries' field still works.
+
+        Legacy format: inputs: [{entries: ['data.matrix', 'data.true_labels']}]
+        Should still create one InputCollection (with deprecation warning).
+        """
+        import warnings
+
+        stage_dict = {
+            "id": "stage1",
+            "name": "Test Stage",
+            "modules": [
+                {
+                    "id": "module1",
+                    "software_environment": "python_env",
+                    "repository": {
+                        "url": "https://github.com/test/repo.git",
+                        "commit": "abc123",
+                    },
+                    "outputs": [{"id": "out1", "path": "output.txt"}],
+                }
+            ],
+            "inputs": [
+                {"entries": ["data.matrix", "data.true_labels"]}
+            ],  # Legacy format
+            "outputs": [{"id": "out1", "path": "output.txt"}],
+        }
+
+        # Should emit a deprecation warning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            stage = Stage(**stage_dict)
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert issubclass(w[0].category, FutureWarning)
+            assert "deprecated" in str(w[0].message).lower()
+
+        # Should create ONE InputCollection
+        assert stage.inputs is not None
+        assert len(stage.inputs) == 1
+        assert stage.inputs[0].entries == ["data.matrix", "data.true_labels"]
 
     def test_software_environment_complete(self):
         """Test SoftwareEnvironment with all fields."""
