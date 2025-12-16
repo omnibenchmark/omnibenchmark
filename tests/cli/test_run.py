@@ -459,7 +459,7 @@ def test_run_module_dataset_inference_failure(tmp_path):
                 benchmark_path,
                 "--module",
                 "test_module",
-                "--input_dir",
+                "--input-dir",
                 str(test_input_dir),
             ],
         )
@@ -571,7 +571,7 @@ def test_run_module_invalid_input_directory(tmp_path):
                 benchmark_path,
                 "--module",
                 "test_module",
-                "--input_dir",
+                "--input-dir",
                 str(nonexistent_dir),
             ],
         )
@@ -637,7 +637,7 @@ def test_run_module_missing_required_input_files(tmp_path):
                 benchmark_path,
                 "--module",
                 "test_module",
-                "--input_dir",
+                "--input-dir",
                 str(test_input_dir),
             ],
         )

@@ -579,7 +579,7 @@ run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
 === "Shell"
 
     ```shell
-    ob run tests/data/Benchmark_001.yaml --module P1 --input_dir out/data/D1/default
+    ob run tests/data/Benchmark_001.yaml --module P1 --input-dir out/data/D1/default
     ```
 
 === "Output"
