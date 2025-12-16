@@ -1,11 +1,11 @@
 # 001: Module Metadata
 
-[![Status: Approved](https://img.shields.io/badge/Status-Approved-green.svg)](https://github.com/omnibenchmark/docs/design)
+[![Status: Implemented](https://img.shields.io/badge/Status-Implemented-brightgreen.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: ben, ...
+**Authors**: ben
 **Date**: 2025-06-18
-**Status**: Approved
+**Status**: Implemented
 **Version**: 0.1.0
 **Supersedes**: N/A
 **Reviewed-by**: dincicau, csoneson, imallona
@@ -16,6 +16,7 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 0.1.0 | 2025-06-18 | Initial draft | ben |
+| 0.1.0 | 2025-12-16 | Marked as implemented | ben |
 
 
 ## 1. Problem statement

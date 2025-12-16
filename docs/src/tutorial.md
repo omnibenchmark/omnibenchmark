@@ -388,11 +388,11 @@ stages:
         path: "{dataset}.png"
 ```
 
-Hence, the git repository implementing module `D1` doesn't have any input, but generates one output. In this case, the repository implementing `D1` has [a config file](https://github.com/omnibenchmark-example/data/blob/main/config.cfg) indicating the entrypoint is a python script named `entrypoint_data.py`:
+Hence, the git repository implementing module `D1` doesn't have any input, but generates one output. In this case, the repository implementing `D1` has [an omnibenchmark.yaml file](https://github.com/omnibenchmark-example/data/blob/main/omnibenchmark.yaml) indicating the entrypoint is a python script named `entrypoint_data.py`:
 
-```
-[DEFAULT]
-SCRIPT=entrypoint_data.py
+```yaml
+entrypoints:
+  default: entrypoint_data.py
 ```
 
 `entrypoint_data.py` uses the python library `argparse` to receive two arguments when called from the command line:
@@ -427,11 +427,11 @@ stages:
         path: "{dataset}.txt.gz"
 ```
 
-So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [config file](https://github.com/omnibenchmark-example/process/blob/main/config.cfg) indicates:
+So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [omnibenchmark.yaml file](https://github.com/omnibenchmark-example/process/blob/main/omnibenchmark.yaml) indicates:
 
-```
-[DEFAULT]
-SCRIPT=entrypoint_process.R
+```yaml
+entrypoints:
+  default: entrypoint_process.R
 ```
 
 so the script to be executed is named `entrypoint_process.R`. In this case, [the script](https://github.com/omnibenchmark-example/process/blob/aeec1db790542d447899d6ac4cb8564a9172b6e0/entrypoint_process.R#L3C1-L13C1) uses the R library `argparse` to provide a commandline interface:
