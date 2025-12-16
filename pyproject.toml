@@ -16,7 +16,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
 ]
-requires-python = "~=3.12"
+requires-python = ">=3.12.0, <3.14"
 
 dynamic = ["version"]
 
@@ -71,7 +71,7 @@ test = [
     "pytest-xdist>=3.6.1",
     "testcontainers>=4.5.1",
     "pytest-timeout==2.3.1",
-    "s3fs[boto3]>=2023.12.0",
+    "s3fs>=2023.12.0",
     "minio==7.2.18",  # Pin to 7.2.18, 7.2.19 has breaking API changes
 ]
 

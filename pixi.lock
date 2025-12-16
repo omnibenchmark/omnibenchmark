@@ -4662,8 +4662,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: omnibenchmark
-  version: 0.3.0.post76+dirty
-  sha256: 4c5055c48a22fd76117ee55103ef4399fc875264be5c5b61e7db9fe120fc7dd0
+  version: 0.3.0.post84
+  sha256: 0df8524300ab15f1dac9b4c58e071aee4cc2d433dbe8b76b1dfbf32c4fd46728
   requires_dist:
   - click>=8.1.7
   - python-dateutil>=2.9.0.post0
@@ -4696,9 +4696,9 @@ packages:
   - pytest-xdist>=3.6.1 ; extra == 'test'
   - testcontainers>=4.5.1 ; extra == 'test'
   - pytest-timeout==2.3.1 ; extra == 'test'
-  - s3fs[boto3]>=2023.12.0 ; extra == 'test'
+  - s3fs>=2023.12.0 ; extra == 'test'
   - minio==7.2.18 ; extra == 'test'
-  requires_python: ~=3.12
+  requires_python: '>=3.12.0,<3.14'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/linux-64/oniguruma-6.9.10-hb9d3cd8_0.conda
   sha256: bbff8a60f70d5ebab138b564554f28258472e1e63178614562d4feee29d10da2
