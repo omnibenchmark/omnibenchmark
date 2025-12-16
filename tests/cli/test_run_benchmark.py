@@ -22,8 +22,6 @@ def test_remote(minio_storage):  # noqa: F811
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ]
         )
@@ -40,8 +38,6 @@ def test_benchmark_not_found():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "does_not_exist.yaml"),
             ]
         )
@@ -55,8 +51,6 @@ def test_benchmark_format_incorrect():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "benchmark_format_incorrect.yaml"),
             ]
         )
@@ -71,8 +65,6 @@ def test_benchmark_software_does_not_exist():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "benchmark_software_does_not_exist.yaml"),
             ]
         )
@@ -89,8 +81,6 @@ def test_local(tmp_path):
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
             ],
             cwd=tmp_path,
@@ -110,8 +100,6 @@ def test_custom_out_dir(tmp_path):
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--out-dir",
                 custom_out_dir,
@@ -132,8 +120,6 @@ def test_local_dry():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--dry",
             ]
@@ -150,8 +136,6 @@ def test_local_update_true(tmp_path):
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--update",
             ],
@@ -171,8 +155,6 @@ def test_local_update_false():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--update",
             ],
@@ -190,8 +172,6 @@ def test_local_dry_update():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--update",
                 "--dry",
@@ -207,8 +187,6 @@ def test_benchmark_does_fail_if_one_module_fails(bundled_repos, tmp_path):  # no
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (data / "benchmark_failing_module.yaml").as_posix(),
             ],
             input="y",
@@ -229,8 +207,6 @@ def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos)
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (data / "benchmark_failing_module.yaml").as_posix(),
                 "--continue-on-error",
             ],
@@ -256,8 +232,6 @@ def test_run_benchmark_with_invalid_timeout():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--task-timeout",
                 "invalid_format",
@@ -278,8 +252,6 @@ def test_run_benchmark_out_dir_with_remote_storage():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--use-remote-storage",
                 "--out-dir",
@@ -299,8 +271,6 @@ def test_run_benchmark_with_valid_timeout():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
                 "--task-timeout",
                 "5m",

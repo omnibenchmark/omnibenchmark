@@ -2,7 +2,7 @@
 
 from click.testing import CliRunner
 
-from omnibenchmark.cli.run import run_benchmark
+from omnibenchmark.cli.run import run
 from omnibenchmark.cli.utils.args import parse_extra_args
 
 
@@ -88,8 +88,8 @@ class TestCLIUnknownOptionsError:
         """Unknown options without -- should error, not silently pass through."""
         runner = CliRunner()
         result = runner.invoke(
-            run_benchmark,
-            ["-b", "bench.yaml", "--dryrun"],  # --dryrun is unknown to ob
+            run,
+            ["bench.yaml", "--dryrun"],  # --dryrun is unknown to ob
         )
         assert result.exit_code != 0
         assert "No such option: --dryrun" in result.output
@@ -99,8 +99,8 @@ class TestCLIUnknownOptionsError:
         runner = CliRunner()
         # Just test that --dryrun after -- doesn't cause "No such option" error
         result = runner.invoke(
-            run_benchmark,
-            ["-b", "nonexistent.yaml", "--", "--dryrun"],
+            run,
+            ["nonexistent.yaml", "--", "--dryrun"],
         )
         # Will fail for other reasons (file not found), but NOT "No such option"
         assert "No such option: --dryrun" not in result.output
