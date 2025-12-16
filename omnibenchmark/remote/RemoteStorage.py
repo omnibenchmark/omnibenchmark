@@ -39,7 +39,49 @@ def is_valid_version(version: str):
 
 class RemoteStorage(metaclass=ABCMeta):
     """
-    A class representing a remote storage.
+    A class representing a remote storage with version-controlled S3 buckets.
+
+    This class provides an abstract interface for managing benchmark results in S3-compatible
+    storage (MinIO, AWS S3) with immutable versioning and retention policies for reproducibility.
+
+    ## S3 Versioning and Object Protection
+
+    When benchmark versions are created, S3 Object Lock (Governance Mode) is automatically
+    applied to protect versioned objects from accidental deletion or modification:
+
+    ### Version Creation Process:
+    1. **Tag Current Objects**: Latest object versions are tagged with benchmark version
+    2. **Apply Retention Policy**: Objects receive Governance Mode retention protection
+    3. **Create Version Manifest**: A CSV manifest is stored at `versions/{version}.csv`
+    4. **Enable Object Lock**: Bucket-level object locking prevents tampering
+
+    ### WORM Protection (Write Once, Read Many):
+    - Tagged objects become **immutable** and cannot be deleted without special permissions
+    - Prevents data loss due to accidental deletion or modification
+    - Ensures benchmark reproducibility by preserving exact file versions
+    - Only users with `s3:BypassGovernanceRetention` permission can override protection
+
+    ### Cleanup Considerations:
+    Protected objects require special deletion procedures:
+    ```python
+    # Standard deletion (will fail for protected objects)
+    s3_client.delete_object(Bucket=bucket, Key=key)
+
+    # Required for protected objects
+    s3_client.delete_object(
+        Bucket=bucket,
+        Key=key,
+        VersionId=version_id,
+        BypassGovernanceRetention=True  # Requires special permission
+    )
+    ```
+
+    ### Test Environment Cleanup:
+    For test environments, cleanup methods automatically handle WORM-protected objects by:
+    - Attempting to disable object lock configuration
+    - Using `BypassGovernanceRetention=True` for deletions
+    - Removing legal holds when present
+    - Providing graceful fallbacks for different S3 implementations
 
     Attributes:
     - version (str): The version of the current benchmark of the format: `major.minor` (for example: `0.1`).

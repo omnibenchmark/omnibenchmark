@@ -2,7 +2,7 @@ id: ComplexTopologyBenchmark
 description: Complex pipeline demonstrating asymmetric dataset-method aggregation patterns and cross-group processing
 version: "1.0"
 benchmarker: "E2E Test Suite"
-benchmark_yaml_spec: 0.3
+benchmark_yaml_spec: "0.3"
 #api_version: "0.3.0"
 software_backend: host
 

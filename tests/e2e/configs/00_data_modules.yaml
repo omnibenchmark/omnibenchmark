@@ -2,7 +2,7 @@ id: LinearArithmeticDataset
 description: Simple linear pipeline for e2e testing with arithmetic operations
 version: "1.0"
 benchmarker: "E2E Test Suite"
-benchmark_yaml_spec: 0.3
+benchmark_yaml_spec: "0.3"
 #api_version: "0.3.0"
 software_backend: host
 
@@ -21,7 +21,7 @@ stages:
           url: bundles/dummymodule_4ff8427.bundle
           commit: 4ff8427
         parameters:
-          - values: ["--evaluate", "1+1"]
+          - evaluate: "1+1"
 
       # this writes to out/data/D1/evaluate-2+2
       - id: D2
@@ -31,7 +31,7 @@ stages:
           url: bundles/dummymodule_4ff8427.bundle
           commit: 4ff8427
         parameters:
-          - values: ["--evaluate", "2+2"]
+          - evaluate: "2+2"
     outputs:
       - id: data.raw
         path: "{dataset}_data.json"

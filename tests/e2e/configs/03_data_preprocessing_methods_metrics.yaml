@@ -2,7 +2,7 @@ id: LinearArithmeticWithPreprocessing
 description: Linear pipeline with preprocessing, methods and metrics for e2e testing with arithmetic operations
 version: "1.0"
 benchmarker: "E2E Test Suite"
-benchmark_yaml_spec: 0.3
+benchmark_yaml_spec: "0.3"
 #api_version: "0.3.0"
 software_backend: host
 

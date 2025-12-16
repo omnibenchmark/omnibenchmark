@@ -3,7 +3,7 @@ from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
 
-from .asserts import assert_startswith, assert_in_output
+from .asserts import assert_in_output
 from .path import data
 
 # TODO: deprecate fixtures in this module
@@ -82,8 +82,8 @@ def test_benchmark_software_does_not_exist():
 
 
 def test_local(tmp_path):
-    expected = """Benchmark YAML file integrity check passed.
-    Running benchmark..."""
+    # Check that benchmark runs successfully (may have deprecation warnings)
+    expected = "Benchmark run has finished successfully"
 
     with OmniCLISetup() as omni:
         result = omni.call(
@@ -97,13 +97,12 @@ def test_local(tmp_path):
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
 
 def test_custom_out_dir(tmp_path):
-    expected = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark..."""
+    # Check that benchmark runs successfully with custom output directory
+    expected = "Benchmark run has finished successfully"
 
     custom_out_dir = "out_2313_custom"
 
@@ -121,16 +120,14 @@ def test_custom_out_dir(tmp_path):
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
         assert os.path.exists(tmp_path / custom_out_dir)
 
 
 def test_local_dry():
-    expected_output = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark...
-    """
+    # Dry run should complete successfully (may have warnings)
+    expected_output = "Running benchmark"
     with OmniCLISetup() as omni:
         result = omni.call(
             [
@@ -143,7 +140,7 @@ def test_local_dry():
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected_output)
+        assert_in_output(result.stdout, expected_output)
 
 
 def test_local_update_true(tmp_path):
@@ -168,9 +165,8 @@ def test_local_update_true(tmp_path):
 
 
 def test_local_update_false():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    """
+    # When user declines update, should abort with code 1
+    expected = "Are you sure you want to re-run the entire workflow"
     with OmniCLISetup() as omni:
         result = omni.call(
             [
@@ -184,14 +180,12 @@ def test_local_update_false():
         )
 
         assert result.returncode == 1
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
 
 def test_local_dry_update():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark...
-    """
+    # Dry run with update should complete successfully
+    expected = "Running benchmark"
     with OmniCLISetup() as omni:
         result = omni.call(
             [
@@ -205,7 +199,7 @@ def test_local_dry_update():
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
 
 def test_benchmark_does_fail_if_one_module_fails(bundled_repos, tmp_path):  # noqa: F811

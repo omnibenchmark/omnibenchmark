@@ -75,8 +75,14 @@ class TmpMinIOStorage:
         benchmark_file = str(self.out_dir / f"Benchmark_{self.bucket_name}.yaml")
         self.benchmark_file = benchmark_file
         # Use Pydantic's model dump with mode='json' to properly serialize enums
+        # Exclude deprecated storage fields to avoid "mixed format" validation errors
         with open(benchmark_file, "w") as f:
-            yaml.dump(benchmark_obj.model_dump(mode="json"), f)
+            yaml.dump(
+                benchmark_obj.model_dump(
+                    mode="json", exclude={"storage_api", "storage_bucket_name"}
+                ),
+                f,
+            )
 
         self.storage_options = StorageOptions(out_dir="out")
 

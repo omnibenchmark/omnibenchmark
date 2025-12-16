@@ -14,7 +14,6 @@ from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.remote.files import checksum_files
 from omnibenchmark.remote.files import list_files
 from omnibenchmark.remote.files import download_files
-from packaging.version import Version
 from datetime import datetime
 from difflib import unified_diff
 
@@ -29,7 +28,7 @@ from .debug import add_debug_option
 class StorageAuth:
     """Convenience class for handling storage authentication and validation."""
 
-    def __init__(self, benchmark_path: str):
+    def __init__(self, benchmark_path: str, require_credentials: bool = True):
         from omnibenchmark.remote.storage import remote_storage_args
 
         self.benchmark_path = benchmark_path
@@ -39,7 +38,9 @@ class StorageAuth:
             formatted_error = pretty_print_parse_error(e)
             logger.error(f"Failed to load benchmark:\n{formatted_error}")
             sys.exit(1)
-        self.auth_options = remote_storage_args(self.benchmark)
+        self.auth_options = remote_storage_args(
+            self.benchmark, required=require_credentials
+        )
 
         # Validate required storage components
         import click
@@ -490,6 +491,6 @@ def list_versions(ctx, benchmark_path: str):
 
     if len(ss.versions) > 0:
         if len(ss.versions) > 1:
-            ss.versions.sort(key=Version)
+            ss.versions.sort()
         for version in ss.versions:
             click.echo(f"{str(version):>8}")

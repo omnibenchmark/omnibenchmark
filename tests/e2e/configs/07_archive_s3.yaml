@@ -1,0 +1,92 @@
+id: ArchiveS3Operations
+description: Archive functionality testing with S3 remote storage
+version: "1.0"
+benchmarker: "Archive E2E Test Suite"
+benchmark_yaml_spec: "0.3"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for archive testing"
+
+storage:
+  api: S3
+  bucket_name: obdata
+  endpoint: http://localhost:9000
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Archive Test Dataset 1"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "100"
+
+      - id: D2
+        name: "Archive Test Dataset 2"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "150"
+
+      - id: D3
+        name: "Archive Test Dataset 3"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "200"
+    outputs:
+      - id: data.raw
+        description: "Raw data for archive testing"
+        format: json
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Archive Test Method 1 - Basic Processing"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+1000"
+            input: "data.raw"
+            kind: "method"
+
+      - id: M2
+        name: "Archive Test Method 2 - Advanced Processing"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+2000"
+            input: "data.raw"
+            kind: "method"
+
+      - id: M3
+        name: "Archive Test Method 3 - Alternative Processing"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+3000"
+            input: "data.raw"
+            kind: "method"
+    inputs:
+      - data.raw
+    outputs:
+      - id: methods.result
+        description: "Method results for archive testing"
+        format: json
+        path: "{dataset}_method.json"

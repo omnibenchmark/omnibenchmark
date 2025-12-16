@@ -162,3 +162,81 @@ def test_default_config_path():
 
     # Check that it's using the expected default path
     assert config.config_path == config_dir / "omnibenchmark.cfg"
+
+
+@pytest.mark.short
+def test_save_to_readonly_directory(tmp_path):
+    """Test that saving gracefully handles read-only directories."""
+    import stat
+
+    # Create a config file in a directory
+    config_file = tmp_path / "test.cfg"
+    config = ConfigAccessor(config_file)
+
+    # Set some values
+    config.set("section", "key", "value")
+
+    # Make the directory read-only
+    os.chmod(tmp_path, stat.S_IRUSR | stat.S_IXUSR)
+
+    try:
+        # Attempt to save should not raise an exception, just warn
+        config.save()  # Should log warning but not crash
+
+        # Config should still work in memory
+        assert config.get("section", "key") == "value"
+
+    finally:
+        # Restore write permissions for cleanup
+        os.chmod(tmp_path, stat.S_IRWXU)
+
+
+@pytest.mark.short
+def test_init_dirs_with_readonly_filesystem(tmp_path, monkeypatch):
+    """Test that init_dirs handles read-only filesystem gracefully."""
+    from omnibenchmark.config import init_dirs
+    import stat
+
+    # Create a read-only directory
+    readonly_dir = tmp_path / "readonly"
+    readonly_dir.mkdir()
+    os.chmod(readonly_dir, stat.S_IRUSR | stat.S_IXUSR)
+
+    # Mock the config_dir and bench_dir to point to subdirectories of readonly
+    monkeypatch.setattr("omnibenchmark.config.config_dir", readonly_dir / "config")
+    monkeypatch.setattr("omnibenchmark.config.bench_dir", readonly_dir / "bench")
+
+    try:
+        # This should not raise an exception, just log warnings
+        init_dirs()  # Should handle OSError gracefully
+
+    finally:
+        # Restore write permissions for cleanup
+        os.chmod(readonly_dir, stat.S_IRWXU)
+
+
+@pytest.mark.short
+def test_config_accessor_with_readonly_parent_directory(tmp_path):
+    """Test ConfigAccessor initialization when parent directory is read-only."""
+    import stat
+
+    # Create a directory structure
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    config_subdir = parent_dir / "config"
+
+    # Make parent read-only (cannot create subdirectories)
+    os.chmod(parent_dir, stat.S_IRUSR | stat.S_IXUSR)
+
+    try:
+        # Creating a config accessor should not crash even if it can't create dirs
+        config_file = config_subdir / "test.cfg"
+        config = ConfigAccessor(config_file)  # Should handle OSError gracefully
+
+        # Config should still work in memory
+        config.set("test", "key", "value")
+        assert config.get("test", "key") == "value"
+
+    finally:
+        # Restore write permissions for cleanup
+        os.chmod(parent_dir, stat.S_IRWXU)

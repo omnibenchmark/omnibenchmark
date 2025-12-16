@@ -16,6 +16,7 @@ from omnibenchmark.benchmark.params import Params
 from omnibenchmark.benchmark.symlinks import SymlinkManager
 from omnibenchmark.git.clone import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
+from omnibenchmark.workflow.snakemake.scripts.inputs_map_builder import build_inputs_map
 
 logger = logging.getLogger("SNAKEMAKE_RUNNER")
 
@@ -47,29 +48,7 @@ dataset: str = params.get("dataset", getattr(snakemake.wildcards, "dataset", "un
 # This is critical for remote storage where files are downloaded to .snakemake/storage/
 inputs_map: Dict[str, Any] = {}
 if inputs_map_template:
-    # snakemake.input is a list of actual file paths where Snakemake downloaded/created files
-    # We need to map them back to the keys in inputs_map_template
-    input_files = list(snakemake.input)
-
-    # Match template paths to actual paths by comparing basenames
-    for key, template_path in inputs_map_template.items():
-        if isinstance(template_path, str):
-            # Single file input
-            template_basename = Path(template_path).name
-            for actual_path in input_files:
-                if Path(actual_path).name == template_basename:
-                    inputs_map[key] = actual_path
-                    break
-        elif isinstance(template_path, list):
-            # Multiple file inputs
-            matched_files = []
-            for tpl in template_path:
-                template_basename = Path(tpl).name
-                for actual_path in input_files:
-                    if Path(actual_path).name == template_basename:
-                        matched_files.append(actual_path)
-                        break
-            inputs_map[key] = matched_files
+    inputs_map = build_inputs_map(inputs_map_template, list(snakemake.input))
 
 # For now we're handling timeout in seconds.
 # When implementing cluster resource handling, we needt to convert this to minutes (e.g. slurm takes it in min)

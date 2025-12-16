@@ -2,7 +2,7 @@ id: CartesianProductExcludeBenchmark
 description: Cartesian product pipeline demonstrating exclude functionality - 3 datasets with 2 methods where D2 excludes certain method combinations
 version: "1.0"
 benchmarker: "E2E Test Suite"
-benchmark_yaml_spec: 0.3
+benchmark_yaml_spec: "0.3"
 # api_version: "0.3.0"
 software_backend: host
 
