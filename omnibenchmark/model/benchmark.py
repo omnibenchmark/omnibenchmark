@@ -396,13 +396,15 @@ class Stage(DescribableEntity):
         if v is None:
             return v
 
+        # Check if all items are strings (non-legacy format: a simple list of input IDs)
+        # This should be treated as a single InputCollection with all items
+        if all(isinstance(item, str) for item in v):
+            return [InputCollection(entries=v)]
+
         result = []
         for idx, item in enumerate(v):
-            # If it's a plain string (legacy format), wrap it
-            if isinstance(item, str):
-                result.append(InputCollection(entries=[item]))
             # If it's a dict with 'entries' (legacy format with explicit entries field)
-            elif isinstance(item, dict) and "entries" in item:
+            if isinstance(item, dict) and "entries" in item:
                 import warnings
 
                 # Try to get line number from context
@@ -430,6 +432,7 @@ class Stage(DescribableEntity):
             # If it's already an InputCollection or other dict, keep as-is
             else:
                 result.append(item)
+
         return result
 
 
