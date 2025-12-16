@@ -420,6 +420,15 @@ class SnakemakeEngine(WorkflowEngine):
             or backend == SoftwareBackendEnum.apptainer
         ):
             argv.append("--use-singularity")
+            # Bind omnibenchmark package and git repos so they're accessible in the container
+            import omnibenchmark
+            from omnibenchmark.config import get_git_modules_dir
+
+            omnibenchmark_root = Path(omnibenchmark.__file__).parent.parent.resolve()
+            git_modules_dir = get_git_modules_dir().resolve()
+            # Use comma-separated bind mounts and set PYTHONPATH for singularity
+            bind_paths = f"--bind {omnibenchmark_root}:{omnibenchmark_root},{git_modules_dir}:{git_modules_dir} --env PYTHONPATH={omnibenchmark_root}:$PYTHONPATH"
+            argv.extend(["--singularity-args", bind_paths])
         elif backend == SoftwareBackendEnum.envmodules:
             argv.append("--use-envmodules")
         elif backend == SoftwareBackendEnum.conda:

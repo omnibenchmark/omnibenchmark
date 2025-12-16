@@ -1,14 +1,25 @@
 #! /usr/bin/env python
 # WARNING: Custom dependencies might not be available here, since this is run inside a specified environment.
 
+# CRITICAL: Modify sys.path FIRST, before any other imports
+# In Snakemake 9+, when running in containers, the omnibenchmark package root
+# may be mounted but not added to sys.path. We need to add it before importing.
+import sys
+from pathlib import Path
+
+_script_dir = Path(__file__).parent
+_omnibenchmark_root = _script_dir.parent.parent.parent.parent
+if str(_omnibenchmark_root) not in sys.path:
+    sys.path.insert(0, str(_omnibenchmark_root))
+
+# Now safe to import everything else
 import logging
 import os
-import sys
 import traceback
 from typing import Any, Dict, Optional
 
-from pathlib import Path
-
+# ruff: noqa: E402
+# Imports below must come after sys.path modification above
 from snakemake.script import Snakemake
 
 from omnibenchmark.benchmark import constants
