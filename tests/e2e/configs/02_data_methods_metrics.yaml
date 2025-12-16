@@ -2,7 +2,7 @@ id: LinearArithmeticWithMetrics
 description: Simple linear pipeline for e2e testing with arithmetic operations and metrics collection
 version: "1.0"
 benchmarker: "E2E Test Suite"
-benchmark_yaml_spec: 0.3
+benchmark_yaml_spec: "0.3"
 #api_version: "0.3.0"
 software_backend: host
 

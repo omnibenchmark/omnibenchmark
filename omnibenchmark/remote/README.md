@@ -11,6 +11,10 @@ The `omnibenchmark.remote` module provides functionality for managing remote sto
   - [File Operations](#file-operations)
   - [Policy Generation](#policy-generation)
 - [Archive Operations](#archive-operations)
+  - [Archive Components](#archive-components)
+  - [Remote vs Local Behavior](#remote-vs-local-behavior)
+  - [Compression Options](#compression-options)
+  - [Current Limitations](#current-limitations)
 - [Usage Examples](#usage-examples)
 - [Configuration](#configuration)
 - [Creating Access Keys](#creating-access-keys)
@@ -126,24 +130,124 @@ Generate **least-privilege IAM policies** for benchmark access.
 
 ## Archive Operations
 
-Archives package complete benchmarks for distribution or long-term storage.
+Archives package complete benchmarks for distribution or long-term storage. The archive functionality creates ZIP files containing selected components of a benchmark.
 
 ### Archive Components
 
-- **Config**: Benchmark definition YAML file
-- **Code**: Git repositories cloned at specific commits
-- **Software**: 
-  - EasyConfig files (for envmodules)
-  - Conda environment YAML files
-  - Apptainer container files (.sif)
-- **Results**: Benchmark output files (from local or remote storage)
+The archive command supports four types of content:
+
+- **Config** (always included): Benchmark definition YAML file
+- **Code** (`-c/--code`): Git repositories cloned to `.snakemake/repos/` at specific commits
+- **Software** (`-s/--software`): Software environment definitions
+  - **Conda**: Environment YAML files from benchmark configuration
+  - **Apptainer**: Container .sif files referenced in benchmark
+  - **EnvModules**: EasyConfig files for environment modules
+- **Results** (`-r/--results`): Benchmark output files
+
+### Remote vs Local Behavior
+
+The archive behavior differs significantly based on the `--use-remote-storage` flag:
+
+#### With `--use-remote-storage` (Remote Mode)
+```bash
+ob archive -b benchmark.yaml --results --use-remote-storage
+```
+
+**Behavior:**
+1. **Lists files** from S3 bucket for the current benchmark version
+2. **Downloads files locally** using `download_files()` with integrity checking
+3. **Archives the downloaded copies** into ZIP file
+4. **Validates checksums** during download process
+
+**Pros:**
+- ✅ Complete benchmark results included
+- ✅ Integrity verification via checksums  
+- ✅ Works even if local files are missing
+- ✅ Automatically downloads latest results
+
+**Cons:**
+- ❌ Requires network connectivity to S3
+- ❌ Downloads all files locally (storage overhead)
+- ❌ Slower due to download time
+
+#### Without `--use-remote-storage` (Local Mode)
+```bash
+ob archive -b benchmark.yaml --results
+```
+
+**Behavior:**
+1. **Scans local directory** (default: `out/`) for expected files
+2. **Archives only existing files** without downloading
+3. **Warns about missing files** if expected outputs don't exist locally
+
+**Pros:**
+- ✅ Fast operation (no downloads)
+- ✅ Works offline
+- ✅ Uses existing local files
+
+**Cons:**
+- ❌ May create incomplete archives if files missing locally
+- ❌ No automatic download of remote results
+- ❌ Dependent on local file availability
 
 ### Compression Options
 
-- `none` - No compression (ZIP_STORED)
-- `deflated` - Standard ZIP compression (ZIP_DEFLATED)
-- `bzip2` - Better compression, slower (ZIP_BZIP2)
-- `lzma` - Best compression, slowest (ZIP_LZMA)
+Archives support multiple compression methods:
+
+- **`none`** - No compression (ZIP_STORED) - Fastest, largest files
+- **`deflated`** - Standard ZIP compression (ZIP_DEFLATED) - Good balance
+- **`bzip2`** - Better compression (ZIP_BZIP2) - `.bz2` extension
+- **`lzma`** - Best compression (ZIP_LZMA) - `.xz` extension, slowest
+
+**Example compression results** (typical benchmark):
+```
+none:     RemoteBucketOperations_1.0.zip (3,632 bytes)
+deflated: RemoteBucketOperations_1.0.zip (2,413 bytes) - 33% reduction  
+bzip2:    RemoteBucketOperations_1.0.bz2 (2,814 bytes) - 23% reduction
+lzma:     RemoteBucketOperations_1.0.xz  (2,594 bytes) - 29% reduction
+```
+
+### Current Limitations
+
+⚠️ **Important limitations to be aware of:**
+
+#### No Version Selection
+```bash
+# ❌ NOT SUPPORTED: Cannot specify which version to archive
+ob archive -b benchmark.yaml --results --version 1.0
+
+# ✅ CURRENT BEHAVIOR: Always uses version from benchmark.yaml
+ob archive -b benchmark.yaml --results --use-remote-storage
+```
+
+**Impact:** Archive always uses the version specified in the `benchmark.yaml` file. To archive version 1.0, you must:
+1. Edit `benchmark.yaml` to set `version: "1.0"`  
+2. Run archive command
+3. Restore `benchmark.yaml` to original version
+
+#### Storage API Always Required
+```bash
+# ❌ NOT SUPPORTED: Cannot archive benchmarks without storage configuration
+# Even for purely local benchmarks, storage.api must be configured in YAML
+
+# ✅ REQUIRED: Must have storage section even for local-only archiving
+storage:
+  api: S3  # Required even if not using remote storage
+  endpoint: http://localhost:9000  # Can be dummy URL
+  bucket_name: dummy-bucket
+```
+
+**Impact:** Archive command cannot work with benchmarks that have no storage configuration. Even if you only want to archive local files, the benchmark YAML must include a `storage.api` field.
+
+#### No Direct S3 Archiving
+- Archives cannot be created directly from S3 without local download
+- All remote files are downloaded locally first, then archived
+- This creates temporary local storage requirements
+
+#### Limited File Selection  
+- Cannot specify individual files to include/exclude
+- Selection is all-or-nothing per component type (code, software, results)
+- No pattern matching or filtering options
 
 ## Usage Examples
 
@@ -286,6 +390,9 @@ Create a complete benchmark archive:
 # Archive everything (config, code, software, results)
 ob archive -b benchmark.yaml --code --software --results
 
+# With remote storage (downloads from S3 first)
+ob archive -b benchmark.yaml --results --use-remote-storage
+
 # With compression
 ob archive -b benchmark.yaml --code --software --results --compression lzma
 
@@ -293,21 +400,60 @@ ob archive -b benchmark.yaml --code --software --results --compression lzma
 ob archive -b benchmark.yaml --code --software --results --dry-run
 ```
 
-Archive components can be selected individually:
-- `--code`: Include Git repositories
-- `--software`: Include software environment definitions
+#### Archive Component Selection
+
+Components can be selected individually:
+- `--code`: Include Git repositories cloned to `.snakemake/repos/`
+- `--software`: Include environment files (conda YAML, .sif containers, easyconfigs)
 - `--results`: Include benchmark output files
 
-Compression levels:
-- `--compression none`: No compression (fastest)
-- `--compression deflated`: Standard compression (default)
-- `--compression bzip2`: Better compression
-- `--compression lzma`: Best compression (slowest)
+#### Remote Storage Examples
+
+```bash
+# Archive with remote results (recommended for complete archives)
+ob archive -b benchmark.yaml --results --use-remote-storage
+
+# Archive local results only (may be incomplete)
+ob archive -b benchmark.yaml --results
+
+# Mixed approach: code + remote results
+ob archive -b benchmark.yaml --code --results --use-remote-storage
+
+# Local development archive (config + code only)
+ob archive -b benchmark.yaml --code
+```
+
+#### Compression Examples
+
+```bash
+# Fast archive (no compression)
+ob archive -b benchmark.yaml --results --compression none
+
+# Balanced (standard compression)
+ob archive -b benchmark.yaml --results --compression deflated
+
+# Small archive (best compression, slower)
+ob archive -b benchmark.yaml --results --compression lzma
+```
+
+#### Dry Run Usage
+
+```bash
+# Preview what would be archived
+ob archive -b benchmark.yaml --code --software --results --dry-run
+
+# Check remote files without downloading
+ob archive -b benchmark.yaml --results --use-remote-storage --dry-run
+```
 
 The archive will be created in the current directory with a name like:
 ```
-benchmark-name-0.1.zip
+benchmark-name-1.0.zip          # or .bz2, .xz based on compression
+benchmark-name-1.0.bz2          # bzip2 compression  
+benchmark-name-1.0.xz           # lzma compression
 ```
+
+
 
 ## Configuration
 

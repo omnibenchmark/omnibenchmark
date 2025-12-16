@@ -158,10 +158,10 @@ jobs:
       - name: Run integration tests
         run: |
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            pixi run pytest -m "not short and not e2e" && pixi run pytest tests/software/
+            pixi run pytest -m "not short and not e2e_s3" && pixi run pytest tests/software/
           else
             # macOS - skip platform-specific tests
-            pixi run pytest -m "not short and not e2e" && pixi run pytest tests/software/ -k "not apptainer"
+            pixi run pytest -m "not short and not e2e_s3" && pixi run pytest tests/software/ -k "not apptainer"
           fi
 
   test-e2e:
@@ -338,3 +338,77 @@ jobs:
           name: clustbench-apptainer-output
           path: clustering_example/
           retention-days: 7
+
+  test-e2e-s3:
+    name: S3 E2E Tests (Local MinIO)
+    needs: [test-short, lint-and-typecheck]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install wheel with test extras
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run pip install "$WHEEL_FILE[test]"
+
+      - name: Run S3 E2E tests with local MinIO (Docker)
+        timeout-minutes: 15
+        run: |
+          echo "🚀 Running S3 E2E tests with local MinIO in Docker..."
+          echo "Note: Tests will use testcontainers to spin up MinIO automatically"
+          pixi run pytest -m e2e_s3 -v -s
+        
+      - name: Collect diagnostic information on failure
+        if: failure()
+        run: |
+          echo "=== Collecting diagnostic information ==="
+          
+          # Find pytest temp directories
+          PYTEST_DIRS=$(find /tmp -type d -name "pytest-of-*" 2>/dev/null || true)
+          
+          for dir in $PYTEST_DIRS; do
+            echo "Found pytest directory: $dir"
+            
+            # Find Snakemake logs
+            find "$dir" -name "*.snakemake.log" -type f 2>/dev/null | while read log; do
+              echo "=== Snakemake log: $log ==="
+              tail -n 500 "$log"
+            done
+            
+            # Find any error logs
+            find "$dir" -name "*.log" -type f 2>/dev/null | while read log; do
+              echo "=== Log file: $log ==="
+              tail -n 100 "$log"
+            done
+            
+            # Check for local output files
+            find "$dir" -name "*.json" -type f 2>/dev/null | head -20 | while read file; do
+              echo "Found JSON output: $file"
+            done
+          done
+        
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3-e2e-test-artifacts-${{ github.run_id }}
+          path: |
+            /tmp/pytest-of-*/**/*.log
+            /tmp/pytest-of-*/**/*.json
+            /tmp/pytest-of-*/**/*.yaml
+          retention-days: 3
+          if-no-files-found: warn

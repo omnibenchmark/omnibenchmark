@@ -38,7 +38,7 @@ from omnibenchmark.remote.exception import (
     MinIOStorageConnectionException,
     MinIOStorageBucketManipulationException,
 )
-from omnibenchmark.remote.archive import prepare_archive_software
+from omnibenchmark.archive.components import prepare_archive_software
 from omnibenchmark.remote.RemoteStorage import RemoteStorage, StorageOptions
 from omnibenchmark.remote.S3config import bucket_readonly_policy
 from omnibenchmark.remote.S3versioning import get_s3_object_versions_and_tags
@@ -80,6 +80,92 @@ def set_bucket_lifecycle_config(
 
 
 class MinIOStorage(RemoteStorage):
+    """
+    MinIO/S3-compatible storage implementation with versioning and object protection.
+
+    This class provides concrete implementation of RemoteStorage for MinIO and AWS S3,
+    with automatic versioning, object locking, and retention policies for benchmark
+    result reproducibility.
+
+    ## S3 Object Lock and Versioning Implementation
+
+    MinIOStorage automatically enables S3 Object Lock on buckets during creation:
+    - **Bucket Creation**: `object_lock=True` enables versioning and object lock
+    - **Version Tagging**: Objects are tagged with benchmark versions during `create_new_version()`
+    - **Governance Retention**: Tagged objects receive automatic retention policies
+    - **WORM Protection**: Objects become immutable once versioned
+
+    ## Version Creation Workflow
+
+    When `create_new_version()` is called:
+    1. **Object Discovery**: Scans tracked directories (`out/`, `config/`, `versions/`, `software/`)
+    2. **Version Tagging**: Tags current object versions with benchmark version
+    3. **Retention Policy**: Applies S3 Object Lock Governance Mode protection
+    4. **Manifest Creation**: Stores version manifest at `versions/{version}.csv`
+    5. **Git Integration**: Commits version changes to Git repository if available
+
+    ## Object Protection Details
+
+    Protected objects exhibit the following behaviors:
+    - **Immutability**: Cannot be overwritten or deleted without bypass permissions
+    - **Version Preservation**: All historical versions remain accessible
+    - **Error Messages**: Deletion attempts return "Object is WORM protected" errors
+    - **Bypass Required**: Only `BypassGovernanceRetention=True` can override protection
+
+    ## Cleanup Considerations for Tests
+
+    Test environments require special cleanup procedures:
+    ```python
+    # This will fail for versioned objects
+    s3_client.delete_object(Bucket=bucket, Key=key)
+
+    # Required approach for cleanup
+    versions = s3_client.list_object_versions(Bucket=bucket)
+    for version in versions.get('Versions', []):
+        s3_client.delete_object(
+            Bucket=bucket,
+            Key=version['Key'],
+            VersionId=version['VersionId'],
+            BypassGovernanceRetention=True
+        )
+    ```
+
+    ## MinIO vs AWS S3 Differences
+
+    - **MinIO**: Object lock cannot be disabled once enabled (`only 'Enabled' value is allowed`)
+    - **AWS S3**: Supports more granular object lock configuration changes
+    - **Both**: Support governance retention bypass with appropriate permissions
+    - **Both**: Maintain version history and support object tagging
+
+    ## Security and Access Control
+
+    Generated IAM policies automatically exclude dangerous permissions:
+    - ❌ `s3:BypassGovernanceRetention` - Reserved for administrative operations
+    - ❌ `s3:DeleteObjectVersion` - Prevents version history tampering
+    - ❌ `s3:DeleteBucket` - Prevents accidental benchmark deletion
+    - ✅ Standard read/write operations on current object versions
+
+    Args:
+        auth_options (Dict): Authentication configuration with 'endpoint', 'access_key', 'secret_key'
+        benchmark (str): Benchmark name/identifier used as S3 bucket name
+        storage_options (StorageOptions): Configuration for tracked directories and file patterns
+
+    Raises:
+        MinIOStorageConnectionException: When connection to MinIO/S3 fails
+        MinIOStorageBucketManipulationException: When bucket operations fail
+        RemoteStorageInvalidInputException: When version operations fail due to validation errors
+
+    Example:
+        >>> storage = MinIOStorage(
+        ...     auth_options={'endpoint': 'https://s3.amazonaws.com', 'access_key': 'key', 'secret_key': 'secret'},
+        ...     benchmark='my-benchmark',
+        ...     storage_options=StorageOptions(out_dir='out')
+        ... )
+        >>> storage.set_version('1.0')
+        >>> storage.create_new_version()  # Creates WORM-protected version 1.0
+        >>> storage.versions  # ['1.0']
+    """
+
     def __init__(
         self,
         auth_options: Dict,
@@ -208,7 +294,7 @@ class MinIOStorage(RemoteStorage):
             # Check if debug mode is enabled (logger level is DEBUG)
             debug_mode = logger.isEnabledFor(logging.DEBUG)
 
-            if hasattr(e, "code") and e.code == "AccessDenied":
+            if hasattr(e, "code") and getattr(e, "code") == "AccessDenied":
                 logger.error(
                     click.style("[ERROR]", fg="red", bold=True)
                     + f" Access denied to S3 bucket '{self.benchmark}'. Check your credentials have the correct permissions."
@@ -216,7 +302,7 @@ class MinIOStorage(RemoteStorage):
                 if debug_mode:
                     logger.exception("Full traceback:")
                 sys.exit(1)
-            elif hasattr(e, "code") and e.code == "NoSuchBucket":
+            elif hasattr(e, "code") and getattr(e, "code") == "NoSuchBucket":
                 logger.error(
                     click.style("[ERROR]", fg="red", bold=True)
                     + f" S3 bucket '{self.benchmark}' does not exist."

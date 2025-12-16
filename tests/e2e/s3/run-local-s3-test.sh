@@ -128,10 +128,10 @@ export OB_E2E_USE_REMOTE_S3=false
 # Check if pixi is available and use it, otherwise use pytest directly
 if command -v pixi &> /dev/null; then
     echo "Using pixi to run tests..."
-    pixi run pytest tests/e2e/test_06_s3_remote.py -v -s
+    pixi run pytest -m e2e_s3 -v -s
 else
     echo "Using pytest directly..."
-    pytest tests/e2e/test_06_s3_remote.py -v -s
+    pytest -m e2e_s3 -v -s
 fi
 
 echo ""

@@ -117,6 +117,12 @@ class S3TestEnvironment:
         if not self.endpoint:
             self.endpoint = "https://s3.eu-central-1.amazonaws.com"
 
+        print("Remote S3 configuration:")
+        print(f"  Access Key: {self.access_key[:8]}...")
+        print(f"  Endpoint: {self.endpoint}")
+        print(f"  Region: {self.region}")
+        print(f"  Bucket: {self.bucket_name}")
+
         return True
 
     def setup(self) -> bool:
@@ -146,6 +152,42 @@ class S3TestEnvironment:
         ]:
             if var in os.environ:
                 del os.environ[var]
+
+    def test_bucket_creation_permissions(self) -> bool:
+        """Test if credentials have permission to create buckets."""
+        s3_client = self.get_s3_client()
+        if not s3_client:
+            print("❌ Cannot test permissions: S3 client not available")
+            return False
+
+        print("\n--- Testing S3 Bucket Creation Permissions ---")
+
+        try:
+            # Try to create the bucket
+            print(f"Attempting to create bucket: {self.bucket_name}")
+            if self.region == "us-east-1":
+                s3_client.create_bucket(Bucket=self.bucket_name)
+            else:
+                s3_client.create_bucket(
+                    Bucket=self.bucket_name,
+                    CreateBucketConfiguration={"LocationConstraint": self.region},
+                )
+            print(f"✓ Successfully created bucket: {self.bucket_name}")
+            return True
+        except s3_client.exceptions.BucketAlreadyOwnedByYou:
+            print(f"✓ Bucket {self.bucket_name} already exists and is owned by you")
+            return True
+        except s3_client.exceptions.BucketAlreadyExists:
+            print(
+                f"⚠️ Bucket {self.bucket_name} already exists but is owned by someone else"
+            )
+            return False
+        except Exception as e:
+            print(f"❌ Failed to create bucket: {e}")
+            print(f"   Error type: {type(e).__name__}")
+            if hasattr(e, "response"):
+                print(f"   Response: {e.response}")
+            return False
 
     def get_s3_client(self):
         """Get boto3 S3 client for bucket operations."""
@@ -197,7 +239,7 @@ class S3TestEnvironment:
             return None
 
     def cleanup_bucket(self) -> bool:
-        """Clean up the test bucket and all its contents."""
+        """Clean up the test bucket and all its contents, including WORM-protected objects."""
         s3_client = self.get_s3_client()
         if not s3_client:
             print("No S3 client available for cleanup")
@@ -206,23 +248,61 @@ class S3TestEnvironment:
         try:
             deleted_objects = 0
 
-            # Step 1: Delete all object versions and delete markers
+            # Step 1: Disable object lock on bucket if enabled
+            try:
+                # Try to disable object lock configuration to allow deletion
+                s3_client.put_object_lock_configuration(
+                    Bucket=self.bucket_name, ObjectLockConfiguration={}
+                )
+                print("  ✓ Disabled object lock on bucket")
+            except Exception as e:
+                # Object lock may not be enabled, continue
+                print(f"  Note: Could not disable object lock: {e}")
+
+            # Step 2: Delete all object versions and delete markers with bypass
             try:
                 versions_response = s3_client.list_object_versions(
                     Bucket=self.bucket_name
                 )
 
-                # Delete all current versions
+                # Delete all current versions with bypass retention
                 for version in versions_response.get("Versions", []):
                     try:
-                        s3_client.delete_object(
-                            Bucket=self.bucket_name,
-                            Key=version["Key"],
-                            VersionId=version["VersionId"],
-                        )
+                        # Try with bypass retention first
+                        try:
+                            s3_client.delete_object(
+                                Bucket=self.bucket_name,
+                                Key=version["Key"],
+                                VersionId=version["VersionId"],
+                                BypassGovernanceRetention=True,
+                            )
+                        except Exception:
+                            # Fallback to regular delete
+                            s3_client.delete_object(
+                                Bucket=self.bucket_name,
+                                Key=version["Key"],
+                                VersionId=version["VersionId"],
+                            )
                         deleted_objects += 1
-                    except Exception as e:
-                        print(f"  Failed to delete version {version['Key']}: {e}")
+                    except Exception:
+                        # For WORM protected objects, try to remove legal hold first
+                        try:
+                            s3_client.put_object_legal_hold(
+                                Bucket=self.bucket_name,
+                                Key=version["Key"],
+                                VersionId=version["VersionId"],
+                                LegalHold={"Status": "OFF"},
+                            )
+                            # Retry deletion after removing legal hold
+                            s3_client.delete_object(
+                                Bucket=self.bucket_name,
+                                Key=version["Key"],
+                                VersionId=version["VersionId"],
+                                BypassGovernanceRetention=True,
+                            )
+                            deleted_objects += 1
+                        except Exception as e2:
+                            print(f"  Failed to delete version {version['Key']}: {e2}")
 
                 # Delete all delete markers
                 for delete_marker in versions_response.get("DeleteMarkers", []):
@@ -231,6 +311,7 @@ class S3TestEnvironment:
                             Bucket=self.bucket_name,
                             Key=delete_marker["Key"],
                             VersionId=delete_marker["VersionId"],
+                            BypassGovernanceRetention=True,
                         )
                         deleted_objects += 1
                     except Exception as e:
@@ -243,13 +324,15 @@ class S3TestEnvironment:
                     for obj in response["Contents"]:
                         try:
                             s3_client.delete_object(
-                                Bucket=self.bucket_name, Key=obj["Key"]
+                                Bucket=self.bucket_name,
+                                Key=obj["Key"],
+                                BypassGovernanceRetention=True,
                             )
                             deleted_objects += 1
                         except Exception as e:
                             print(f"  Failed to delete {obj['Key']}: {e}")
 
-            # Step 2: Clean up any incomplete multipart uploads
+            # Step 3: Clean up any incomplete multipart uploads
             try:
                 multipart_response = s3_client.list_multipart_uploads(
                     Bucket=self.bucket_name
@@ -272,7 +355,7 @@ class S3TestEnvironment:
 
             print(f"  ✓ Deleted {deleted_objects} objects/versions")
 
-            # Step 3: Force delete bucket with retry
+            # Step 4: Force delete bucket with retry
             max_retries = 3
             for attempt in range(max_retries):
                 try:
@@ -374,29 +457,9 @@ def setup_test_environment(config_path: Path, tmp_path: Path) -> Path:
     config_file_in_tmp = tmp_path / "06_s3_remote.yaml"
     shutil.copy2(config_path, config_file_in_tmp)
 
-    # Create dummy conda environment file for Snakemake 9.x validation
-    # NOTE: This should no longer be needed as the conda issue has been fixed
-    # DUMMY_CONDA_ENV_CONTENT = """name: omnibenchmark-dummy
-    # channels:
-    #   - conda-forge
-    # dependencies:
-    #   - python=3.12
-    # """
-    # conda_file_path = tmp_path / "conda_not_provided.yml"
-    # conda_file_path.write_text(DUMMY_CONDA_ENV_CONTENT)
-    #
-    # # Also create in system temp directory for cross-platform compatibility
-    # try:
-    #     import tempfile
-    #     system_tmp_path = Path(tempfile.gettempdir()) / "conda_not_provided.yml"
-    #     system_tmp_path.write_text(DUMMY_CONDA_ENV_CONTENT)
-    # except (PermissionError, OSError):
-    #     pass  # Continue if we can't write to system temp
-
     return config_file_in_tmp
 
 
-@pytest.mark.e2e
 @pytest.mark.e2e_s3
 def test_s3_remote_storage_complete_workflow(
     s3_config_path, s3_environment, tmp_path, bundled_repos, keep_files
@@ -420,6 +483,16 @@ def test_s3_remote_storage_complete_workflow(
     print(f"Bucket: {s3_environment.bucket_name}")
     print(f"Endpoint: {s3_environment.endpoint}")
 
+    # Test bucket creation permissions (important for CI)
+    if s3_environment.use_remote:
+        print("\nTesting bucket creation permissions for remote S3...")
+        can_create = s3_environment.test_bucket_creation_permissions()
+        if not can_create:
+            pytest.fail(
+                "S3 credentials do not have permission to create buckets. "
+                "Please ensure the IAM user/role has s3:CreateBucket permission."
+            )
+
     # Update config with dynamic S3 settings
     updated_config = update_config_with_s3_settings(
         s3_config_path, tmp_path, s3_environment
@@ -432,6 +505,19 @@ def test_s3_remote_storage_complete_workflow(
     # Step 1: Run pipeline with --use-remote-storage
     # ========================================
     print("\n--- Step 1: Running pipeline with --use-remote-storage ---")
+
+    # Print environment variables that will be used
+    print("\nEnvironment variables for S3:")
+    print(
+        f"  OB_STORAGE_S3_ACCESS_KEY: {os.getenv('OB_STORAGE_S3_ACCESS_KEY', 'NOT SET')[:8]}..."
+    )
+    print(
+        f"  OB_STORAGE_S3_SECRET_KEY: {'SET' if os.getenv('OB_STORAGE_S3_SECRET_KEY') else 'NOT SET'}"
+    )
+    print(
+        f"  OB_STORAGE_S3_ENDPOINT_URL: {os.getenv('OB_STORAGE_S3_ENDPOINT_URL', 'NOT SET')}"
+    )
+    print(f"  AWS_DEFAULT_REGION: {os.getenv('AWS_DEFAULT_REGION', 'NOT SET')}")
 
     base_args = [
         "run",
@@ -446,11 +532,11 @@ def test_s3_remote_storage_complete_workflow(
     with OmniCLISetup() as omni:
         result = omni.call(base_args, cwd=str(tmp_path))
 
-        if keep_files:
-            print("\nCLI EXECUTION DEBUG:")
-            print(f"Return code: {result.returncode}")
-            print(f"STDOUT:\n{result.stdout}")
-            print(f"STDERR:\n{result.stderr}")
+        # Always print execution details for CI debugging
+        print("\nCLI EXECUTION DEBUG:")
+        print(f"Return code: {result.returncode}")
+        print(f"STDOUT:\n{result.stdout}")
+        print(f"STDERR:\n{result.stderr}")
 
     # Verify CLI execution succeeded
     assert result.returncode == 0, (
@@ -461,6 +547,37 @@ def test_s3_remote_storage_complete_workflow(
     print("✓ Pipeline execution completed successfully")
 
     # ========================================
+    # Step 1.5: Verify bucket was created
+    # ========================================
+    print("\n--- Step 1.5: Verifying S3 bucket was created ---")
+
+    s3_client = s3_environment.get_s3_client()
+    if s3_client:
+        try:
+            # Try to head the bucket to verify it exists
+            s3_client.head_bucket(Bucket=s3_environment.bucket_name)
+            print(f"✓ Bucket {s3_environment.bucket_name} exists")
+        except Exception as e:
+            print(f"❌ Bucket {s3_environment.bucket_name} does NOT exist: {e}")
+            print("\nThis likely means:")
+            print("1. The S3 credentials don't have CreateBucket permissions, OR")
+            print("2. The bucket creation failed during pipeline execution, OR")
+            print("3. The --use-remote-storage flag isn't working as expected")
+
+            # Check if any local output files were generated
+            print("\n--- Checking for local output files ---")
+            output_files = list(tmp_path.rglob("*.json"))
+            if output_files:
+                print(f"Found {len(output_files)} local JSON files:")
+                for f in output_files[:10]:  # Print first 10
+                    print(f"  {f.relative_to(tmp_path)}")
+                print("\n⚠️ Files were generated locally but not uploaded to S3")
+            else:
+                print("No local JSON output files found")
+
+            raise AssertionError(f"S3 bucket was not created: {e}")
+
+    # ========================================
     # Step 2: List files with boto3
     # ========================================
     print("\n--- Step 2: Listing S3 bucket contents with boto3 ---")
@@ -469,6 +586,47 @@ def test_s3_remote_storage_complete_workflow(
     time.sleep(2)
 
     bucket_contents = s3_environment.list_bucket_contents()
+
+    # Enhanced error message if no objects found
+    if len(bucket_contents) == 0:
+        print("❌ No objects found in S3 bucket")
+        print("\nDebugging information:")
+        print(f"Bucket name: {s3_environment.bucket_name}")
+        print(f"Endpoint: {s3_environment.endpoint}")
+        print(f"Region: {s3_environment.region}")
+
+        # Check for local output files
+        print("\n--- Checking for local output files ---")
+        output_files = list(tmp_path.rglob("*.json"))
+        if output_files:
+            print(
+                f"Found {len(output_files)} local JSON files that should have been uploaded:"
+            )
+            for f in output_files[:20]:
+                print(f"  {f.relative_to(tmp_path)} ({f.stat().st_size} bytes)")
+            print("\n⚠️ Files were generated locally but not uploaded to S3")
+            print(
+                "This suggests the remote storage upload step is not working correctly"
+            )
+        else:
+            print("No local JSON output files found")
+
+        # Check Snakemake logs
+        print("\n--- Checking for Snakemake logs ---")
+        snakemake_logs = list(tmp_path.rglob(".snakemake/log/*.log"))
+        if snakemake_logs:
+            print(f"Found {len(snakemake_logs)} Snakemake log files:")
+            for log in snakemake_logs[:5]:
+                print(f"\n  === {log.name} ===")
+                try:
+                    with open(log, "r") as f:
+                        content = f.read()
+                        # Print last 100 lines or full content if smaller
+                        lines = content.splitlines()
+                        print("\n".join(lines[-100:]))
+                except Exception as e:
+                    print(f"  Could not read log: {e}")
+
     assert len(bucket_contents) > 0, "No objects found in S3 bucket"
 
     object_keys = [obj["Key"] for obj in bucket_contents]
@@ -649,6 +807,203 @@ def test_s3_remote_storage_complete_workflow(
     print("✓ All checksums are valid MD5 hashes")
 
     # ========================================
+    # Step 7: Test Version Create
+    # ========================================
+    print("\n--- Step 7: Creating a new benchmark version ---")
+
+    version_create_args = [
+        "remote",
+        "version",
+        "create",
+        "--benchmark",
+        str(config_file_in_tmp),
+    ]
+
+    with OmniCLISetup() as omni:
+        version_result = omni.call(version_create_args, cwd=str(tmp_path))
+
+        if keep_files:
+            print("\nVERSION CREATE DEBUG:")
+            print(f"Return code: {version_result.returncode}")
+            print(f"STDOUT:\n{version_result.stdout}")
+            print(f"STDERR:\n{version_result.stderr}")
+
+    # Verify version creation succeeded
+    assert version_result.returncode == 0, (
+        f"Version create failed\n"
+        f"STDOUT: {version_result.stdout}\n"
+        f"STDERR: {version_result.stderr}"
+    )
+
+    # Check that the success message is in output
+    assert (
+        "Create a new benchmark version" in version_result.stdout
+    ), f"Expected version creation message not found in output: {version_result.stdout}"
+
+    print("✓ Version create command executed successfully")
+    print("✓ New benchmark version created")
+
+    # ========================================
+    # Step 8: Test Version List
+    # ========================================
+    print("\n--- Step 8: Listing benchmark versions ---")
+
+    version_list_args = [
+        "remote",
+        "version",
+        "list",
+        "--benchmark",
+        str(config_file_in_tmp),
+    ]
+
+    with OmniCLISetup() as omni:
+        list_result = omni.call(version_list_args, cwd=str(tmp_path))
+
+        if keep_files:
+            print("\nVERSION LIST DEBUG:")
+            print(f"Return code: {list_result.returncode}")
+            print(f"STDOUT:\n{list_result.stdout}")
+            print(f"STDERR:\n{list_result.stderr}")
+
+    # Verify version list succeeded
+    assert list_result.returncode == 0, (
+        f"Version list failed\n"
+        f"STDOUT: {list_result.stdout}\n"
+        f"STDERR: {list_result.stderr}"
+    )
+
+    # Check that version 1.0 is listed in output
+    assert (
+        "1.0" in list_result.stdout
+    ), f"Expected version '1.0' not found in output: {list_result.stdout}"
+
+    print("✓ Version list command executed successfully")
+    print("✓ Found version 1.0 in version list")
+
+    # ========================================
+    # Step 9: Benchmark Modification + Version 2.0
+    # ========================================
+    print("\n--- Step 9: Modifying benchmark and creating version 2.0 ---")
+
+    # Read current config file
+    import yaml
+
+    with open(config_file_in_tmp, "r") as f:
+        config_data = yaml.safe_load(f)
+
+    # Add a new method module (M3)
+    new_method = {
+        "id": "M3",
+        "name": "Method 3 - New processing approach",
+        "software_environment": "host",
+        "repository": {
+            "url": "bundles/dummymodule_4ff8427.bundle",
+            "commit": "4ff8427",
+        },
+        "parameters": [
+            {"evaluate": "input+3000", "input": "data.raw", "kind": "method"}
+        ],
+    }
+
+    # Add M3 to the methods stage
+    methods_stage = next(
+        stage for stage in config_data["stages"] if stage["id"] == "methods"
+    )
+    methods_stage["modules"].append(new_method)
+
+    # Update version to 2.0
+    config_data["version"] = "2.0"
+
+    # Write modified config
+    with open(config_file_in_tmp, "w") as f:
+        yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
+
+    print("✓ Added new method M3 to benchmark")
+    print("✓ Updated benchmark version to 2.0")
+
+    # Run modified benchmark
+    print("\n--- Running modified benchmark ---")
+    modified_args = [
+        "run",
+        "benchmark",
+        "--benchmark",
+        str(config_file_in_tmp),
+        "--use-remote-storage",
+        "--continue-on-error",
+        "-y",
+    ]
+
+    with OmniCLISetup() as omni:
+        modified_result = omni.call(modified_args, cwd=str(tmp_path))
+
+        if keep_files:
+            print("\nMODIFIED BENCHMARK DEBUG:")
+            print(f"Return code: {modified_result.returncode}")
+            print(f"STDOUT:\n{modified_result.stdout}")
+            print(f"STDERR:\n{modified_result.stderr}")
+
+    assert modified_result.returncode == 0, (
+        f"Modified benchmark execution failed\n"
+        f"STDOUT: {modified_result.stdout}\n"
+        f"STDERR: {modified_result.stderr}"
+    )
+    print("✓ Modified benchmark executed successfully")
+
+    # Create version 2.0
+    print("\n--- Creating version 2.0 ---")
+    version_create_v2_args = [
+        "remote",
+        "version",
+        "create",
+        "--benchmark",
+        str(config_file_in_tmp),
+    ]
+
+    with OmniCLISetup() as omni:
+        version_v2_result = omni.call(version_create_v2_args, cwd=str(tmp_path))
+
+        if keep_files:
+            print("\nVERSION 2.0 CREATE DEBUG:")
+            print(f"Return code: {version_v2_result.returncode}")
+            print(f"STDOUT:\n{version_v2_result.stdout}")
+            print(f"STDERR:\n{version_v2_result.stderr}")
+
+    assert version_v2_result.returncode == 0, (
+        f"Version 2.0 create failed\n"
+        f"STDOUT: {version_v2_result.stdout}\n"
+        f"STDERR: {version_v2_result.stderr}"
+    )
+    print("✓ Version 2.0 created successfully")
+
+    # List versions again to confirm both exist
+    print("\n--- Listing all versions ---")
+    with OmniCLISetup() as omni:
+        list_all_result = omni.call(version_list_args, cwd=str(tmp_path))
+
+        if keep_files:
+            print("\nVERSION LIST ALL DEBUG:")
+            print(f"Return code: {list_all_result.returncode}")
+            print(f"STDOUT:\n{list_all_result.stdout}")
+            print(f"STDERR:\n{list_all_result.stderr}")
+
+    assert list_all_result.returncode == 0, (
+        f"Version list failed\n"
+        f"STDOUT: {list_all_result.stdout}\n"
+        f"STDERR: {list_all_result.stderr}"
+    )
+
+    # Verify both versions are listed
+    assert (
+        "1.0" in list_all_result.stdout
+    ), f"Version 1.0 not found: {list_all_result.stdout}"
+    assert (
+        "2.0" in list_all_result.stdout
+    ), f"Version 2.0 not found: {list_all_result.stdout}"
+
+    print("✓ Found both versions 1.0 and 2.0 in version list")
+    print("✓ Benchmark modification and versioning workflow complete")
+
+    # ========================================
     # Final Summary
     # ========================================
     print("\n=== S3 Workflow Test Summary ===")
@@ -659,6 +1014,10 @@ def test_s3_remote_storage_complete_workflow(
     )
     print(f"✓ All {len(downloaded_files)} files downloaded and validated")
     print("✓ Content patterns match expected values")
+    print("✓ New benchmark version created successfully")
+    print("✓ Modified benchmark with new method M3")
+    print("✓ Created version 2.0 successfully")
+    print("✓ Both versions 1.0 and 2.0 are available")
     print(f"✓ Bucket: {s3_environment.bucket_name}")
 
     if keep_files:

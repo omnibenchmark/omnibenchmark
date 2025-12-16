@@ -10,6 +10,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
+from omnibenchmark.workflow.snakemake.scripts.inputs_map_builder import build_inputs_map
 
 
 @pytest.mark.short
@@ -73,6 +74,135 @@ def test_inputs_map_single_input():
         assert called_command[matrix_idx + 1] == "/path/to/matrix.gz"
 
         assert exit_code == 0
+
+
+@pytest.mark.short
+def test_build_inputs_map_single_file():
+    """Test build_inputs_map with a single file input."""
+    template = {"data.raw": "/tmp/out/data/D1/D1_data.json"}
+    actual_files = ["/tmp/out/data/D1/D1_data.json"]
+
+    result = build_inputs_map(template, actual_files)
+
+    assert result == {"data.raw": "/tmp/out/data/D1/D1_data.json"}
+
+
+@pytest.mark.short
+def test_build_inputs_map_list_input():
+    """Test build_inputs_map with multiple files for one key."""
+    template = {
+        "methods.result": [
+            "/tmp/out/data/D1/methods/M1/D1_method.json",
+            "/tmp/out/data/D2/methods/M1/D2_method.json",
+        ]
+    }
+    actual_files = [
+        "/tmp/out/data/D1/methods/M1/D1_method.json",
+        "/tmp/out/data/D2/methods/M1/D2_method.json",
+    ]
+
+    result = build_inputs_map(template, actual_files)
+
+    assert result == {"methods.result": actual_files}
+
+
+@pytest.mark.short
+def test_build_inputs_map_same_basename_different_paths():
+    """
+    Test the bug case: files with same basename in different directories.
+
+    This was the root cause of the e2e test failures:
+    - D1_method.json appears in both M1 and M2 directories
+    - D3_method.json appears in both M1 and M2 directories
+
+    The old basename-only matching caused duplicates and missing files.
+    The new positional matching handles this correctly.
+    """
+    template = {
+        "methods.result": [
+            "/tmp/out/data/D1/methods/M1/.hash1/D1_method.json",
+            "/tmp/out/data/D1/methods/M2/.hash2/D1_method.json",
+            "/tmp/out/data/D2/methods/M1/.hash3/D2_method.json",
+            "/tmp/out/data/D3/methods/M1/.hash4/D3_method.json",
+            "/tmp/out/data/D3/methods/M2/.hash5/D3_method.json",
+        ]
+    }
+    actual_files = [
+        "/tmp/out/data/D1/methods/M1/.hash1/D1_method.json",
+        "/tmp/out/data/D1/methods/M2/.hash2/D1_method.json",
+        "/tmp/out/data/D2/methods/M1/.hash3/D2_method.json",
+        "/tmp/out/data/D3/methods/M1/.hash4/D3_method.json",
+        "/tmp/out/data/D3/methods/M2/.hash5/D3_method.json",
+    ]
+
+    result = build_inputs_map(template, actual_files)
+
+    # All 5 files should be matched exactly once, no duplicates
+    assert len(result["methods.result"]) == 5
+    assert result["methods.result"] == actual_files
+
+
+@pytest.mark.short
+def test_build_inputs_map_remote_storage_paths():
+    """
+    Test that remote storage paths are handled correctly.
+
+    When using S3 remote storage, Snakemake downloads files to
+    .snakemake/storage/ with different base paths, but preserves order.
+    """
+    template = {
+        "methods.result": [
+            "/tmp/out/data/D1/methods/M1/D1_method.json",
+            "/tmp/out/data/D2/methods/M1/D2_method.json",
+        ]
+    }
+    # Simulate remote storage paths with different base directory
+    actual_files = [
+        "/tmp/out/.snakemake/storage/s3/bucket/data/D1/methods/M1/D1_method.json",
+        "/tmp/out/.snakemake/storage/s3/bucket/data/D2/methods/M1/D2_method.json",
+    ]
+
+    result = build_inputs_map(template, actual_files)
+
+    # Should match by position despite different base paths
+    assert len(result["methods.result"]) == 2
+    assert result["methods.result"] == actual_files
+
+
+@pytest.mark.short
+def test_build_inputs_map_multiple_keys():
+    """Test build_inputs_map with multiple input keys (mixed single and list)."""
+    template = {
+        "data.raw": "/tmp/out/data/D1/D1_data.json",
+        "methods.result": [
+            "/tmp/out/data/D1/methods/M1/D1_method.json",
+            "/tmp/out/data/D1/methods/M2/D1_method.json",
+        ],
+    }
+    actual_files = [
+        "/tmp/out/data/D1/D1_data.json",
+        "/tmp/out/data/D1/methods/M1/D1_method.json",
+        "/tmp/out/data/D1/methods/M2/D1_method.json",
+    ]
+
+    result = build_inputs_map(template, actual_files)
+
+    assert result["data.raw"] == "/tmp/out/data/D1/D1_data.json"
+    assert result["methods.result"] == [
+        "/tmp/out/data/D1/methods/M1/D1_method.json",
+        "/tmp/out/data/D1/methods/M2/D1_method.json",
+    ]
+
+
+@pytest.mark.short
+def test_build_inputs_map_empty():
+    """Test build_inputs_map with empty inputs."""
+    template = {}
+    actual_files = []
+
+    result = build_inputs_map(template, actual_files)
+
+    assert result == {}
 
 
 @pytest.mark.short

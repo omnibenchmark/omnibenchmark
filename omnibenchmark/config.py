@@ -38,8 +38,29 @@ def get_config_file():
 
 
 def init_dirs():
-    os.makedirs(bench_dir, exist_ok=True)
-    os.makedirs(config_dir, exist_ok=True)
+    """Initialize configuration and benchmark directories.
+
+    Fails gracefully if directories cannot be created (e.g., read-only filesystem).
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        os.makedirs(bench_dir, exist_ok=True)
+    except OSError as e:
+        logger.warning(
+            f"Could not create benchmark directory {bench_dir}: {e}. "
+            "This may affect git module caching but won't prevent execution."
+        )
+
+    try:
+        os.makedirs(config_dir, exist_ok=True)
+    except OSError as e:
+        logger.warning(
+            f"Could not create config directory {config_dir}: {e}. "
+            "Using in-memory configuration only."
+        )
 
 
 # def _get_config(config_path):
@@ -114,9 +135,21 @@ class ConfigAccessor:
     def save(self) -> None:
         """
         Save the current configuration to the config file.
+
+        Fails gracefully if the file cannot be written (e.g., read-only filesystem).
         """
-        with open(self.config_path, "w") as configfile:
-            self.config.write(configfile)
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            with open(self.config_path, "w") as configfile:
+                self.config.write(configfile)
+        except (OSError, IOError) as e:
+            logger.warning(
+                f"Could not save configuration to {self.config_path}: {e}. "
+                "Configuration changes will not persist."
+            )
 
     def sections(self) -> list:
         """

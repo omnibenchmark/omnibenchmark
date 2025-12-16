@@ -1,3 +1,7 @@
+# TODO: These tests are brittle - they match stdout strings which break on warnings/formatting changes.
+# Better approach: test behavior (return codes, file changes) not exact output. See test_module_not_found
+# and test_default_entry_module for examples.
+
 from typing import Optional
 
 from .asserts import assert_startswith, clean, assert_in_output
@@ -65,12 +69,13 @@ def test_run_benchmark_with_valid_timeout():
 
 
 def test_default_entry_module():
-    expected = """
-        Running module on a local dataset.
-        Found 1 workflow nodes for module D1.
-        Running module benchmark...
-        """
+    """Test running an entry module succeeds.
 
+    This is an improved test focusing on behavior:
+    - Verifies successful execution (return code 0)
+    - Checks key workflow information is present
+    - Tolerates warning messages and cosmetic output changes
+    """
     path = get_benchmark_data_path()
 
     with OmniCLISetup() as omni:
@@ -85,8 +90,13 @@ def test_default_entry_module():
             ]
         )
 
+        # Test behavior: command should succeed
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+
+        # Verify key information is present (order-independent)
+        assert "Running module on a local dataset" in result.stdout
+        assert "workflow nodes for module D1" in result.stdout
+        assert "Running module benchmark" in result.stdout
 
 
 def test_default_nonentry_module_fails():
@@ -158,11 +168,13 @@ def test_benchmark_format_incorrect():
 
 
 def test_module_not_found():
-    expected_output = """
-    Running module on a local dataset.
-    Error: Could not find module with id `not-existing` in benchmark definition
-    """
+    """Test that requesting a non-existent module fails with appropriate error.
 
+    This is an improved test that focuses on behavior rather than exact output:
+    - Checks return code (should fail)
+    - Verifies key error message is present
+    - Doesn't rely on exact string matching of cosmetic output
+    """
     path = get_benchmark_data_path()
 
     with OmniCLISetup() as omni:
@@ -179,8 +191,12 @@ def test_module_not_found():
             ]
         )
 
+        # Test behavior: command should fail
         assert result.returncode == 1
-        assert clean(result.stdout) == clean(expected_output)
+
+        # Test only critical content: error message about module not found
+        assert "Could not find module with id `not-existing`" in result.stdout
+        assert "benchmark definition" in result.stdout
 
 
 def test_behaviour_input():

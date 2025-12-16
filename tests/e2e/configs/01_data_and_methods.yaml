@@ -2,8 +2,6 @@ id: LinearArithmeticDataset
 description: Simple linear pipeline for e2e testing with arithmetic operations
 version: "1.0"
 benchmarker: "E2E Test Suite"
-benchmark_yaml_spec: 0.3
-#api_version: "0.3.0"
 software_backend: host
 
 software_environments:
@@ -21,7 +19,7 @@ stages:
           url: bundles/dummymodule_4ff8427.bundle
           commit: 4ff8427
         parameters:
-          - values: ["--evaluate", "1+1"]
+          - evaluate: "1+1"
 
       # this writes to out/data/D2/.../D2_data.json
       - id: D2
@@ -31,7 +29,7 @@ stages:
           url: bundles/dummymodule_4ff8427.bundle
           commit: 4ff8427
         parameters:
-          - values: ["--evaluate", "2+2"]
+          - evaluate: "2+2"
     outputs:
       - id: data.raw
         path: "{dataset}_data.json"
@@ -48,11 +46,10 @@ stages:
           # --data.raw will be passed as input by us, but we
           # need to keep the module generic so we need to pass that
           # information.
-          - values: ["--evaluate", "input+100", "--input", "data.raw"]
+          - evaluate: "input+100"
+            input: "data.raw"
     inputs:
-      # TODO: entries should be deprecated
-      - entries:
-          - data.raw
+      - data.raw
     outputs:
       - id: methods.result
         # XXX I think this is wrong. This module gets passed --name D1...

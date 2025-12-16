@@ -57,6 +57,52 @@ def test_create_version(minio_storage):  # noqa: F811
         assert "versions/1.0.csv" in store.files.keys()
 
 
+def test_version_sorting_no_regression():
+    """Test that Version objects can be sorted without TypeError.
+
+    This test prevents regression of the bug where ss.versions.sort(key=Version)
+    caused TypeError: expected string or bytes-like object, got 'Version'
+
+    The bug occurred when trying to sort a list of Version objects using
+    Version as a key function instead of letting Version objects sort naturally.
+    """
+    from packaging.version import Version
+
+    # Create a list of Version objects like those in ss.versions
+    versions = [
+        Version("2.0"),
+        Version("1.0"),
+        Version("1.5"),
+        Version("0.9"),
+    ]
+
+    # This should work without throwing TypeError
+    # The original bug was: versions.sort(key=Version) which is incorrect
+    # Correct approach: versions.sort() since Version objects are comparable
+    versions.sort()
+
+    # Verify versions are sorted correctly
+    expected_order = [
+        Version("0.9"),
+        Version("1.0"),
+        Version("1.5"),
+        Version("2.0"),
+    ]
+
+    assert versions == expected_order
+
+    # Also test that the buggy approach would fail
+    import pytest
+
+    versions_copy = [Version("2.0"), Version("1.0")]
+
+    # This would be the original buggy code that caused the TypeError
+    with pytest.raises(
+        TypeError, match="expected string or bytes-like object, got 'Version'"
+    ):
+        versions_copy.sort(key=Version)
+
+
 def get_md5_hash(content: str) -> str:
     hash_md5 = hashlib.md5()
     hash_md5.update(content.encode())
@@ -183,7 +229,7 @@ def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
 
             # Verify failure and error message
             assert run.returncode == 1
-            expected_output = "Invalid S3 config. Missing access_key and secret_key in environment variables (OB_STORAGE_S3_ACCESS_KEY, OB_STORAGE_S3_SECRET_KEY) or OB_STORAGE_S3_CONFIG"
+            expected_output = "[ERROR] Missing S3 credentials. Set OB_STORAGE_S3_ACCESS_KEY and OB_STORAGE_S3_SECRET_KEY, or OB_STORAGE_S3_CONFIG"
             assert_startswith(run.stdout, expected_output)
 
         finally:
@@ -331,9 +377,7 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
 
             # Verify failure and error message
             assert run.returncode == 1
-            expected_output = (
-                "Invalid S3 config, missing access_key or secret_key in config file"
-            )
+            expected_output = "[ERROR] Missing access_key or secret_key in config file"
             assert_startswith(run.stdout, expected_output)
 
         finally:

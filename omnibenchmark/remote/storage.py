@@ -78,11 +78,20 @@ def get_storage_from_benchmark(
     )
 
 
-def remote_storage_args(benchmark) -> dict:
+def remote_storage_args(benchmark, required: bool = False) -> dict:
+    """Get remote storage authentication arguments.
+
+    Args:
+        benchmark: The benchmark object
+        required: If True, require credentials to be present (for write operations)
+
+    Returns:
+        dict: Authentication options for remote storage
+    """
     storage_api = benchmark.get_storage_api()
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
-        # Don't require credentials here - let individual commands decide if they need them
-        auth_options = S3_access_config_from_env(required=False)
+        # Let caller decide if credentials are required
+        auth_options = S3_access_config_from_env(required=required)
         endpoint = benchmark.get_storage_endpoint()
         if endpoint is None:
             return {}
