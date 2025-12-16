@@ -34,7 +34,10 @@ dependencies = [
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake>=9.0", # Require 9.0+ for proper storage plugin support
+    # TODO: Pinned to <9.10 because Snakemake 9.10+ has stricter rule name validation
+    # that detects duplicate rule names. See
+    # https://github.com/omnibenchmark/omnibenchmark/issues/269
+    "snakemake>=9.0,<9.10", # Require 9.0+ for proper storage plugin support
     "pandas",  # TODO: Remove when all modules stop depending on it (see #232)
 
     # Templating
@@ -46,12 +49,6 @@ dependencies = [
 
     # can probably move to optional deps
     "tqdm>=4.66.4",
-
-    # Build tools: what do we need this for? the user is responsible for these,
-    # not our job to build easyblocks.
-    # "easybuild>=5.0.0",
-    # "easybuild-easyblocks>=5.0.0",
-
 ]
 
 [project.urls]

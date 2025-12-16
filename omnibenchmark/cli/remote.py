@@ -268,6 +268,7 @@ def checksum_all_files(benchmark: str):
     # API endpoints, or other interfaces. CLI should only handle argument parsing
     # and output formatting.
     # TODO(ben): move this logic away from CLI
+    # TODO: Add CLI option to specify custom local directory (currently hardcoded to "out")
     logger.info("Checking MD5 checksums... ")
     failed_checks_filenames = checksum_files(
         benchmark=benchmark, type="all", stage="", module="", file_id="", verbose=True
