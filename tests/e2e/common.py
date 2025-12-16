@@ -97,8 +97,6 @@ class E2ETestRunner:
         """
         base_args = [
             "run",
-            "benchmark",
-            "--benchmark",
             str(config_file),
             "--out-dir",
             str(self.out_dir),

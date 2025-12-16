@@ -456,7 +456,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --dry
+    ob run tests/data/Benchmark_001.yaml  --cores 1 --dry
     ```
 
 === "Output"
@@ -490,7 +490,7 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1
+    ob run tests/data/Benchmark_001.yaml  --cores 1
     ```
 
 === "Output"
@@ -573,7 +573,7 @@ $ ls out/data/D1/default/
 D1.meta.json  D1_params.txt  D1.txt.gz
 ```
 
-If not, run the whole benchmark first (with [`ob run benchmark`](https://omnibenchmark.org/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
+If not, run the whole benchmark first (with [`ob run`](https://omnibenchmark.org/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
 run `ob run module` with:
 
 === "Shell"
@@ -655,13 +655,13 @@ Save the access key and secret key in a `<CONFIG>.json` file somewhere with the 
 To use the credentials to write to the remote storage the access key and secret key are passed to omnibenchmark with environment variables. If the credentials have been stored as described above the environment variable `OB_STORAGE_S3_CONFIG` can be set which is the name of the config file. For example:
 
 ```
-OB_STORAGE_S3_CONFIG=<CONFIG>.json ob run benchmark -b tests/data/Benchmark_003.yaml
+OB_STORAGE_S3_CONFIG=<CONFIG>.json ob run tests/data/Benchmark_003.yaml
 ```
 
 alternatively `OB_STORAGE_S3_ACCESS_KEY` and `OB_STORAGE_S3_SECRET_KEY` can be set. For example:
 
 ```
-OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob run benchmark -b tests/data/Benchmark_003.yaml
+OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob run tests/data/Benchmark_003.yaml
 ```
 
 ### Versioning

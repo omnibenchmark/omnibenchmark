@@ -10,7 +10,7 @@ def parse_extra_args(args):
     arguments that were specified after --.
 
     Example:
-        ob run benchmark -b bench.yaml --cores 4 -- --dryrun --verbose
+        ob run bench.yaml --cores 4 -- --dryrun --verbose
 
         In this case, ctx.args will be ['--dryrun', '--verbose']
 

@@ -33,7 +33,7 @@ def test_remote(minio_storage):  # noqa: F811
 
 
 def test_benchmark_not_found():
-    expected = """Error: Invalid value for '-b' / '--benchmark'"""
+    expected = """Error: Invalid value for 'BENCHMARK_PATH'"""
     with OmniCLISetup() as omni:
         result = omni.call(
             [

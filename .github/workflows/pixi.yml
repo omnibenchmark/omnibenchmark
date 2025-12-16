@@ -274,7 +274,7 @@ jobs:
           # Ensure micromamba's Python is used by Snakemake subprocesses
           eval "$(pixi run micromamba shell hook --shell bash)"
           micromamba activate base
-          ob run benchmark -b Clustering_conda.yml --yes --continue-on-error
+          ob run Clustering_conda.yml --yes --continue-on-error
 
       - name: Upload output artifacts
         if: always()
@@ -329,7 +329,7 @@ jobs:
       - name: Run clustering benchmark with apptainer backend
         working-directory: clustering_example
         run: |
-          pixi run micromamba run -n base ob run benchmark -b Clustering_oras.yml --yes --continue-on-error
+          pixi run micromamba run -n base ob run Clustering_oras.yml --yes --continue-on-error
 
       - name: Upload output artifacts
         if: always()
