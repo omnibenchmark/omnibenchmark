@@ -628,7 +628,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                                 break
 
                                     warning_msg = format_yaml_warning(
-                                        message="The 'values' parameter format is deprecated. Use 'params' dict format instead.",
+                                        message="Use dict format instead",
                                         yaml_file=yaml_file_path,
                                         line_number=param_line,
                                         stage_id=stage_id,
