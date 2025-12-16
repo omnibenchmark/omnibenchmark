@@ -391,13 +391,13 @@ class Stage(DescribableEntity):
 
     @field_validator("inputs", mode="before")
     @classmethod
-    def validate_inputs(cls, v):
+    def validate_inputs(cls, v, info):
         """Convert legacy string format to InputCollection."""
         if v is None:
             return v
 
         result = []
-        for item in v:
+        for idx, item in enumerate(v):
             # If it's a plain string (legacy format), wrap it
             if isinstance(item, str):
                 result.append(InputCollection(entries=[item]))
@@ -405,8 +405,20 @@ class Stage(DescribableEntity):
             elif isinstance(item, dict) and "entries" in item:
                 import warnings
 
+                # Try to get line number from context
+                line_info = ""
+                if info.context and "line_map" in info.context:
+                    line_map = info.context["line_map"]
+                    # Search for any key containing inputs[idx].entries
+                    # We don't know the stage index, so we search through all keys
+                    search_pattern = f"inputs[{idx}].entries"
+                    for key in line_map:
+                        if search_pattern in key:
+                            line_info = f" (line {line_map[key]})"
+                            break
+
                 warnings.warn(
-                    "Using 'entries' field in inputs is deprecated. "
+                    f"Using 'entries' field in inputs is deprecated{line_info}. "
                     "Please use a simple list of strings instead: "
                     "inputs: ['data.matrix', 'data.true_labels'] instead of "
                     "inputs: [{entries: ['data.matrix', 'data.true_labels']}]. "
@@ -424,7 +436,15 @@ class Stage(DescribableEntity):
 class Benchmark(DescribableEntity, BenchmarkValidator):
     """Main benchmark definition."""
 
+    @model_validator(mode="after")
+    def set_authors_if_missing(self):
+        # If authors is missing or empty, set it to [benchmarker]
+        if not self.authors or len(self.authors) == 0:
+            self.authors = [self.benchmarker]
+        return self
+
     benchmarker: str = Field(..., description="Benchmark author")
+    authors: Optional[List[str]] = Field(None, description="List of benchmark authors")
     version: str = Field(..., description="Benchmark version")
     software_backend: SoftwareBackendEnum = Field(..., description="Software backend")
     software_environments: List[SoftwareEnvironment] = Field(
@@ -465,12 +485,19 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
     @field_validator("version", mode="before")
     @classmethod
-    def validate_version(cls, v: Union[str, int, float]) -> str:
+    def validate_version(cls, v: Union[str, int, float], info) -> str:
         """Validate that version follows strict semantic versioning format."""
         # Handle numeric types with deprecation warning
         if isinstance(v, (int, float)):
+            # Try to get line number from context
+            line_info = ""
+            if info.context and "line_map" in info.context:
+                line_map = info.context["line_map"]
+                if "version" in line_map:
+                    line_info = f" (line {line_map['version']})"
+
             warnings.warn(
-                f"Field 'version' should be a string. "
+                f"Field 'version' should be a string{line_info}. "
                 f"Found {type(v).__name__} value: {v}. "
                 f"This will not be valid in a future release. "
                 f"Please update your YAML file to use a quoted string.",
@@ -501,7 +528,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     @field_validator("benchmark_yaml_spec", mode="before")
     @classmethod
     def validate_benchmark_yaml_spec(
-        cls, v: Optional[Union[str, float, int]]
+        cls, v: Optional[Union[str, float, int]], info
     ) -> Optional[str]:
         """Validate benchmark_yaml_spec format if provided."""
         if v is None:
@@ -510,8 +537,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         if not isinstance(v, str):
             # Allow float/int for backwards compatibility but warn
             if isinstance(v, (float, int)):
+                # Try to get line number from context
+                line_info = ""
+                if info.context and "line_map" in info.context:
+                    line_map = info.context["line_map"]
+                    if "benchmark_yaml_spec" in line_map:
+                        line_info = f" (line {line_map['benchmark_yaml_spec']})"
+
                 warnings.warn(
-                    f"Field 'benchmark_yaml_spec' should be a string. "
+                    f"Field 'benchmark_yaml_spec' should be a string{line_info}. "
                     f"Found {type(v).__name__} value: {v}. "
                     f"This will not be valid in a future release. "
                     f"Please update your YAML file to use a quoted string.",
@@ -627,7 +661,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             }
 
         try:
-            return cls(**data)
+            # Pass line_map through validation context for better error messages
+            return cls.model_validate(data, context={"line_map": line_map})
         except PydanticValidationError as e:
             # Convert Pydantic validation error to BenchmarkParseError with context
             parse_error = convert_pydantic_error_to_parse_error(

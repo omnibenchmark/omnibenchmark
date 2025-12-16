@@ -3,7 +3,8 @@ import pytest
 from click.testing import CliRunner
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from omnibenchmark.cli.run import run_benchmark, run_module, validate_yaml
+from omnibenchmark.cli.run import run_benchmark, run_module
+from omnibenchmark.cli.validate import validate_plan
 from omnibenchmark.model.validation import BenchmarkParseError
 
 data = Path(__file__).parent.parent / "data"
@@ -239,46 +240,40 @@ def test_run_module_with_generic_exception():
 @pytest.mark.short
 def test_validate_yaml_with_parse_error():
     """
-    Test that validate_yaml handles BenchmarkParseError correctly.
+    Test that validate plan handles BenchmarkParseError correctly.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
     parse_error = BenchmarkParseError("Validation failed")
     parse_error.file_path = benchmark_path
 
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+    with patch("omnibenchmark.cli.validate.BenchmarkExecution") as mock_execution:
         mock_execution.side_effect = parse_error
 
-        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
-            mock_format.return_value = "Formatted validation error"
+        runner = CliRunner()
+        result = runner.invoke(
+            validate_plan,
+            [benchmark_path],
+        )
 
-            runner = CliRunner()
-            result = runner.invoke(
-                validate_yaml,
-                ["--benchmark", benchmark_path],
-            )
-
-            # Verify the error was formatted
-            mock_format.assert_called_once_with(parse_error)
-
-            # Verify the command failed
-            assert result.exit_code == 1
+        # Verify the command failed
+        assert result.exit_code == 1
 
 
 @pytest.mark.short
 def test_validate_yaml_with_generic_exception():
     """
-    Test that validate_yaml handles generic exceptions correctly.
+    Test that validate plan handles generic exceptions correctly.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+    with patch("omnibenchmark.cli.validate.BenchmarkExecution") as mock_execution:
         mock_execution.side_effect = IOError("Cannot read file")
 
         runner = CliRunner()
         result = runner.invoke(
-            validate_yaml,
-            ["--benchmark", benchmark_path],
+            validate_plan,
+            [benchmark_path],
         )
 
         # Verify the command failed
@@ -288,17 +283,17 @@ def test_validate_yaml_with_generic_exception():
 @pytest.mark.short
 def test_validate_yaml_success():
     """
-    Test that validate_yaml succeeds with a valid benchmark.
+    Test that validate plan succeeds with a valid benchmark.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+    with patch("omnibenchmark.cli.validate.BenchmarkExecution") as mock_execution:
         mock_execution.return_value = MagicMock()
 
         runner = CliRunner()
         result = runner.invoke(
-            validate_yaml,
-            ["--benchmark", benchmark_path],
+            validate_plan,
+            [benchmark_path],
         )
 
         # Verify the command succeeded

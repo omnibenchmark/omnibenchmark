@@ -16,6 +16,7 @@ REPOS = {
     "https://github.com/omnibenchmark-example/metric.git": "bundles/metric.bundle",
     "https://github.com/btraven00/dummymodule": "bundles/dummymodule.bundle",
     "https://github.com/btraven00/ob-test-collector": "bundles/dummycollector.bundle",
+    "https://github.com/btraven00/omni-module-tests": "bundles/omni-module-tests.bundle",
 }
 
 
