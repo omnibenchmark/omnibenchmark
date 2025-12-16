@@ -154,6 +154,8 @@ class TestPrepareArchiveSoftware:
         mock_benchmark.get_benchmark_software_backend.return_value = (
             SoftwareBackendEnum.conda
         )
+        # Mock get_benchmark_software_environments to return an empty dict
+        mock_benchmark.get_benchmark_software_environments.return_value = {}
 
         result = prepare_archive_software(mock_benchmark)
 
@@ -169,6 +171,8 @@ class TestPrepareArchiveSoftware:
         mock_benchmark.get_benchmark_software_backend.return_value = (
             SoftwareBackendEnum.apptainer
         )
+        # Mock get_benchmark_software_environments to return an empty dict
+        mock_benchmark.get_benchmark_software_environments.return_value = {}
 
         result = prepare_archive_software(mock_benchmark)
 
@@ -183,6 +187,8 @@ class TestPrepareArchiveSoftware:
         mock_benchmark.get_benchmark_software_backend.return_value = (
             SoftwareBackendEnum.conda
         )
+        # Mock get_benchmark_software_environments to return an empty dict
+        mock_benchmark.get_benchmark_software_environments.return_value = {}
 
         result = prepare_archive_software(mock_benchmark)
 
@@ -237,13 +243,24 @@ class TestPrepareArchiveResults:
             assert len(result) == 1
             assert downloaded_file in result
 
+    @patch("omnibenchmark.remote.files.download_files")
+    @patch("omnibenchmark.remote.files.list_files")
     @patch("omnibenchmark.archive.components.get_expected_benchmark_output_files")
-    def test_prepare_results_with_nonexistent_files(self, mock_get_files):
+    def test_prepare_results_with_nonexistent_files(
+        self, mock_get_files, mock_list_files, mock_download_files
+    ):
         """Test results preparation when some expected files don't exist."""
         nonexistent_file = Path("/nonexistent/result.json")
         mock_get_files.return_value = [nonexistent_file]
 
         mock_benchmark = Mock()
+        # Mock get_definition_file to return a Path object
+        mock_definition_file = Mock()
+        mock_definition_file.as_posix.return_value = "/path/to/benchmark.yaml"
+        mock_benchmark.get_definition_file.return_value = mock_definition_file
+
+        # Mock list_files to return empty lists
+        mock_list_files.return_value = ([], [])
 
         result = prepare_archive_results(
             benchmark=mock_benchmark, results_dir="out", remote_storage=True
