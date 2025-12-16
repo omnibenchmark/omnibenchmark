@@ -19,31 +19,25 @@ from omnibenchmark.remote.storage import remote_storage_snakemake_args
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
-from .debug import add_debug_option
 
-
-@click.group(name="run")
-@click.pass_context
-def run(ctx):
-    """Run benchmarks or benchmark modules."""
-    ctx.ensure_object(dict)
-
-
-@add_debug_option
-@run.command(
-    name="benchmark",
-    context_settings=dict(
-        allow_extra_args=True,
-    ),
+@click.command(
+    name="run",
+    context_settings=dict(allow_extra_args=True),
+)
+@click.argument("benchmark_path", type=click.Path(exists=True))
+@click.option(
+    "-m",
+    "--module",
+    help="Module id to execute. If specified, runs a specific module instead of the full benchmark.",
+    type=str,
+    default=None,
 )
 @click.option(
-    "-b",
-    "--benchmark",
-    "benchmark_path",
-    help="Path to benchmark yaml file or benchmark id.",
-    required=True,
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
+    "-i",
+    "--input-dir",
+    help="Path to the folder with the appropriate input files (only used with --module).",
+    type=click.Path(exists=True, writable=True),
+    default=None,
 )
 @click.option(
     "-c",
@@ -105,9 +99,11 @@ def run(ctx):
     type=str,
 )
 @click.pass_context
-def run_benchmark(
+def run(
     ctx,
     benchmark_path,
+    module,
+    input_dir,
     cores,
     update,
     dry,
@@ -119,13 +115,21 @@ def run_benchmark(
     executor,
     out_dir,
 ):
-    """Run a benchmark as specified in the yaml."""
+    """Run a benchmark or a specific module.
+
+    Examples:
+
+      ob run benchmark.yaml                    # Run full benchmark
+
+      ob run benchmark.yaml --module my_module --input-dir ./data  # Run specific module
+    """
     ctx.ensure_object(dict)
     extra_args = parse_extra_args(ctx.args)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
 
+    # Parse timeout
     if task_timeout is None:
         timeout_s = None
     else:
@@ -135,10 +139,59 @@ def run_benchmark(
             logger.error(f"Invalid timeout value: {task_timeout}")
             sys.exit(1)
 
-    # Validate out_dir usage
-    if use_remote_storage and out_dir:
-        raise click.UsageError("--out-dir can only be used with local storage")
+    # Decide whether to run whole benchmark or module
+    if module:
+        _run_module(
+            benchmark_path=benchmark_path,
+            module=module,
+            input_dir=input_dir,
+            cores=cores,
+            update=update,
+            dry=dry,
+            keep_module_logs=keep_module_logs,
+            continue_on_error=continue_on_error,
+            timeout_s=timeout_s,
+            executor=executor,
+            extra_args=extra_args,
+        )
+    else:
+        # Validate out_dir usage
+        if use_remote_storage and out_dir:
+            raise click.UsageError("--out-dir can only be used with local storage")
 
+        _run_benchmark(
+            benchmark_path=benchmark_path,
+            cores=cores,
+            update=update,
+            dry=dry,
+            yes=yes,
+            use_remote_storage=use_remote_storage,
+            keep_module_logs=keep_module_logs,
+            continue_on_error=continue_on_error,
+            timeout_s=timeout_s,
+            executor=executor,
+            out_dir=out_dir,
+            debug=debug,
+            extra_args=extra_args,
+        )
+
+
+def _run_benchmark(
+    benchmark_path,
+    cores,
+    update,
+    dry,
+    yes,
+    use_remote_storage,
+    keep_module_logs,
+    continue_on_error,
+    timeout_s,
+    executor,
+    out_dir,
+    debug,
+    extra_args,
+):
+    """Run a full benchmark."""
     try:
         out_dir = out_dir if out_dir else "out"
         b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
@@ -195,114 +248,20 @@ def run_benchmark(
     log_result_and_quit(logger, success, type="Benchmark")
 
 
-@run.command(
-    name="module",
-    context_settings=dict(
-        allow_extra_args=True,
-    ),
-)
-@click.option(
-    "-b",
-    "--benchmark",
-    "benchmark_path",
-    help="Path to benchmark yaml file or benchmark id.",
-    required=True,
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
-)
-@click.option("-m", "--module", help="Module id to execute", type=str, required=True)
-@click.option(
-    "-i",
-    "--input_dir",
-    help="Path to the folder with the appropriate input files.",
-    type=click.Path(exists=True, writable=True),
-    default=None,
-)
-@click.option("-d", "--dry", help="Dry run.", is_flag=True, default=False)
-@click.option(
-    "-u",
-    "--update",
-    help="Force re-run execution for all modules and stages.",
-    is_flag=True,
-    default=False,
-)
-@click.option(
-    "-k",
-    "--continue-on-error",
-    help="Go on with independent jobs if a job fails (--keep-going in snakemake).",
-    is_flag=True,
-    default=False,
-)
-@click.option(
-    "--keep-module-logs/--no-keep-module-logs",
-    default=False,
-    help="Keep module-specific log files after execution.",
-)
-@click.option(
-    "--task-timeout",
-    type=str,
-    default=None,
-    help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
-)
-@click.option(
-    "--executor",
-    help="Specify a custom executor to use for workflow execution. Example: slurm",
-    type=str,
-    default=None,
-)
-@click.pass_context
-def run_module(
-    ctx,
+def _run_module(
     benchmark_path,
     module,
     input_dir,
-    dry,
+    cores,
     update,
+    dry,
     keep_module_logs,
     continue_on_error,
-    task_timeout,
+    timeout_s,
     executor,
+    extra_args,
 ):
-    """
-    Run a specific module that is part of the benchmark.
-    """
-    behaviours = {"input": input_dir, "example": None, "all": None}
-    extra_args = parse_extra_args(ctx.args)
-
-    if task_timeout is None:
-        timeout_s = None
-    else:
-        try:
-            timeout_s = int(humanfriendly.parse_timespan(task_timeout))
-        except humanfriendly.InvalidTimespan:
-            logger.error(f"Invalid timeout value: {task_timeout}")
-            sys.exit(1)
-
-    non_none_behaviours = {
-        key: value for key, value in behaviours.items() if value is not None
-    }
-    if len(non_none_behaviours) >= 2:
-        log_error_and_quit(
-            logger,
-            "Error: Only one of '--input_dir', '--example', or '--all' should be set. Please choose only one option.",
-        )
-        return
-
-    # Construct a message specifying which option is set
-    behaviour = list(non_none_behaviours)[0] if non_none_behaviours else None
-
-    if behaviour == "example" or behaviour == "all":
-        howmany = "all" if behaviour == "all" else "a"
-        logger.info(f"Running module on {howmany} predefined remote example dataset.")
-
-        # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
-        # TODO Implement remote execution using remote url from benchmark definition
-        log_error_and_quit(
-            logger,
-            "Error: Remote execution is not supported yet. Workflows can only be run in local mode.",
-        )
-        return
-
+    """Run a specific module that is part of the benchmark."""
     logger.info("Running module on a local dataset.")
 
     try:
@@ -315,6 +274,7 @@ def run_module(
         log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
     assert b is not None
+
     benchmark_nodes = b.get_nodes_by_module_id(module_id=module)
 
     is_entrypoint_module = all([node.is_entrypoint() for node in benchmark_nodes])
@@ -329,10 +289,10 @@ def run_module(
     assert len(benchmark_nodes) > 0
     logger.info(f"Found {len(benchmark_nodes)} workflow nodes for module {module}.")
 
-    if not is_entrypoint_module and len(non_none_behaviours) == 0:
+    if not is_entrypoint_module and input_dir is None:
         log_error_and_quit(
             logger,
-            "Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.",
+            "Error: --input-dir is required for non-entrypoint modules.",
         )
         return
 

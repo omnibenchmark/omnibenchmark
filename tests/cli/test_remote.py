@@ -18,8 +18,6 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
     run1 = clisetup.call(
         [
             "run",
-            "benchmark",
-            "--benchmark",
             file,
             "--use-remote-storage",
         ],

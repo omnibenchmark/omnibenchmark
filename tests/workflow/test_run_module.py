@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from click.testing import CliRunner
-from omnibenchmark.cli.run import run_module
+from omnibenchmark.cli.run import run
 
 
 @pytest.mark.short
@@ -29,9 +29,7 @@ def test_run_module_basic_functionality():
 
         # Use CliRunner to test the command
         runner = CliRunner()
-        runner.invoke(
-            run_module, ["--benchmark", str(benchmark_file), "--module", "D1", "--dry"]
-        )
+        runner.invoke(run, [str(benchmark_file), "--module", "D1", "--dry"])
 
         # Verify BenchmarkExecution was called with proper arguments
         mock_benchmark_exec.assert_called_once()

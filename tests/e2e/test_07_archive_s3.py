@@ -116,8 +116,6 @@ def test_archive_remote_storage_workflow(
 
     base_args = [
         "run",
-        "benchmark",
-        "--benchmark",
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
@@ -419,8 +417,6 @@ def test_archive_version_limitation(
     print("\n--- Creating version 1.0 ---")
     base_args = [
         "run",
-        "benchmark",
-        "--benchmark",
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",

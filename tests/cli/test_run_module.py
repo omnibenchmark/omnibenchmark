@@ -1,7 +1,3 @@
-# TODO: These tests are brittle - they match stdout strings which break on warnings/formatting changes.
-# Better approach: test behavior (return codes, file changes) not exact output. See test_module_not_found
-# and test_default_entry_module for examples.
-
 from typing import Optional
 
 from .asserts import assert_startswith, clean, assert_in_output
@@ -11,15 +7,7 @@ from .path import get_benchmark_data_path
 
 
 def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
-    run1 = clisetup.call(
-        [
-            "run",
-            "benchmark",
-            "--benchmark",
-            file,
-        ],
-        cwd=cwd,
-    )
+    run1 = clisetup.call(["run", file], cwd=cwd)
     assert run1.returncode == 0
 
 
@@ -31,8 +19,6 @@ def test_run_benchmark_out_dir_with_remote_storage():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--use-remote-storage",
                 "--out-dir",
@@ -54,8 +40,6 @@ def test_run_benchmark_with_valid_timeout():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--task-timeout",
                 "5m",
@@ -69,34 +53,26 @@ def test_run_benchmark_with_valid_timeout():
 
 
 def test_default_entry_module():
-    """Test running an entry module succeeds.
+    expected = """
+        Running module on a local dataset.
+        Found 1 workflow nodes for module D1.
+        Running module benchmark...
+        """
 
-    This is an improved test focusing on behavior:
-    - Verifies successful execution (return code 0)
-    - Checks key workflow information is present
-    - Tolerates warning messages and cosmetic output changes
-    """
     path = get_benchmark_data_path()
 
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
             ]
         )
 
-        # Test behavior: command should succeed
         assert result.returncode == 0
-
-        # Verify key information is present (order-independent)
-        assert "Running module on a local dataset" in result.stdout
-        assert "workflow nodes for module D1" in result.stdout
-        assert "Running module benchmark" in result.stdout
+        assert_startswith(result.stdout, expected)
 
 
 def test_default_nonentry_module_fails():
@@ -104,7 +80,7 @@ def test_default_nonentry_module_fails():
     expected = """
     Running module on a local dataset.
     Found 2 workflow nodes for module P1.
-    Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.
+    Error: --input-dir is required for non-entrypoint modules.
     """
 
     path = get_benchmark_data_path()
@@ -113,8 +89,6 @@ def test_default_nonentry_module_fails():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "P1",
@@ -132,8 +106,6 @@ def test_benchmark_not_found():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "does_not_exist.yaml"),
                 "--module",
                 "D1",
@@ -142,8 +114,8 @@ def test_benchmark_not_found():
 
         # XXX this is too brittle. Should capture exception raised by the module instead.
         expected1 = "Usage: "
-        expected2 = "run module --help' for help"
-        expected3 = "Error: Invalid value for '-b' / '--benchmark': Path"
+        expected2 = "run --help' for help"
+        expected3 = "Error: Invalid value for 'BENCHMARK_PATH': Path"
         assert result.returncode == 2
         assert_in_output(result.stderr, expected1)
         assert_in_output(result.stderr, expected2)
@@ -157,8 +129,6 @@ def test_benchmark_format_incorrect():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "benchmark_format_incorrect.yaml"),
                 "--module",
                 "D1",
@@ -168,35 +138,27 @@ def test_benchmark_format_incorrect():
 
 
 def test_module_not_found():
-    """Test that requesting a non-existent module fails with appropriate error.
-
-    This is an improved test that focuses on behavior rather than exact output:
-    - Checks return code (should fail)
-    - Verifies key error message is present
-    - Doesn't rely on exact string matching of cosmetic output
+    expected_output = """
+    Running module on a local dataset.
+    Error: Could not find module with id `not-existing` in benchmark definition
     """
+
     path = get_benchmark_data_path()
 
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "not-existing",
-                "--input_dir",
+                "--input-dir",
                 str(path),
             ]
         )
 
-        # Test behavior: command should fail
         assert result.returncode == 1
-
-        # Test only critical content: error message about module not found
-        assert "Could not find module with id `not-existing`" in result.stdout
-        assert "benchmark definition" in result.stdout
+        assert clean(result.stdout) == clean(expected_output)
 
 
 def test_behaviour_input():
@@ -212,8 +174,6 @@ def test_behaviour_input():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
@@ -237,8 +197,6 @@ def test_behaviour_input_dry():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
@@ -263,8 +221,6 @@ def test_behaviour_input_update_true():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
@@ -290,8 +246,6 @@ def test_behaviour_input_update_dry():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
@@ -312,20 +266,18 @@ def test_behaviour_input_missing_input_dir():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
-                "--input_dir",
+                "--input-dir",
                 str(path / "D1" / "default" / "methods"),
             ],
             input="y",
         )
 
         expected1 = "Usage: "
-        expected2 = "run module --help' for help"
-        expected3 = "Invalid value for '-i' / '--input_dir': Path"
+        expected2 = "run --help' for help"
+        expected3 = "Invalid value for '-i' / '--input-dir': Path"
 
         assert result.returncode == 2
         assert_in_output(result.stderr, expected1)
@@ -347,12 +299,10 @@ def test_behaviour_input_missing_input_files():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
-                "--input_dir",
+                "--input-dir",
                 str(path / "D1" / "missing_files"),
             ],
             input="y",
@@ -375,12 +325,10 @@ def test_behaviour_input_nested_module_dry():
         result = omni.call(
             [
                 "run",
-                "module",
-                "--benchmark",
                 str(path / "Benchmark_001.yaml"),
                 "--module",
                 "M1",
-                "--input_dir",
+                "--input-dir",
                 str(path / "D1" / "default"),
                 "--dry",
             ],

@@ -3,7 +3,7 @@ import pytest
 from click.testing import CliRunner
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from omnibenchmark.cli.run import run_benchmark, run_module
+from omnibenchmark.cli.run import run
 from omnibenchmark.cli.validate import validate_plan
 from omnibenchmark.model.validation import BenchmarkParseError
 
@@ -31,7 +31,7 @@ def mock_click_confirm():
 
 
 @pytest.mark.short
-def test_run_benchmark_without_yes(
+def test_run_without_yes(
     mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
@@ -43,8 +43,8 @@ def test_run_benchmark_without_yes(
 
     runner = CliRunner()
     result = runner.invoke(
-        run_benchmark,
-        ["--benchmark", benchmark_path, "--cores", "2", "--update"],
+        run,
+        [benchmark_path, "--cores", "2", "--update"],
     )
 
     # Ensure click.confirm is NOT called
@@ -58,7 +58,7 @@ def test_run_benchmark_without_yes(
 
 
 @pytest.mark.short
-def test_run_benchmark_with_yes(
+def test_run_with_yes(
     mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
@@ -69,9 +69,8 @@ def test_run_benchmark_with_yes(
 
     runner = CliRunner()
     result = runner.invoke(
-        run_benchmark,
+        run,
         [
-            "--benchmark",
             benchmark_path,
             "-k",
             "--cores",
@@ -88,7 +87,7 @@ def test_run_benchmark_with_yes(
 
 
 @pytest.mark.short
-def test_run_benchmark_with_slurm_executor(
+def test_run_with_slurm_executor(
     mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
@@ -99,9 +98,8 @@ def test_run_benchmark_with_slurm_executor(
 
     runner = CliRunner()
     result = runner.invoke(
-        run_benchmark,
+        run,
         [
-            "--benchmark",
             benchmark_path,
             "-k",
             "--executor",
@@ -137,9 +135,9 @@ def test_run_benchmark_with_slurm_executor(
 
 
 @pytest.mark.short
-def test_run_benchmark_with_parse_error():
+def test_run_with_parse_error():
     """
-    Test that run_benchmark handles BenchmarkParseError correctly
+    Test that run handles BenchmarkParseError correctly
     and displays formatted error message.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
@@ -156,8 +154,8 @@ def test_run_benchmark_with_parse_error():
 
             runner = CliRunner()
             result = runner.invoke(
-                run_benchmark,
-                ["--benchmark", benchmark_path, "--yes"],
+                run,
+                [benchmark_path, "--yes"],
             )
 
             # Verify the error was formatted
@@ -168,9 +166,9 @@ def test_run_benchmark_with_parse_error():
 
 
 @pytest.mark.short
-def test_run_benchmark_with_generic_exception():
+def test_run_with_generic_exception():
     """
-    Test that run_benchmark handles generic exceptions correctly.
+    Test that run handles generic exceptions correctly.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
@@ -179,8 +177,8 @@ def test_run_benchmark_with_generic_exception():
 
         runner = CliRunner()
         result = runner.invoke(
-            run_benchmark,
-            ["--benchmark", benchmark_path, "--yes"],
+            run,
+            [benchmark_path, "--yes"],
         )
 
         # Verify the command failed
@@ -206,8 +204,8 @@ def test_run_module_with_parse_error():
 
             runner = CliRunner()
             result = runner.invoke(
-                run_module,
-                ["--benchmark", benchmark_path, "--module", "test_module"],
+                run,
+                [benchmark_path, "--module", "test_module"],
             )
 
             # Verify the error was formatted
@@ -229,8 +227,8 @@ def test_run_module_with_generic_exception():
 
         runner = CliRunner()
         result = runner.invoke(
-            run_module,
-            ["--benchmark", benchmark_path, "--module", "test_module"],
+            run,
+            [benchmark_path, "--module", "test_module"],
         )
 
         # Verify the command failed
@@ -301,9 +299,9 @@ def test_validate_yaml_success():
 
 
 @pytest.mark.short
-def test_run_benchmark_with_top_level_field_parse_error():
+def test_run_with_top_level_field_parse_error():
     """
-    Test that run_benchmark handles BenchmarkParseError for top-level fields
+    Test that run handles BenchmarkParseError for top-level fields
     (e.g., 'version', 'storage') and provides line context.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
@@ -321,8 +319,8 @@ def test_run_benchmark_with_top_level_field_parse_error():
 
             runner = CliRunner()
             result = runner.invoke(
-                run_benchmark,
-                ["--benchmark", benchmark_path, "--yes"],
+                run,
+                [benchmark_path, "--yes"],
             )
 
             # Verify the error was formatted
@@ -333,7 +331,7 @@ def test_run_benchmark_with_top_level_field_parse_error():
 
 
 @pytest.mark.short
-def test_run_benchmark_continue_on_error_without_yes(
+def test_run_continue_on_error_without_yes(
     mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
 ):
     """
@@ -343,8 +341,8 @@ def test_run_benchmark_continue_on_error_without_yes(
 
     runner = CliRunner()
     result = runner.invoke(
-        run_benchmark,
-        ["--benchmark", benchmark_path, "--continue-on-error"],
+        run,
+        [benchmark_path, "--continue-on-error"],
     )
 
     # Ensure click.confirm was called for continue-on-error
@@ -358,9 +356,7 @@ def test_run_benchmark_continue_on_error_without_yes(
 
 
 @pytest.mark.short
-def test_run_benchmark_with_remote_storage(
-    mock_benchmark_execution, mock_workflow_run_workflow
-):
+def test_run_with_remote_storage(mock_benchmark_execution, mock_workflow_run_workflow):
     """
     Test that --use-remote-storage flag sets up remote storage correctly.
     """
@@ -377,8 +373,8 @@ def test_run_benchmark_with_remote_storage(
 
             runner = CliRunner()
             result = runner.invoke(
-                run_benchmark,
-                ["--benchmark", benchmark_path, "--use-remote-storage", "--yes"],
+                run,
+                [benchmark_path, "--use-remote-storage", "--yes"],
             )
 
             # Verify remote storage functions were called
@@ -394,19 +390,17 @@ def test_run_benchmark_with_remote_storage(
 
 
 @pytest.mark.short
-def test_run_benchmark_workflow_failure(
-    mock_benchmark_execution, mock_workflow_run_workflow
-):
+def test_run_workflow_failure(mock_benchmark_execution, mock_workflow_run_workflow):
     """
-    Test that run_benchmark handles workflow execution failure.
+    Test that run handles workflow execution failure.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
     mock_workflow_run_workflow.return_value = False
 
     runner = CliRunner()
     result = runner.invoke(
-        run_benchmark,
-        ["--benchmark", benchmark_path, "--yes"],
+        run,
+        [benchmark_path, "--yes"],
     )
 
     # Verify the command failed
@@ -422,9 +416,8 @@ def test_run_module_with_invalid_timeout():
 
     runner = CliRunner()
     result = runner.invoke(
-        run_module,
+        run,
         [
-            "--benchmark",
             benchmark_path,
             "--module",
             "test_module",
@@ -461,13 +454,12 @@ def test_run_module_dataset_inference_failure(tmp_path):
 
         runner = CliRunner()
         result = runner.invoke(
-            run_module,
+            run,
             [
-                "--benchmark",
                 benchmark_path,
                 "--module",
                 "test_module",
-                "--input_dir",
+                "--input-dir",
                 str(test_input_dir),
             ],
         )
@@ -505,9 +497,8 @@ def test_run_module_workflow_failure():
                         with patch("os.path.isdir", return_value=True):
                             runner = CliRunner()
                             result = runner.invoke(
-                                run_module,
+                                run,
                                 [
-                                    "--benchmark",
                                     benchmark_path,
                                     "--module",
                                     "dataset1",
@@ -533,9 +524,9 @@ def test_abort_if_user_does_not_confirm_declined():
 
 
 @pytest.mark.short
-def test_run_benchmark_invalid_timeout():
+def test_run_invalid_timeout():
     """
-    Test that run_benchmark handles invalid timeout format.
+    Test that run handles invalid timeout format.
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
@@ -544,9 +535,8 @@ def test_run_benchmark_invalid_timeout():
 
         runner = CliRunner()
         result = runner.invoke(
-            run_benchmark,
+            run,
             [
-                "--benchmark",
                 benchmark_path,
                 "--task-timeout",
                 "not_a_valid_timeout",
@@ -576,13 +566,12 @@ def test_run_module_invalid_input_directory(tmp_path):
 
         runner = CliRunner()
         result = runner.invoke(
-            run_module,
+            run,
             [
-                "--benchmark",
                 benchmark_path,
                 "--module",
                 "test_module",
-                "--input_dir",
+                "--input-dir",
                 str(nonexistent_dir),
             ],
         )
@@ -606,9 +595,8 @@ def test_run_module_module_not_found():
 
         runner = CliRunner()
         result = runner.invoke(
-            run_module,
+            run,
             [
-                "--benchmark",
                 benchmark_path,
                 "--module",
                 "nonexistent_module",
@@ -644,13 +632,12 @@ def test_run_module_missing_required_input_files(tmp_path):
 
         runner = CliRunner()
         result = runner.invoke(
-            run_module,
+            run,
             [
-                "--benchmark",
                 benchmark_path,
                 "--module",
                 "test_module",
-                "--input_dir",
+                "--input-dir",
                 str(test_input_dir),
             ],
         )
@@ -687,9 +674,8 @@ def test_run_module_entrypoint_without_options():
                         with patch("os.path.isdir", return_value=True):
                             runner = CliRunner()
                             result = runner.invoke(
-                                run_module,
+                                run,
                                 [
-                                    "--benchmark",
                                     benchmark_path,
                                     "--module",
                                     "dataset1",
