@@ -514,12 +514,12 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 
 ## Run an initial module
 
-The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml) contains several initial steps which generate datasets and don't receive any input. To run these, we have to use the `ob run module` verb.
+The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml) contains several initial steps which generate datasets and don't receive any input. To run these, we have to use the `ob run [benchmark.yaml] --module [MODULE_ID]` verb.
 
 === "Shell"
 
     ```shell
-    ob run module --benchmark tests/data/Benchmark_001.yaml --module D1
+    ob run tests/data/Benchmark_001.yaml --module D1
     ```
 
 === "Output"
@@ -574,12 +574,12 @@ D1.meta.json  D1_params.txt  D1.txt.gz
 ```
 
 If not, run the whole benchmark first (with [`ob run`](https://omnibenchmark.org/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
-run `ob run module` with:
+run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
 
 === "Shell"
 
     ```shell
-    ob run module --benchmark tests/data/Benchmark_001.yaml --module P1 --input_dir out/data/D1/default
+    ob run tests/data/Benchmark_001.yaml --module P1 --input_dir out/data/D1/default
     ```
 
 === "Output"

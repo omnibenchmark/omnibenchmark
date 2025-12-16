@@ -186,6 +186,56 @@ def test_run_with_generic_exception():
 
 
 @pytest.mark.short
+def test_run_module_with_parse_error():
+    """
+    Test that run_module handles BenchmarkParseError correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    parse_error = BenchmarkParseError("Invalid module configuration")
+    parse_error.stage_id = "clustering"
+    parse_error.module_id = "test_module"
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = parse_error
+
+        with patch("omnibenchmark.cli.run.pretty_print_parse_error") as mock_format:
+            mock_format.return_value = "Formatted module error"
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run,
+                [benchmark_path, "--module", "test_module"],
+            )
+
+            # Verify the error was formatted
+            mock_format.assert_called_once_with(parse_error)
+
+            # Verify the command failed
+            assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_module_with_generic_exception():
+    """
+    Test that run_module handles generic exceptions correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_execution.side_effect = ValueError("Invalid configuration")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [benchmark_path, "--module", "test_module"],
+        )
+
+        # Verify the command failed
+        assert result.exit_code == 1
+
+
+@pytest.mark.short
 def test_validate_yaml_with_parse_error():
     """
     Test that validate plan handles BenchmarkParseError correctly.
@@ -358,6 +408,108 @@ def test_run_workflow_failure(mock_benchmark_execution, mock_workflow_run_workfl
 
 
 @pytest.mark.short
+def test_run_module_with_invalid_timeout():
+    """
+    Test that run_module handles invalid timeout format correctly.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    runner = CliRunner()
+    result = runner.invoke(
+        run,
+        [
+            benchmark_path,
+            "--module",
+            "test_module",
+            "--task-timeout",
+            "invalid_timeout",
+        ],
+    )
+
+    # Verify the command failed
+    assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_module_dataset_inference_failure(tmp_path):
+    """
+    Test that run_module fails when dataset cannot be inferred from input files.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+    test_input_dir = tmp_path / "test_input"
+    test_input_dir.mkdir()
+
+    # Create an unrelated file that won't match any dataset
+    (test_input_dir / "unrelated_file.txt").write_text("test")
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_benchmark = MagicMock()
+        mock_node = MagicMock()
+        mock_node.is_entrypoint.return_value = False
+        mock_node.get_inputs.return_value = ["input.txt"]
+
+        mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
+        mock_benchmark.get_benchmark_datasets.return_value = ["dataset1", "dataset2"]
+        mock_execution.return_value = mock_benchmark
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                benchmark_path,
+                "--module",
+                "test_module",
+                "--input_dir",
+                str(test_input_dir),
+            ],
+        )
+
+        # Verify the command failed with appropriate error
+        assert result.exit_code == 2
+
+
+@pytest.mark.short
+def test_run_module_workflow_failure():
+    """
+    Test that run_module handles workflow execution failure.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        with patch(
+            "omnibenchmark.cli.run.SnakemakeEngine.run_node_workflow"
+        ) as mock_run_node:
+            mock_benchmark = MagicMock()
+            mock_node = MagicMock()
+            mock_node.is_entrypoint.return_value = True
+            mock_node.get_inputs.return_value = []
+
+            mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
+            mock_benchmark.get_benchmark_datasets.return_value = ["dataset1"]
+            mock_execution.return_value = mock_benchmark
+
+            # Workflow fails
+            mock_run_node.return_value = False
+
+            with patch("os.getcwd", return_value="/tmp"):
+                with patch("os.listdir", return_value=["dataset1.txt"]):
+                    with patch("os.path.exists", return_value=True):
+                        with patch("os.path.isdir", return_value=True):
+                            runner = CliRunner()
+                            result = runner.invoke(
+                                run,
+                                [
+                                    benchmark_path,
+                                    "--module",
+                                    "dataset1",
+                                ],
+                            )
+
+                            # Verify the command failed
+                            assert result.exit_code == 1
+
+
+@pytest.mark.short
 def test_abort_if_user_does_not_confirm_declined():
     """
     Test that abort_if_user_does_not_confirm raises Abort when user declines.
@@ -394,3 +546,141 @@ def test_run_invalid_timeout():
 
         # Verify the command failed due to invalid timeout
         assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_module_invalid_input_directory(tmp_path):
+    """
+    Test that run_module fails when input directory doesn't exist.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+    nonexistent_dir = tmp_path / "does_not_exist"
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_benchmark = MagicMock()
+        mock_node = MagicMock()
+        mock_node.is_entrypoint.return_value = False
+
+        mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
+        mock_execution.return_value = mock_benchmark
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                benchmark_path,
+                "--module",
+                "test_module",
+                "--input_dir",
+                str(nonexistent_dir),
+            ],
+        )
+
+        # Click validates the path, so exit code is 2 (usage error)
+        assert result.exit_code == 2
+
+
+@pytest.mark.short
+def test_run_module_module_not_found():
+    """
+    Test that run_module fails when module ID is not found in benchmark.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_benchmark = MagicMock()
+        # Return empty list - module not found
+        mock_benchmark.get_nodes_by_module_id.return_value = []
+        mock_execution.return_value = mock_benchmark
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                benchmark_path,
+                "--module",
+                "nonexistent_module",
+            ],
+        )
+
+        # Verify the command failed
+        assert result.exit_code == 1
+
+
+@pytest.mark.short
+def test_run_module_missing_required_input_files(tmp_path):
+    """
+    Test that run_module fails when required input files are missing.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+    test_input_dir = tmp_path / "test_input"
+    test_input_dir.mkdir()
+
+    # Create a dataset file but not the required input
+    (test_input_dir / "dataset1.txt").write_text("test")
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        mock_benchmark = MagicMock()
+        mock_node = MagicMock()
+        mock_node.is_entrypoint.return_value = False
+        # Require an input file that doesn't exist
+        mock_node.get_inputs.return_value = ["{dataset}.required_input.txt"]
+
+        mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
+        mock_benchmark.get_benchmark_datasets.return_value = ["dataset1"]
+        mock_execution.return_value = mock_benchmark
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                benchmark_path,
+                "--module",
+                "test_module",
+                "--input_dir",
+                str(test_input_dir),
+            ],
+        )
+
+        # Verify the command failed due to missing files
+        assert result.exit_code == 2
+
+
+@pytest.mark.short
+def test_run_module_entrypoint_without_options():
+    """
+    Test that run_module works for entrypoint modules without requiring input_dir.
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
+        with patch(
+            "omnibenchmark.cli.run.SnakemakeEngine.run_node_workflow"
+        ) as mock_run_node:
+            mock_benchmark = MagicMock()
+            mock_node = MagicMock()
+            mock_node.is_entrypoint.return_value = True
+            mock_node.get_inputs.return_value = []
+
+            mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
+            mock_benchmark.get_benchmark_datasets.return_value = ["dataset1"]
+            mock_execution.return_value = mock_benchmark
+
+            mock_run_node.return_value = True
+
+            with patch("os.getcwd", return_value="/tmp"):
+                with patch("os.listdir", return_value=["dataset1.txt"]):
+                    with patch("os.path.exists", return_value=True):
+                        with patch("os.path.isdir", return_value=True):
+                            runner = CliRunner()
+                            result = runner.invoke(
+                                run,
+                                [
+                                    benchmark_path,
+                                    "--module",
+                                    "dataset1",
+                                ],
+                            )
+
+                            # Verify the command succeeded
+                            assert result.exit_code == 0
