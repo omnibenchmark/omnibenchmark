@@ -65,9 +65,7 @@ stages:
         repository:
           url: https://github.com/omnibenchmark-example/distance.git
           commit: 649df9c
-    inputs:
-      - entries:
-          - data.features
+    inputs: [ data.features ]
     outputs:
       - id: distances
         path: "{dataset}.distances.csv"
@@ -84,9 +82,7 @@ stages:
         repository:
           url: https://github.com/omnibenchmark-example/ward.git
           commit: f24dd42
-    inputs:
-      - entries:
-          - distances
+    inputs: [ distances ]
     outputs:
       - id: methods.clusters
         path: "{dataset}.clusters.csv"
@@ -103,10 +99,7 @@ stages:
         repository:
           url: https://github.com/omnibenchmark-example/accuracy.git
           commit: 3fedcea
-    inputs:
-      - entries:
-          - methods.clusters
-          - data.labels
+    inputs: [ methods.clusters, data.labels ]
     outputs:
       - id: metrics.mapping
         path: "{dataset}.metrics.txt"
