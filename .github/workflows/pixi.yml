@@ -282,7 +282,11 @@ jobs:
         with:
           name: clustbench-conda-output
           path: |
-            clustering_example/
+            clustering_example/**/*.log
+            clustering_example/**/*.yaml
+            clustering_example/**/*.yml
+            clustering_example/out/**/*
+            clustering_example/.snakemake/log/**/*
           retention-days: 7
 
   e2e-clustering-apptainer:
