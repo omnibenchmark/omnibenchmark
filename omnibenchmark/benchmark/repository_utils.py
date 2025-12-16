@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
-from omnibenchmark.remote.code import clone_module
+from omnibenchmark.git.clone import clone_module
 from omnibenchmark.model.repo import get_repo_hash
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class RepositoryManager:
             logger.debug(f"Created temporary directory: {temp_dir}")
 
             # Clone the repository
-            cloned_path = clone_module(temp_dir, repo_url, commit_hash)
+            cloned_path = clone_module(repo_url, commit_hash, temp_dir)
             logger.debug(
                 f"Successfully cloned {repo_url}@{commit_hash} to temporary location"
             )

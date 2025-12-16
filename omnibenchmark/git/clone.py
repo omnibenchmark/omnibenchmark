@@ -7,10 +7,8 @@ from filelock import FileLock
 from git.exc import InvalidGitRepositoryError, GitCommandError
 from git import Repo
 
-from omnibenchmark.workflow.snakemake.scripts.utils import (
-    generate_unique_repo_folder_name,
-)
 from omnibenchmark.config import get_git_modules_dir
+from omnibenchmark.model.repo import get_repo_hash
 
 
 def is_commit_hash(ref: str) -> bool:
@@ -127,7 +125,7 @@ def clone_module(
     if output_dir is None:
         output_dir = get_git_modules_dir()
 
-    module_name = generate_unique_repo_folder_name(repository_url, commit_or_branch)
+    module_name = get_repo_hash(repository_url, commit_or_branch)
     module_dir = output_dir / module_name
 
     lock = module_dir.with_suffix(".lock")
