@@ -465,7 +465,7 @@ def test_run_module_dataset_inference_failure(tmp_path):
         )
 
         # Verify the command failed with appropriate error
-        assert result.exit_code == 2
+        assert result.exit_code == 1
 
 
 @pytest.mark.short
@@ -643,7 +643,7 @@ def test_run_module_missing_required_input_files(tmp_path):
         )
 
         # Verify the command failed due to missing files
-        assert result.exit_code == 2
+        assert result.exit_code == 1
 
 
 @pytest.mark.short
