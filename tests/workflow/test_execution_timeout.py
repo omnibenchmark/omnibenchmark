@@ -8,7 +8,6 @@ Tests the timeout behavior at the module interface level:
 """
 
 import pytest
-import subprocess
 import time
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 from omnibenchmark.benchmark.params import Params
@@ -62,18 +61,19 @@ def test_execution_with_timeout_kills_long_running_process(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    # Should raise TimeoutExpired
-    with pytest.raises(subprocess.TimeoutExpired):
-        execution(
-            module_dir=module_dir,
-            module_name="test_module",
-            output_dir=output_dir,
-            dataset="test",
-            inputs_map={},
-            parameters=Params(),
-            keep_module_logs=False,
-            timeout=1,  # 1 second timeout
-        )
+    # Should return exit code 124 (timeout exit code)
+    exit_code = execution(
+        module_dir=module_dir,
+        module_name="test_module",
+        output_dir=output_dir,
+        dataset="test",
+        inputs_map={},
+        parameters=Params(),
+        keep_module_logs=False,
+        timeout=1,  # 1 second timeout
+    )
+
+    assert exit_code == 124
 
 
 @pytest.mark.short
@@ -98,17 +98,19 @@ time.sleep(60)
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    with pytest.raises(subprocess.TimeoutExpired):
-        execution(
-            module_dir=module_dir,
-            module_name="test_module",
-            output_dir=output_dir,
-            dataset="test",
-            inputs_map={},
-            parameters=Params(),
-            keep_module_logs=False,
-            timeout=1,
-        )
+    # Should return exit code 124 (timeout exit code)
+    exit_code = execution(
+        module_dir=module_dir,
+        module_name="test_module",
+        output_dir=output_dir,
+        dataset="test",
+        inputs_map={},
+        parameters=Params(),
+        keep_module_logs=False,
+        timeout=1,
+    )
+
+    assert exit_code == 124
 
     # Give a moment for cleanup
     time.sleep(0.5)

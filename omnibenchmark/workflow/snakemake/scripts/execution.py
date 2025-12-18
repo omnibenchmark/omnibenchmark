@@ -125,8 +125,10 @@ def execution(
                     # Process already died
                     pass
 
-                # Re-raise to propagate the timeout error
-                raise
+                # Return timeout error code instead of re-raising
+                exit_code = (
+                    124  # Standard timeout exit code (same as 'timeout' command)
+                )
 
     finally:
         # Ensure process and all children are cleaned up
