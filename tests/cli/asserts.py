@@ -24,18 +24,35 @@ def clean(output: str) -> str:
     # Remove warning lines (e.g., [WARN] messages and their continuation lines)
     lines = normalized_output.split("\n")
     filtered_lines = []
-    skip_next = False
-    for i, line in enumerate(lines):
-        if skip_next:
-            skip_next = False
-            continue
-        # Skip lines that start with [WARN] or are continuation lines after [WARN]
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Skip lines that contain [WARN]
         if "[WARN]" in line:
-            # Check if the next line is a continuation (starts with "The ")
-            if i + 1 < len(lines) and lines[i + 1].strip().startswith("The "):
-                skip_next = True
+            i += 1
+            # Skip continuation lines after [WARN] (lines that don't look like normal output)
+            while (
+                i < len(lines)
+                and lines[i].strip()
+                and not any(
+                    lines[i].startswith(prefix)
+                    for prefix in [
+                        "Running",
+                        "Found",
+                        "Error:",
+                        "Module",
+                        "Benchmark",
+                        "Building",
+                        "Selecting",
+                        "Job",
+                        "Nothing",
+                    ]
+                )
+            ):
+                i += 1
             continue
         filtered_lines.append(line)
+        i += 1
     normalized_output = "\n".join(filtered_lines)
 
     # Replace multiple spaces and tabs with a single space
