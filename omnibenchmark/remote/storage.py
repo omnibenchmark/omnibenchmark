@@ -1,9 +1,14 @@
 import logging
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Any
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from .RemoteStorage import StorageOptions
+
+if TYPE_CHECKING:
+    from .MinIOStorage import MinIOStorage as MinIOStorageType
+else:
+    MinIOStorageType = Any
 
 try:
     from .MinIOStorage import MinIOStorage
@@ -12,7 +17,7 @@ try:
     S3_AVAILABLE = True
 except ImportError:
     S3_AVAILABLE = False
-    MinIOStorage = None
+    MinIOStorage = None  # type: ignore
     S3_access_config_from_env = None
 
 
@@ -45,7 +50,7 @@ def get_storage(
     auth_options: dict,
     benchmark: str,
     storage_options: StorageOptions = StorageOptions(out_dir="out"),
-) -> Optional["MinIOStorage"]:
+) -> Optional[MinIOStorageType]:
     """
     Selects a remote storage type.
 
@@ -58,14 +63,14 @@ def get_storage(
     - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
     """
     if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
-        if not _check_s3_available():
+        if not _check_s3_available() or MinIOStorage is None:
             return None
         return MinIOStorage(auth_options, benchmark, storage_options)
 
 
 def get_storage_from_benchmark(
     benchmark: BenchmarkExecution,
-) -> Optional["MinIOStorage"]:
+) -> Optional[MinIOStorageType]:
     """
     Selects a remote storage type from a benchmark object.
 
@@ -100,7 +105,7 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
     """
     storage_api = benchmark.get_storage_api()
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
-        if not _check_s3_available():
+        if not _check_s3_available() or S3_access_config_from_env is None:
             return {}
         # Let caller decide if credentials are required
         auth_options = S3_access_config_from_env(required=required)
@@ -127,7 +132,7 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
 def remote_storage_snakemake_args(benchmark) -> dict:
     storage_api = benchmark.get_storage_api()
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
-        if not _check_s3_available():
+        if not _check_s3_available() or S3_access_config_from_env is None:
             return {}
         auth_options = S3_access_config_from_env()
         bucket_name = benchmark.get_storage_bucket_name()
