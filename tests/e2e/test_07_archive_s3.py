@@ -151,7 +151,6 @@ def test_archive_remote_storage_workflow(
 
     dry_run_args = [
         "archive",
-        "--benchmark",
         str(config_file_in_tmp),
         "--results",
         "--use-remote-storage",
@@ -194,7 +193,6 @@ def test_archive_remote_storage_workflow(
 
     remote_archive_args = [
         "archive",
-        "--benchmark",
         str(config_file_in_tmp),
         "--results",
         "--use-remote-storage",
@@ -264,7 +262,6 @@ def test_archive_remote_storage_workflow(
     # Try to create archive without remote storage (should have no results)
     local_archive_args = [
         "archive",
-        "--benchmark",
         str(config_file_in_tmp),
         "--results",
         # NOTE: No --use-remote-storage flag
@@ -328,7 +325,6 @@ def test_archive_remote_storage_workflow(
 
         compression_args = [
             "archive",
-            "--benchmark",
             str(config_file_in_tmp),
             "--results",
             "--use-remote-storage",
@@ -472,7 +468,6 @@ def test_archive_version_limitation(
     print("\n--- Testing archive uses current YAML version (2.0) ---")
     archive_args = [
         "archive",
-        "--benchmark",
         str(config_file_in_tmp),
         "--results",
         "--use-remote-storage",

@@ -521,8 +521,6 @@ def test_s3_remote_storage_complete_workflow(
 
     base_args = [
         "run",
-        "benchmark",
-        "--benchmark",
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
@@ -925,8 +923,6 @@ def test_s3_remote_storage_complete_workflow(
     print("\n--- Running modified benchmark ---")
     modified_args = [
         "run",
-        "benchmark",
-        "--benchmark",
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
