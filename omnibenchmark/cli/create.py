@@ -193,58 +193,7 @@ moduleclass = 'tools'
 # TODO: Add any additional configuration needed
 """)
 
-        # Create module file template
-        module_template = envs_dir / "module-template.lua"
-        with open(module_template, "w") as f:
-            f.write(f"""-- Template for {benchmark_name} environment module
--- This file shows the structure needed for your environment module
--- The actual module file should be installed by your system administrator
-
-help([[
-{benchmark_name} benchmark environment
-
-This module provides all software dependencies for the {benchmark_name} benchmark.
-]])
-
-whatis("Name: {benchmark_name}")
-whatis("Version: 1.0.0")
-whatis("Description: Software environment for {benchmark_name} benchmark")
-
--- TODO: Load required modules (these must be available on your system)
--- Examples:
--- load("GCC/11.3.0")
--- load("Python/3.11.3-GCCcore-11.3.0")
--- load("R/4.3.0-foss-2023a")
-
--- TODO: Set environment variables if needed
--- Examples:
--- setenv("BENCHMARK_HOME", "/path/to/benchmark")
--- prepend_path("PATH", "/path/to/benchmark/bin")
-
-conflict("{benchmark_name}")
-""")
-
-        # Create placeholder module file (just for validation)
-        placeholder_module = envs_dir / "module-x_y_z.lua"
-        with open(placeholder_module, "w") as f:
-            f.write(f"""-- PLACEHOLDER MODULE FILE
--- This is a placeholder to prevent validation errors.
---
--- The actual module file should be:
--- 1. Built using EasyBuild with the provided .eb file, OR
--- 2. Created by system admin based on the module-template.lua, AND
--- 3. Installed in your system's module path
---
--- This placeholder will be replaced when you load the actual module.
-
-help("PLACEHOLDER - Replace with actual module")
-whatis("Name: {benchmark_name} PLACEHOLDER")
-whatis("Version: placeholder")
-""")
-
-        logger.info(
-            "Created Environment Modules skeleton files: EasyBuild recipe, module template, and placeholder"
-        )
+        logger.info("Created EasyBuild recipe file for Environment Modules")
 
 
 def _convert_github_blob_to_raw(url: str) -> str:
@@ -394,7 +343,7 @@ def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
         logger.info(f"  {step_num}. Review and customize the benchmark configuration")
         logger.info(f"  {step_num + 1}. Add your benchmark modules")
         logger.info(
-            f"  {step_num + 2}. Run 'ob validate benchmark' to check your configuration"
+            f"  {step_num + 2}. Run 'ob validate plan benchmark.yaml' to check your configuration"
         )
     else:  # module
         logger.info(
@@ -591,6 +540,8 @@ def create_benchmark(
             use_defaults = True
 
         # Single, unified copier invocation to avoid duplicated calls.
+        # Note: copier will show "Copying from template version None" for local templates
+        # This is expected behavior and cannot be changed without using quiet=True
         copier.run_copy(
             src_path=str(template_path),
             dst_path=str(target_path),
@@ -598,7 +549,6 @@ def create_benchmark(
             data=copier_data,
             quiet=False,
             pretend=False,
-            vcs_ref="HEAD",
             unsafe=True,
         )
 
@@ -880,7 +830,6 @@ def create_module(
                 data=copier_data,
                 quiet=False,
                 pretend=False,
-                vcs_ref="HEAD",
                 unsafe=True,
             )
         elif no_input:
@@ -892,7 +841,6 @@ def create_module(
                 data=copier_data,
                 quiet=False,
                 pretend=False,
-                vcs_ref="HEAD",
                 unsafe=True,
             )
 
@@ -910,7 +858,6 @@ def create_module(
                 data=copier_data,
                 quiet=False,
                 pretend=False,
-                vcs_ref="HEAD",
                 unsafe=True,
             )
 
