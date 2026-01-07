@@ -14,13 +14,9 @@ from .debug import add_debug_option
 
 @add_debug_option
 @click.command("archive")
-@click.option(
-    "--benchmark",
-    "-b",
-    required=True,
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
 )
 @click.option(
     "-c",
@@ -101,7 +97,17 @@ def archive(
     out_dir,
     output_file,
 ):
-    """Archive a benchmark and its artifacts."""
+    """Archive a benchmark and its artifacts.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
+
+    # Validate compression=none with compresslevel
+    if compression == "none" and compresslevel != 9:
+        raise click.UsageError(
+            "Cannot specify --compresslevel with --compression=none. "
+            "Remove --compresslevel or choose a different compression method."
+        )
 
     # Validate out_dir usage
     if use_remote_storage and out_dir:

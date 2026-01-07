@@ -12,6 +12,7 @@ from typing import List
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
+from omnibenchmark.model.benchmark import _is_environment_url
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
 
@@ -167,6 +168,10 @@ def prepare_archive_software_apptainer(benchmark: BenchmarkExecution) -> List[Pa
 
     for softenv in softenvs.values():
         if hasattr(softenv, "apptainer") and softenv.apptainer is not None:
+            # Skip URL-based images (oras://, http://, https://, docker://)
+            if _is_environment_url(softenv.apptainer):
+                continue
+
             apptainer_file = (
                 benchmark.context.directory / Path(softenv.apptainer)
             ).relative_to(Path(os.getcwd()))
