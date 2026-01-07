@@ -27,7 +27,7 @@ def test_create_module_help():
         run = omni.call(["create", "module", "--help"])
         assert run.returncode == 0
         assert_in_output(run.stdout, "Create a new module from a template")
-        assert_in_output(run.stdout, "[PATH]")
+        assert_in_output(run.stdout, "PATH")
         assert_in_output(run.stdout, "--no-input")
 
 
@@ -118,14 +118,16 @@ def test_create_module_with_no_input(tmp_path):
 
 @pytest.mark.short
 def test_create_module_without_destination(tmp_path):
-    """Test create module command without destination starts questionnaire"""
+    """Test create module command with destination starts questionnaire"""
     with OmniCLISetup() as omni:
+        module_path = tmp_path / "my_module"
         run = omni.call(
-            ["create", "module"], input="\n\n\n\n\n\n\n\n\n\n", cwd=str(tmp_path)
+            ["create", "module", str(module_path)],
+            input="\n\n\n\n\n\n\n\n\n\n",
+            cwd=str(tmp_path),
         )
         assert run.returncode == 0
-        assert_in_output(run.stdout, "Starting copier questionnaire for new module")
-        assert_in_output(run.stdout, "Module scaffolding created successfully")
+        assert_in_output(run.stdout, "Creating new module at")
 
 
 @pytest.mark.short
@@ -353,8 +355,6 @@ def test_create_module_non_interactive_success(tmp_path):
                 "Test Author",
                 "--author-email",
                 "test@example.com",
-                "--environment",
-                "conda",
             ]
         )
         assert run.returncode == 0

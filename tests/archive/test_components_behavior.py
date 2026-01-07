@@ -215,7 +215,7 @@ class TestPrepareArchiveResults:
             mock_benchmark = Mock()
 
             result = prepare_archive_results(
-                benchmark=mock_benchmark, results_dir="out", remote_storage=False
+                benchmark=mock_benchmark, results_dir=temp_dir, remote_storage=False
             )
 
             assert len(result) == 2
@@ -237,7 +237,7 @@ class TestPrepareArchiveResults:
             mock_get_files.return_value = [downloaded_file]
 
             result = prepare_archive_results(
-                benchmark=mock_benchmark, results_dir="out", remote_storage=False
+                benchmark=mock_benchmark, results_dir=temp_dir, remote_storage=False
             )
 
             assert len(result) == 1
