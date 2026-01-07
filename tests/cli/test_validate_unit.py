@@ -665,9 +665,9 @@ class TestEdgeCasesAndErrorHandling:
 
         try:
             with patch(
-                "omnibenchmark.cli.validate.BenchmarkExecution"
-            ) as mock_execution:
-                mock_execution.return_value = MagicMock()
+                "omnibenchmark.cli.validate.BenchmarkModel.from_yaml"
+            ) as mock_from_yaml:
+                mock_from_yaml.return_value = MagicMock()
 
                 # Simulate a FutureWarning during validation
                 with patch("warnings.showwarning"):
@@ -679,7 +679,7 @@ class TestEdgeCasesAndErrorHandling:
                             FutureWarning,
                         )
 
-                    mock_execution.side_effect = trigger_warning
+                    mock_from_yaml.side_effect = trigger_warning
 
                     result = runner.invoke(validate_plan, [yaml_path])
 

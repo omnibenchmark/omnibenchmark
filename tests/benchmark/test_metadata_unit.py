@@ -333,6 +333,8 @@ of this software and associated documentation files (the "Software").
         omnibenchmark_content = """
 name: test_module
 version: "1.0.0"
+entrypoints:
+  default: script.py
 """
         files_present = {
             "CITATION.cff": True,
