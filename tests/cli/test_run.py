@@ -245,8 +245,8 @@ def test_validate_yaml_with_parse_error():
     parse_error = BenchmarkParseError("Validation failed")
     parse_error.file_path = benchmark_path
 
-    with patch("omnibenchmark.cli.validate.BenchmarkExecution") as mock_execution:
-        mock_execution.side_effect = parse_error
+    with patch("omnibenchmark.cli.validate.BenchmarkModel") as mock_model:
+        mock_model.from_yaml.side_effect = parse_error
 
         runner = CliRunner()
         result = runner.invoke(
@@ -265,8 +265,8 @@ def test_validate_yaml_with_generic_exception():
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
-    with patch("omnibenchmark.cli.validate.BenchmarkExecution") as mock_execution:
-        mock_execution.side_effect = IOError("Cannot read file")
+    with patch("omnibenchmark.cli.validate.BenchmarkModel") as mock_model:
+        mock_model.from_yaml.side_effect = IOError("Cannot read file")
 
         runner = CliRunner()
         result = runner.invoke(
