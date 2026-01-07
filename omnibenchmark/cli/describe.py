@@ -72,12 +72,8 @@ def plot_topology(ctx, benchmark: str):
         allow_extra_args=False,
     ),
 )
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
-    required=True,
-    envvar="OB_BENCHMARK",
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
 )
 @click.option(
@@ -144,7 +140,10 @@ def status(
     html_file: str = "status_report.html",
     overwrite_html_file: bool = False,
 ):
-    """Show the status of a benchmark."""
+    """Show the status of a benchmark.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     ctx.ensure_object(dict)
     status_dict, filedict, exec_path_dict = prepare_status(
         benchmark, out_dir, return_all=True, cache_dir=Path(".snakemake") / "repos"
