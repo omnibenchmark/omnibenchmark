@@ -1,8 +1,8 @@
 """cli commands related to benchmark/module execution and start"""
 
 import os
+import shutil
 import sys
-import tempfile
 from itertools import chain
 from pathlib import Path
 
@@ -145,6 +145,8 @@ def run(
             benchmark_path=benchmark_path,
             module=module,
             input_dir=input_dir,
+            out_dir=out_dir,
+            out_dir_explicit=out_dir is not None,
             cores=cores,
             update=update,
             dry=dry,
@@ -252,6 +254,8 @@ def _run_module(
     benchmark_path,
     module,
     input_dir,
+    out_dir,
+    out_dir_explicit,
     cores,
     update,
     dry,
@@ -264,8 +268,14 @@ def _run_module(
     """Run a specific module that is part of the benchmark."""
     logger.info("Running module on a local dataset.")
 
+    # Use provided out_dir or default to "out"
+    work_dir = Path(out_dir) if out_dir else Path("out")
+
+    # Convert benchmark_path to absolute path to avoid issues when work_dir changes
+    benchmark_path_abs = Path(benchmark_path).resolve()
+
     try:
-        b = BenchmarkExecution(Path(benchmark_path), Path(tempfile.mkdtemp()))
+        b = BenchmarkExecution(benchmark_path_abs, work_dir)
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)
         log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
@@ -289,15 +299,20 @@ def _run_module(
     assert len(benchmark_nodes) > 0
     logger.info(f"Found {len(benchmark_nodes)} workflow nodes for module {module}.")
 
-    if not is_entrypoint_module and input_dir is None:
-        log_error_and_quit(
-            logger,
-            "Error: --input-dir is required for non-entrypoint modules.",
-        )
-        return
-
     if input_dir is None:
-        input_dir = os.getcwd()
+        # Default to 'out' folder in current directory if it exists
+        default_input_dir = os.path.join(os.getcwd(), "out")
+        if os.path.exists(default_input_dir) and os.path.isdir(default_input_dir):
+            input_dir = default_input_dir
+            logger.info(f"Using default input directory: {input_dir}")
+        elif not is_entrypoint_module:
+            log_error_and_quit(
+                logger,
+                "Error: --input-dir is required for non-entrypoint modules when 'out' folder doesn't exist in current directory.",
+            )
+            return
+        else:
+            input_dir = os.getcwd()
 
     logger.info("Running module benchmark...")
 
@@ -312,15 +327,33 @@ def _run_module(
 
     benchmark_datasets = b.get_benchmark_datasets()
 
+    # Initialize actual_input_dir to track where files are actually located
+    actual_input_dir = input_dir
+
     # Check available files in input to figure out what dataset are we processing
     if module in benchmark_datasets:
         # we're given the initial dataset module to process, then we know
         dataset = module
     else:
         # we try to figure the dataset based on the files present in the input directory
-        files = os.listdir(input_dir)
+        files = os.listdir(actual_input_dir)
         base_names = [file.split(".")[0] for file in files]
         dataset = next((d for d in benchmark_datasets if d in base_names), None)
+
+        # If not found directly, look in data/ subdirectory structure: data/{dataset}/{params}/
+        if dataset is None:
+            data_dir = os.path.join(input_dir, "data")
+            if os.path.exists(data_dir) and os.path.isdir(data_dir):
+                subdirs = os.listdir(data_dir)
+                dataset = next((d for d in benchmark_datasets if d in subdirs), None)
+                if dataset is not None:
+                    # Update actual_input_dir to point to the actual data location
+                    # Find the first parameter directory under data/{dataset}/
+                    dataset_dir = os.path.join(data_dir, dataset)
+                    if os.path.exists(dataset_dir) and os.path.isdir(dataset_dir):
+                        param_dirs = os.listdir(dataset_dir)
+                        if len(param_dirs) > 0:
+                            actual_input_dir = os.path.join(dataset_dir, param_dirs[0])
 
     if dataset is None:
         log_error_and_quit(
@@ -341,7 +374,7 @@ def _run_module(
         file.format(dataset=dataset) for file in required_input_files
     ]
 
-    input_files = os.listdir(input_dir)
+    input_files = os.listdir(actual_input_dir)
     missing_files = [file for file in required_input_files if file not in input_files]
 
     if len(missing_files) > 0:
@@ -352,25 +385,98 @@ def _run_module(
         return
     assert len(missing_files) == 0
 
+    # If out_dir was explicitly provided and differs from input location,
+    # create output structure and symlink input files
+    # This allows Snakemake to find inputs while writing outputs to the correct location
+    workflow_input_dir = actual_input_dir
+    if (
+        out_dir_explicit
+        and Path(actual_input_dir).resolve() != (work_dir / "data" / dataset).resolve()
+    ):
+        # Determine the relative path structure from actual_input_dir
+        # Expected: actual_input_dir is something like input_dir/data/{dataset}/{params}
+        try:
+            # Extract the path components
+            input_path = Path(actual_input_dir).resolve()
+            # Find the data/ directory level
+            parts = input_path.parts
+            data_idx = next((i for i, p in enumerate(parts) if p == "data"), None)
+
+            if data_idx is not None and data_idx + 2 < len(parts):
+                # Reconstruct: data/{dataset}/{params}
+                relative_structure = Path(*parts[data_idx:])
+                output_data_dir = work_dir / relative_structure
+
+                # Create the output directory structure
+                os.makedirs(output_data_dir, exist_ok=True)
+
+                # Copy only the required input FILES (not directories) to the output directory
+                # This ensures we don't copy output directories from previous module runs
+                # Using copy instead of symlink avoids issues with container bind mounts
+                for file in required_input_files:
+                    src = Path(actual_input_dir) / file
+                    dst = output_data_dir / file
+                    # Only copy if it's a file (not a directory) and doesn't already exist
+                    if src.is_file() and not dst.exists():
+                        shutil.copy2(src, dst)
+                        logger.info(f"Copied {src} -> {dst}")
+
+                # Recreate human-readable parameter symlinks in the dataset directory
+                # These are symlinks like dataset_generator-fcps_dataset_name-atom -> .46bb23e0
+                dataset_dir = output_data_dir.parent  # This is work_dir/data/{dataset}
+                source_dataset_dir = Path(
+                    actual_input_dir
+                ).parent  # Original data/{dataset} dir
+                if source_dataset_dir.exists():
+                    for item in source_dataset_dir.iterdir():
+                        if item.is_symlink():
+                            # Recreate the symlink in the new location
+                            target = item.readlink()
+                            new_symlink = dataset_dir / item.name
+                            if not new_symlink.exists():
+                                os.symlink(target, new_symlink)
+                                logger.info(
+                                    f"Recreated symlink {new_symlink} -> {target}"
+                                )
+
+                # Update workflow_input_dir to point to the copied location
+                workflow_input_dir = str(output_data_dir)
+        except Exception as e:
+            logger.warning(
+                f"Could not create copied input structure: {e}. Using original input directory."
+            )
+
+    logger.info(f"Running workflow with input_dir: {workflow_input_dir}")
+    logger.info(f"Dataset: {dataset}")
+    logger.info(f"Work dir: {work_dir if out_dir_explicit else 'default (cwd)'}")
+
     workflow: WorkflowEngine = SnakemakeEngine()
+
+    # Prepare workflow arguments (without node, which is set in the loop)
+    workflow_args = {
+        "input_dir": Path(workflow_input_dir),
+        "dataset": dataset,
+        "cores": 1,
+        "update": update,
+        "dryrun": dry,
+        "continue_on_error": continue_on_error,
+        "keep_module_logs": keep_module_logs,
+        "backend": b.get_benchmark_software_backend(),
+        "executor": executor,
+        "local_timeout": timeout_s,
+        "benchmark_file_path": b.get_definition_file(),
+    }
+
+    # Only pass work_dir if out_dir was explicitly provided
+    if out_dir_explicit:
+        workflow_args["work_dir"] = work_dir
+
+    workflow_args.update(extra_args)
 
     for benchmark_node in benchmark_nodes:
         # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
-        success = workflow.run_node_workflow(
-            node=benchmark_node,
-            input_dir=Path(input_dir),
-            dataset=dataset,
-            cores=1,
-            update=update,
-            dryrun=dry,
-            continue_on_error=continue_on_error,
-            keep_module_logs=keep_module_logs,
-            backend=b.get_benchmark_software_backend(),
-            executor=executor,
-            local_timeout=timeout_s,
-            benchmark_file_path=b.get_definition_file(),
-            **extra_args,
-        )
+        workflow_args["node"] = benchmark_node
+        success = workflow.run_node_workflow(**workflow_args)
 
         log_result_and_quit(logger, success, type="Module")
 
