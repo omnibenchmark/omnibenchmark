@@ -115,7 +115,7 @@ def validate_plan(ctx, benchmark: str):
 
 
 @validate.command("module")
-@click.argument("path", type=click.Path(exists=True), required=True)
+@click.argument("path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     "--strict",
     is_flag=True,
@@ -126,7 +126,7 @@ def validate_plan(ctx, benchmark: str):
 def validate_module(ctx, path, strict, format="summary"):
     """Validate module (metadata, try to run).
 
-    Validates a module repository at PATH.
+    Validates a module repository at PATH. Defaults to current directory if not specified.
 
     Checks:
     - Required files exist (CITATION.cff, LICENSE, omnibenchmark.yaml)
@@ -136,9 +136,9 @@ def validate_module(ctx, path, strict, format="summary"):
     By default, shows warnings but doesn't fail. Use --strict to fail on warnings.
     """
     warn = not strict  # warn=True means lenient mode (default)
-    logger.info(f"Validating module at: {path}")
 
-    path = Path(path)
+    path = Path(path).resolve()
+    logger.info(f"Validating module at: {path}")
     if not path.is_dir():
         logger.error(f"Path is not a directory: {path}")
         ctx.exit(1)
