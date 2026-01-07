@@ -668,12 +668,6 @@ def create_benchmark(
     type=click.Choice(["run.R", "run.py", "run.sh"]),
     default=None,
 )
-@click.option(
-    "--environment",
-    help="Environment specification type",
-    type=click.Choice(["conda", "apptainer", "envmodules", "none"]),
-    default=None,
-)
 @click.pass_context
 def create_module(
     ctx,
@@ -689,7 +683,6 @@ def create_module(
     license,
     description,
     entrypoint,
-    environment,
 ):
     """Create a new module from a template.
 
@@ -804,23 +797,7 @@ def create_module(
                 "license": license or "GPL-3.0-or-later",
                 "description": description or "",
                 "entrypoint": entrypoint or "run.sh",
-                "environment_type": environment or "conda",
             }
-
-            # Handle environment type mapping and add environment-specific parameters
-            if module_data["environment_type"] == "none":
-                module_data["environment_type"] = (
-                    "none (I will use the environments defined by the benchmarker)"
-                )
-                module_data["none_environment_note"] = (
-                    "I will use the environments defined by the benchmarker"
-                )
-            elif module_data["environment_type"] == "conda":
-                module_data["conda_environment"] = "env/conda.yaml"
-            elif module_data["environment_type"] == "apptainer":
-                module_data["apptainer_container"] = "env/container.sif"
-            elif module_data["environment_type"] == "envmodules":
-                module_data["envmodules_spec"] = "module-name/version"
 
             copier_data.update(module_data)
             copier.run_copy(

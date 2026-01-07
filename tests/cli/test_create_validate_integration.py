@@ -3,8 +3,6 @@
 Tests that created benchmarks and modules can be successfully validated.
 """
 
-import pytest
-
 from click.testing import CliRunner
 from omnibenchmark.cli.create import create_benchmark, create_module
 from omnibenchmark.cli.validate import validate_plan, validate_module
@@ -179,16 +177,12 @@ class TestBenchmarkCreateValidate:
 class TestModuleCreateValidate:
     """Test module creation followed by validation."""
 
-    @pytest.mark.parametrize(
-        "environment_type",
-        ["conda", "apptainer", "envmodules"],
-    )
-    def test_create_module_validates_successfully(self, environment_type, tmp_path):
-        """Test that a created module with different environments validates successfully."""
+    def test_create_module_validates_successfully(self, tmp_path):
+        """Test that a created module validates successfully."""
         runner = CliRunner()
 
-        # Create module with specific environment type
-        module_path = tmp_path / f"test-module-{environment_type}"
+        # Create module
+        module_path = tmp_path / "test-module"
 
         result = runner.invoke(
             create_module,
@@ -196,7 +190,7 @@ class TestModuleCreateValidate:
                 str(module_path),
                 "--non-interactive",
                 "--name",
-                f"test-module-{environment_type}",
+                "test-module",
                 "--author-name",
                 "Test Author",
                 "--author-email",
@@ -204,11 +198,9 @@ class TestModuleCreateValidate:
                 "--license",
                 "MIT",
                 "--description",
-                f"Test module with {environment_type}",
+                "Test module",
                 "--entrypoint",
                 "run.sh",
-                "--environment",
-                environment_type,
             ],
         )
 
@@ -222,10 +214,9 @@ class TestModuleCreateValidate:
         assert (module_path / "CITATION.cff").exists(), "CITATION.cff not created"
         assert (module_path / "run.sh").exists(), "Entrypoint not created"
 
-        # Verify environment-specific files
+        # Verify env directory exists
         env_dir = module_path / "env"
-        if environment_type == "conda":
-            assert (env_dir / "conda.yaml").exists(), "conda.yaml not created"
+        assert env_dir.exists(), "env directory not created"
 
         # Validate the created module (should pass without --strict)
         validate_result = runner.invoke(

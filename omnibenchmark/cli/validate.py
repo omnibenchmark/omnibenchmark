@@ -191,9 +191,6 @@ def validate_module(ctx, path, strict, format="summary"):
                         validation_errors.append(msg)
                         logger.error(msg)
 
-            if not core_result.errors and not core_result.warnings:
-                logger.info("All validations passed ✅")
-
         except ValidationException as e:
             validation_result = _convert_validation_result(
                 module_id=module_id,
@@ -223,24 +220,21 @@ def validate_module(ctx, path, strict, format="summary"):
 
     # Output results
     if format == "summary":
-        logger.info("\nValidation Summary:")
-        logger.info(f"  Validation errors: {len(validation_errors)}")
-        logger.info(f"  Validation warnings: {len(validation_warnings)}")
+        if validation_errors or validation_warnings:
+            # Errors and warnings already logged above
+            pass
+        else:
+            logger.info("✅ Module validation passed")
 
         if validation_errors:
-            logger.error("Validation failed with errors")
             ctx.exit(1)
-        elif validation_warnings:
-            logger.warning("Validation completed with warnings")
-        else:
-            logger.info("Module validation passed successfully ✅")
     else:
         validation_results = {module_id: validation_result}
         output = format_validation_results(validation_results, format)
         click.echo(output)
 
-    if validation_errors:
-        ctx.exit(1)
+        if validation_errors:
+            ctx.exit(1)
 
     cleanup_temp_repositories()
 
