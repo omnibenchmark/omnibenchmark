@@ -167,12 +167,9 @@ def validate_module(ctx, path, strict, format="summary"):
             if core_result.errors:
                 for error in core_result.errors:
                     msg = f"{error.message}"
-                    if warn:
-                        validation_warnings.append(msg)
-                        logger.warning(msg)
-                    else:
-                        validation_errors.append(msg)
-                        logger.error(msg)
+                    # Errors should always be errors, even in warn mode
+                    validation_errors.append(msg)
+                    logger.error(msg)
 
             if core_result.warnings:
                 for warning in core_result.warnings:
@@ -202,12 +199,9 @@ def validate_module(ctx, path, strict, format="summary"):
                 msg = f"{issue.message}"
                 if issue.severity == ValidationSeverity.ERROR:
                     validation_result.add_error(issue.message)
-                    if warn:
-                        validation_warnings.append(msg)
-                        logger.warning(msg)
-                    else:
-                        validation_errors.append(msg)
-                        logger.error(msg)
+                    # Errors should always be errors
+                    validation_errors.append(msg)
+                    logger.error(msg)
                 else:
                     validation_result.add_warning(issue.message)
                     if warn:
@@ -224,10 +218,10 @@ def validate_module(ctx, path, strict, format="summary"):
         logger.info(f"  Validation errors: {len(validation_errors)}")
         logger.info(f"  Validation warnings: {len(validation_warnings)}")
 
-        if validation_errors and not warn:
+        if validation_errors:
             logger.error("Validation failed with errors")
             ctx.exit(1)
-        elif validation_warnings or validation_errors:
+        elif validation_warnings:
             logger.warning("Validation completed with warnings")
         else:
             logger.info("Module validation passed successfully ✅")
@@ -236,7 +230,7 @@ def validate_module(ctx, path, strict, format="summary"):
         output = format_validation_results(validation_results, format)
         click.echo(output)
 
-    if validation_errors and not warn:
+    if validation_errors:
         ctx.exit(1)
 
     cleanup_temp_repositories()

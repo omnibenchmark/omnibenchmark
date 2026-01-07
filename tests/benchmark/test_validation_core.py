@@ -652,7 +652,8 @@ license: INVALID-LICENSE
         assert not result_strict.is_valid()
         assert len(result_strict.errors) > 0
 
-        # Test in warn mode - should convert errors to warnings
+        # Test in warn mode - should convert most errors to warnings
+        # BUT omnibenchmark.yaml missing is ALWAYS an error
         result_warn = validate_module_files(
             module_id="test_module",
             citation_content=citation_content,
@@ -660,8 +661,15 @@ license: INVALID-LICENSE
             warn_mode=True,
         )
 
-        assert result_warn.is_valid()  # Valid because errors converted to warnings
+        assert (
+            not result_warn.is_valid()
+        )  # Invalid because omnibenchmark.yaml is always an error
         assert result_warn.has_warnings()
+        # Should have at least one error (omnibenchmark.yaml missing)
+        assert len(result_warn.errors) >= 1
+        assert any(
+            e.issue_type == "omnibenchmark_yaml_missing" for e in result_warn.errors
+        )
 
         # Should have issues for missing required fields, invalid license, missing files
         issue_types = {issue.issue_type for issue in result_warn.issues}
