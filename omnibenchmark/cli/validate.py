@@ -8,7 +8,7 @@ import re
 import click
 import yaml
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.benchmark.repository_utils import (
     RepositoryManager,
@@ -65,14 +65,11 @@ def validate_plan(ctx, benchmark: str):
     warnings.showwarning = custom_warning_handler
 
     try:
-        # First check if YAML is parseable
-        with open(benchmark, "r") as file:
-            yaml.safe_load(file)
+        # Load and validate as a Benchmark model (no execution context needed)
+        # This validates YAML syntax, required fields, data types, and references
+        benchmark_model = BenchmarkModel.from_yaml(Path(benchmark))
 
-        # Then try to load as a Benchmark object (this validates structure)
-        b = BenchmarkExecution(benchmark_yaml=Path(benchmark))
-
-        if b is None:
+        if benchmark_model is None:
             logger.error("Error: Failed to parse YAML as a valid OmniBenchmark.")
             ctx.exit(1)
 
