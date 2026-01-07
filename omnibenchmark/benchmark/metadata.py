@@ -558,14 +558,32 @@ def validate_omnibenchmark_yaml_data(
         result.add_issue(warning_issue)
         return result, None
 
-    # Check for required fields
-    if "name" not in data:
+    # Check for required fields - entrypoints with default
+    if "entrypoints" not in data:
         warning_issue = ValidationIssue(
-            issue_type="omnibenchmark_yaml_missing_name",
+            issue_type="omnibenchmark_yaml_missing_entrypoints",
             severity=ValidationSeverity.WARNING,
             path=file_path,
             module_id=ctx.module_id,
-            message="omnibenchmark.yaml is missing required 'name' field",
+            message="omnibenchmark.yaml is missing required 'entrypoints' field",
+        )
+        result.add_issue(warning_issue)
+    elif not isinstance(data["entrypoints"], dict):
+        warning_issue = ValidationIssue(
+            issue_type="omnibenchmark_yaml_invalid_entrypoints",
+            severity=ValidationSeverity.WARNING,
+            path=file_path,
+            module_id=ctx.module_id,
+            message="omnibenchmark.yaml 'entrypoints' field must be a dictionary",
+        )
+        result.add_issue(warning_issue)
+    elif "default" not in data["entrypoints"]:
+        warning_issue = ValidationIssue(
+            issue_type="omnibenchmark_yaml_missing_default_entrypoint",
+            severity=ValidationSeverity.WARNING,
+            path=file_path,
+            module_id=ctx.module_id,
+            message="omnibenchmark.yaml 'entrypoints' is missing required 'default' key",
         )
         result.add_issue(warning_issue)
 
