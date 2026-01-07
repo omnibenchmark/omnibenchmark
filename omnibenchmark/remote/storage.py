@@ -11,11 +11,19 @@ try:
 
     S3_AVAILABLE = True
 except ImportError:
-    logger = logging.getLogger(__name__)
-    logger.warning(
-        "S3 storage not available. Install with: pip install omnibenchmark[s3]"
-    )
     S3_AVAILABLE = False
+    MinIOStorage = None
+    S3_access_config_from_env = None
+
+
+def _check_s3_available():
+    """Check if S3 storage is available and warn if not."""
+    if not S3_AVAILABLE:
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "S3 storage not available. Install with: pip install omnibenchmark[s3]"
+        )
+    return S3_AVAILABLE
 
 
 # XXX ARCHITECTURAL DEBT: Storage Factory Pattern Missing
@@ -50,6 +58,8 @@ def get_storage(
     - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
     """
     if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
+        if not _check_s3_available():
+            return None
         return MinIOStorage(auth_options, benchmark, storage_options)
 
 
@@ -90,6 +100,8 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
     """
     storage_api = benchmark.get_storage_api()
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
+        if not _check_s3_available():
+            return {}
         # Let caller decide if credentials are required
         auth_options = S3_access_config_from_env(required=required)
         endpoint = benchmark.get_storage_endpoint()
@@ -115,6 +127,8 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
 def remote_storage_snakemake_args(benchmark) -> dict:
     storage_api = benchmark.get_storage_api()
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
+        if not _check_s3_available():
+            return {}
         auth_options = S3_access_config_from_env()
         bucket_name = benchmark.get_storage_bucket_name()
         endpoint = benchmark.get_storage_endpoint()
