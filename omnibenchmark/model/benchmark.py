@@ -1053,20 +1053,11 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         # Get the appropriate environment configuration
         if self.software_backend == SoftwareBackendEnum.envmodules:
-            if env.envmodule:
-                # TODO: ARCHITECTURAL ISSUE - System-specific environment validation does not belong in abstract model
-                # This should be moved to BenchmarkExecution or a separate validation layer
-                # The model should only validate structure, not check system availability
-                # Import here to avoid circular dependency
-                from omnibenchmark.utils import try_avail_envmodule
-
-                if not try_avail_envmodule(env.envmodule):  # type: ignore[no-untyped-call]
-                    errors.append(
-                        f"Software environment with id '{env.id}' and name '{env.envmodule}' could not be loaded as a valid `envmodule`."
-                    )
-            else:
+            # For envmodules, just check that the envmodule field is present
+            # We don't try to load it during validation - that happens at runtime
+            if not env.envmodule:
                 errors.append(
-                    f"Software environment with id '{env.id}' does not have a valid backend definition for: '{self.software_backend.value}'."
+                    f"Software environment with id '{env.id}' does not have a valid backend definition for: '{self.software_backend.value}'. The 'envmodule' field must be specified."
                 )
 
         elif self.software_backend in [

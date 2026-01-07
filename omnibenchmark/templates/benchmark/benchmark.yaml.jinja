@@ -16,7 +16,8 @@ software_environments:
     {{ software_backend }}_env:
         name: nicely packaged environment
         description: A more verbose description, for humans reading this
-        {{ software_backend }}: envs/{% if software_backend == 'conda' %}conda.yaml{% elif software_backend == 'apptainer' %}example.sif{% elif software_backend == 'envmodules' %}module-x_y_z.lua{% endif %}
+        {% if software_backend == 'envmodules' %}# Replace 'MyModule/1.0.0' with your actual module name from 'module avail'
+        envmodule: MyModule/1.0.0{% else %}{{ software_backend }}: envs/{% if software_backend == 'conda' %}conda.yaml{% elif software_backend == 'apptainer' %}example.sif{% endif %}{% endif %}
 
 # Stages and modules for your benchmark
 

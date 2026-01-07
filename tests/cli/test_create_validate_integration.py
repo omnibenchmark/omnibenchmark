@@ -98,6 +98,10 @@ class TestBenchmarkCreateValidate:
 
         config["software_backend"] = "envmodules"
 
+        # Add envmodule field to all software environments
+        for env_id, env_config in config.get("software_environments", {}).items():
+            env_config["envmodule"] = f"{env_id}_module"
+
         with open(benchmark_yaml, "w") as f:
             yaml.dump(config, f)
 
