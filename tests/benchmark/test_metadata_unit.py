@@ -375,8 +375,12 @@ title: Test Module
             warn_mode=True,
         )
 
-        assert result.is_valid()  # Valid in warn mode
+        assert (
+            not result.is_valid()
+        )  # Invalid because omnibenchmark.yaml is always an error
         assert result.has_warnings()
+        # Should have error for missing omnibenchmark.yaml
+        assert any(e.issue_type == "omnibenchmark_yaml_missing" for e in result.errors)
 
     def test_warn_mode_behavior(self):
         """Test validation in warn mode."""

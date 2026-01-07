@@ -116,7 +116,6 @@ class StrictValidationStrategy(ValidationStrategy):
             "citation_author_missing_given_name",
             "omnibenchmark_yaml_invalid_yaml",
             "omnibenchmark_yaml_not_object",
-            "omnibenchmark_yaml_missing",
             "license_file_no_license_language",
             "license_in_file_but_not_citation",
             "license_in_citation_but_not_file",
@@ -136,10 +135,20 @@ class WarnValidationStrategy(ValidationStrategy):
     def handle_issue(
         self, issue_type: str, path: str, module_id: str, message: str, **context
     ) -> ValidationIssue:
-        # Always convert to warnings in warn mode
+        # Certain issues are ALWAYS errors, even in warn mode
+        always_error_types = {
+            "omnibenchmark_yaml_missing",
+        }
+
+        if issue_type in always_error_types:
+            severity = ValidationSeverity.ERROR
+        else:
+            # Convert other issues to warnings in warn mode
+            severity = ValidationSeverity.WARNING
+
         return ValidationIssue(
             issue_type=issue_type,
-            severity=ValidationSeverity.WARNING,
+            severity=severity,
             path=path,
             module_id=module_id,
             message=message,
@@ -717,11 +726,11 @@ def validate_file_structure(
             severity=ValidationSeverity.WARNING,
             path="LICENSE",
             module_id=ctx.module_id,
-            message="No LICENSE file found (checked: LICENSE, LICENSE.txt, LICENSE.md, LICENCE, LICENCE.txt, LICENCE.md)",
+            message="No LICENSE file found",
         )
         result.add_issue(warning_issue)
 
-    # Check for omnibenchmark.yaml or legacy config.cfg (warning only)
+    # Check for omnibenchmark.yaml or legacy config.cfg
     if not files_present.get("omnibenchmark.yaml", False):
         # Check for legacy config.cfg
         if files_present.get("config.cfg", False):
@@ -734,14 +743,12 @@ def validate_file_structure(
             )
             result.add_issue(warning_issue)
         else:
-            warning_issue = ValidationIssue(
+            # Missing omnibenchmark.yaml is an error - modules must have this file
+            ctx.add_issue(
                 issue_type="omnibenchmark_yaml_missing",
-                severity=ValidationSeverity.WARNING,
                 path="omnibenchmark.yaml",
-                module_id=ctx.module_id,
                 message="omnibenchmark.yaml file not found",
             )
-            result.add_issue(warning_issue)
 
     return result
 
