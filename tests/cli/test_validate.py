@@ -51,11 +51,10 @@ in the Software without restriction.
     (module_dir / "LICENSE").write_text(license_content)
 
     # Create omnibenchmark.yaml
-    omnibenchmark_content = """name: test-module
-version: 1.0.0
-description: A test module
-type: method
-stage: preprocessing
+    omnibenchmark_content = """# OmniBenchmark Module Configuration
+
+entrypoints:
+  default: run.sh
 """
     (module_dir / "omnibenchmark.yaml").write_text(omnibenchmark_content)
 
@@ -337,17 +336,25 @@ license: MIT
 """
         (module_dir / "CITATION.cff").write_text(citation_content)
 
+        # Create LICENSE
+        (module_dir / "LICENSE").write_text("MIT License")
+
+        # Create omnibenchmark.yaml
+        omnibenchmark_content = """# OmniBenchmark Module Configuration
+
+entrypoints:
+  default: run.sh
+"""
+        (module_dir / "omnibenchmark.yaml").write_text(omnibenchmark_content)
+
         result = cli_setup.call(
             ["validate", "module", str(module_dir)],
             cwd=str(temp_dir),
         )
 
-        # Should pass in non-strict mode but show warnings
-        assert (
-            "warning" in result.stdout.lower()
-            or "⚠" in result.stdout
-            or result.returncode == 0
-        )
+        # Should pass in non-strict mode (exit code 0) but show warnings for missing authors
+        assert result.returncode == 0
+        assert "authors" in result.stdout.lower()
 
     @pytest.mark.short
     def test_validate_module_missing_citation(self, cli_setup, temp_dir):
