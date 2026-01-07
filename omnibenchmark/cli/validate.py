@@ -20,7 +20,7 @@ from omnibenchmark.benchmark.metadata import (
     ValidationException,
 )
 from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
-from omnibenchmark.model.validation import BenchmarkParseError
+from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
 
 
 @click.group(name="validate")
@@ -41,6 +41,7 @@ def validate_plan(ctx, benchmark: str):
     - Required fields are present
     - Data types are correct
     - References between stages/modules are valid
+    - Software environment backends are properly configured
     """
     logger.info(f"Validating benchmark plan: {benchmark}")
 
@@ -65,13 +66,19 @@ def validate_plan(ctx, benchmark: str):
     warnings.showwarning = custom_warning_handler
 
     try:
-        # Load and validate as a Benchmark model (no execution context needed)
+        # Load and validate as a Benchmark model
         # This validates YAML syntax, required fields, data types, and references
-        benchmark_model = BenchmarkModel.from_yaml(Path(benchmark))
+        benchmark_path = Path(benchmark)
+        benchmark_model = BenchmarkModel.from_yaml(benchmark_path)
 
         if benchmark_model is None:
             logger.error("Error: Failed to parse YAML as a valid OmniBenchmark.")
             ctx.exit(1)
+
+        # Validate execution context (software environments, paths) WITHOUT creating output directory
+        # We only need the benchmark directory (parent of YAML file) for resolving relative paths
+        benchmark_dir = benchmark_path.parent.absolute()
+        benchmark_model.validate_execution_context(benchmark_dir)
 
         logger.info("✅ Benchmark YAML plan validation passed.")
 
@@ -91,6 +98,11 @@ def validate_plan(ctx, benchmark: str):
 
     except ValueError as e:
         logger.error(f"Error: Failed to parse YAML as a valid OmniBenchmark: {str(e)}")
+        ctx.exit(1)
+
+    except ValidationError as e:
+        # Handle validation errors from validate_execution_context
+        logger.error(f"Error: {e}")
         ctx.exit(1)
 
     except Exception as e:

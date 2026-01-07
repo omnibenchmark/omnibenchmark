@@ -285,17 +285,14 @@ def test_validate_yaml_success():
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
-    with patch("omnibenchmark.cli.validate.BenchmarkExecution") as mock_execution:
-        mock_execution.return_value = MagicMock()
+    runner = CliRunner()
+    result = runner.invoke(
+        validate_plan,
+        [benchmark_path],
+    )
 
-        runner = CliRunner()
-        result = runner.invoke(
-            validate_plan,
-            [benchmark_path],
-        )
-
-        # Verify the command succeeded
-        assert result.exit_code == 0
+    # Verify the command succeeded
+    assert result.exit_code == 0
 
 
 @pytest.mark.short

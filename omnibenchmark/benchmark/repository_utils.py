@@ -132,6 +132,7 @@ class RepositoryManager:
             "COPYING": (repo_path / "COPYING").exists(),
             "COPYING.txt": (repo_path / "COPYING.txt").exists(),
             "omnibenchmark.yaml": (repo_path / "omnibenchmark.yaml").exists(),
+            "config.cfg": (repo_path / "config.cfg").exists(),
         }
 
     def cleanup_temp_directories(self):

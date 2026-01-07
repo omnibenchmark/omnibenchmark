@@ -37,10 +37,12 @@ class ExecutionContext:
 
         # where are we going to write the output files, in the case of local execution
         self.out_dir = out_dir
+        # Note: We don't create out_dir here anymore - it will be created lazily when needed
 
-        # TODO: only if needed, otherwise we always create the out dir
-        if not os.path.exists(out_dir):
-            os.mkdir(out_dir)
+    def ensure_out_dir(self):
+        """Create the output directory if it doesn't exist. Call this before writing outputs."""
+        if not os.path.exists(self.out_dir):
+            os.makedirs(self.out_dir, exist_ok=True)
 
 
 class BenchmarkExecution:

@@ -214,7 +214,7 @@ license: MIT
     def test_validate_module_missing_omnibenchmark_yaml_non_strict(
         self, cli_setup, temp_dir
     ):
-        """Test validate module should pass with warning if there's no omnibenchmark.yaml file in non-strict mode."""
+        """Test validate module should fail even in non-strict mode if omnibenchmark.yaml is missing."""
         module_dir = temp_dir / "test_module"
         module_dir.mkdir()
 
@@ -241,11 +241,9 @@ license: MIT
             cwd=str(temp_dir),
         )
 
-        # Should pass in non-strict mode but show warnings
-        assert result.returncode == 0
-        assert (
-            "omnibenchmark.yaml" in result.stdout or "warning" in result.stdout.lower()
-        )
+        # Missing omnibenchmark.yaml is a hard error even in non-strict mode
+        assert result.returncode != 0
+        assert "omnibenchmark.yaml" in result.stdout
 
     @pytest.mark.short
     def test_validate_module_with_legacy_config_cfg(self, cli_setup, temp_dir):
