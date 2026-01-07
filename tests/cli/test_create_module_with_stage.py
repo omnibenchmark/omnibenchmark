@@ -276,6 +276,32 @@ def test_create_module_for_stage_requires_benchmark(tmp_path):
 
 
 @pytest.mark.short
+def test_create_module_benchmark_requires_for_stage(tmp_path, sample_benchmark_yaml):
+    """Test that --benchmark requires --for-stage."""
+    module_dir = tmp_path / "test-module"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        create_module,
+        [
+            str(module_dir),
+            "--benchmark",
+            str(sample_benchmark_yaml),
+            "--non-interactive",
+            "--name",
+            "test-module",
+            "--author-name",
+            "Test Author",
+            "--author-email",
+            "test@example.com",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "--benchmark requires --for-stage" in result.output
+
+
+@pytest.mark.short
 def test_create_module_with_invalid_stage(tmp_path, sample_benchmark_yaml):
     """Test error handling for invalid stage ID."""
     module_dir = tmp_path / "test-module"

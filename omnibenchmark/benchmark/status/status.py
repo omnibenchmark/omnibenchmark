@@ -106,7 +106,7 @@ def prepare_status(
     """
     # benchmark = "tests/data/Benchmark_001.yaml"
     # out_dir = "out"
-    b = BenchmarkExecution(Path(benchmark))
+    b = BenchmarkExecution(Path(benchmark), Path(out_dir))
     eps = ExecutionPathSet(b, cache_dir=cache_dir)
 
     stages = eps.stages

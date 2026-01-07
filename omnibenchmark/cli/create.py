@@ -594,7 +594,7 @@ def create_benchmark(
 @create.command(name="module")
 @click.argument(
     "path",
-    required=False,
+    required=True,
     type=click.Path(path_type=Path),
 )
 @click.option(
@@ -697,9 +697,13 @@ def create_module(
     ctx.ensure_object(dict)
     debug = ctx.obj.get("DEBUG", False)
 
-    # Validate benchmark and for_stage options
+    # Validate benchmark and for_stage options - they must be used together
     if for_stage and not benchmark:
         click.echo("--for-stage requires --benchmark to be specified", err=True)
+        sys.exit(1)
+
+    if benchmark and not for_stage:
+        click.echo("--benchmark requires --for-stage to be specified", err=True)
         sys.exit(1)
 
     # Extract stage inputs if benchmark is provided
@@ -720,8 +724,8 @@ def create_module(
             for input_id in stage_inputs
         ]
 
-    # Determine the target path from positional argument or destination option
-    target_destination = path or destination
+    # Path is mandatory, but destination option exists for backwards compatibility
+    target_destination = path if path else destination
 
     # Check for mandatory parameters when using parameter flags
     mandatory_flags = [name, author_name, author_email]
@@ -746,14 +750,6 @@ def create_module(
         # Enable non-interactive mode when flags are provided
         non_interactive = True
 
-    # Check if destination is required when using non-interactive mode
-    if (no_input or non_interactive) and target_destination is None:
-        flag_name = (
-            "--no-input" if no_input and not non_interactive else "--non-interactive"
-        )
-        logger.error(f"Path is required when using {flag_name}")
-        sys.exit(1)
-
     if debug:
         logger.debug(f"Path: {path}")
         logger.debug(f"Destination: {destination}")
@@ -764,17 +760,10 @@ def create_module(
         # Get the template path
         template_path = Path(__file__).parent.parent / "templates" / "module"
 
-        if target_destination is None:
-            logger.info(
-                f"Starting copier questionnaire for new module using OmniBenchmark v{__version__}..."
-            )
-            # Use current directory if no destination specified
-            target_path = Path.cwd()
-        else:
-            logger.info(
-                f"Creating new module at {target_destination} using OmniBenchmark v{__version__}"
-            )
-            target_path = Path(target_destination)
+        logger.info(
+            f"Creating new module at {target_destination} using OmniBenchmark v{__version__}"
+        )
+        target_path = Path(target_destination)
 
         # Check target directory
         if not _check_target_directory(target_path, no_input or non_interactive):
