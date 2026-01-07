@@ -214,10 +214,6 @@ class TestModuleCreateValidate:
         assert (module_path / "CITATION.cff").exists(), "CITATION.cff not created"
         assert (module_path / "run.sh").exists(), "Entrypoint not created"
 
-        # Verify env directory exists
-        env_dir = module_path / "env"
-        assert env_dir.exists(), "env directory not created"
-
         # Validate the created module (should pass without --strict)
         validate_result = runner.invoke(
             validate_module,

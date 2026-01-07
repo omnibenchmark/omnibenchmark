@@ -52,7 +52,7 @@ def test_run_benchmark_with_valid_timeout():
         assert "Invalid timeout value" not in result.stdout
 
 
-def test_default_entry_module():
+def test_default_entry_module(tmp_path):
     expected = """
         Running module on a local dataset.
         Found 1 workflow nodes for module D1.
@@ -68,19 +68,20 @@ def test_default_entry_module():
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
-            ]
+            ],
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected)
 
 
-def test_default_nonentry_module_fails():
+def test_default_nonentry_module_fails(tmp_path):
     """Test running a non-entry module without specifying required options"""
     expected = """
     Running module on a local dataset.
     Found 2 workflow nodes for module P1.
-    Error: --input-dir is required for non-entrypoint modules.
+    Error: --input-dir is required for non-entrypoint modules when 'out' folder doesn't exist in current directory.
     """
 
     path = get_benchmark_data_path()
@@ -92,7 +93,8 @@ def test_default_nonentry_module_fails():
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "P1",
-            ]
+            ],
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 1
@@ -161,7 +163,7 @@ def test_module_not_found():
         assert clean(result.stdout) == clean(expected_output)
 
 
-def test_behaviour_input():
+def test_behaviour_input(tmp_path):
     expected_output = """
     Running module on a local dataset.
     Found 1 workflow nodes for module D1.
@@ -177,14 +179,15 @@ def test_behaviour_input():
                 str(path / "mock_benchmark.yaml"),
                 "--module",
                 "D1",
-            ]
+            ],
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected_output)
 
 
-def test_behaviour_input_dry():
+def test_behaviour_input_dry(tmp_path):
     expected_output = """
     Running module on a local dataset.
     Found 1 workflow nodes for module D1.
@@ -201,14 +204,15 @@ def test_behaviour_input_dry():
                 "--module",
                 "D1",
                 "--dry",
-            ]
+            ],
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected_output)
 
 
-def test_behaviour_input_update_true():
+def test_behaviour_input_update_true(tmp_path):
     expected_output = """
     Running module on a local dataset.
     Found 1 workflow nodes for module D1.
@@ -227,13 +231,14 @@ def test_behaviour_input_update_true():
                 "--update",
             ],
             input="y",
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 0
         assert_startswith(result.stdout, expected_output)
 
 
-def test_behaviour_input_update_dry():
+def test_behaviour_input_update_dry(tmp_path):
     expected_output = """
     Running module on a local dataset.
     Found 1 workflow nodes for module D1.
@@ -253,6 +258,7 @@ def test_behaviour_input_update_dry():
                 "--dry",
             ],
             input="y",
+            cwd=str(tmp_path),
         )
 
         assert result.returncode == 0
