@@ -61,6 +61,8 @@ version: 1.0.0
 description: A comprehensive test tool for bioinformatics analysis
 type: method
 stage: preprocessing
+entrypoints:
+  default: run.sh
 input_formats:
   - fastq
   - fasta
@@ -73,12 +75,14 @@ output_formats:
     (tmp_path / "CITATION.cff").write_text(citation_content)
     (tmp_path / "LICENSE").write_text(license_content)
     (tmp_path / "omnibenchmark.yaml").write_text(omnibenchmark_content)
+    (tmp_path / "run.sh").write_text("#!/bin/bash\necho 'test'")
 
     # Test using the comprehensive validation function
     files_present = {
         "CITATION.cff": (tmp_path / "CITATION.cff").exists(),
         "LICENSE": (tmp_path / "LICENSE").exists(),
         "omnibenchmark.yaml": (tmp_path / "omnibenchmark.yaml").exists(),
+        "run.sh": (tmp_path / "run.sh").exists(),
     }
 
     result = validate_module_files(
@@ -92,6 +96,9 @@ output_formats:
 
     # All validations should pass
     assert result.is_valid()
+    # Print warnings for debugging
+    if result.has_warnings():
+        print(f"Warnings found: {result.warnings}")
     assert not result.has_warnings()
 
     # Test individual components too
@@ -208,15 +215,18 @@ license: Apache-2.0
         warn_mode=True,
     )
 
-    # Should be valid but have warnings for missing files
-    assert result.is_valid()
+    # omnibenchmark.yaml missing is now an error (recent change), so validation should fail
+    assert not result.is_valid()
     assert result.has_warnings()
+
+    # Should have error for missing omnibenchmark.yaml
+    error_types = {e.issue_type for e in result.errors}
+    assert "omnibenchmark_yaml_missing" in error_types
 
     # Check for specific warning types
     issue_types = {issue.issue_type for issue in result.warnings}
     # License file warning is suppressed because citation contains license field
     assert "no_license_file" not in issue_types
-    assert "omnibenchmark_yaml_missing" in issue_types
     # Should have citation author warning since given-names is missing
     assert "citation_author_missing_given_name" in issue_types
 
@@ -310,12 +320,12 @@ modification, are permitted provided that the following conditions are met:
     ctx = create_validation_context("test_module", warn_mode=True)
     structure_result = validate_file_structure(files_present, ctx)
 
-    # Should be valid and not warn about missing LICENSE file
+    # validate_file_structure only checks files, it doesn't error on missing omnibenchmark.yaml
+    # (that's done by validate_module_files when validating content)
     assert structure_result.is_valid()
 
-    # Should only warn about missing omnibenchmark.yaml, not LICENSE
+    # Should not warn about LICENSE since LICENSE.txt exists
     issue_types = {issue.issue_type for issue in structure_result.warnings}
-    assert "omnibenchmark_yaml_missing" in issue_types
     assert "no_license_file" not in issue_types
 
 
@@ -422,10 +432,15 @@ license: MIT
         warn_mode=True,
     )
 
-    assert final_result.is_valid()
-    # Should only warn about missing omnibenchmark.yaml now
+    # omnibenchmark.yaml missing is now an error, so validation should fail
+    assert not final_result.is_valid()
+
+    # Should have error for missing omnibenchmark.yaml
+    error_types = {e.issue_type for e in final_result.errors}
+    assert "omnibenchmark_yaml_missing" in error_types
+
+    # Should not warn about license
     issue_types = {issue.issue_type for issue in final_result.warnings}
-    assert "omnibenchmark_yaml_missing" in issue_types
     assert "no_license_file" not in issue_types
 
 

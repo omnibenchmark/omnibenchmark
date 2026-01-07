@@ -271,7 +271,8 @@ def _run_module(
     # Use provided out_dir or default to "out"
     work_dir = Path(out_dir) if out_dir else Path("out")
 
-    # Convert benchmark_path to absolute path to avoid issues when work_dir changes
+    # Convert paths to absolute paths to avoid issues when work_dir changes
+    work_dir = work_dir.resolve()
     benchmark_path_abs = Path(benchmark_path).resolve()
 
     try:
