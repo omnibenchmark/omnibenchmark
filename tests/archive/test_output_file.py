@@ -121,8 +121,8 @@ stages:
         result = runner.invoke(
             archive,
             [
-                "--benchmark",
-                "test.yaml",
+                # removed --benchmark option - now positional
+                "test.yaml",  # benchmark is now positional
                 "--results",
                 "--compression",
                 "bzip2",
@@ -184,8 +184,8 @@ stages:
             result = runner.invoke(
                 archive,
                 [
-                    "--benchmark",
-                    "test.yaml",
+                    # removed --benchmark option - now positional
+                    "test.yaml",  # benchmark is now positional
                     "--results",
                     "--compression",
                     compression,
@@ -247,8 +247,8 @@ stages:
             result = runner.invoke(
                 archive,
                 [
-                    "--benchmark",
-                    "test.yaml",
+                    # removed --benchmark option - now positional
+                    "test.yaml",  # benchmark is now positional
                     "--results",
                     "--compression",
                     compression,
@@ -374,8 +374,8 @@ stages:
             result = runner.invoke(
                 archive,
                 [
-                    "--benchmark",
-                    "test.yaml",
+                    # removed --benchmark option - now positional
+                    "test.yaml",  # benchmark is now positional
                     "--results",
                     "--compression",
                     compression,
@@ -430,8 +430,8 @@ stages:
         result = runner.invoke(
             archive,
             [
-                "--benchmark",
-                "test.yaml",
+                # removed --benchmark option - now positional
+                "test.yaml",  # benchmark is now positional
                 "--results",
                 "--compression",
                 "bzip2",
