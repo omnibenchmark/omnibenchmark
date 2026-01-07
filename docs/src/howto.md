@@ -241,6 +241,57 @@ if [ -f /opt/homebrew/opt/lmod/init/profile ]; then
 fi
 ```
 
+## Create a new benchmark
+
+Create a benchmark scaffold with all necessary files:
+
+```bash
+ob create benchmark ~/my_benchmark
+```
+
+This creates a benchmark directory with:
+- `benchmark.yaml` - main configuration file
+- `CITATION.cff` - citation metadata
+- `envs/` - software environment definitions
+- `.git/` - initialized git repository
+
+## Create a new module
+
+Create a standalone module:
+
+```bash
+ob create module ~/my_module
+```
+
+### Create a module for a specific stage
+
+Generate a module template with pre-configured inputs for a benchmark stage using `--for-stage`:
+
+```bash
+ob create module ~/my_method \
+  --benchmark ~/my_benchmark/benchmark.yaml \
+  --for-stage methods
+```
+
+This generates:
+- `omnibenchmark.yaml` - module configuration
+- Entrypoint script with CLI parsing for stage-specific inputs
+- `CITATION.cff` - citation metadata
+
+The `--for-stage` option automatically:
+- Reads input/output requirements from the specified stage
+- Generates CLI argument parsing code
+- Creates appropriate file I/O boilerplate
+
+Example for a methods stage with inputs from data stage:
+
+```bash
+# Creates a module that expects data.counts and data.meta as inputs
+ob create module ~/clustering_method \
+  --benchmark ~/clustering/benchmark.yaml \
+  --for-stage methods
+```
+
 ## Add parameters to a benchmark YAML
 
 Module `P1` is parametrized and will run twice, once with `-a 0 -b 0.1` and second with `-a 1 -b 0.1`.
