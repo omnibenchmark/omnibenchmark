@@ -281,6 +281,9 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
     software_backend = config['backend']
     software_env_path = config.get('backend_env',None)
     keep_module_logs = config.get('keep_module_logs',False)
+    
+    # Build inputs_map for standalone execution
+    inputs_map = node.get_input_paths(config, return_as_dict=True)
 
     # Only set environment directive for the backend that's actually being used
     # TODO https://github.com/omnibenchmark/omnibenchmark/issues/201
@@ -290,11 +293,14 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
                 dataset=dataset
+            input:
+                node.get_input_paths(config)
             output:
                 node.get_output_paths(config)
             conda:
                 software_env_path
             params:
+                inputs_map=inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 parameters=node.get_parameters(),
@@ -309,11 +315,14 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
                 dataset=dataset
+            input:
+                node.get_input_paths(config)
             output:
                 node.get_output_paths(config)
             envmodules:
                 software_env_path
             params:
+                inputs_map=inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 parameters=node.get_parameters(),
@@ -328,11 +337,14 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
                 dataset=dataset
+            input:
+                node.get_input_paths(config)
             output:
                 node.get_output_paths(config)
             container:
                 software_env_path
             params:
+                inputs_map=inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 parameters=node.get_parameters(),
@@ -348,9 +360,12 @@ def create_standalone_node_rule(node: BenchmarkNode, config: dict[str, Any], loc
             name: f"{{stage}}_{{module}}_{{param}}".format(stage=stage_id,module=module_id,param=param_id)
             wildcard_constraints:
                 dataset=dataset
+            input:
+                node.get_input_paths(config)
             output:
                 node.get_output_paths(config)
             params:
+                inputs_map=inputs_map,
                 repository_url=repository_url,
                 commit_hash=commit_hash,
                 parameters=node.get_parameters(),
