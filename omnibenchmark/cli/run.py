@@ -8,16 +8,36 @@ from pathlib import Path
 
 import click
 import humanfriendly
+from pydantic import ValidationError as PydanticValidationError
 
 from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
-from omnibenchmark.remote.storage import get_storage_from_benchmark
-from omnibenchmark.remote.storage import remote_storage_snakemake_args
+from omnibenchmark.remote.storage import (
+    get_storage_from_benchmark,
+    remote_storage_snakemake_args,
+)
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
+
+
+def format_pydantic_errors(e: PydanticValidationError) -> str:
+    """Format Pydantic validation errors to show which fields are missing or invalid."""
+    error_lines = ["Validation failed:"]
+    for error in e.errors():
+        field = " -> ".join(str(loc) for loc in error["loc"])
+        msg = error["msg"]
+        error_type = error["type"]
+
+        # Make missing field errors more explicit
+        if error_type == "missing":
+            error_lines.append(f"  - Missing required field: '{field}'")
+        else:
+            error_lines.append(f"  - Field '{field}': {msg}")
+
+    return "\n".join(error_lines)
 
 
 @click.command(
@@ -198,6 +218,12 @@ def _run_benchmark(
         out_dir = out_dir if out_dir else "out"
         b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
+    except PydanticValidationError as e:
+        # Handle Pydantic validation errors with detailed field information
+        log_error_and_quit(
+            logger, f"Failed to load benchmark:\n{format_pydantic_errors(e)}"
+        )
+        return
     except BenchmarkParseError as e:
         # Format parse errors with file location and context
         formatted_error = pretty_print_parse_error(e)
@@ -277,6 +303,12 @@ def _run_module(
 
     try:
         b = BenchmarkExecution(benchmark_path_abs, work_dir)
+    except PydanticValidationError as e:
+        # Handle Pydantic validation errors with detailed field information
+        log_error_and_quit(
+            logger, f"Failed to load benchmark:\n{format_pydantic_errors(e)}"
+        )
+        return
     except BenchmarkParseError as e:
         formatted_error = pretty_print_parse_error(e)
         log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
