@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import ValidationError as PydanticValidationError
 
@@ -165,7 +165,31 @@ def convert_pydantic_error_to_parse_error(
             original_error=pydantic_error,
         )
 
-    error = pydantic_error.errors()[0]
+    errors = pydantic_error.errors()
+
+    # If there are multiple errors, format them all
+    if len(errors) > 1:
+        error_lines = ["Validation failed with multiple errors:"]
+        for err in errors:
+            loc = err.get("loc", ())
+            field = " -> ".join(str(part) for part in loc)
+            msg = err.get("msg", "")
+            error_type = err.get("type", "")
+
+            if error_type == "missing":
+                error_lines.append(f"  - Missing required field: '{field}'")
+            else:
+                error_lines.append(f"  - Field '{field}': {msg}")
+
+        return BenchmarkParseError(
+            message="\n".join(error_lines),
+            yaml_file=yaml_file_path,
+            line_number=None,  # Multiple errors, no single line number
+            original_error=pydantic_error,
+        )
+
+    # Single error - provide detailed context
+    error = errors[0]
     loc = error.get("loc", ())
 
     # Extract indices from the error location
@@ -179,8 +203,18 @@ def convert_pydantic_error_to_parse_error(
     if yaml_file_path:
         line_num = _find_line_number(line_map, loc, indices)
 
+    # Format the message to be more helpful
+    msg = error.get("msg", str(pydantic_error))
+    error_type = error.get("type", "")
+    field = " -> ".join(str(part) for part in loc)
+
+    if error_type == "missing":
+        formatted_msg = f"Missing required field: '{field}'"
+    else:
+        formatted_msg = f"Field '{field}': {msg}"
+
     return BenchmarkParseError(
-        message=error.get("msg", str(pydantic_error)),
+        message=formatted_msg,
         yaml_file=yaml_file_path,
         line_number=line_num,
         stage_id=context.stage_id,

@@ -1,26 +1,44 @@
 """CLI commands for validation of benchmarks and modules."""
 
+import re
+import warnings
 from pathlib import Path
 from typing import Optional
-import warnings
-import re
 
 import click
 import yaml
+from pydantic import ValidationError as PydanticValidationError
 
-from omnibenchmark.model import Benchmark as BenchmarkModel
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.benchmark.metadata import (
+    ValidationException,
+    ValidationSeverity,
+    validate_module_files,
+)
 from omnibenchmark.benchmark.repository_utils import (
     RepositoryManager,
     cleanup_temp_repositories,
 )
-from omnibenchmark.benchmark.metadata import (
-    validate_module_files,
-    ValidationSeverity,
-    ValidationException,
-)
 from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
+from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
+
+
+def format_pydantic_errors(e: PydanticValidationError) -> str:
+    """Format Pydantic validation errors to show which fields are missing or invalid."""
+    error_lines = ["Validation failed:"]
+    for error in e.errors():
+        field = " -> ".join(str(loc) for loc in error["loc"])
+        msg = error["msg"]
+        error_type = error["type"]
+
+        # Make missing field errors more explicit
+        if error_type == "missing":
+            error_lines.append(f"  - Missing required field: '{field}'")
+        else:
+            error_lines.append(f"  - Field '{field}': {msg}")
+
+    return "\n".join(error_lines)
 
 
 @click.group(name="validate")
@@ -88,6 +106,11 @@ def validate_plan(ctx, benchmark: str):
 
     except yaml.YAMLError as e:
         logger.error(f"Error: YAML file format error: {e}")
+        ctx.exit(1)
+
+    except PydanticValidationError as e:
+        # Handle Pydantic validation errors with detailed field information
+        logger.error(f"Error: {format_pydantic_errors(e)}")
         ctx.exit(1)
 
     except BenchmarkParseError as e:
