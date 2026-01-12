@@ -231,14 +231,8 @@ def checkout_to_work_dir(
     else:
         # Clone from cache to work dir (this is fast - uses hardlinks if possible)
         logging.info(f"Checking out {repo_url}@{ref} to {work_dir}")
-        import io as _io
-
         work_repo = porcelain.clone(
-            source=str(repo_cache_dir),
-            target=str(work_dir),
-            checkout=False,
-            bare=False,
-            errstream=_io.BytesIO(),
+            source=str(repo_cache_dir), target=str(work_dir), checkout=False, bare=False
         )
 
     # Resolve and checkout the ref

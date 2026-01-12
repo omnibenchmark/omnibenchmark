@@ -205,9 +205,7 @@ class SnakemakeGenerator:
         f.write("    shell:\n")
         f.write('        """\n')
         # Create output directory before cd (relative to out/)
-        f.write("        mkdir -p $(dirname {output[0]})\n")
-        f.write("        cd {params.module_dir}\n")
-        f.write("        \n")
+        f.write("        mkdir -p $(dirname {output[0]}) && cd {params.module_dir}\n")
 
         # Use pre-resolved execution info instead of runtime checking
         if node.module.has_shebang:

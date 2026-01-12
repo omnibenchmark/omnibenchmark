@@ -266,20 +266,32 @@ def _run_benchmark(
     # 4. Generate explicit Snakefile
     # 5. Save metadata
     if dry:
-        _populate_git_cache(b)
+        # Use clean UI when not in debug mode (debug flag is the opposite of clean UI)
+        use_clean_ui = not debug
+
+        # Start timing for the entire generation process
+        import time
+
+        start_time = time.time()
+
+        _populate_git_cache(b, quiet=use_clean_ui, cores=cores)
         _generate_explicit_snakefile(
             benchmark=b,
             benchmark_yaml_path=benchmark_path_abs,
             out_dir=Path(out_dir),
             debug_mode=not only_snakefile,  # If --only-snakefile, generate executable; otherwise debug
+            cores=cores,  # Pass cores for parallel module resolution
+            quiet=use_clean_ui,  # Use clean progress UI when not debugging
+            start_time=start_time,  # Pass start time for final report
         )
 
         # If --only-snakefile, exit without running
         if only_snakefile:
-            logger.info("\nExecutable Snakefile generation complete. Exiting.")
-            logger.info(
-                f"To execute: cd {out_dir} && snakemake --use-conda --cores <N>"
-            )
+            if not use_clean_ui:
+                logger.info("\nExecutable Snakefile generation complete. Exiting.")
+                logger.info(
+                    f"To execute: cd {out_dir} && snakemake --use-conda --cores <N>"
+                )
             sys.exit(0)
 
         # Otherwise continue to run the generated debug Snakefile
@@ -585,7 +597,9 @@ def abort_if_user_does_not_confirm(msg: str, logger):
         raise click.Abort()
 
 
-def _populate_git_cache(benchmark: BenchmarkExecution):
+def _populate_git_cache(
+    benchmark: BenchmarkExecution, quiet: bool = False, cores: int = 4
+):
     """Populate git cache with repositories from benchmark.
 
     This is part of the NEW execution path using the two-tier caching system.
@@ -593,38 +607,137 @@ def _populate_git_cache(benchmark: BenchmarkExecution):
 
     Args:
         benchmark: BenchmarkExecution instance
+        quiet: If True, use progress bar instead of logging
+        cores: Number of parallel workers for fetching
     """
+    from omnibenchmark.cli.progress import ProgressDisplay
+
     cache_dir = get_git_cache_dir()
 
-    # Extract unique repositories from all stages and modules
-    repos = set()
+    # Extract unique repositories with their commits (for optimization)
+    # Format: {repo_url: commit}
+    repos = {}
     for stage in benchmark.model.stages:
         for module in stage.modules:
             if hasattr(module, "repository") and module.repository:
                 repo_url = module.repository.url
+                commit = module.repository.commit
                 if repo_url:
-                    repos.add(repo_url)
+                    repos[repo_url] = commit
 
     if not repos:
-        logger.info("No repositories found in benchmark definition")
+        if not quiet:
+            logger.info("No repositories found in benchmark definition")
         return
 
-    logger.info(f"Populating cache with {len(repos)} repositories...")
+    if not quiet:
+        logger.info(f"Populating cache with {len(repos)} repositories...")
 
-    # Populate cache
+    progress = ProgressDisplay() if quiet else None
+    if quiet:
+        progress.start_task("Fetching repositories to cache", total=len(repos))
+
+    # Populate cache in parallel
     success_count = 0
     failed = []
 
-    for repo_url in sorted(repos):
-        try:
-            logger.info(f"Caching {repo_url}")
-            get_or_update_cached_repo(repo_url, cache_dir)
-            success_count += 1
-        except Exception as e:
-            logger.error(f"Failed to cache {repo_url}: {e}")
-            failed.append((repo_url, str(e)))
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
 
-    logger.info(f"Successfully cached {success_count}/{len(repos)} repositories")
+    lock = threading.Lock()
+
+    def fetch_repo_task(repo_url, commit):
+        """Fetch a single repository (runs in parallel)."""
+        # Check if we need to fetch at all
+        from omnibenchmark.git.cache import parse_repo_url
+
+        repo_path = parse_repo_url(repo_url)
+        repo_cache_dir = cache_dir / repo_path
+
+        # Skip fetch if:
+        # 1. Repo exists in cache
+        # 2. Commit looks like a commit hash (40 hex chars)
+        # 3. We have that commit locally
+        skip_fetch = False
+        if (
+            repo_cache_dir.exists()
+            and commit
+            and len(commit) == 40
+            and all(c in "0123456789abcdef" for c in commit.lower())
+        ):
+            try:
+                from dulwich import porcelain
+
+                repo = porcelain.open_repo(str(repo_cache_dir))
+                # Check if we have this commit
+                repo[commit.encode("ascii")]
+                skip_fetch = True
+            except (KeyError, Exception):
+                pass
+
+        if skip_fetch:
+            return (repo_url, True, None)
+
+        if not quiet:
+            logger.info(f"Caching {repo_url}")
+
+        # Suppress git output in quiet mode using OS-level file descriptor redirection
+        saved_stdout = saved_stderr = devnull = None
+        if quiet:
+            import sys
+            import os
+
+            stdout_fd = sys.stdout.fileno()
+            stderr_fd = sys.stderr.fileno()
+            saved_stdout = os.dup(stdout_fd)
+            saved_stderr = os.dup(stderr_fd)
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, stdout_fd)
+            os.dup2(devnull, stderr_fd)
+
+        try:
+            get_or_update_cached_repo(repo_url, cache_dir)
+            return (repo_url, True, None)
+        except Exception as e:
+            return (repo_url, False, str(e))
+        finally:
+            if quiet and saved_stdout is not None:
+                import sys
+                import os
+
+                stdout_fd = sys.stdout.fileno()
+                stderr_fd = sys.stderr.fileno()
+                os.dup2(saved_stdout, stdout_fd)
+                os.dup2(saved_stderr, stderr_fd)
+                os.close(saved_stdout)
+                os.close(saved_stderr)
+                os.close(devnull)
+
+    with ThreadPoolExecutor(max_workers=cores) as executor:
+        futures = {
+            executor.submit(fetch_repo_task, repo_url, commit): repo_url
+            for repo_url, commit in repos.items()
+        }
+
+        for future in as_completed(futures):
+            repo_url, success, error = future.result()
+
+            if success:
+                with lock:
+                    success_count += 1
+            else:
+                logger.error(f"Failed to cache {repo_url}: {error}")
+                with lock:
+                    failed.append((repo_url, error))
+
+            if quiet:
+                progress.update(advance=1)
+
+    if quiet:
+        progress.finish()
+        progress.success(f"Cached {success_count}/{len(repos)} repositories")
+    else:
+        logger.info(f"Successfully cached {success_count}/{len(repos)} repositories")
 
     if failed:
         logger.warning(f"Failed to cache {len(failed)} repositories:")
@@ -632,7 +745,7 @@ def _populate_git_cache(benchmark: BenchmarkExecution):
             logger.warning(f"  {repo_url}: {error}")
 
 
-def _prepare_parameter_directories(resolved_nodes, out_dir):
+def _prepare_parameter_directories(resolved_nodes, out_dir, quiet: bool = False):
     """
     Pre-create parameter directories and human-readable symlinks.
 
@@ -644,8 +757,10 @@ def _prepare_parameter_directories(resolved_nodes, out_dir):
     Args:
         resolved_nodes: List of ResolvedNode instances
         out_dir: Output directory base path
+        quiet: If True, suppress logging
     """
-    logger.info("\nPre-creating parameter directories and symlinks:")
+    if not quiet:
+        logger.info("\nPre-creating parameter directories and symlinks:")
 
     created_count = 0
     for node in resolved_nodes:
@@ -683,9 +798,10 @@ def _prepare_parameter_directories(resolved_nodes, out_dir):
                 except Exception as e:
                     logger.warning(f"  Failed to create symlink for {node.id}: {e}")
 
-    logger.info(
-        f"Pre-created directories and symlinks for {created_count} parameterized nodes"
-    )
+    if not quiet:
+        logger.info(
+            f"Pre-created directories and symlinks for {created_count} parameterized nodes"
+        )
 
 
 def _generate_explicit_snakefile(
@@ -694,6 +810,9 @@ def _generate_explicit_snakefile(
     out_dir: Path,
     nesting_strategy: str = "nested",
     debug_mode: bool = True,
+    cores: int = 4,
+    quiet: bool = False,
+    start_time: float = None,
 ):
     """
     Generate explicit Snakefile during dry-run.
@@ -706,10 +825,19 @@ def _generate_explicit_snakefile(
         benchmark_yaml_path: Path to original benchmark YAML
         out_dir: Output directory
         nesting_strategy: Path nesting strategy - "nested" (default) or "flat"
+        cores: Number of parallel workers for module resolution
+        quiet: If True, use clean progress UI; if False, show verbose INFO logs
+        start_time: Start time for timing (if None, starts now)
     """
-    logger.info("=" * 60)
-    logger.info("GENERATING EXPLICIT SNAKEFILE")
-    logger.info("=" * 60)
+    from omnibenchmark.cli.progress import ProgressDisplay
+    import time
+
+    progress = ProgressDisplay()
+    if start_time is None:
+        start_time = time.time()
+
+    if not quiet:
+        logger.info("\nGenerating explicit Snakefile...")
 
     # Create resolver with work dir relative to output
     work_dir = out_dir / ".repos"
@@ -726,54 +854,160 @@ def _generate_explicit_snakefile(
         benchmark_dir=benchmark_dir,
     )
 
-    logger.info(f"Output directory: {out_dir}")
-    logger.info(f"Module work directory: {work_dir}")
-    logger.info(f"Software backend: {benchmark.model.get_software_backend()}")
+    # Collect all unique modules to resolve
+    unique_modules = {}  # module_id -> (module, software_environment_id)
+    for stage in benchmark.model.stages:
+        for module in stage.modules:
+            if module.id not in unique_modules:
+                unique_modules[module.id] = (module, module.software_environment)
 
-    # Build resolved nodes with clean path logic (no legacy {pre}/{input})
-    logger.info("\nBuilding resolved nodes from benchmark stages...")
+    # Resolve modules in parallel with progress bar
+    if not quiet:
+        logger.info(f"\nResolving {len(unique_modules)} modules...")
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
+
+    resolved_modules_cache = {}
+    resolution_lock = threading.Lock()
+    captured_warnings = []
+
+    def resolve_module_task(module_id, module, software_env_id):
+        """Resolve a single module (runs in parallel)."""
+        import warnings
+        import logging
+
+        # Only suppress logging if in quiet mode (don't touch stdout/stderr as it breaks Rich)
+        if quiet:
+            # Disable all logging by removing all handlers temporarily
+            root_logger = logging.getLogger()
+            old_handlers = root_logger.handlers[:]
+            old_level = root_logger.level
+            root_logger.handlers = []
+            root_logger.setLevel(logging.CRITICAL + 1)
+
+            # Disable all loggers in the omnibenchmark namespace
+            omnibenchmark_logger = logging.getLogger("omnibenchmark")
+            old_omni_level = omnibenchmark_logger.level
+            old_omni_propagate = omnibenchmark_logger.propagate
+            old_omni_handlers = omnibenchmark_logger.handlers[:]
+            omnibenchmark_logger.handlers = []
+            omnibenchmark_logger.setLevel(logging.CRITICAL + 1)
+            omnibenchmark_logger.propagate = False
+
+        # Capture warnings instead of suppressing
+        module_warnings = []
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            if quiet:
+                # Suppress warning display (they're still captured in w)
+                warnings.filterwarnings("ignore")
+
+            try:
+                resolved = resolver.resolve(
+                    module=module,
+                    module_id=module_id,
+                    software_environment_id=software_env_id,
+                    dirty=False,
+                )
+                # Capture any warnings
+                for warning in w:
+                    module_warnings.append((module_id, str(warning.message)))
+
+                return (module_id, resolved, None, module_warnings)
+            except Exception as e:
+                return (module_id, None, str(e), module_warnings)
+            finally:
+                # Restore logging if it was suppressed
+                if quiet:
+                    root_logger.handlers = old_handlers
+                    root_logger.setLevel(old_level)
+                    omnibenchmark_logger.handlers = old_omni_handlers
+                    omnibenchmark_logger.setLevel(old_omni_level)
+                    omnibenchmark_logger.propagate = old_omni_propagate
+
+    if quiet:
+        progress.start_task("Resolving modules", total=len(unique_modules))
+
+    with ThreadPoolExecutor(max_workers=cores) as executor:
+        # Submit all resolution tasks
+        futures = {
+            executor.submit(resolve_module_task, mod_id, mod, env_id): mod_id
+            for mod_id, (mod, env_id) in unique_modules.items()
+        }
+
+        # Process completed tasks
+        for future in as_completed(futures):
+            module_id, resolved, error, module_warnings = future.result()
+
+            # Collect warnings
+            with resolution_lock:
+                captured_warnings.extend(module_warnings)
+
+            if error:
+                if quiet:
+                    progress.error(f"{module_id}: {error}")
+                else:
+                    logger.error(f"Failed to resolve {module_id}: {error}")
+            else:
+                with resolution_lock:
+                    resolved_modules_cache[module_id] = resolved
+
+            if quiet:
+                progress.update(advance=1)
+
+    if quiet:
+        progress.finish()
+
+        if len(resolved_modules_cache) < len(unique_modules):
+            progress.error(
+                f"Failed to resolve {len(unique_modules) - len(resolved_modules_cache)} modules"
+            )
+        else:
+            progress.success(f"Resolved {len(resolved_modules_cache)} modules")
+
+        # Display captured warnings at the end
+        if captured_warnings:
+            progress.console.print()
+            progress.console.print(
+                f"[yellow]⚠ {len(captured_warnings)} warning(s) during resolution:[/yellow]"
+            )
+            for module_id, warning_msg in captured_warnings:
+                progress.console.print(
+                    f"  [yellow]•[/yellow] [dim]{module_id}:[/dim] {warning_msg}"
+                )
+    else:
+        logger.info(
+            f"Successfully resolved {len(resolved_modules_cache)}/{len(unique_modules)} modules"
+        )
+
+    # Build nodes from resolved modules
+    if not quiet:
+        logger.info("\nBuilding execution graph...")
 
     # Collect resolved nodes
     resolved_nodes = []
 
-    # Create a mapping of module_id -> ResolvedModule to avoid re-resolving
-    resolved_modules_cache = {}
-
     # Create a mapping of output_id -> list of (node_id, output_path) for dependency resolution
-    # Each output_id can map to multiple nodes (one per parameter combination)
     output_to_nodes = {}
 
     # Track nodes from previous stage for cartesian product
     previous_stage_nodes = []
 
-    logger.info("\nResolving modules and creating nodes:")
-
     for stage in benchmark.model.stages:
-        logger.info(f"  Stage: {stage.id}")
-
         # Nodes created in this stage (for next stage's cartesian product)
         current_stage_nodes = []
 
         for module in stage.modules:
             module_id = module.id
-            logger.info(f"    Module: {module_id}")
 
             try:
-                # Resolve module (clone + dereference entrypoint)
+                # Get resolved module from cache
                 if module_id not in resolved_modules_cache:
-                    logger.info("      Resolving module...")
-                    resolved_module = resolver.resolve(
-                        module=module,
-                        module_id=module_id,
-                        software_environment_id=module.software_environment,
-                        dirty=False,
-                    )
-                    resolved_modules_cache[module_id] = resolved_module
-                    logger.info(f"        Module dir: {resolved_module.module_dir}")
-                    logger.info(f"        Entrypoint: {resolved_module.entrypoint}")
-                else:
-                    resolved_module = resolved_modules_cache[module_id]
-                    logger.info("      Using cached resolution")
+                    logger.warning(f"      Module {module_id} not in cache, skipping")
+                    continue
+
+                resolved_module = resolved_modules_cache[module_id]
 
                 # Expand parameters
                 if module.parameters:
@@ -794,15 +1028,9 @@ def _generate_explicit_snakefile(
                     node_combinations = list(
                         product(input_node_combinations, params_list)
                     )
-                    logger.info(
-                        f"      Cartesian product: {len(input_node_combinations)} inputs × {len(params_list)} params = {len(node_combinations)} nodes"
-                    )
                 else:
                     # Initial stage: just our parameter combinations
                     node_combinations = [(None, params) for params in params_list]
-                    logger.info(
-                        f"      Initial stage: {len(params_list)} parameter combinations"
-                    )
 
                 # Create a node for each combination
                 for input_node, params in node_combinations:
@@ -976,9 +1204,10 @@ def _generate_explicit_snakefile(
                     resolved_nodes.append(node)
                     current_stage_nodes.append(node)
 
-                logger.info(
-                    f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
-                )
+                if not quiet:
+                    logger.info(
+                        f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
+                    )
 
             except Exception as e:
                 logger.error(f"      Failed to resolve {module_id}: {e}")
@@ -990,11 +1219,13 @@ def _generate_explicit_snakefile(
         # Update previous_stage_nodes for next iteration
         previous_stage_nodes = current_stage_nodes
 
-    # Pre-create parameter directories and symlinks
-    _prepare_parameter_directories(resolved_nodes, out_dir)
+    if not quiet:
+        logger.info(f"Created {len(resolved_nodes)} nodes")
 
-    # Generate Snakefile
-    logger.info(f"\nGenerating Snakefile with {len(resolved_nodes)} nodes")
+    # Pre-create parameter directories and symlinks
+    _prepare_parameter_directories(resolved_nodes, out_dir, quiet=quiet)
+
+    # Generate Snakefile (no status message needed)
 
     snakefile_path = out_dir / "Snakefile"
 
@@ -1011,11 +1242,7 @@ def _generate_explicit_snakefile(
         debug_mode=debug_mode,
     )
 
-    mode_str = "debug (echo)" if debug_mode else "executable"
-    logger.info(f"Snakefile generated ({mode_str}): {snakefile_path}")
-
     # Save metadata
-    logger.info("\nSaving metadata:")
     save_metadata(
         benchmark_yaml_path=benchmark_yaml_path,
         output_dir=out_dir,
@@ -1023,17 +1250,14 @@ def _generate_explicit_snakefile(
         collectors=[],
     )
 
-    logger.info(f"  Benchmark YAML archived: {out_dir}/.metadata/benchmark.yaml")
-    logger.info(f"  Module list saved: {out_dir}/.metadata/modules.txt")
-
-    logger.info("\n" + "=" * 60)
-    logger.info("DRY-RUN COMPLETE")
-    logger.info("=" * 60)
-    logger.info(f"\nOutput directory: {out_dir}")
-    logger.info(f"  - Snakefile: {snakefile_path}")
-    logger.info(f"  - Modules: {work_dir}/")
-    logger.info(f"  - Metadata: {out_dir}/.metadata/")
-    logger.info("\nNext steps:")
-    logger.info(f"  1. Inspect Snakefile: cat {snakefile_path}")
-    logger.info(f"  2. Test with Snakemake: snakemake -s {snakefile_path} --dry-run")
-    logger.info(f"  3. Execute: snakemake -s {snakefile_path} --cores 1")
+    if quiet:
+        # Simple one-line summary with timing
+        elapsed = time.time() - start_time
+        progress.success(
+            f"Generated {len(resolved_nodes)} rules in {elapsed:.1f}s in {snakefile_path}"
+        )
+    else:
+        logger.info(f"\nSnakefile generation complete: {snakefile_path}")
+        logger.info(f"  Benchmark: {benchmark.model.get_name()}")
+        logger.info(f"  Modules: {len(resolved_modules_cache)}")
+        logger.info(f"  Nodes: {len(resolved_nodes)}")
