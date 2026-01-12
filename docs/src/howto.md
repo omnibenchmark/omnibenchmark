@@ -282,6 +282,56 @@ The `--for-stage` option automatically:
 - Reads input/output requirements from the specified stage
 - Generates CLI argument parsing code
 - Creates appropriate file I/O boilerplate
+- **Generates a YAML snippet** to add to your benchmark (when the benchmark is a local file)
+
+#### YAML snippet generation
+
+When you create a module with `--benchmark` pointing to a **local YAML file** (not a URL), a ready-to-use YAML snippet is generated:
+
+```bash
+ob create module ./modules/my_clustering \
+  --benchmark ./benchmark.yaml \
+  --for-stage methods \
+  --name "My Clustering Method" \
+  --author-name "Your Name" \
+  --author-email "you@example.com" \
+  --non-interactive
+```
+
+This displays a snippet like:
+
+```
+======================================================================
+Add this module to your benchmark YAML:
+======================================================================
+File: ./benchmark.yaml
+Stage: methods
+
+Add the following under the 'modules:' section of the 'methods' stage:
+
+  - id: my-clustering-module
+    name: My Clustering Module
+    software_environment: python_env
+    repository:
+      url: ./modules/my_clustering
+      commit: ""
+======================================================================
+```
+
+**Smart field selection:**
+- The `id` and `name` fields are read from the values you entered in the copier wizard (extracted from the created `CITATION.cff`)
+- The `software_environment` field is intelligently selected:
+- If all existing modules in the stage use the same environment, that's used
+- If the stage is empty, the first available environment is used
+- If multiple environments are in use, you'll be prompted to choose (or warned in non-interactive mode)
+
+**Next steps:**
+1. Copy the snippet and add it to your `benchmark.yaml`
+2. Implement your module logic
+3. Commit your module code to git
+4. Update the `commit` field with the actual commit hash
+
+**Note:** Snippet generation only works for local benchmark files. If `--benchmark` is a URL, the module is created without a snippet.
 
 Example for a methods stage with inputs from data stage:
 
