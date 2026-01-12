@@ -2,10 +2,14 @@
 
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import click
 import copier
 import git
+import questionary
+import yaml
 
 from omnibenchmark import __version__
 from omnibenchmark.cli.utils.logging import logger
@@ -322,10 +326,198 @@ def _extract_stage_inputs(
         return None
 
 
-def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
+def _is_local_path(path_or_url: str) -> bool:
+    """Check if a path is a local file path (not a URL)."""
+    try:
+        parsed = urlparse(path_or_url)
+        # If there's no scheme or scheme is a drive letter (Windows), it's a local path
+        return not parsed.scheme or len(parsed.scheme) <= 1
+    except Exception:
+        return True
+
+
+def _infer_software_environment(
+    stage_modules: List[Dict[str, Any]],
+    available_envs: List[str],
+    non_interactive: bool = False,
+) -> Optional[str]:
+    """
+    Infer the software environment from existing modules in a stage.
+
+    Returns:
+        The software environment to use, or None if it couldn't be determined
+    """
+    if not stage_modules:
+        # Empty stage - use first available or ask
+        if available_envs:
+            return available_envs[0] if len(available_envs) == 1 else None
+        return "host"
+
+    # Collect environments from existing modules
+    envs = set()
+    for mod in stage_modules:
+        if isinstance(mod, dict) and "software_environment" in mod:
+            envs.add(mod["software_environment"])
+
+    if len(envs) == 1:
+        return list(envs)[0]
+    elif len(envs) == 0:
+        return available_envs[0] if available_envs else "host"
+    else:
+        # Multiple environments in use
+        if non_interactive:
+            logger.warning(f"Multiple software environments in use: {envs}")
+            logger.warning(f"Defaulting to '{list(envs)[0]}' - please update if needed")
+            return list(envs)[0]
+        else:
+            return None  # Signal to prompt user
+
+
+def _generate_module_yaml_snippet(
+    benchmark_path: Path,
+    stage_id: str,
+    module_path: Path,
+    module_name: str,
+    module_id: Optional[str] = None,
+    non_interactive: bool = False,
+) -> Optional[str]:
+    """
+    Generate a YAML snippet for a new module to be manually added to benchmark.
+
+    Args:
+        benchmark_path: Path to the benchmark YAML file
+        stage_id: ID of the stage to add the module to
+        module_path: Path to the newly created module directory
+        module_name: Name of the module (display name)
+        module_id: ID for the module (if None, generated from module_name)
+        non_interactive: Whether to run in non-interactive mode
+
+    Returns:
+        YAML snippet as a string, or None if failed
+    """
+    try:
+        with open(benchmark_path, "r") as f:
+            benchmark_data = yaml.safe_load(f)
+
+        if not isinstance(benchmark_data, dict):
+            logger.error("Invalid benchmark YAML structure")
+            return None
+
+        # Find the target stage
+        stages = benchmark_data.get("stages", [])
+        target_stage = None
+
+        for stage in stages:
+            if isinstance(stage, dict) and stage.get("id") == stage_id:
+                target_stage = stage
+                break
+
+        if target_stage is None:
+            logger.error(f"Stage '{stage_id}' not found in benchmark")
+            return None
+
+        # Get existing modules
+        stage_modules = target_stage.get("modules", [])
+
+        # Get available software environments
+        available_envs = []
+        if "software_environments" in benchmark_data:
+            for env in benchmark_data["software_environments"]:
+                if isinstance(env, dict) and "id" in env:
+                    available_envs.append(env["id"])
+
+        # Infer software environment from stage modules
+        software_env = _infer_software_environment(
+            stage_modules,
+            available_envs,
+            non_interactive,
+        )
+
+        if software_env is None:
+            # Need to prompt user
+            existing_envs = list(
+                set(
+                    m.get("software_environment")
+                    for m in stage_modules
+                    if isinstance(m, dict)
+                )
+            )
+            logger.info(
+                f"Multiple software environments in use in stage '{stage_id}': {existing_envs}"
+            )
+
+            if available_envs:
+                # Filter out 'host' from the choices
+                selectable_envs = [env for env in available_envs if env != "host"]
+                if selectable_envs:
+                    software_env = questionary.select(
+                        "Select software environment:",
+                        choices=selectable_envs,
+                        default=selectable_envs[0],
+                    ).ask()
+                else:
+                    # All environments are 'host', just use it
+                    software_env = "host"
+            else:
+                # No environments available, let user enter manually
+                software_env = questionary.text(
+                    "Enter software environment:",
+                ).ask()
+
+        # Compute relative path from benchmark to module if possible
+        try:
+            benchmark_dir = benchmark_path.parent.resolve()
+            module_abs = module_path.resolve()
+
+            try:
+                relative_path = module_abs.relative_to(benchmark_dir)
+                repo_url = str(relative_path)
+            except ValueError:
+                repo_url = str(module_abs)
+        except Exception:
+            repo_url = str(module_path)
+
+        # Create the module entry
+        # Use provided module_id or generate from module_name
+        if module_id is None:
+            module_id = module_name.replace(" ", "_").replace("-", "_").lower()
+
+        module_entry = {
+            "id": module_id,
+            "name": module_name,
+            "software_environment": software_env,
+            "repository": {
+                "url": repo_url,
+                "commit": "",
+            },
+        }
+
+        # Generate YAML snippet with proper indentation
+        # Standard format: 2 spaces for list items, 2 more for nested content
+        snippet_lines = []
+        snippet_lines.append(f"  - id: {module_entry['id']}")
+        snippet_lines.append(f"    name: {module_entry['name']}")
+        snippet_lines.append(
+            f"    software_environment: {module_entry['software_environment']}"
+        )
+        snippet_lines.append("    repository:")
+        snippet_lines.append(f"      url: {module_entry['repository']['url']}")
+        snippet_lines.append(
+            f"      commit: \"{module_entry['repository']['commit']}\""
+        )
+
+        snippet = "\n".join(snippet_lines)
+        return snippet
+
+    except Exception as e:
+        logger.error(f"Failed to generate module snippet: {e}")
+        return None
+
+
+def _log_success_and_next_steps(target_path: Path, entity_type: str):
     """Log success message and next steps."""
     logger.info(
-        f"{project_type.title()} scaffolding created successfully with OmniBenchmark v{__version__}"
+        f"{entity_type.title()} scaffolding created successfully with OmniBenchmark v{__version__}"
     )
     logger.info("Next steps:")
 
@@ -339,7 +531,7 @@ def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
         logger.info(f"  {step_num}. cd {target_path}")
         step_num += 1
 
-    if project_type == "benchmark":
+    if entity_type == "benchmark":
         logger.info(f"  {step_num}. Review and customize the benchmark configuration")
         logger.info(f"  {step_num + 1}. Add your benchmark modules")
         logger.info(
@@ -349,9 +541,8 @@ def _log_success_and_next_steps(target_path: Path, project_type: str) -> None:
         logger.info(
             f"  {step_num}. Implement your module logic in the entrypoint script"
         )
-        logger.info(f"  {step_num + 1}. Update documentation and tests")
         logger.info(
-            f"  {step_num + 2}. Run 'ob validate module' to check your configuration"
+            f"  {step_num + 1}. Run 'ob validate module' to check your configuration"
         )
 
 
@@ -848,23 +1039,76 @@ def create_module(
         if entrypoint_name == "run.sh":
             _make_file_executable(target_path / "src" / "main.sh")
 
-        # Read module name from the created file for commit message
+        # Read module name and title from the created CITATION.cff file
+        # This ensures we use the actual values from the copier wizard
         module_name_for_commit = name or "module"  # fallback
-        if not name:
-            omnibenchmark_yaml = target_path / "omnibenchmark.yaml"
-            if omnibenchmark_yaml.exists():
-                try:
-                    import yaml
+        module_id_for_yaml = None
+        module_title_for_yaml = None
 
-                    with open(omnibenchmark_yaml, "r") as f:
-                        config = yaml.safe_load(f)
-                        if config and "module" in config and "name" in config["module"]:
-                            module_name_for_commit = config["module"]["name"]
-                except Exception:
-                    pass  # Fall back to default name
+        citation_file = target_path / "CITATION.cff"
+        if citation_file.exists():
+            try:
+                with open(citation_file, "r") as f:
+                    citation_data = yaml.safe_load(f)
+                    if citation_data:
+                        # Get module title from CITATION.cff
+                        if "title" in citation_data:
+                            module_title_for_yaml = citation_data["title"]
+                            module_name_for_commit = module_title_for_yaml
+                        # Get module name/id from repository-code URL
+                        if "repository-code" in citation_data:
+                            repo_url = citation_data["repository-code"]
+                            # Extract last part of URL as module name
+                            module_id_for_yaml = repo_url.rstrip("/").split("/")[-1]
+            except Exception:
+                pass  # Fall back to defaults
 
         # Initialize git repository and create initial commit
         _initialize_git_repo(target_path, module_name_for_commit, "module")
+
+        # If benchmark was provided and is a local file, show snippet to add
+        if benchmark and for_stage:
+            if _is_local_path(benchmark):
+                benchmark_path = Path(benchmark)
+                if benchmark_path.exists() and benchmark_path.is_file():
+                    logger.info(
+                        f"\nGenerating module YAML snippet for: {benchmark_path}"
+                    )
+
+                    # Use the module title from CITATION.cff, or fall back to commit name
+                    module_display_name = (
+                        module_title_for_yaml or module_name_for_commit
+                    )
+
+                    snippet = _generate_module_yaml_snippet(
+                        benchmark_path=benchmark_path,
+                        stage_id=for_stage,
+                        module_path=target_path,
+                        module_name=module_display_name,
+                        module_id=module_id_for_yaml,
+                        non_interactive=non_interactive,
+                    )
+
+                    if snippet:
+                        logger.info(
+                            f"\n"
+                            f"Add this module to your benchmark YAML:\n"
+                            f"\n"
+                            f"File: {benchmark_path}\n"
+                            f"Stage: {for_stage}\n"
+                            f"\nAdd the following under the 'modules:' section of the '{for_stage}' stage:\n\n"
+                            f"{snippet}\n"
+                            f"\n"
+                            f"Next steps for the benchmark plan:\n"
+                            f"  1. Copy the snippet above and add it to {benchmark_path}\n"
+                            f"  2. Edit, publish repo, and commit when ready\n"
+                        )
+                else:
+                    logger.warning(
+                        f"Benchmark path does not exist or is not a file: {benchmark}"
+                    )
+            else:
+                logger.info("Benchmark is a URL, cannot generate local snippet")
 
         # Log success and next steps
         _log_success_and_next_steps(target_path, "module")
