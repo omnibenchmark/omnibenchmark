@@ -10,12 +10,17 @@ import click
 import humanfriendly
 from pydantic import ValidationError as PydanticValidationError
 
+from omnibenchmark.backend.resolver import ModuleResolver
+from omnibenchmark.backend.snakemake_gen import SnakemakeGenerator, save_metadata
 from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.benchmark.params import Params
+from omnibenchmark.benchmark.symlinks import SymlinkManager
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.config import get_git_cache_dir
 from omnibenchmark.git import get_or_update_cached_repo
+from omnibenchmark.model.resolved import ResolvedNode
 from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.remote.storage import (
     get_storage_from_benchmark,
@@ -120,6 +125,11 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=None,
     type=str,
 )
+@click.option(
+    "--only-snakefile",
+    is_flag=True,
+    help="Generate executable Snakefile without running it (requires --dry). Produces runnable workflow for manual execution.",
+)
 @click.pass_context
 def run(
     ctx,
@@ -136,6 +146,7 @@ def run(
     task_timeout,
     executor,
     out_dir,
+    only_snakefile,
 ):
     """Run a benchmark or a specific module.
 
@@ -152,6 +163,12 @@ def run(
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
+
+    # Validate flag combinations
+    if only_snakefile and not dry:
+        raise click.UsageError(
+            "--only-snakefile requires --dry flag (used to generate Snakefile without execution)"
+        )
 
     # Parse timeout
     if task_timeout is None:
@@ -199,6 +216,7 @@ def run(
             out_dir=out_dir,
             debug=debug,
             extra_args=extra_args,
+            only_snakefile=only_snakefile,
         )
 
 
@@ -216,11 +234,13 @@ def _run_benchmark(
     out_dir,
     debug,
     extra_args,
+    only_snakefile,
 ):
     """Run a full benchmark."""
     try:
         out_dir = out_dir if out_dir else "out"
-        b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
+        benchmark_path_abs = Path(benchmark_path).resolve()
+        b = BenchmarkExecution(benchmark_path_abs, Path(out_dir))
         logger.info("Benchmark YAML file integrity check passed.")
     except PydanticValidationError as e:
         # Handle Pydantic validation errors with detailed field information
@@ -238,18 +258,39 @@ def _run_benchmark(
         return
     assert b is not None
 
-    # NEW EXECUTION PATH: Populate git cache during dry-run
-    # This prepares the new two-tier caching system (cache + work dirs)
-    # Eventually this will replace the old clone_module() approach
+    # NEW EXECUTION PATH: Generate explicit Snakefile during dry-run
+    # This does:
+    # 1. Populate git cache (fetch all repos)
+    # 2. Clone modules to work directory (out/.repos/)
+    # 3. Dereference entrypoints
+    # 4. Generate explicit Snakefile
+    # 5. Save metadata
     if dry:
         _populate_git_cache(b)
+        _generate_explicit_snakefile(
+            benchmark=b,
+            benchmark_yaml_path=benchmark_path_abs,
+            out_dir=Path(out_dir),
+            debug_mode=not only_snakefile,  # If --only-snakefile, generate executable; otherwise debug
+        )
 
-    # it is as --continue_on_error originally
-    if continue_on_error and not yes:
+        # If --only-snakefile, exit without running
+        if only_snakefile:
+            logger.info("\nExecutable Snakefile generation complete. Exiting.")
+            logger.info(
+                f"To execute: cd {out_dir} && snakemake --use-conda --cores <N>"
+            )
+            sys.exit(0)
+
+        # Otherwise continue to run the generated debug Snakefile
+        logger.info("\nDebug Snakefile generated. Now executing...")
+
+    # Validation for interactive flags
+    if continue_on_error and not yes and not dry:
         msg = "run the full benchmark even if some jobs fail"
         abort_if_user_does_not_confirm(msg, logger)
 
-    if update and not dry and not yes:
+    if update and not yes and not dry:
         msg = "re-run the entire workflow"
         abort_if_user_does_not_confirm(msg, logger)
 
@@ -589,3 +630,410 @@ def _populate_git_cache(benchmark: BenchmarkExecution):
         logger.warning(f"Failed to cache {len(failed)} repositories:")
         for repo_url, error in failed:
             logger.warning(f"  {repo_url}: {error}")
+
+
+def _prepare_parameter_directories(resolved_nodes, out_dir):
+    """
+    Pre-create parameter directories and human-readable symlinks.
+
+    For each parameterized node, this:
+    1. Creates the .{hash} directory for content-addressable storage
+    2. Creates a human-readable symlink pointing to the .{hash} directory
+    3. Writes parameters.json inside the .{hash} directory
+
+    Args:
+        resolved_nodes: List of ResolvedNode instances
+        out_dir: Output directory base path
+    """
+    logger.info("\nPre-creating parameter directories and symlinks:")
+
+    created_count = 0
+    for node in resolved_nodes:
+        if node.parameters:
+            # Determine base directory for this node's parameter directory
+            # The node's param_id (like .515ef2c0) tells us which hash directory is ours
+            # We need to find where in the output path our param_id appears
+            if node.outputs:
+                output_path = Path(node.outputs[0])
+                parts = output_path.parts
+
+                # Find our param_id in the path
+                param_id = node.param_id  # e.g., ".515ef2c0"
+                try:
+                    param_idx = parts.index(param_id)
+                    # Base directory is everything before our param_id
+                    base_dir = out_dir / Path(*parts[:param_idx])
+                except ValueError:
+                    # param_id not found in path - this shouldn't happen
+                    logger.warning(
+                        f"  Could not find param_id {param_id} in output path {output_path}"
+                    )
+                    continue
+
+                # Create symlink manager for this base directory
+                manager = SymlinkManager(base_dir=base_dir)
+
+                # Store parameters (creates .hash dir and human-readable symlink)
+                try:
+                    symlink_info = manager.store(node.parameters)
+                    logger.debug(
+                        f"  {node.stage_id}/{node.module_id}: {symlink_info['human']} -> {symlink_info['folder']}"
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.warning(f"  Failed to create symlink for {node.id}: {e}")
+
+    logger.info(
+        f"Pre-created directories and symlinks for {created_count} parameterized nodes"
+    )
+
+
+def _generate_explicit_snakefile(
+    benchmark: BenchmarkExecution,
+    benchmark_yaml_path: Path,
+    out_dir: Path,
+    nesting_strategy: str = "nested",
+    debug_mode: bool = True,
+):
+    """
+    Generate explicit Snakefile during dry-run.
+
+    This resolves all modules, dereferences entrypoints, and generates
+    a human-readable Snakefile with shell: directives.
+
+    Args:
+        benchmark: BenchmarkExecution instance
+        benchmark_yaml_path: Path to original benchmark YAML
+        out_dir: Output directory
+        nesting_strategy: Path nesting strategy - "nested" (default) or "flat"
+    """
+    logger.info("=" * 60)
+    logger.info("GENERATING EXPLICIT SNAKEFILE")
+    logger.info("=" * 60)
+
+    # Create resolver with work dir relative to output
+    work_dir = out_dir / ".repos"
+
+    # Get benchmark directory (where benchmark.yaml lives)
+    benchmark_dir = benchmark_yaml_path.parent
+
+    # Initialize resolver with software environment information
+    resolver = ModuleResolver(
+        work_base_dir=work_dir,
+        output_dir=out_dir,
+        software_backend=benchmark.model.get_software_backend(),
+        software_environments=benchmark.model.get_software_environments(),
+        benchmark_dir=benchmark_dir,
+    )
+
+    logger.info(f"Output directory: {out_dir}")
+    logger.info(f"Module work directory: {work_dir}")
+    logger.info(f"Software backend: {benchmark.model.get_software_backend()}")
+
+    # Build resolved nodes with clean path logic (no legacy {pre}/{input})
+    logger.info("\nBuilding resolved nodes from benchmark stages...")
+
+    # Collect resolved nodes
+    resolved_nodes = []
+
+    # Create a mapping of module_id -> ResolvedModule to avoid re-resolving
+    resolved_modules_cache = {}
+
+    # Create a mapping of output_id -> list of (node_id, output_path) for dependency resolution
+    # Each output_id can map to multiple nodes (one per parameter combination)
+    output_to_nodes = {}
+
+    # Track nodes from previous stage for cartesian product
+    previous_stage_nodes = []
+
+    logger.info("\nResolving modules and creating nodes:")
+
+    for stage in benchmark.model.stages:
+        logger.info(f"  Stage: {stage.id}")
+
+        # Nodes created in this stage (for next stage's cartesian product)
+        current_stage_nodes = []
+
+        for module in stage.modules:
+            module_id = module.id
+            logger.info(f"    Module: {module_id}")
+
+            try:
+                # Resolve module (clone + dereference entrypoint)
+                if module_id not in resolved_modules_cache:
+                    logger.info("      Resolving module...")
+                    resolved_module = resolver.resolve(
+                        module=module,
+                        module_id=module_id,
+                        software_environment_id=module.software_environment,
+                        dirty=False,
+                    )
+                    resolved_modules_cache[module_id] = resolved_module
+                    logger.info(f"        Module dir: {resolved_module.module_dir}")
+                    logger.info(f"        Entrypoint: {resolved_module.entrypoint}")
+                else:
+                    resolved_module = resolved_modules_cache[module_id]
+                    logger.info("      Using cached resolution")
+
+                # Expand parameters
+                if module.parameters:
+                    params_list = []
+                    for param in module.parameters:
+                        params_list.extend(Params.expand_from_parameter(param))
+                else:
+                    params_list = [None]
+
+                # Get input combinations from previous stage
+                # If this stage has inputs, create cartesian product with previous stage nodes
+                # If no inputs (initial stage), just iterate over our own parameters
+                if stage.inputs and previous_stage_nodes:
+                    # Cartesian product: each previous node × each param combination
+                    from itertools import product
+
+                    input_node_combinations = previous_stage_nodes
+                    node_combinations = list(
+                        product(input_node_combinations, params_list)
+                    )
+                    logger.info(
+                        f"      Cartesian product: {len(input_node_combinations)} inputs × {len(params_list)} params = {len(node_combinations)} nodes"
+                    )
+                else:
+                    # Initial stage: just our parameter combinations
+                    node_combinations = [(None, params) for params in params_list]
+                    logger.info(
+                        f"      Initial stage: {len(params_list)} parameter combinations"
+                    )
+
+                # Create a node for each combination
+                for input_node, params in node_combinations:
+                    # Check if this combination should be excluded
+                    if input_node and module.exclude:
+                        # Check if input node's module is in the exclude list
+                        if input_node.module_id in module.exclude:
+                            logger.debug(
+                                f"      Excluding combination: {input_node.module_id} → {module_id}"
+                            )
+                            continue
+
+                    param_id = f".{params.hash_short()}" if params else ".default"
+
+                    # Build node ID
+                    if input_node:
+                        # Include input node ID in our ID for uniqueness
+                        node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"
+                    else:
+                        node_id = f"{stage.id}-{module_id}{param_id}"
+
+                    # Resolve inputs from the input_node
+                    inputs = {}
+                    input_name_mapping = {}  # Map sanitized -> original names
+                    base_path = None
+
+                    if input_node:
+                        # Build a mapping of output_id -> output_path for this node and its ancestors
+                        # This allows us to resolve inputs from any stage in the DAG
+                        output_id_to_path = {}
+
+                        # Helper to extract output_id from output path
+                        def get_output_ids_for_node(node):
+                            """Get output_id -> path mapping for a node by matching against stage outputs."""
+                            result = {}
+                            # Find the stage this node belongs to
+                            for s in benchmark.model.stages:
+                                if s.id == node.stage_id:
+                                    # Match node's output paths to stage's output specs
+                                    for output_spec in s.outputs:
+                                        for output_path in node.outputs:
+                                            # Check if this output_path matches the output_spec pattern
+                                            # We can check if the spec's path template appears in the output_path
+                                            # For now, use a simple index-based mapping
+                                            if s.outputs.index(output_spec) < len(
+                                                node.outputs
+                                            ):
+                                                result[output_spec.id] = node.outputs[
+                                                    s.outputs.index(output_spec)
+                                                ]
+                            return result
+
+                        # Collect outputs from input_node
+                        output_id_to_path.update(get_output_ids_for_node(input_node))
+
+                        # Traverse back through the lineage to collect ancestor outputs
+                        # Extract the lineage by parsing the node_id which contains parent IDs
+                        # For a node like "data_clustbench_46bb23e0_clustering_fastcluster_...",
+                        # the lineage is encoded in the ID prefix
+                        def get_ancestor_nodes(node):
+                            """Get all ancestor nodes by tracing back through the lineage."""
+                            ancestors = []
+                            # Parse node ID to find parent nodes
+                            # Node IDs are like: parent_id + "-" + stage_id + "-" + module_id + param_id
+                            # We need to find all nodes whose ID is a prefix of this node's ID
+                            for prev_node in resolved_nodes:
+                                if node.id.startswith(prev_node.id + "-"):
+                                    ancestors.append(prev_node)
+                                    # Recursively get ancestors of this ancestor
+                                    ancestors.extend(get_ancestor_nodes(prev_node))
+                            return ancestors
+
+                        # Collect outputs from all ancestors
+                        for ancestor in get_ancestor_nodes(input_node):
+                            output_id_to_path.update(get_output_ids_for_node(ancestor))
+
+                        # Now map stage inputs to actual paths using output_id
+                        if stage.inputs:
+                            for input_collection in stage.inputs:
+                                for input_id in input_collection.entries:
+                                    # input_id is something like "data.true_labels" or "clustering.predicted_ks_range"
+                                    # Try to find a matching output_id
+                                    if input_id in output_id_to_path:
+                                        sanitized_id = input_id.replace(".", "_")
+                                        inputs[sanitized_id] = output_id_to_path[
+                                            input_id
+                                        ]
+                                        input_name_mapping[sanitized_id] = input_id
+                                    else:
+                                        logger.warning(
+                                            f"      Could not resolve input {input_id} for node {node_id}"
+                                        )
+
+                        # Use the first input's directory as base for nesting
+                        if inputs:
+                            from pathlib import Path as PathLib
+
+                            first_input = next(iter(inputs.values()))
+                            base_path = str(PathLib(first_input).parent)
+
+                    # Build output paths based on nesting strategy
+                    outputs = []
+                    for output_spec in stage.outputs:
+                        # Get the output path template
+                        output_path_template = output_spec.path
+
+                        # For entrypoint nodes (no inputs), replace {dataset} with module_id
+                        # For subsequent nodes, keep {dataset} as wildcard to be resolved by Snakemake
+                        if not inputs:
+                            # This is an entrypoint node - replace {dataset} with module_id
+                            output_path_template = output_path_template.replace(
+                                "{dataset}", module_id
+                            )
+
+                        if nesting_strategy == "nested":
+                            # Nested strategy: dependent stages nest under their input directories
+                            if base_path:
+                                # Has inputs: nest under input directory
+                                output_path = f"{base_path}/{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                            else:
+                                # Initial stage: stage/module/param/filename
+                                output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                        elif nesting_strategy == "flat":
+                            # Flat strategy: all stages at same level (stage/module/param/filename)
+                            output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                        else:
+                            raise ValueError(
+                                f"Unknown nesting strategy: {nesting_strategy}"
+                            )
+
+                        outputs.append(output_path)
+                        # Map output_id to this node for dependency resolution
+                        if output_spec.id not in output_to_nodes:
+                            output_to_nodes[output_spec.id] = []
+                        output_to_nodes[output_spec.id].append((node_id, output_path))
+
+                    # Determine dataset value
+                    # For entrypoint nodes (no inputs), use module_id as dataset
+                    # For subsequent nodes, propagate from input_node if available
+                    if not inputs:
+                        # Entrypoint node - dataset is the module_id
+                        dataset_value = module_id
+                    elif (
+                        input_node
+                        and hasattr(input_node, "dataset")
+                        and input_node.dataset
+                    ):
+                        # Propagate dataset from input node
+                        dataset_value = input_node.dataset
+                    else:
+                        # Fallback - keep as wildcard (None means use {dataset})
+                        dataset_value = None
+
+                    # Create ResolvedNode
+                    node = ResolvedNode(
+                        id=node_id,
+                        stage_id=stage.id,
+                        module_id=module_id,
+                        param_id=param_id,
+                        module=resolved_module,
+                        parameters=params,
+                        inputs=inputs,
+                        outputs=outputs,
+                        dataset=dataset_value,
+                        input_name_mapping=input_name_mapping,
+                        benchmark_name=benchmark.model.get_name(),
+                        benchmark_version=benchmark.model.get_version(),
+                        benchmark_author=benchmark.model.get_author(),
+                    )
+
+                    resolved_nodes.append(node)
+                    current_stage_nodes.append(node)
+
+                logger.info(
+                    f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
+                )
+
+            except Exception as e:
+                logger.error(f"      Failed to resolve {module_id}: {e}")
+                import traceback
+
+                if logger.level <= 10:  # DEBUG level
+                    traceback.print_exc()
+
+        # Update previous_stage_nodes for next iteration
+        previous_stage_nodes = current_stage_nodes
+
+    # Pre-create parameter directories and symlinks
+    _prepare_parameter_directories(resolved_nodes, out_dir)
+
+    # Generate Snakefile
+    logger.info(f"\nGenerating Snakefile with {len(resolved_nodes)} nodes")
+
+    snakefile_path = out_dir / "Snakefile"
+
+    generator = SnakemakeGenerator(
+        benchmark_name=benchmark.model.get_name(),
+        benchmark_version=benchmark.model.get_version(),
+        benchmark_author=benchmark.model.get_author(),
+    )
+
+    generator.generate_snakefile(
+        nodes=resolved_nodes,
+        collectors=[],  # TODO: Add metric collectors
+        output_path=snakefile_path,
+        debug_mode=debug_mode,
+    )
+
+    mode_str = "debug (echo)" if debug_mode else "executable"
+    logger.info(f"Snakefile generated ({mode_str}): {snakefile_path}")
+
+    # Save metadata
+    logger.info("\nSaving metadata:")
+    save_metadata(
+        benchmark_yaml_path=benchmark_yaml_path,
+        output_dir=out_dir,
+        nodes=resolved_nodes,
+        collectors=[],
+    )
+
+    logger.info(f"  Benchmark YAML archived: {out_dir}/.metadata/benchmark.yaml")
+    logger.info(f"  Module list saved: {out_dir}/.metadata/modules.txt")
+
+    logger.info("\n" + "=" * 60)
+    logger.info("DRY-RUN COMPLETE")
+    logger.info("=" * 60)
+    logger.info(f"\nOutput directory: {out_dir}")
+    logger.info(f"  - Snakefile: {snakefile_path}")
+    logger.info(f"  - Modules: {work_dir}/")
+    logger.info(f"  - Metadata: {out_dir}/.metadata/")
+    logger.info("\nNext steps:")
+    logger.info(f"  1. Inspect Snakefile: cat {snakefile_path}")
+    logger.info(f"  2. Test with Snakemake: snakemake -s {snakefile_path} --dry-run")
+    logger.info(f"  3. Execute: snakemake -s {snakefile_path} --cores 1")

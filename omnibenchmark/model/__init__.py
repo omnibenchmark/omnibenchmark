@@ -39,6 +39,11 @@ from omnibenchmark.model.module import (
     DerivedSoftware,
     ModuleMetadata,
 )
+from omnibenchmark.model.resolved import (
+    ResolvedModule,
+    ResolvedNode,
+    ResolvedMetricCollector,
+)
 
 __all__ = [
     # Base classes
@@ -68,6 +73,10 @@ __all__ = [
     # Module metadata
     "DerivedSoftware",
     "ModuleMetadata",
+    # Resolved entities
+    "ResolvedModule",
+    "ResolvedNode",
+    "ResolvedMetricCollector",
     # Utility functions
     "expand_output_path",
     "validate_non_empty_string",

@@ -1,0 +1,50 @@
+id: ApptainerBackendTest
+description: Test benchmark for apptainer environment resolution
+version: "1.0"
+benchmarker: "Test Suite"
+software_backend: apptainer
+
+software_environments:
+  - id: remote_image
+    description: "Remote apptainer image from registry"
+    apptainer: docker://ubuntu:22.04
+  
+  - id: oras_image
+    description: "ORAS protocol image"
+    apptainer: oras://ghcr.io/apptainer/alpine:latest
+  
+  - id: local_image
+    description: "Local SIF file"
+    apptainer: containers/myimage.sif
+
+stages:
+  - id: data
+    modules:
+      - id: loader_remote
+        name: "Data loader with remote image"
+        software_environment: "remote_image"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: processing
+    modules:
+      - id: processor_local
+        name: "Data processor with local SIF"
+        software_environment: "local_image"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input*2"
+            input: "data.raw"
+    inputs:
+      - data.raw
+    outputs:
+      - id: processed.result
+        path: "{dataset}_processed.json"

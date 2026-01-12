@@ -7,7 +7,7 @@ This module provides the compilation pipeline for benchmark execution:
 - Execution backends (Snakemake, etc.)
 """
 
-from .resolver import ModuleResolver, ResolvedModule
+from .resolver import ModuleResolver
 from .cache import ModuleCache
 
-__all__ = ["ModuleResolver", "ResolvedModule", "ModuleCache"]
+__all__ = ["ModuleResolver", "ModuleCache"]
