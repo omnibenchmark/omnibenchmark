@@ -1,3 +1,23 @@
+"""
+LEGACY GIT CLONING MODULE - SCHEDULED FOR REMOVAL
+
+This module contains the old git cloning implementation using GitPython.
+It is being replaced by the new cache-based system in omnibenchmark/git/cache.py.
+
+Key differences from new system:
+- Location: .omnibenchmark/git/{hash}/ (per-commit) vs ~/.cache/omnibenchmark/git/{host}/{org}/{repo}/ (per-repo)
+- Library: GitPython (full implementation) vs dulwich (porcelain only)
+- Strategy: One clone per commit vs full clone + lightweight checkouts
+- Locking: Application-level FileLock vs git's internal locking
+
+Migration status:
+- Still used by: omnibenchmark/workflow/snakemake/scripts/run_module.py
+- Will be deprecated after: Phase 2 of refactor (module execution migration)
+- Target removal: After all callers migrated to cache.py system
+
+See: docs/GIT_CACHE_MIGRATION.md for full migration plan
+"""
+
 import logging
 import re
 from typing import Optional

@@ -4,6 +4,7 @@ import click
 
 from omnibenchmark import __version__
 from omnibenchmark.cli.archive import archive
+from omnibenchmark.cli.cache import cache
 from omnibenchmark.cli.cite import cite
 from omnibenchmark.cli.create import create
 from omnibenchmark.cli.dashboard import dashboard
@@ -68,6 +69,7 @@ def cli(ctx):
 
 
 # Add subcommands to the CLI
+cli.add_command(add_debug_option(cache))
 cli.add_command(add_debug_option(cite))
 cli.add_command(add_debug_option(create))
 cli.add_command(add_debug_option(describe))

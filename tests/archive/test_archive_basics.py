@@ -193,7 +193,7 @@ def test_prepare_archive_code_handles_clone_failures():
     mock_node.get_repository.return_value = mock_repo
     mock_benchmark.get_nodes.return_value = [mock_node]
 
-    with patch("omnibenchmark.git.clone.clone_module") as mock_clone:
+    with patch("omnibenchmark.git.clone_legacy.clone_module") as mock_clone:
         # Simulate clone failure
         mock_clone.side_effect = Exception("Clone failed")
 

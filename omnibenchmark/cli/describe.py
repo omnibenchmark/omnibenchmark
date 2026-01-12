@@ -25,6 +25,74 @@ def describe(ctx):
 
 
 @add_debug_option
+@describe.command("cache")
+@click.option(
+    "--fetch",
+    is_flag=True,
+    help="Fetch updates from remote repositories to check for newer versions.",
+    default=False,
+)
+@click.option(
+    "--benchmark",
+    "-b",
+    type=click.Path(exists=True),
+    help="Path to benchmark yaml file to show only repos used in this benchmark.",
+    envvar="OB_BENCHMARK",
+)
+@click.pass_context
+def cache_status(ctx, fetch: bool, benchmark: str = None):
+    """Show the status of cached git repositories.
+
+    Displays all cached repositories, their current HEAD commit, and optionally
+    checks for updates from remote repositories.
+    """
+    from omnibenchmark.git.cache import describe_cache
+    from omnibenchmark.config import get_git_cache_dir
+
+    cache_dir = get_git_cache_dir()
+
+    # If benchmark is provided, filter to only repos used in that benchmark
+    repos_filter = None
+    if benchmark:
+        b = BenchmarkExecution(benchmark_yaml=Path(benchmark))
+        # Extract repository URLs from modules
+        repos_filter = set()
+        for stage in b.model.stages:
+            for module in stage.modules:
+                if hasattr(module, "repository") and module.repository:
+                    repos_filter.add(module.repository.url)
+
+    status = describe_cache(cache_dir, fetch=fetch, repos_filter=repos_filter)
+
+    if not status:
+        logger.info("No cached repositories found.")
+        sys.exit(0)
+
+    logger.info(f"\nGit Cache Status ({cache_dir})")
+    logger.info("=" * 80)
+
+    for repo_info in status:
+        logger.info(f"\n{repo_info['repo_path']}")
+        logger.info(f"   URL: {repo_info['url']}")
+        logger.info(f"   HEAD: {repo_info['head'][:8]} ({repo_info['branch']})")
+
+        if fetch and repo_info.get("remote_head"):
+            if repo_info["head"] != repo_info["remote_head"]:
+                logger.info(f"   Update available: {repo_info['remote_head'][:8]}")
+            else:
+                logger.info("   Up to date")
+
+        if repo_info.get("refs_using_branches"):
+            logger.info(
+                f"   Uses branch references: {', '.join(repo_info['refs_using_branches'])}"
+            )
+
+    logger.info("\n" + "=" * 80)
+    logger.info(f"Total: {len(status)} cached repositories")
+    sys.exit(0)
+
+
+@add_debug_option
 @describe.command("snakemake")
 @click.argument(
     "benchmark",

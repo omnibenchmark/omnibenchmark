@@ -25,7 +25,7 @@ from snakemake.script import Snakemake
 from omnibenchmark.benchmark import constants
 from omnibenchmark.benchmark.params import Params
 from omnibenchmark.benchmark.symlinks import SymlinkManager
-from omnibenchmark.git.clone import clone_module
+from omnibenchmark.git.clone_legacy import clone_module
 from omnibenchmark.workflow.snakemake.scripts.execution import execution
 from omnibenchmark.workflow.snakemake.scripts.inputs_map_builder import build_inputs_map
 
