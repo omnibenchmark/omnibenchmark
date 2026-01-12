@@ -31,7 +31,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
 
     # Cloning modules
-    "GitPython>=3.1.0",
+    "GitPython>=3.1.0",  # Legacy cloning
+    "dulwich>=0.22.0",    # New porcelain-based cloning
 
     # Workflow
     # TODO: Pinned to <9.10 because Snakemake 9.10+ has stricter rule name validation

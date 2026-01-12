@@ -14,6 +14,8 @@ from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.config import get_git_cache_dir
+from omnibenchmark.git import get_or_update_cached_repo
 from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.remote.storage import (
     get_storage_from_benchmark,
@@ -235,6 +237,12 @@ def _run_benchmark(
         log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
     assert b is not None
+
+    # NEW EXECUTION PATH: Populate git cache during dry-run
+    # This prepares the new two-tier caching system (cache + work dirs)
+    # Eventually this will replace the old clone_module() approach
+    if dry:
+        _populate_git_cache(b)
 
     # it is as --continue_on_error originally
     if continue_on_error and not yes:
@@ -534,3 +542,50 @@ def abort_if_user_does_not_confirm(msg: str, logger):
     if not click.confirm(_msg, abort=True):
         logger.debug("aborting")
         raise click.Abort()
+
+
+def _populate_git_cache(benchmark: BenchmarkExecution):
+    """Populate git cache with repositories from benchmark.
+
+    This is part of the NEW execution path using the two-tier caching system.
+    During dry-run, we populate the cache so subsequent real runs can use it.
+
+    Args:
+        benchmark: BenchmarkExecution instance
+    """
+    cache_dir = get_git_cache_dir()
+
+    # Extract unique repositories from all stages and modules
+    repos = set()
+    for stage in benchmark.model.stages:
+        for module in stage.modules:
+            if hasattr(module, "repository") and module.repository:
+                repo_url = module.repository.url
+                if repo_url:
+                    repos.add(repo_url)
+
+    if not repos:
+        logger.info("No repositories found in benchmark definition")
+        return
+
+    logger.info(f"Populating cache with {len(repos)} repositories...")
+
+    # Populate cache
+    success_count = 0
+    failed = []
+
+    for repo_url in sorted(repos):
+        try:
+            logger.info(f"Caching {repo_url}")
+            get_or_update_cached_repo(repo_url, cache_dir)
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Failed to cache {repo_url}: {e}")
+            failed.append((repo_url, str(e)))
+
+    logger.info(f"Successfully cached {success_count}/{len(repos)} repositories")
+
+    if failed:
+        logger.warning(f"Failed to cache {len(failed)} repositories:")
+        for repo_url, error in failed:
+            logger.warning(f"  {repo_url}: {error}")

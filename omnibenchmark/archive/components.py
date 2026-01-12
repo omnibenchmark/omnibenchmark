@@ -51,7 +51,7 @@ def prepare_archive_code(
             - source_path: absolute path to the file on disk
             - arcname: relative path to use inside the archive
     """
-    from omnibenchmark.git.clone import clone_module
+    from omnibenchmark.git.clone_legacy import clone_module
     from omnibenchmark.model.repo import get_repo_hash
 
     nodes = benchmark.get_nodes()

@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
-from omnibenchmark.git.clone import clone_module
+from omnibenchmark.git.clone_legacy import clone_module
 from omnibenchmark.model.repo import get_repo_hash
 
 logger = logging.getLogger(__name__)
