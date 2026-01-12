@@ -10,6 +10,7 @@ import click
 import humanfriendly
 from pydantic import ValidationError as PydanticValidationError
 
+from omnibenchmark.backend.collector_resolution import resolve_metric_collectors
 from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.backend.snakemake_gen import SnakemakeGenerator, save_metadata
 from omnibenchmark.benchmark import BenchmarkExecution
@@ -840,7 +841,7 @@ def _generate_explicit_snakefile(
         logger.info("\nGenerating explicit Snakefile...")
 
     # Create resolver with work dir relative to output
-    work_dir = out_dir / ".repos"
+    work_dir = out_dir / ".modules"
 
     # Get benchmark directory (where benchmark.yaml lives)
     benchmark_dir = benchmark_yaml_path.parent
@@ -1131,18 +1132,34 @@ def _generate_explicit_snakefile(
                             first_input = next(iter(inputs.values()))
                             base_path = str(PathLib(first_input).parent)
 
+                    # Determine dataset value BEFORE building outputs
+                    # For entrypoint nodes (no inputs), use module_id as dataset
+                    # For subsequent nodes, propagate from input_node if available
+                    if not inputs:
+                        # Entrypoint node - dataset is the module_id
+                        dataset_value = module_id
+                    elif (
+                        input_node
+                        and hasattr(input_node, "dataset")
+                        and input_node.dataset
+                    ):
+                        # Propagate dataset from input node
+                        dataset_value = input_node.dataset
+                    else:
+                        # Fallback - no dataset value available
+                        dataset_value = None
+
                     # Build output paths based on nesting strategy
                     outputs = []
                     for output_spec in stage.outputs:
                         # Get the output path template
                         output_path_template = output_spec.path
 
-                        # For entrypoint nodes (no inputs), replace {dataset} with module_id
-                        # For subsequent nodes, keep {dataset} as wildcard to be resolved by Snakemake
-                        if not inputs:
-                            # This is an entrypoint node - replace {dataset} with module_id
+                        # Replace {dataset} placeholder with actual dataset value
+                        # This is NOT a Snakemake wildcard - it's an omnibenchmark path template variable
+                        if dataset_value and "{dataset}" in output_path_template:
                             output_path_template = output_path_template.replace(
-                                "{dataset}", module_id
+                                "{dataset}", dataset_value
                             )
 
                         if nesting_strategy == "nested":
@@ -1166,23 +1183,6 @@ def _generate_explicit_snakefile(
                         if output_spec.id not in output_to_nodes:
                             output_to_nodes[output_spec.id] = []
                         output_to_nodes[output_spec.id].append((node_id, output_path))
-
-                    # Determine dataset value
-                    # For entrypoint nodes (no inputs), use module_id as dataset
-                    # For subsequent nodes, propagate from input_node if available
-                    if not inputs:
-                        # Entrypoint node - dataset is the module_id
-                        dataset_value = module_id
-                    elif (
-                        input_node
-                        and hasattr(input_node, "dataset")
-                        and input_node.dataset
-                    ):
-                        # Propagate dataset from input node
-                        dataset_value = input_node.dataset
-                    else:
-                        # Fallback - keep as wildcard (None means use {dataset})
-                        dataset_value = None
 
                     # Create ResolvedNode
                     node = ResolvedNode(
@@ -1225,6 +1225,20 @@ def _generate_explicit_snakefile(
     # Pre-create parameter directories and symlinks
     _prepare_parameter_directories(resolved_nodes, out_dir, quiet=quiet)
 
+    # ========== Resolve metric collectors as regular nodes ==========
+    # Metric collectors are converted to ResolvedNode instances and added to the DAG
+    collector_nodes = resolve_metric_collectors(
+        metric_collectors=benchmark.model.get_metric_collectors(),
+        resolved_nodes=resolved_nodes,
+        benchmark=benchmark.model,
+        resolver=resolver,
+        quiet=quiet,
+    )
+
+    # Add collector nodes to the main resolved_nodes list
+    # They will be treated as regular nodes in the Snakefile generation
+    resolved_nodes.extend(collector_nodes)
+
     # Generate Snakefile (no status message needed)
 
     snakefile_path = out_dir / "Snakefile"
@@ -1237,7 +1251,7 @@ def _generate_explicit_snakefile(
 
     generator.generate_snakefile(
         nodes=resolved_nodes,
-        collectors=[],  # TODO: Add metric collectors
+        collectors=[],  # Empty - collectors are now in resolved_nodes
         output_path=snakefile_path,
         debug_mode=debug_mode,
     )
@@ -1247,7 +1261,7 @@ def _generate_explicit_snakefile(
         benchmark_yaml_path=benchmark_yaml_path,
         output_dir=out_dir,
         nodes=resolved_nodes,
-        collectors=[],
+        collectors=[],  # Empty - collectors are now in resolved_nodes
     )
 
     if quiet:

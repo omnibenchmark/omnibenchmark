@@ -59,10 +59,10 @@ class ModuleResolver:
 
         Args:
             work_base_dir: Base directory for module checkouts, relative to output dir
-                          (default: .repos)
+                          (default: .modules)
                           This will be used to store shallow clones for execution.
                           The output directory becomes self-contained and portable.
-                          Example: out/.repos/abc123/
+                          Example: out/.modules/abc123/
             cache_dir: Git cache directory for full clones
                       (default: ~/.cache/omnibenchmark/git)
             output_dir: Output directory for benchmark (for resolving environment paths)
@@ -70,7 +70,7 @@ class ModuleResolver:
             software_environments: Dict of software environments {id: SoftwareEnvironment}
             benchmark_dir: Benchmark directory (where benchmark.yaml lives, for resolving env paths)
         """
-        self.work_base_dir = work_base_dir or Path(".repos")
+        self.work_base_dir = work_base_dir or Path(".modules")
         self.cache_dir = cache_dir
         self.output_dir = output_dir or Path(".")
         self.software_backend = software_backend
@@ -189,7 +189,7 @@ class ModuleResolver:
 
         # Create ResolvedModule
         # module_dir should be relative to the Snakefile location (which is in out_dir)
-        # Make path relative to work_base_dir to get just .repos/{commit}/
+        # Make path relative to work_base_dir to get just .modules/{commit}/
         if actual_work_dir.is_absolute():
             # Absolute path: make relative to cwd
             relative_module_dir = actual_work_dir.relative_to(Path.cwd())

@@ -8,7 +8,7 @@ invocation, avoiding runtime complexity.
 Design:
 - Each ResolvedNode becomes one Snakemake rule
 - Rules use shell: directive (not script:)
-- Module paths are relative (.repos/{commit}/)
+- Module paths are relative (.modules/{commit}/)
 - Parameters are passed via CLI args
 - No Python imports or omnibenchmark package dependency
 """
@@ -98,14 +98,19 @@ class SnakemakeGenerator:
         f.write("#\n")
         f.write("# This Snakefile was generated from resolved benchmark nodes.\n")
         f.write("# All modules have been cloned and entrypoints dereferenced.\n")
-        f.write("# Module checkouts are in .repos/{commit}/\n")
+        f.write("# Module checkouts are in .modules/{commit}/\n")
         f.write("#\n")
         f.write("#" * 80 + "\n")
         f.write("\n")
 
     def _write_node_rule(self, f: TextIO, node: ResolvedNode, debug_mode: bool):
         """Write a rule for a resolved node."""
+        # Check if this is a collector node
+        is_collector = node.stage_id.startswith("_collector_")
+
         f.write(f"# Stage: {node.stage_id}, Module: {node.module_id}\n")
+        if is_collector:
+            f.write("# Type: Metric Collector\n")
         f.write(f"# Repository: {node.module.repository_url}\n")
         f.write(f"# Commit: {node.module.commit}\n")
         f.write(f"rule {self._sanitize_rule_name(node.id)}:\n")
@@ -113,8 +118,15 @@ class SnakemakeGenerator:
         # Inputs
         if node.inputs:
             f.write("    input:\n")
-            for key, path in node.inputs.items():
-                f.write(f'        {key}="{path}",\n')
+            if is_collector:
+                # For collectors, write inputs as named entries so we can access them
+                # by name in the shell command (e.g., {input.input_0})
+                for key, path in node.inputs.items():
+                    f.write(f'        {key}="{path}",\n')
+            else:
+                # Regular nodes: named inputs
+                for key, path in node.inputs.items():
+                    f.write(f'        {key}="{path}",\n')
 
         # Outputs
         if node.outputs:
@@ -133,14 +145,36 @@ class SnakemakeGenerator:
         else:
             f.write('        cli_args="",\n')
 
+        # Benchmark directive (for performance tracking)
+        if not is_collector:
+            # Generate benchmark file path in the same directory as the output
+            # All path variables (like {dataset}) should have been substituted during node resolution
+            if node.outputs:
+                first_output = node.outputs[0]
+                import os
+
+                # Get the directory and add performance file
+                benchmark_dir = (
+                    os.path.dirname(first_output) if "/" in first_output else "."
+                )
+                benchmark_file = f"{benchmark_dir}/clustbench_performance.txt"
+                f.write("    benchmark:\n")
+                f.write(f'        "{benchmark_file}"\n')
+
         # Software environment directive
         self._write_environment_directive(f, node)
 
         # Shell command
         if debug_mode:
-            self._write_debug_shell(f, node)
+            if is_collector:
+                self._write_debug_collector_shell_v2(f, node)
+            else:
+                self._write_debug_shell(f, node)
         else:
-            self._write_exec_shell(f, node)
+            if is_collector:
+                self._write_exec_collector_shell_v2(f, node)
+            else:
+                self._write_exec_shell(f, node)
 
         f.write("\n")
 
@@ -296,30 +330,198 @@ class SnakemakeGenerator:
         f.write(f'        module_dir="{collector.module.module_dir}",\n')
         f.write(f'        entrypoint="{collector.module.entrypoint}",\n')
 
+        if collector.parameters:
+            cli_args = " ".join(collector.get_parameter_cli_args())
+            f.write(f'        cli_args="{cli_args}",\n')
+        else:
+            f.write('        cli_args="",\n')
+
         # Software environment directive (for collectors too)
         self._write_environment_directive_for_collector(f, collector)
 
-        # Shell command (simplified for collectors)
+        # Shell command
         if debug_mode:
-            f.write("    shell:\n")
-            f.write('        """\n')
-            f.write(f'        echo "Metric Collector: {collector.id}"\n')
-            f.write('        echo "Module: {params.module_dir}"\n')
-            f.write('        echo "Entrypoint: {params.entrypoint}"\n')
-            f.write("        mkdir -p $(dirname {output[0]})\n")
-            for i, _ in enumerate(collector.outputs):
-                f.write(f"        touch {{output[{i}]}}\n")
-            f.write('        """\n')
+            self._write_debug_collector_shell(f, collector)
         else:
-            f.write("    shell:\n")
-            f.write('        """\n')
-            f.write("        cd {params.module_dir} && \\\n")
-            f.write("        python3 {params.entrypoint} \\\n")
-            f.write("            --output {output[0]} \\\n")
-            f.write("            {input}\n")
-            f.write('        """\n')
+            self._write_exec_collector_shell(f, collector)
 
         f.write("\n")
+
+    def _write_debug_collector_shell(
+        self, f: TextIO, collector: ResolvedMetricCollector
+    ):
+        """Write debug shell command for a collector."""
+        f.write("    shell:\n")
+        f.write('        """\n')
+        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
+        f.write(f'        echo "METRIC COLLECTOR: {collector.id}"\n')
+        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
+        f.write('        echo "Module: {params.module_dir}"\n')
+        f.write('        echo "Entrypoint: {params.entrypoint}"\n')
+        f.write('        echo "Inputs:"\n')
+        f.write("        for input_file in {input}; do\n")
+        f.write('            echo "  $input_file"\n')
+        f.write("        done\n")
+        f.write('        echo "Outputs:"\n')
+        for i, _ in enumerate(collector.outputs):
+            f.write(f'        echo "  {{output[{i}]}}"\n')
+        if collector.parameters:
+            f.write('        echo "Parameters: {params.cli_args}"\n')
+        f.write('        echo ""\n')
+        f.write('        echo "Would execute:"\n')
+        f.write(
+            '        echo "  cd {params.module_dir} && python3 {params.entrypoint} \\"\n'
+        )
+        f.write('        echo "    --output_dir $(dirname {output[0]}) \\"\n')
+        f.write('        echo "    --name ' + f"{collector.id}" + ' \\"\n')
+        f.write('        echo "    [input files...] \\"\n')
+        if collector.parameters:
+            f.write('        echo "    {params.cli_args}"\n')
+        f.write('        echo ""\n')
+        f.write("        mkdir -p $(dirname {output[0]})\n")
+        for i, _ in enumerate(collector.outputs):
+            f.write(f"        touch {{output[{i}]}}\n")
+        f.write('        """\n')
+
+    def _write_exec_collector_shell(
+        self, f: TextIO, collector: ResolvedMetricCollector
+    ):
+        """Write actual execution shell command for a collector."""
+        f.write("    shell:\n")
+        f.write('        """\n')
+        # Create output directory before cd (relative to out/)
+        f.write("        mkdir -p $(dirname {output[0]}) && cd {params.module_dir}\n")
+
+        # Use pre-resolved execution info
+        if collector.module.has_shebang:
+            # Has shebang, execute directly
+            f.write("        ./{params.entrypoint} \\\\\n")
+            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write(f"            --name {collector.id}")
+        else:
+            # No shebang, use inferred interpreter
+            interpreter = collector.module.interpreter or "python3"
+            f.write(f"        {interpreter} {{params.entrypoint}} \\\\\n")
+            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write(f"            --name {collector.id}")
+
+        # Add all input files
+        if collector.input_patterns:
+            f.write(" \\\\\n")
+            # Pass all input files as arguments
+            # We need to prefix them with ../../ to get back to out/ directory
+            f.write(
+                '            $(printf " %s" $(for f in {input}; do echo "../../$f"; done))'
+            )
+
+        # Add parameters if present
+        if collector.parameters:
+            f.write(" \\\\\n")
+            f.write("            {params.cli_args}\n")
+        else:
+            f.write("\n")
+
+        f.write('        """\n')
+
+    def _write_debug_collector_shell_v2(self, f: TextIO, node: ResolvedNode):
+        """Write debug shell command for a collector node (ResolvedNode version)."""
+        # Group inputs by their original names before writing
+        from collections import defaultdict
+
+        inputs_by_name = defaultdict(list)
+        if node.inputs and node.input_name_mapping:
+            for key in sorted(node.inputs.keys()):
+                original_name = node.input_name_mapping.get(key, key)
+                inputs_by_name[original_name].append(key)
+
+        f.write("    shell:\n")
+        f.write('        """\n')
+        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
+        f.write(f'        echo "METRIC COLLECTOR: {node.module_id}"\n')
+        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
+        f.write('        echo "Module: {params.module_dir}"\n')
+        f.write('        echo "Entrypoint: {params.entrypoint}"\n')
+
+        # Show inputs grouped by name
+        if inputs_by_name:
+            f.write('        echo "Inputs (by name):"\n')
+            for input_name in inputs_by_name.keys():
+                f.write(f'        echo "  --{input_name}:"\n')
+                for key in inputs_by_name[input_name]:
+                    f.write(f'        echo "    {{input.{key}}}"\n')
+
+        f.write('        echo "Outputs:"\n')
+        for i, _ in enumerate(node.outputs):
+            f.write(f'        echo "  {{output[{i}]}}"\n')
+        if node.parameters:
+            f.write('        echo "Parameters: {params.cli_args}"\n')
+        f.write('        echo ""\n')
+        f.write('        echo "Would execute:"\n')
+        f.write(
+            '        echo "  cd {params.module_dir} && python3 {params.entrypoint} \\"\n'
+        )
+        f.write('        echo "    --output_dir $(dirname {output[0]}) \\"\n')
+        f.write(f'        echo "    --name {node.module_id} \\"\n')
+
+        if inputs_by_name:
+            for input_name in inputs_by_name.keys():
+                f.write(f'        echo "    --{input_name} [files...] \\"\n')
+
+        if node.parameters:
+            f.write('        echo "    {params.cli_args}"\n')
+        f.write('        echo ""\n')
+        f.write("        mkdir -p $(dirname {output[0]})\n")
+        for i, _ in enumerate(node.outputs):
+            f.write(f"        touch {{output[{i}]}}\n")
+        f.write('        """\n')
+
+    def _write_exec_collector_shell_v2(self, f: TextIO, node: ResolvedNode):
+        """Write actual execution shell command for a collector node (ResolvedNode version)."""
+        # Group inputs by their original names before writing
+        from collections import defaultdict
+
+        inputs_by_name = defaultdict(list)
+        if node.inputs and node.input_name_mapping:
+            for key in sorted(node.inputs.keys()):
+                original_name = node.input_name_mapping.get(key, key)
+                inputs_by_name[original_name].append(key)
+
+        f.write("    shell:\n")
+        f.write('        """\n')
+        # Create output directory before cd (relative to out/)
+        f.write("        mkdir -p $(dirname {output[0]}) && cd {params.module_dir}\n")
+
+        # Use pre-resolved execution info
+        if node.module.has_shebang:
+            # Has shebang, execute directly
+            f.write("        ./{params.entrypoint} \\\\\n")
+            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write(f"            --name {node.module_id}")
+        else:
+            # No shebang, use inferred interpreter
+            interpreter = node.module.interpreter or "python3"
+            f.write(f"        {interpreter} {{params.entrypoint}} \\\\\n")
+            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write(f"            --name {node.module_id}")
+
+        # Add input files grouped by their original names
+        # node.input_name_mapping maps keys like "input_0" to names like "metrics.scores"
+        if inputs_by_name:
+            # Write each group as a named argument
+            for input_name, keys in inputs_by_name.items():
+                f.write(" \\\\\n")
+                f.write(f"            --{input_name}")
+                for key in keys:
+                    f.write(f" ../../{{input.{key}}}")
+
+        # Add parameters if present
+        if node.parameters:
+            f.write(" \\\\\n")
+            f.write("            {params.cli_args}\n")
+        else:
+            f.write("\n")
+
+        f.write('        """\n')
 
     def _write_all_rule(
         self,

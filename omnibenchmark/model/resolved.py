@@ -280,6 +280,8 @@ class ResolvedMetricCollector:
 
     # ========== Optional fields with defaults ==========
     name: Optional[str] = None
+    parameters: Optional[Params] = None
+    param_id: str = "default"
     input_patterns: List[str] = field(default_factory=list)
     outputs: List[str] = field(default_factory=list)
     timeout: Optional[int] = None
@@ -294,6 +296,32 @@ class ResolvedMetricCollector:
     def get_output_list(self) -> List[str]:
         """Get list of output paths."""
         return self.outputs
+
+    def get_parameter_cli_args(self, style: str = "gnu") -> List[str]:
+        """
+        Generate CLI arguments from parameters.
+
+        Args:
+            style: Either 'gnu' (--key value) or 'equals' (--key=value)
+
+        Returns:
+            List of command line argument strings
+        """
+        if self.parameters is None:
+            return []
+        return self.parameters.to_cli_args(style=style)
+
+    def get_parameter_json(self) -> str:
+        """Get parameters as JSON string."""
+        if self.parameters is None:
+            return "{}"
+        return self.parameters.serialize()
+
+    def get_parameter_hash(self) -> str:
+        """Get short hash of parameters."""
+        if self.parameters is None:
+            return "default"
+        return self.parameters.hash_short()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
