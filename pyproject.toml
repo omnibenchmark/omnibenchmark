@@ -29,6 +29,7 @@ dependencies = [
     "humanfriendly",
     "pydantic",
     "python-dotenv>=1.0.0",
+    "rich>=13.0.0",  # Modern terminal formatting and progress bars
 
     # Cloning modules
     "GitPython>=3.1.0",  # Legacy cloning

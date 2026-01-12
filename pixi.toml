@@ -28,6 +28,7 @@ ruff = "*"
 git = "*"
 micromamba = ">=2.4.0,<3"
 dulwich = ">=0.25.2,<0.26"
+rich = ">=14.2.0,<15"
 
 
 [target.linux-64.dependencies]
