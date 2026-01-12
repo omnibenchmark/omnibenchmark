@@ -374,6 +374,9 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
     software_environment: str = Field(..., description="Software environment ID")
     inputs: List[Union[str, IOFile]] = Field(..., description="Input files")
     outputs: List[IOFile] = Field(..., description="Output files")
+    parameters: Optional[List[Parameter]] = Field(
+        None, description="Collector parameters"
+    )
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if metric collector has a software environment reference."""
