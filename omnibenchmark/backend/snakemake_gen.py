@@ -250,10 +250,13 @@ class SnakemakeGenerator:
             import json
 
             params_json = json.dumps(node.parameters._params)
-            # Escape quotes for shell
-            params_json_escaped = params_json.replace('"', '\\"')
+            # Escape for Snakemake by doubling braces
+            params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
+            # Use single quotes for echo to avoid quote escaping issues
+            # Need to escape single quotes in the JSON (replace ' with '\\'')
+            params_json_escaped = params_json_escaped.replace("'", "'\\''")
             f.write(
-                f'        echo "{params_json_escaped}" > $(dirname {{output[0]}})/parameters.json\n'
+                f"        echo '{params_json_escaped}' > $(dirname {{output[0]}})/parameters.json\n"
             )
 
         f.write("        cd {params.module_dir}\n")
