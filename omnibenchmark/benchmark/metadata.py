@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Dict, List, Set, Optional, Any, Tuple
 from pathlib import Path
+import re
 import yaml
 from spdx_license_list import LICENSES
 
@@ -692,19 +693,36 @@ def detect_license_from_content(content: str) -> Optional[str]:
 
     content_lower = content.lower()
 
-    # Simple keyword-based detection
-    if "mit license" in content_lower or "mit" in content_lower:
-        return "MIT"
-    elif "apache license" in content_lower or "apache" in content_lower:
-        return "Apache-2.0"
-    elif "gnu general public license" in content_lower or "gpl" in content_lower:
+    # Check for AGPL first (more specific than GPL)
+    if "gnu affero general public license" in content_lower or "agpl" in content_lower:
+        if "version 3" in content_lower or "v3" in content_lower:
+            return "AGPL-3.0"
+        elif "version 2" in content_lower or "v2" in content_lower:
+            return "AGPL-2.0"
+        else:
+            return "AGPL"
+
+    # Check for GPL (but not AGPL)
+    if "gnu general public license" in content_lower or re.search(
+        r"\bgpl\b", content_lower
+    ):
         if "version 3" in content_lower or "v3" in content_lower:
             return "GPL-3.0"
         elif "version 2" in content_lower or "v2" in content_lower:
             return "GPL-2.0"
         else:
             return "GPL"
-    elif "bsd license" in content_lower or "bsd" in content_lower:
+
+    # Check for MIT with word boundary to avoid matching "permit", "submit", etc.
+    if "mit license" in content_lower or re.search(r"\bmit\b", content_lower):
+        return "MIT"
+
+    # Check for Apache
+    if "apache license" in content_lower or re.search(r"\bapache\b", content_lower):
+        return "Apache-2.0"
+
+    # Check for BSD
+    if "bsd license" in content_lower or re.search(r"\bbsd\b", content_lower):
         return "BSD"
 
     return None
