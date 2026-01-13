@@ -17,15 +17,23 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 
-def run_benchmark(yaml_file: str, cores: int, output_dir: Path) -> dict:
+def run_benchmark(
+    yaml_file: str, cores: int, output_dir: Path, just_snakemake: bool = False
+) -> dict:
     """Run ob benchmark with specified number of cores and measure time."""
     print(f"\n{'='*60}")
     print(f"Running benchmark with {cores} cores...")
     print(f"{'='*60}")
 
-    # Clean previous outputs before each run
-    print("  Cleaning 'out' directory...")
-    subprocess.run(["rm", "-rf", "out"], check=False)
+    if just_snakemake:
+        # Clean only data and plotting directories (we're already in out/)
+        print("  Cleaning 'data' and 'plotting' directories...")
+        subprocess.run(["rm", "-rf", "data"], check=False)
+        subprocess.run(["rm", "-rf", "plotting"], check=False)
+    else:
+        # Clean previous outputs before each run
+        print("  Cleaning 'out' directory...")
+        subprocess.run(["rm", "-rf", "out"], check=False)
 
     start_time = time.time()
 
@@ -39,14 +47,24 @@ def run_benchmark(yaml_file: str, cores: int, output_dir: Path) -> dict:
     # Redirect stdin to /dev/null to prevent interactive prompts from blocking
     import sys
 
+    if just_snakemake:
+        # Run bare snakemake (already in out/ directory)
+        cmd = ["snakemake", "--use-conda", "--cores", str(cores), "-k"]
+        cwd = None
+    else:
+        # Run ob run command
+        cmd = ["ob", "run", yaml_file, "--cores", str(cores), "-k", "--yes"]
+        cwd = None
+
     with open(log_file, "w", buffering=1) as log_f, open("/dev/null", "r") as devnull:
         process = subprocess.Popen(
-            ["ob", "run", yaml_file, "--cores", str(cores), "-k", "--yes"],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,  # Merge stderr into stdout
             stdin=devnull,  # Prevent reading from stdin
             text=True,
             bufsize=1,  # Line buffered
+            cwd=cwd,
         )
 
         # Read line by line and output to both console and log
@@ -398,6 +416,11 @@ def main():
         metavar="RESULTS_JSON",
         help="Plot results from existing benchmark_results.json without re-running",
     )
+    parser.add_argument(
+        "--just-snakemake",
+        action="store_true",
+        help="Run bare snakemake from out/ directory instead of 'ob run' (requires pre-generated Snakefile)",
+    )
 
     args = parser.parse_args()
 
@@ -405,8 +428,10 @@ def main():
     if args.plot_only:
         return plot_only(args.plot_only, args.output_dir)
 
-    if not args.yaml_file:
-        parser.error("yaml_file is required unless using --plot-only")
+    if not args.yaml_file and not args.just_snakemake:
+        parser.error(
+            "yaml_file is required unless using --plot-only or --just-snakemake"
+        )
 
     # Determine core counts to test
     if args.max_cores:
@@ -437,7 +462,10 @@ def main():
     cores_to_test = list(reversed(cores_to_test))
 
     print("\n🚀 Starting parallelism benchmark")
-    print(f"Benchmark file: {args.yaml_file}")
+    if args.just_snakemake:
+        print("Mode: bare snakemake")
+    else:
+        print(f"Benchmark file: {args.yaml_file}")
     print(f"Testing with cores: {cores_to_test}")
     print(f"Output directory: {args.output_dir}")
 
@@ -446,7 +474,9 @@ def main():
     # Run benchmarks
     results = []
     for cores in cores_to_test:
-        result = run_benchmark(args.yaml_file, cores, args.output_dir)
+        result = run_benchmark(
+            args.yaml_file, cores, args.output_dir, args.just_snakemake
+        )
         results.append(result)
 
         if not result["success"] and not args.skip_failed:
