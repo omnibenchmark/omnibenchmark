@@ -83,6 +83,9 @@ def validate_plan(ctx, benchmark: str):
     old_showwarning = warnings.showwarning
     warnings.showwarning = custom_warning_handler
 
+    # Ensure FutureWarnings are always shown
+    warnings.simplefilter("always", FutureWarning)
+
     try:
         # Load and validate as a Benchmark model
         # This validates YAML syntax, required fields, data types, and references
