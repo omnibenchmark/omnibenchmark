@@ -175,6 +175,7 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
             repo = porcelain.open_repo(str(repo_cache_dir))
             logging.info(f"Updating cached repository at {repo_cache_dir}")
             # Fetch all updates from remote
+            # Note: porcelain.fetch by default fetches all refs
             porcelain.fetch(repo, repo_url)
             return repo_cache_dir
         except (NotGitRepository, Exception) as e:
@@ -185,10 +186,12 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
     logging.info(f"Cloning {repo_url} to cache at {repo_cache_dir}")
 
     try:
+        # Clone as a full repository (not bare, not shallow)
+        # Using checkout=True to ensure all refs and objects are fetched
         porcelain.clone(
             source=repo_url,
             target=str(repo_cache_dir),
-            checkout=False,  # Bare-ish clone, we'll checkout in work dirs
+            checkout=True,  # Checkout default branch to fetch all objects
             bare=False,
         )
         return repo_cache_dir
@@ -225,47 +228,81 @@ def checkout_to_work_dir(
     # Create work directory
     work_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    if work_dir.exists():
-        logging.debug(f"Work directory {work_dir} already exists, using it")
-        work_repo = porcelain.open_repo(str(work_dir))
-    else:
-        # Clone from cache to work dir (this is fast - uses hardlinks if possible)
-        logging.info(f"Checking out {repo_url}@{ref} to {work_dir}")
-        import io as _io
+    # IMPORTANT: We use the cache repo directly instead of cloning to work_dir
+    # This avoids issues with dulwich's clone not copying all pack objects
+    # We'll checkout the specific ref directly in the cache, then copy files
 
-        work_repo = porcelain.clone(
-            source=str(repo_cache_dir),
-            target=str(work_dir),
-            checkout=False,
-            bare=False,
-            errstream=_io.BytesIO(),
-        )
+    # Open the cache repo
+    work_repo = porcelain.open_repo(str(repo_cache_dir))
 
     # Resolve and checkout the ref
     from dulwich.objectspec import parse_commit
 
+    # Try to resolve the ref - handle both short and full commit hashes
     try:
         commit_obj = parse_commit(work_repo, ref.encode("ascii"))
-        commit_hash_hex = commit_obj.id.hex()  # Human-readable hex string
+        commit_hash_hex = commit_obj.id.hex()
         logging.debug(f"Resolved {ref} to {commit_hash_hex}")
     except KeyError:
-        raise RuntimeError(f"Reference '{ref}' not found in repository {repo_url}")
+        # If that fails and ref looks like a short hash, try to expand it
+        if re.match(r"^[0-9a-f]{6,39}$", ref, re.IGNORECASE):
+            # It's a partial commit hash - search for matching commits
+            ref_prefix = ref.lower()
+            matching_commits = []
 
-    # Checkout the commit using the raw commit object
+            # Iterate through all objects to find matches
+            for obj_id in work_repo.object_store:
+                obj_hex = obj_id.hex()
+                if obj_hex.startswith(ref_prefix):
+                    matching_commits.append(obj_hex)
+
+            if len(matching_commits) == 0:
+                raise RuntimeError(
+                    f"Reference '{ref}' not found in repository {repo_url}"
+                )
+            elif len(matching_commits) > 1:
+                raise RuntimeError(
+                    f"Reference '{ref}' is ambiguous (matches {len(matching_commits)} commits) in repository {repo_url}"
+                )
+            else:
+                # Found exactly one match
+                full_hash = matching_commits[0]
+                logging.debug(f"Expanded short hash {ref} to {full_hash}")
+                commit_obj = parse_commit(work_repo, full_hash.encode("ascii"))
+                commit_hash_hex = commit_obj.id.hex()
+        else:
+            # Not a short hash, re-raise the original error
+            raise RuntimeError(f"Reference '{ref}' not found in repository {repo_url}")
+
+    # Checkout the commit in the cache repo
+    logging.info(f"Checking out {repo_url}@{ref} in cache")
     porcelain.reset(work_repo, "hard", commit_obj)
 
-    # Verify the checkout - head() returns raw bytes (20-byte SHA-1)
-    # Convert to hex string for returning
+    # Get the actual commit hash
     actual_commit_bytes = work_repo.head()
     if len(actual_commit_bytes) == 20:
-        # It's raw binary SHA-1, convert to hex
         actual_commit = actual_commit_bytes.hex()
     elif len(actual_commit_bytes) == 40:
-        # It's already hex but as bytes, decode it
         actual_commit = actual_commit_bytes.decode("ascii")
     else:
-        # Fallback - try to decode
         actual_commit = actual_commit_bytes.decode("ascii")
+
+    # Copy the checked out files to work directory (excluding .git)
+    # This gives us a clean working copy without git metadata
+    if work_dir.exists():
+        import shutil
+
+        shutil.rmtree(work_dir)
+
+    logging.info(f"Copying files to {work_dir}")
+    import shutil
+
+    shutil.copytree(
+        repo_cache_dir,
+        work_dir,
+        ignore=shutil.ignore_patterns(".git"),
+        symlinks=True,
+    )
 
     logging.info(f"Checked out {repo_url}@{actual_commit[:7]} to {work_dir}")
 

@@ -1,0 +1,645 @@
+# Execution Architecture Refactor
+
+**Goal**: Rewrite omnibenchmark execution as a compiler pipeline that resolves modules upfront, generates explicit Snakefiles, and eliminates runtime complexity.
+
+**Timeline**: 2 weeks (stealth mode - minimize disruptive politics)
+
+**Constraint**: Zero backwards compatibility breakage
+
+---
+
+## Motivation
+
+### Current Problems
+
+1. **Too much happens inside Snakemake rules**
+   - Module cloning during execution (forces `script:` directive)
+   - Symlink management during execution
+   - Input path resolution during execution
+   - Entrypoint dereferencing during execution
+
+2. **Excessive indirection layers**
+   ```
+   CLI → BenchmarkExecution → DAG → Nodes → Snakefile generation →
+   Snakemake rule → run_module.py → execution.py → Module entrypoint
+   ```
+
+3. **Code generation generates code**
+   - Snakefile contains Python code that generates rules dynamically
+   - Hard to debug, hard to trust
+   - Not human-readable
+
+4. **Tight coupling**
+   - `run_module.py` imports omnibenchmark package (container bind-mount hackery)
+   - Snakemake must have access to Python environment
+   - Can't use simple `shell:` directives
+
+---
+
+## New Architecture: Compilation Pipeline
+
+Think of this as a compiler with explicit phases:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 1: PARSE                                              │
+│   Input: Benchmark YAML                                     │
+│   Output: Benchmark model (Pydantic)                        │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 2: BUILD DAG                                          │
+│   Input: Benchmark model                                    │
+│   Output: BenchmarkNode graph (abstract)                   │
+│   - Expand stages into nodes (module × params × inputs)    │
+│   - Connect dependencies                                    │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 3: RESOLVE MODULES (NEW!)                            │
+│   Input: BenchmarkNode graph                                │
+│   Output: ResolvedNode graph (concrete)                    │
+│   - Clone all modules to cache (idempotent)                │
+│   - Read entrypoints from omnibenchmark.yaml                │
+│   - Validate inputs/outputs exist                           │
+│   - Pre-create parameter directories (.{hash})              │
+│   - Pre-create symlinks (method-X_threshold-0.1)            │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 4: GENERATE WORKFLOW                                  │
+│   Input: ResolvedNode graph                                 │
+│   Output: Explicit Snakefile                                │
+│   - Each rule uses `shell:` directive (not `script:`)       │
+│   - Direct invocation: cd {module_dir} && python3 {script}  │
+│   - No Python imports, no omnibenchmark package dependency  │
+│   - Human-readable rules                                    │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase 5: EXECUTE                                            │
+│   Input: Snakefile                                          │
+│   Output: Benchmark results                                 │
+│   - Pure Snakemake execution                                │
+│   - No cloning (already done)                               │
+│   - No Python logic (just shell commands)                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Key Design Decisions
+
+### 1. Module Resolution = Clone + Dereference
+
+**New class**: `ModuleResolver`
+
+```python
+class ModuleResolver:
+    """Resolves modules by cloning and reading entrypoints."""
+    
+    def resolve(self, module: Module, stage: Stage) -> ResolvedModule:
+        """
+        1. Clone module to cache (.omnibenchmark/git/{hash})
+        2. Read omnibenchmark.yaml to get entrypoint
+        3. Return ResolvedModule with concrete paths
+        """
+        module_dir = clone_module(module.modulesitory.url, module.modulesitory.commit)
+        entrypoint = self._read_entrypoint(module_dir)
+        
+        return ResolvedModule(
+            id=module.id,
+            stage_id=stage.id,
+            module_dir=module_dir,
+            entrypoint=entrypoint,
+            inputs=...,
+            outputs=...,
+            parameters=...,
+        )
+```
+
+### 2. IR: ResolvedNode
+
+**New class in `omnibenchmark.model`**
+
+```python
+class ResolvedNode:
+    """
+    Intermediate representation of a node with all paths resolved.
+    
+    This is the IR between DAG building and Snakefile generation.
+    Contains everything needed to generate a Snakemake rule.
+    """
+    
+    # Identity
+    id: str  # "stage-module-.hash-after_parent"
+    stage_id: str
+    module_id: str
+    param_id: str
+    
+    # Paths (all absolute or template strings)
+    module_dir: Path  # /home/user/.omnibenchmark/git/{hash}
+    entrypoint: Path  # {module_dir}/run.py
+    
+    # Parameters (resolved)
+    parameters: Params  # Can generate CLI args + JSON file
+    param_dir: Path  # /path/to/stage/module/.{hash}
+    param_symlink: Path  # /path/to/stage/module/method-X_k-10
+    
+    # DAG structure
+    parent: Optional['ResolvedNode']  # For templating like {parent.id}
+    inputs: Dict[str, str]  # key -> template path
+    outputs: List[str]  # template paths
+    
+    # Software environment
+    software_environment: str
+    
+    # Execution info
+    timeout: Optional[int]
+    
+    def to_snakemake_rule(self) -> str:
+        """Generate a Snakemake rule definition."""
+```
+
+### 3. Deprecate `workflow` module → New `backend` module
+
+**Old structure**:
+```
+omnibenchmark/
+  workflow/
+    workflow.py  # Abstract WorkflowEngine
+    snakemake/
+      snakemake.py  # SnakemakeEngine
+      scripts/
+        run_module.py  # Complex runtime logic
+        execution.py
+```
+
+**New structure**:
+```
+omnibenchmark/
+  backend/
+    __init__.py
+    backend.py  # Abstract Backend
+    snakemake.py  # SnakemakeBackend (simplified)
+```
+
+**Why?**
+- "workflow" is ambiguous (user workflow vs engine)
+- "backend" clearly indicates execution backend
+- Cleaner separation from user-facing workflow concepts
+
+### 4. Snakefile Generation = Templates, Not Code
+
+**Old** (code generating code):
+```python
+# In Snakefile
+benchmark = load("benchmark.pkl", config)
+nodes = benchmark.get_nodes()
+for node in nodes:
+    create_node_rule(node, benchmark, config, timeout)
+```
+
+**New** (explicit rules):
+```snakemake
+rule stage1_module1_default:
+    input:
+        data_matrix = "{input}/data/module1/default/{dataset}.matrix.h5ad"
+    output:
+        result = "{input}/stage1/module1/default/{dataset}.result.h5ad"
+    params:
+        module_dir = "/path/.omnibenchmark/git/abc123",
+        entrypoint = "run.py",
+        params_json = "{input}/stage1/module1/default/parameters.json"
+    conda: "env.yaml"
+    shell:
+        """
+        cd {params.module_dir} && \
+        python3 {params.entrypoint} \
+            --output_dir $(dirname {output.result}) \
+            --name {wildcards.dataset} \
+            --data_matrix {input.data_matrix} \
+            --params {params.params_json}
+        """
+```
+
+### 5. Single-Module Execution = Generate + Run One Rule
+
+Currently `run_module` command has complex logic to execute one module.
+
+**New approach**:
+1. Generate full Snakefile (same as run benchmark)
+2. Invoke Snakemake with specific target: `snakemake stage1_module1_default --config dataset=data1`
+3. Snakemake's DAG resolution handles dependencies automatically
+
+No special case needed!
+
+---
+
+## Implementation Plan
+
+### Week 1: Infrastructure
+
+#### Day 1-2: Module Resolution
+- [ ] Create `omnibenchmark/backend/resolver.py`
+  - `ModuleResolver` class
+  - `ResolvedModule` dataclass
+- [ ] Move cloning logic out of `run_module.py`
+- [ ] Add entrypoint reading to resolver
+- [ ] Tests for resolver
+
+#### Day 3-4: IR Models
+- [ ] Add `ResolvedNode` class to `omnibenchmark.model`
+  - Should feel like current `BenchmarkNode` but with concrete paths
+  - Add `parent` reference for templating
+  - Add method `to_snakemake_rule()`
+- [ ] Update DAG builder to produce `ResolvedNode` graph
+- [ ] Tests for ResolvedNode
+
+#### Day 5: Parameter Pre-resolution
+- [ ] Move symlink creation out of `run_module.py` into resolver
+- [ ] Pre-create all `.{hash}` directories
+- [ ] Pre-create all human-readable symlinks
+- [ ] Write `parameters.json` files upfront
+
+### Week 2: Backend & Integration
+
+#### Day 6-7: New Backend Module
+- [ ] Create `omnibenchmark/backend/` module
+- [ ] Define abstract `Backend` interface
+- [ ] Implement `SnakemakeBackend` (simplified)
+- [ ] Migrate Snakefile generation to use `ResolvedNode.to_snakemake_rule()`
+
+#### Day 8-9: Snakefile Generation
+- [ ] Rewrite rule generation to produce explicit rules
+- [ ] Use `shell:` directive instead of `script:`
+- [ ] Remove `run_module.py` dependency
+- [ ] Test generated Snakefiles are valid
+
+#### Day 10: Integration & Testing
+- [ ] Update CLI to use new backend
+- [ ] Ensure `run benchmark` works
+- [ ] Ensure `run module` works (now just generates + runs specific target)
+- [ ] Run full integration test suite
+
+#### Day 11-12: Cleanup & Documentation
+- [ ] Deprecate old `workflow` module (add warnings)
+- [ ] Update internal docs
+- [ ] Verify all tests pass
+- [ ] Performance benchmarking
+
+---
+
+## Backwards Compatibility Strategy
+
+### What Stays the Same
+1. CLI interface (`ob run benchmark`, `ob run module`)
+2. Output directory structure
+3. Parameter hashing scheme
+4. Module config format (omnibenchmark.yaml)
+5. Benchmark YAML format
+
+### What Changes (Internal Only)
+1. Snakefile structure (but users shouldn't parse these)
+2. Module resolution timing (now upfront, not lazy)
+3. Backend module organization
+
+### Migration Path
+1. Keep old `workflow` module with deprecation warnings
+2. New code uses `backend` module
+3. Both implementations coexist during transition
+4. Remove old code after 1-2 releases
+
+---
+
+## Success Criteria
+
+1. **Correctness**: All existing tests pass
+2. **Simplicity**: Generated Snakefiles are human-readable
+3. **Performance**: No slower than current implementation
+4. **Maintainability**: Reduced lines of code, clearer separation of concerns
+5. **Trust**: Explicit Snakefiles users can inspect and trust
+
+---
+
+## Risk Mitigation
+
+### Risk: Team pushes back on "rewrite"
+**Mitigation**: Frame as "compiler optimization", show explicit Snakefiles as feature
+
+### Risk: Breaking changes discovered late
+**Mitigation**: Run full test suite daily, integration tests with real benchmarks
+
+### Risk: Performance regression
+**Mitigation**: Upfront cloning is parallelizable, parameter resolution is fast
+
+### Risk: Wildcard resolution breaks
+**Mitigation**: Keep lambda deferral where needed, but resolve what we can
+
+---
+
+## Technical Details
+
+### Handling Wildcards
+
+Some things MUST stay deferred because Snakemake expands wildcards:
+
+```snakemake
+# Output has wildcard
+output: "{input}/stage/{module}/{params}/{dataset}.result.h5ad"
+
+# Input resolution can't be fully resolved upfront
+# because {dataset} is not known until runtime
+input: lambda wildcards: resolve_inputs(wildcards.dataset)
+```
+
+**Solution**: Generate input lambdas in the Snakefile, but they're simple lookups, not complex logic.
+
+### Handling Remote Storage
+
+With `--use-remote-storage`, Snakemake downloads files to `.snakemake/storage/`.
+
+**Solution**: Input lambdas check if file is remote, return correct local path.
+
+```python
+# In generated Snakefile
+def get_input_path(template, dataset):
+    path = template.format(dataset=dataset)
+    # Snakemake handles remote → local transparently via storage plugins
+    return path
+```
+
+### Handling Branches
+
+Current system allows `branch: main` which updates on each run.
+
+**Options**:
+1. **Resolve once at workflow generation**: Pin to commit at generation time
+2. **Lazy update**: Check for updates during resolution phase, re-clone if changed
+
+**Recommendation**: Option 2 (lazy update during resolution phase).
+
+```python
+def resolve(self, module):
+    if module.modulesitory.commit is branch:
+        # Fetch latest commit for branch
+        commit = get_latest_commit(module.modulesitory.url, branch)
+    else:
+        commit = module.modulesitory.commit
+    
+    module_dir = clone_module(module.modulesitory.url, commit)
+```
+
+---
+
+## Code Organization
+
+```
+omnibenchmark/
+  model/
+    benchmark.py      # Existing: Benchmark, Stage, Module
+    node.py           # REFACTOR: Add ResolvedNode here
+  
+  backend/            # NEW MODULE
+    __init__.py
+    backend.py        # Abstract Backend interface
+    resolver.py       # ModuleResolver, ResolvedModule
+    snakemake.py      # SnakemakeBackend implementation
+  
+  workflow/           # DEPRECATED (keep for compatibility)
+    workflow.py
+    snakemake/
+      snakemake.py    # Add deprecation warnings
+  
+  cli/
+    run.py            # Update to use backend module
+```
+
+---
+
+## Open Questions
+
+1. **Should we keep `BenchmarkNode` or merge with `ResolvedNode`?**
+   - Lean towards keeping both: `BenchmarkNode` = abstract, `ResolvedNode` = concrete
+
+2. **How to handle metric collectors?**
+   - Same resolution process, they're just special nodes
+
+3. **What about the `run_module.py` sys.path hack?**
+   - Eliminated! No more omnibenchmark imports in execution
+
+4. **Should parameters.json be optional or always generated?**
+   - Always generate for consistency, modules can ignore if using CLI args
+
+---
+
+## Notes
+
+- This is essentially implementing a "lowering" pass: high-level DAG → low-level execution plan
+- The IR (`ResolvedNode`) is the key abstraction
+- Think of Snakemake as assembly language: we're generating clean assembly
+- Module resolution is idempotent: safe to run multiple times
+- Parallelism: module resolution can be parallelized (use `--cores` during resolution phase)
+
+---
+
+## Software Environment Resolution (IMPLEMENTED)
+
+### Overview
+
+Software environments must be resolved during the module resolution phase so that generated Snakefiles can reference concrete environment files/images.
+
+### Design: `ResolvedEnvironment` Dataclass
+
+Instead of backend-specific fields, we use a generic container:
+
+```python
+@dataclass(frozen=True)
+class ResolvedEnvironment:
+    """Generic container for environment references."""
+    backend_type: SoftwareBackendEnum  # conda, apptainer, envmodules, etc.
+    reference: str  # Can be path, URL, module name, etc.
+```
+
+This is cleaner than `Optional[Path]` because:
+- Handles URLs (apptainer images: `oras://`, `docker://`)
+- Handles strings (envmodules: module names)
+- Handles paths (conda yaml, local SIF files)
+- Easy to serialize and inspect
+
+### Resolution Strategy by Backend
+
+The top-level `software_backend` field determines which environment field to use:
+
+#### 1. Conda (IMPLEMENTED)
+```yaml
+software_backend: conda
+software_environments:
+  - id: myenv
+    conda: envs/environment.yaml
+```
+
+**Resolution:**
+1. Copy `envs/environment.yaml` to `.envs/myenv.yaml`
+2. Return `ResolvedEnvironment(backend_type=conda, reference=".envs/myenv.yaml")`
+3. Snakefile generation adds: `conda: ".envs/myenv.yaml"`
+
+**Why copy instead of reference?**
+- Makes output directory self-contained
+- Enables archival and portability
+- Snapshot of environment at resolution time
+
+**Note:** `.envs/` is relative to the Snakefile location (output directory)
+
+#### 2. Apptainer (IMPLEMENTED)
+```yaml
+software_backend: apptainer
+software_environments:
+  - id: myimage
+    apptainer: oras://ghcr.io/user/image:latest  # URL
+  - id: local
+    apptainer: containers/myimage.sif  # Local file
+```
+
+**Resolution (to implement):**
+1. Check if `apptainer` field is URL (has scheme like `oras://`, `docker://`, `http://`)
+2. If URL: Return `ResolvedEnvironment(backend_type=apptainer, reference=<URL>)`
+3. If local SIF:
+   - Create symlink: `.envs/myimage.sif -> benchmark_dir/containers/myimage.sif`
+   - Return `ResolvedEnvironment(backend_type=apptainer, reference=".envs/myimage.sif")`
+4. Snakefile generation adds: `container: "<reference>"`
+
+**Why symlink instead of copy?**
+- SIF files are large (100MB - several GB)
+- Symlinks keep output directory smaller
+- Still provides a reference point in `.envs/`
+
+#### 3. Envmodules (IMPLEMENTED)
+```yaml
+software_backend: envmodules
+software_environments:
+  - id: mymodule
+    envmodule: GCC/11.3.0
+```
+
+**Resolution:**
+1. Extract module name from `envmodule` field
+2. Return `ResolvedEnvironment(backend_type=envmodules, reference="GCC/11.3.0")`
+3. Snakefile generation adds: `envmodules: "GCC/11.3.0"`
+
+**Note:** Requires Snakemake `--use-envmodules` flag at execution time.
+
+**TODO:** Consider copying easyconfig files to `.envs/` for archival purposes.
+
+#### 4. Host (no resolution needed)
+```yaml
+software_backend: host
+```
+
+No environment files needed - uses host system packages.
+
+#### 5. Docker (IMPLEMENTED)
+```yaml
+software_backend: docker
+software_environments:
+  - id: myimage
+    docker: docker://ubuntu:22.04
+```
+
+**Resolution:**
+1. Extract docker image URL from `docker` field
+2. Return `ResolvedEnvironment(backend_type=docker, reference="docker://ubuntu:22.04")`
+3. Snakefile generation adds: `container: "docker://ubuntu:22.04"`
+
+**Note:** Docker images are always URL-based (no local files).
+
+### Implementation Status
+
+
+**✅ All backends implemented:**
+- `ResolvedEnvironment` dataclass in `omnibenchmark/model/resolved.py`
+- Updated `ResolvedModule` to include `resolved_environment: Optional[ResolvedEnvironment]`
+- `ModuleResolver._resolve_environment()` dispatcher
+- **Conda:** `_resolve_conda_environment()` - copies yaml files to `.envs/`
+- **Apptainer:** `_resolve_apptainer_environment()` - symlinks local SIFs, handles remote URLs
+- **Docker:** `_resolve_docker_environment()` - extracts docker image URLs
+- **Envmodules:** `_resolve_envmodules_environment()` - extracts module names
+- **Host:** No resolution needed (uses system packages)
+- `SnakemakeGenerator._write_environment_directive()` - adds `conda:`, `container:`, and `envmodules:` directives
+- Updated `ResolvedNode.to_dict()` to serialize environment info
+
+**🚧 Future enhancements:**
+- Consider: easyconfig file copying to `.envs/` for envmodules archival
+- Testing: integration tests for each backend type with real execution
+
+### Code Locations
+
+- **Models:** `omnibenchmark/model/resolved.py` (ResolvedEnvironment, ResolvedModule)
+- **Resolution:** `omnibenchmark/backend/resolver.py` (ModuleResolver._resolve_*_environment)
+- **Codegen:** `omnibenchmark/backend/snakemake_gen.py` (_write_environment_directive)
+
+### Example Generated Snakefile
+
+```snakemake
+rule preprocessing_pca_default:
+    input:
+        data_matrix = "{input}/data/loader/default/{dataset}.h5ad"
+    output:
+        result = "{input}/preprocessing/pca/default/{dataset}.h5ad"
+    params:
+        module_dir = ".modules/abc123",
+        entrypoint = "run.py",
+        cli_args = "--n_components 50"
+    conda: ".envs/scanpy.yaml"  # <-- Added by environment resolution!
+    shell:
+        """
+        cd {params.module_dir}
+        python3 {params.entrypoint} \
+            --output_dir $(dirname {output[0]}) \
+            --name {wildcards.dataset} \
+            --data_matrix {input.data_matrix} \
+            {params.cli_args}
+        """
+```
+
+### Architecture Benefits
+
+1. **Self-contained output:** `.envs/` contains all environment files
+2. **Explicit dependencies:** No hidden runtime resolution
+3. **Portable:** Output directory can be moved/archived with environment snapshots
+4. **Debuggable:** Can inspect `.envs/` to see what environments are used
+5. **Backend-agnostic IR:** `ResolvedEnvironment` works for any backend type
+6. **Snakefile-relative paths:** All paths are relative to Snakefile location (output dir)
+
+### Snakemake Execution Flags
+
+Different backends require specific Snakemake flags at execution time:
+
+```bash
+# Conda backend
+snakemake --use-conda
+
+# Apptainer/Singularity backend
+snakemake --use-singularity
+
+# Docker backend (experimental)
+snakemake --use-singularity  # Uses singularity to run docker images
+
+# Envmodules backend
+snakemake --use-envmodules
+
+# Host backend
+snakemake  # No special flags needed
+```
+
+**Note:** The omnibenchmark CLI should automatically add the appropriate flag based on the `software_backend` field in the benchmark YAML.
+
+---
+
+## Inspiration
+
+This design is inspired by:
+- Compilers (parse → IR → codegen)
+- Nix (content-addressable store, reproducible builds)
+- Bazel (explicit build rules, no hidden magic)
+- Your Haskell PoC (which proves the concept works!)

@@ -1,0 +1,135 @@
+id: resource_allocation_example
+description: |
+  Example demonstrating resource allocation at stage and module levels.
+  
+  Resource Hierarchy (most specific wins):
+  1. Module-level resources (override stage defaults)
+  2. Stage-level resources (default for all modules in stage)
+  3. Global default (2 cores if nothing specified)
+  
+  Snakemake Usage:
+  - Generate Snakefile with: omnibenchmark run --dry-run
+  - Run with limited resources: snakemake --cores 100 --resources cores=100
+  - This allows up to 100 total cores across all rules
+  - Rules with cores=20 can run max 5 in parallel (100/20=5)
+  - Rules with cores=2 can run max 50 in parallel (100/2=50)
+
+version: "1.0.0"
+benchmarker: "Resource Example Author"
+
+software_backend: conda
+software_environments:
+  default_env:
+    description: "Default Python environment"
+    conda: envs/default.yml
+
+stages:
+  ## Data generation stage - lightweight, default resources
+  - id: data
+    # No resources specified - uses global default (2 cores per task)
+    modules:
+      - id: generate_data
+        name: "Generate synthetic datasets"
+        software_environment: "default_env"
+        repository:
+          url: https://github.com/example/data_generator
+          commit: abc123
+    outputs:
+      - id: data.matrix
+        path: "{dataset}.data.csv"
+
+  ## Preprocessing stage - moderate resources at stage level
+  - id: preprocessing
+    resources:
+      cores: 8
+      mem_mb: 8000
+    modules:
+      - id: normalize
+        name: "Normalize data"
+        software_environment: "default_env"
+        repository:
+          url: https://github.com/example/normalizer
+          commit: def456
+      
+      - id: filter
+        name: "Filter outliers - needs more memory"
+        software_environment: "default_env"
+        repository:
+          url: https://github.com/example/filter
+          commit: ghi789
+        # Override stage-level resources for this specific module
+        resources:
+          cores: 4
+          mem_mb: 16000  # Needs more memory than stage default
+    inputs:
+      - data.matrix
+    outputs:
+      - id: preprocessing.normalized
+        path: "{dataset}.normalized.csv"
+
+  ## Compute-intensive stage - high parallelism
+  - id: analysis
+    resources:
+      cores: 20        # Up to 20 cores per task
+      mem_mb: 16000
+      runtime: 120     # Expected runtime in minutes
+    modules:
+      - id: heavy_computation
+        name: "Computationally expensive analysis"
+        software_environment: "default_env"
+        repository:
+          url: https://github.com/example/heavy_compute
+          commit: jkl012
+        parameters:
+          - method: ["methodA", "methodB", "methodC"]
+      
+      - id: light_computation
+        name: "Lightweight analysis - doesn't need all cores"
+        software_environment: "default_env"
+        repository:
+          url: https://github.com/example/light_compute
+          commit: mno345
+        # Override: this module only needs 4 cores
+        resources:
+          cores: 4
+          mem_mb: 4000
+    inputs:
+      - preprocessing.normalized
+    outputs:
+      - id: analysis.results
+        path: "{dataset}.results.csv"
+
+  ## Aggregation stage - single-threaded but memory intensive
+  - id: aggregation
+    resources:
+      cores: 1         # Single-threaded
+      mem_mb: 32000    # But needs lots of memory
+    modules:
+      - id: aggregate_results
+        name: "Aggregate all analysis results"
+        software_environment: "default_env"
+        repository:
+          url: https://github.com/example/aggregator
+          commit: pqr678
+    inputs:
+      - analysis.results
+    outputs:
+      - id: aggregation.summary
+        path: "{dataset}.summary.csv"
+
+metric_collectors:
+  - id: generate_report
+    name: "Generate final report"
+    software_environment: "default_env"
+    repository:
+      url: https://github.com/example/reporter
+      commit: stu901
+    # Collectors can also specify resources
+    resources:
+      cores: 4
+      mem_mb: 8000
+    inputs:
+      - aggregation.summary
+    outputs:
+      - id: report.html
+        path: "{input}/report.html"

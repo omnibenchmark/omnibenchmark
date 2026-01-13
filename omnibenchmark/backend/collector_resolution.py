@@ -124,6 +124,11 @@ def resolve_metric_collectors(
                         input_name_mapping[key] = input_name
                         idx += 1
 
+                # Get resource requirements from collector (if specified)
+                node_resources = None
+                if hasattr(collector, "resources") and collector.resources:
+                    node_resources = collector.resources
+
                 node = ResolvedNode(
                     id=node_id,
                     stage_id=f"_collector_{collector.id}",  # Synthetic stage ID
@@ -138,6 +143,7 @@ def resolve_metric_collectors(
                     benchmark_name=benchmark.get_name(),
                     benchmark_version=benchmark.get_version(),
                     benchmark_author=benchmark.get_author(),
+                    resources=node_resources,
                 )
 
                 collector_nodes.append(node)

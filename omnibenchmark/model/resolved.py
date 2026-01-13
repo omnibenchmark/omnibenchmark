@@ -160,6 +160,9 @@ class ResolvedNode:
     benchmark_version: str = ""
     benchmark_author: str = ""
 
+    # Resource requirements (from module or stage)
+    resources: Optional[Any] = None  # Resources object from benchmark.Resources
+
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
         return not self.inputs or len(self.inputs) == 0

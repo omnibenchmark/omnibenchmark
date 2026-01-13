@@ -1184,6 +1184,17 @@ def _generate_explicit_snakefile(
                             output_to_nodes[output_spec.id] = []
                         output_to_nodes[output_spec.id].append((node_id, output_path))
 
+                    # Determine resource requirements (module-level overrides stage-level)
+                    # Hierarchy: module.resources > stage.resources > default (2 cores)
+                    node_resources = None
+                    if hasattr(module, "resources") and module.resources:
+                        # Module-level resources take precedence
+                        node_resources = module.resources
+                    elif hasattr(stage, "resources") and stage.resources:
+                        # Fall back to stage-level resources
+                        node_resources = stage.resources
+                    # If neither is set, node_resources remains None (will use default in Snakefile gen)
+
                     # Create ResolvedNode
                     node = ResolvedNode(
                         id=node_id,
@@ -1199,6 +1210,7 @@ def _generate_explicit_snakefile(
                         benchmark_name=benchmark.model.get_name(),
                         benchmark_version=benchmark.model.get_version(),
                         benchmark_author=benchmark.model.get_author(),
+                        resources=node_resources,
                     )
 
                     resolved_nodes.append(node)
