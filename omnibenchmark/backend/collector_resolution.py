@@ -99,10 +99,11 @@ def resolve_metric_collectors(
                     benchmark=benchmark,
                 )
 
-                # Resolve output paths
+                # Resolve output paths - need input paths to determine {input} base dir
                 outputs = _resolve_collector_outputs(
                     collector=collector,
                     param_id=param_id,
+                    inputs_by_name=inputs_by_name,
                 )
 
                 # Create node ID: collector_{id}_{param_id}
@@ -339,13 +340,15 @@ def _gather_collector_inputs(
 def _resolve_collector_outputs(
     collector: MetricCollector,
     param_id: str,
+    inputs_by_name: dict = None,
 ) -> List[str]:
     """
     Resolve collector output paths by handling template variables.
 
     Template variables in collector outputs:
     - {name}: Replaced with collector.id
-    - {input}: Stripped/ignored (vestigial from old schema)
+    - {input}: Should map to the base output directory (typically "out")
+                For now, we strip it since outputs are relative to Snakefile location
 
     Path structure:
     - Without parameters: {collector.id}/output_file.html
@@ -354,6 +357,7 @@ def _resolve_collector_outputs(
     Args:
         collector: MetricCollector definition
         param_id: Parameter hash ID (or "default")
+        inputs_by_name: Optional dict of input paths (not currently used)
 
     Returns:
         List of resolved output paths
@@ -372,7 +376,8 @@ def _resolve_collector_outputs(
         # Replace {name} with collector id
         output_path = output_path.replace("{name}", collector.id)
 
-        # Strip {input} (it's vestigial and should be ignored)
+        # Strip {input}/ prefix - outputs are relative to Snakefile (in out/ dir)
+        # So {input}/plotting/report.html becomes plotting/report.html
         output_path = output_path.replace("{input}/", "")
         output_path = output_path.replace("{input}", "")
 

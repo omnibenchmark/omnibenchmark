@@ -241,8 +241,22 @@ class SnakemakeGenerator:
         """
         f.write("    shell:\n")
         f.write('        """\n')
-        # Create output directory before cd (relative to out/)
-        f.write("        mkdir -p $(dirname {output[0]}) && cd {params.module_dir}\n")
+        # Create output directory and parameters.json before cd (relative to out/)
+        f.write("        mkdir -p $(dirname {output[0]})\n")
+
+        # Write parameters.json if node has parameters
+        if node.parameters:
+            # Get JSON string from params (use _params internal OrderedDict)
+            import json
+
+            params_json = json.dumps(node.parameters._params)
+            # Escape quotes for shell
+            params_json_escaped = params_json.replace('"', '\\"')
+            f.write(
+                f'        echo "{params_json_escaped}" > $(dirname {{output[0]}})/parameters.json\n'
+            )
+
+        f.write("        cd {params.module_dir}\n")
 
         # Use pre-resolved execution info instead of runtime checking
         if node.module.has_shebang:
@@ -492,30 +506,45 @@ class SnakemakeGenerator:
         f.write("    shell:\n")
         f.write('        """\n')
         # Create output directory before cd (relative to out/)
-        f.write("        mkdir -p $(dirname {output[0]}) && cd {params.module_dir}\n")
+        # For collectors, we store the module path but run from the Snakefile directory
+        f.write("        mkdir -p $(dirname {output[0]})\n")
+        f.write("        MODULE_DIR={params.module_dir}\n")
+        # Convert relative output path to absolute for metric collector
+        f.write("        OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)\n")
+
+        # Convert input paths to absolute since metric collector scripts may call abspath() from wrong cwd
+        # Build absolute path variables for each input
+        if inputs_by_name:
+            input_counter = 0
+            for input_name, keys in inputs_by_name.items():
+                for key in keys:
+                    f.write(
+                        f"        INPUT_{input_counter}=$(cd $(dirname {{input.{key}}}) && pwd)/$(basename {{input.{key}}})\n"
+                    )
+                    input_counter += 1
 
         # Use pre-resolved execution info
         if node.module.has_shebang:
             # Has shebang, execute directly
-            f.write("        ./{params.entrypoint} \\\\\n")
-            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write("        $MODULE_DIR/{params.entrypoint} \\\\\n")
+            f.write("            --output_dir $OUTPUT_DIR \\\\\n")
             f.write(f"            --name {node.module_id}")
         else:
             # No shebang, use inferred interpreter
             interpreter = node.module.interpreter or "python3"
-            f.write(f"        {interpreter} {{params.entrypoint}} \\\\\n")
-            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write(f"        {interpreter} $MODULE_DIR/{{params.entrypoint}} \\\\\n")
+            f.write("            --output_dir $OUTPUT_DIR \\\\\n")
             f.write(f"            --name {node.module_id}")
 
-        # Add input files grouped by their original names
-        # node.input_name_mapping maps keys like "input_0" to names like "metrics.scores"
+        # Add input files grouped by their original names using the absolute path variables
         if inputs_by_name:
-            # Write each group as a named argument
+            input_counter = 0
             for input_name, keys in inputs_by_name.items():
                 f.write(" \\\\\n")
                 f.write(f"            --{input_name}")
                 for key in keys:
-                    f.write(f" ../../{{input.{key}}}")
+                    f.write(f" $INPUT_{input_counter}")
+                    input_counter += 1
 
         # Add parameters if present
         if node.parameters:

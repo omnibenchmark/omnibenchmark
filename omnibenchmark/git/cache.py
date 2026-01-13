@@ -92,6 +92,7 @@ Migration:
 import logging
 import re
 import shutil
+import threading
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse
@@ -100,6 +101,30 @@ from dulwich.client import get_transport_and_path
 from dulwich.errors import NotGitRepository
 
 from omnibenchmark.config import get_git_cache_dir
+
+# Global lock manager for repository checkouts
+# Each repo URL gets its own lock to prevent concurrent checkout conflicts
+_repo_locks = {}
+_repo_locks_lock = threading.Lock()
+
+
+def _get_repo_lock(repo_url: str) -> threading.Lock:
+    """
+    Get or create a lock for a specific repository URL.
+
+    This ensures that only one thread at a time can checkout from the same
+    cached repository, preventing git index.lock conflicts.
+
+    Args:
+        repo_url: Git repository URL
+
+    Returns:
+        Thread lock for this repository
+    """
+    with _repo_locks_lock:
+        if repo_url not in _repo_locks:
+            _repo_locks[repo_url] = threading.Lock()
+        return _repo_locks[repo_url]
 
 
 def parse_repo_url(url: str) -> str:
@@ -222,91 +247,95 @@ def checkout_to_work_dir(
     # Ensure the repo is cached
     repo_cache_dir = get_or_update_cached_repo(repo_url, cache_dir)
 
-    # Open cached repo
-    _cached_repo = porcelain.open_repo(str(repo_cache_dir))
+    # Get a lock for this repository to prevent concurrent checkout conflicts
+    # When multiple threads try to checkout from the same cached repo,
+    # git operations like reset/checkout will conflict on .git/index.lock
+    repo_lock = _get_repo_lock(repo_url)
 
-    # Create work directory
-    work_dir.parent.mkdir(parents=True, exist_ok=True)
+    with repo_lock:
+        # Open cached repo
+        _cached_repo = porcelain.open_repo(str(repo_cache_dir))
 
-    # IMPORTANT: We use the cache repo directly instead of cloning to work_dir
-    # This avoids issues with dulwich's clone not copying all pack objects
-    # We'll checkout the specific ref directly in the cache, then copy files
+        # Create work directory
+        work_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    # Open the cache repo
-    work_repo = porcelain.open_repo(str(repo_cache_dir))
+        # IMPORTANT: We use the cache repo directly instead of cloning to work_dir
+        # This avoids issues with dulwich's clone not copying all pack objects
+        # We'll checkout the specific ref directly in the cache, then copy files
 
-    # Resolve and checkout the ref
-    from dulwich.objectspec import parse_commit
+        # Open the cache repo
+        work_repo = porcelain.open_repo(str(repo_cache_dir))
 
-    # Try to resolve the ref - handle both short and full commit hashes
-    try:
-        commit_obj = parse_commit(work_repo, ref.encode("ascii"))
-        commit_hash_hex = commit_obj.id.hex()
-        logging.debug(f"Resolved {ref} to {commit_hash_hex}")
-    except KeyError:
-        # If that fails and ref looks like a short hash, try to expand it
-        if re.match(r"^[0-9a-f]{6,39}$", ref, re.IGNORECASE):
-            # It's a partial commit hash - search for matching commits
-            ref_prefix = ref.lower()
-            matching_commits = []
+        # Resolve and checkout the ref
+        from dulwich.objectspec import parse_commit
 
-            # Iterate through all objects to find matches
-            for obj_id in work_repo.object_store:
-                obj_hex = obj_id.hex()
-                if obj_hex.startswith(ref_prefix):
-                    matching_commits.append(obj_hex)
+        # Try to resolve the ref - handle both short and full commit hashes
+        try:
+            commit_obj = parse_commit(work_repo, ref.encode("ascii"))
+            commit_hash_hex = commit_obj.id.hex()
+            logging.debug(f"Resolved {ref} to {commit_hash_hex}")
+        except KeyError:
+            # If that fails and ref looks like a short hash, try to expand it
+            if re.match(r"^[0-9a-f]{6,39}$", ref, re.IGNORECASE):
+                # It's a partial commit hash - search for matching commits
+                ref_prefix = ref.lower()
+                matching_commits = []
 
-            if len(matching_commits) == 0:
+                # Iterate through all objects to find matches
+                for obj_id in work_repo.object_store:
+                    obj_hex = obj_id.hex()
+                    if obj_hex.startswith(ref_prefix):
+                        matching_commits.append(obj_hex)
+
+                if len(matching_commits) == 0:
+                    raise RuntimeError(
+                        f"Reference '{ref}' not found in repository {repo_url}"
+                    )
+                elif len(matching_commits) > 1:
+                    raise RuntimeError(
+                        f"Reference '{ref}' is ambiguous (matches {len(matching_commits)} commits) in repository {repo_url}"
+                    )
+                else:
+                    # Found exactly one match
+                    full_hash = matching_commits[0]
+                    logging.debug(f"Expanded short hash {ref} to {full_hash}")
+                    commit_obj = parse_commit(work_repo, full_hash.encode("ascii"))
+                    commit_hash_hex = commit_obj.id.hex()
+            else:
+                # Not a short hash, re-raise the original error
                 raise RuntimeError(
                     f"Reference '{ref}' not found in repository {repo_url}"
                 )
-            elif len(matching_commits) > 1:
-                raise RuntimeError(
-                    f"Reference '{ref}' is ambiguous (matches {len(matching_commits)} commits) in repository {repo_url}"
-                )
-            else:
-                # Found exactly one match
-                full_hash = matching_commits[0]
-                logging.debug(f"Expanded short hash {ref} to {full_hash}")
-                commit_obj = parse_commit(work_repo, full_hash.encode("ascii"))
-                commit_hash_hex = commit_obj.id.hex()
+
+        # Checkout the commit in the cache repo
+        logging.info(f"Checking out {repo_url}@{ref} in cache")
+        porcelain.reset(work_repo, "hard", commit_obj)
+
+        # Get the actual commit hash
+        actual_commit_bytes = work_repo.head()
+        if len(actual_commit_bytes) == 20:
+            actual_commit = actual_commit_bytes.hex()
+        elif len(actual_commit_bytes) == 40:
+            actual_commit = actual_commit_bytes.decode("ascii")
         else:
-            # Not a short hash, re-raise the original error
-            raise RuntimeError(f"Reference '{ref}' not found in repository {repo_url}")
+            actual_commit = actual_commit_bytes.decode("ascii")
 
-    # Checkout the commit in the cache repo
-    logging.info(f"Checking out {repo_url}@{ref} in cache")
-    porcelain.reset(work_repo, "hard", commit_obj)
+        # Copy the checked out files to work directory (excluding .git)
+        # This gives us a clean working copy without git metadata
+        if work_dir.exists():
+            shutil.rmtree(work_dir)
 
-    # Get the actual commit hash
-    actual_commit_bytes = work_repo.head()
-    if len(actual_commit_bytes) == 20:
-        actual_commit = actual_commit_bytes.hex()
-    elif len(actual_commit_bytes) == 40:
-        actual_commit = actual_commit_bytes.decode("ascii")
-    else:
-        actual_commit = actual_commit_bytes.decode("ascii")
+        logging.info(f"Copying files to {work_dir}")
+        shutil.copytree(
+            repo_cache_dir,
+            work_dir,
+            ignore=shutil.ignore_patterns(".git"),
+            symlinks=True,
+        )
 
-    # Copy the checked out files to work directory (excluding .git)
-    # This gives us a clean working copy without git metadata
-    if work_dir.exists():
-        import shutil
+        logging.info(f"Checked out {repo_url}@{actual_commit[:7]} to {work_dir}")
 
-        shutil.rmtree(work_dir)
-
-    logging.info(f"Copying files to {work_dir}")
-    import shutil
-
-    shutil.copytree(
-        repo_cache_dir,
-        work_dir,
-        ignore=shutil.ignore_patterns(".git"),
-        symlinks=True,
-    )
-
-    logging.info(f"Checked out {repo_url}@{actual_commit[:7]} to {work_dir}")
-
-    return work_dir, actual_commit
+        return work_dir, actual_commit
 
 
 def clone_module_v2(
