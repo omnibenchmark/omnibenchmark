@@ -389,6 +389,35 @@ class Stage(DescribableEntity):
     inputs: Optional[List[InputCollection]] = Field(None, description="Stage inputs")
     outputs: List[IOFile] = Field(..., description="Stage outputs")
 
+    @field_validator("outputs")
+    @classmethod
+    def validate_outputs(cls, v, info):
+        """Warn about old-style full paths in stage outputs."""
+        if not v:
+            return v
+
+        for idx, output in enumerate(v):
+            if "/" in output.path:
+                # Try to get line number from context
+                line_info = ""
+                if info.context and "line_map" in info.context:
+                    line_map = info.context["line_map"]
+                    # Search for this specific output path
+                    search_pattern = f"outputs[{idx}].path"
+                    for key in line_map:
+                        if search_pattern in key and "stages[" in key:
+                            line_info = f" (line {line_map[key]})"
+                            break
+
+                warnings.warn(
+                    f"Output path '{output.path}' contains '/' {line_info}. "
+                    "Full paths are deprecated. Use simple filenames without '/' like 'file.txt' instead.",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+
+        return v
+
     @field_validator("inputs", mode="before")
     @classmethod
     def validate_inputs(cls, v, info):
