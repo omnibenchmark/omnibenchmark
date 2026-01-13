@@ -345,6 +345,34 @@ class SoftwareEnvironment(DescribableEntity):
         return self
 
 
+class Resources(BaseModel):
+    """Resource requirements for Snakemake rules.
+
+    These resources are used as hints to Snakemake's scheduler for parallel execution.
+    They follow Snakemake's resource directive conventions.
+    """
+
+    cores: Optional[int] = Field(
+        None, description="Number of CPU cores to allocate per task", gt=0
+    )
+    mem_mb: Optional[int] = Field(
+        None, description="Memory in megabytes to allocate per task", gt=0
+    )
+    disk_mb: Optional[int] = Field(
+        None, description="Disk space in megabytes required per task", gt=0
+    )
+    runtime: Optional[int] = Field(
+        None, description="Expected runtime in minutes", gt=0
+    )
+
+    @model_validator(mode="after")
+    def validate_at_least_one_resource(self) -> "Resources":
+        """Ensure at least one resource is specified."""
+        if not any([self.cores, self.mem_mb, self.disk_mb, self.runtime]):
+            raise ValueError("At least one resource must be specified")
+        return self
+
+
 class SoftwareEnvironmentReference(BaseModel):
     """Reference to a software environment."""
 
@@ -359,6 +387,10 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
     parameters: Optional[List[Parameter]] = Field(None, description="Module parameters")
     exclude: Optional[List[str]] = Field(None, description="Paths to exclude")
     outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
+    resources: Optional[Resources] = Field(
+        None,
+        description="Resource requirements for this module (overrides stage-level resources)",
+    )
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if module has a software environment reference."""
@@ -377,6 +409,9 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
     parameters: Optional[List[Parameter]] = Field(
         None, description="Collector parameters"
     )
+    resources: Optional[Resources] = Field(
+        None, description="Resource requirements for this collector"
+    )
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if metric collector has a software environment reference."""
@@ -391,6 +426,10 @@ class Stage(DescribableEntity):
     modules: List[Module] = Field(..., description="Modules in this stage")
     inputs: Optional[List[InputCollection]] = Field(None, description="Stage inputs")
     outputs: List[IOFile] = Field(..., description="Stage outputs")
+    resources: Optional[Resources] = Field(
+        None,
+        description="Resource requirements for rules in this stage (cores, memory, etc.)",
+    )
 
     @field_validator("outputs")
     @classmethod

@@ -164,6 +164,10 @@ class ModuleResolver:
             )
         except Exception as e:
             logger.error(f"Failed to clone module '{module_id}': {e}")
+            # Log full traceback for debugging
+            import traceback
+
+            logger.debug(f"Full traceback:\n{traceback.format_exc()}")
             raise RuntimeError(f"Failed to clone module '{module_id}': {e}")
 
         # Dereference entrypoint

@@ -164,6 +164,9 @@ class SnakemakeGenerator:
         # Software environment directive
         self._write_environment_directive(f, node)
 
+        # Resource directives
+        self._write_resources_directive(f, node)
+
         # Shell command
         if debug_mode:
             if is_collector:
@@ -629,6 +632,46 @@ class SnakemakeGenerator:
             f.write(f'    envmodules: "{env.reference}"\n')
         elif env.backend_type.value == "docker":
             f.write(f'    container: "{env.reference}"\n')
+
+    def _write_resources_directive(self, f: TextIO, node: ResolvedNode):
+        """
+        Write resource directives for a node.
+
+        Generates Snakemake resources: directive based on the node's resource requirements.
+        Default: 2 cores if no resources specified.
+
+        Hierarchy (most specific wins):
+        1. Module-level resources (stored in node.resources)
+        2. Stage-level resources (stored in node.resources)
+        3. Global default (2 cores)
+        """
+        # Default resources
+        default_cores = 2
+
+        if node.resources is None:
+            # No resources specified, use default
+            f.write("    resources:\n")
+            f.write(f"        cores={default_cores}\n")
+            return
+
+        # Resources specified - write them out
+        f.write("    resources:\n")
+
+        # Write cores (use default if not specified)
+        cores = getattr(node.resources, "cores", None) or default_cores
+        f.write(f"        cores={cores}")
+
+        # Write optional resources if specified
+        if hasattr(node.resources, "mem_mb") and node.resources.mem_mb:
+            f.write(f",\n        mem_mb={node.resources.mem_mb}")
+
+        if hasattr(node.resources, "disk_mb") and node.resources.disk_mb:
+            f.write(f",\n        disk_mb={node.resources.disk_mb}")
+
+        if hasattr(node.resources, "runtime") and node.resources.runtime:
+            f.write(f",\n        runtime={node.resources.runtime}")
+
+        f.write("\n")
 
     def _sanitize_rule_name(self, node_id: str) -> str:
         """
