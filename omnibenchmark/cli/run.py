@@ -626,6 +626,18 @@ def _populate_git_cache(
                 if repo_url:
                     repos[repo_url] = commit
 
+    # Also include metric collector repositories
+    if (
+        hasattr(benchmark.model, "metric_collectors")
+        and benchmark.model.metric_collectors
+    ):
+        for collector in benchmark.model.metric_collectors:
+            if hasattr(collector, "repository") and collector.repository:
+                repo_url = collector.repository.url
+                commit = collector.repository.commit
+                if repo_url:
+                    repos[repo_url] = commit
+
     if not repos:
         if not quiet:
             logger.info("No repositories found in benchmark definition")
@@ -682,19 +694,13 @@ def _populate_git_cache(
         if not quiet:
             logger.info(f"Caching {repo_url}")
 
-        # Suppress git output in quiet mode using OS-level file descriptor redirection
-        saved_stdout = saved_stderr = devnull = None
+        # Suppress dulwich logging in quiet mode (thread-safe approach)
         if quiet:
-            import sys
-            import os
+            import logging
 
-            stdout_fd = sys.stdout.fileno()
-            stderr_fd = sys.stderr.fileno()
-            saved_stdout = os.dup(stdout_fd)
-            saved_stderr = os.dup(stderr_fd)
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(devnull, stdout_fd)
-            os.dup2(devnull, stderr_fd)
+            dulwich_logger = logging.getLogger("dulwich")
+            old_level = dulwich_logger.level
+            dulwich_logger.setLevel(logging.ERROR)
 
         try:
             get_or_update_cached_repo(repo_url, cache_dir)
@@ -702,17 +708,8 @@ def _populate_git_cache(
         except Exception as e:
             return (repo_url, False, str(e))
         finally:
-            if quiet and saved_stdout is not None:
-                import sys
-                import os
-
-                stdout_fd = sys.stdout.fileno()
-                stderr_fd = sys.stderr.fileno()
-                os.dup2(saved_stdout, stdout_fd)
-                os.dup2(saved_stderr, stderr_fd)
-                os.close(saved_stdout)
-                os.close(saved_stderr)
-                os.close(devnull)
+            if quiet:
+                dulwich_logger.setLevel(old_level)
 
     with ThreadPoolExecutor(max_workers=cores) as executor:
         futures = {
@@ -721,15 +718,23 @@ def _populate_git_cache(
         }
 
         for future in as_completed(futures):
-            repo_url, success, error = future.result()
+            repo_url = futures[future]
 
-            if success:
+            try:
+                repo_url_result, success, error = future.result()
+
+                if success:
+                    with lock:
+                        success_count += 1
+                else:
+                    logger.error(f"Failed to cache {repo_url}: {error}")
+                    with lock:
+                        failed.append((repo_url, error))
+            except Exception as e:
+                # Catch any unhandled exceptions from the task
+                logger.error(f"Exception while caching {repo_url}: {e}")
                 with lock:
-                    success_count += 1
-            else:
-                logger.error(f"Failed to cache {repo_url}: {error}")
-                with lock:
-                    failed.append((repo_url, error))
+                    failed.append((repo_url, str(e)))
 
             if quiet:
                 progress.update(advance=1)
@@ -1234,8 +1239,8 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info(f"Created {len(resolved_nodes)} nodes")
 
-    # Pre-create parameter directories and symlinks
-    _prepare_parameter_directories(resolved_nodes, out_dir, quiet=quiet)
+    # Note: Parameter directories and JSON files are now created by the Snakefile itself
+    # during execution, making the workflow self-contained and portable
 
     # ========== Resolve metric collectors as regular nodes ==========
     # Metric collectors are converted to ResolvedNode instances and added to the DAG

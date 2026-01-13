@@ -218,7 +218,7 @@ class ModuleResolver:
             dirty=dirty,
         )
 
-        logger.info(
+        logger.debug(
             f"Resolved module '{module_id}': "
             f"dir={actual_work_dir}, entrypoint={entrypoint_path}"
         )
