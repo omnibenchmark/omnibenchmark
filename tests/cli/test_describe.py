@@ -17,7 +17,6 @@ def test_benchmark_snakemake_plot():
             [
                 "describe",
                 "snakemake",
-                "-b",
                 str(benchmark_data_path / "Benchmark_001.yaml"),
             ],
             input="y",
@@ -62,7 +61,6 @@ def test_benchmark_topology_plot(tmp_path):
             [
                 "describe",
                 "topology",
-                "-b",
                 str(benchmark_data_path / "Benchmark_001.yaml"),
             ],
             input="y",

@@ -117,7 +117,7 @@ def test_benchmark_not_found():
         # XXX this is too brittle. Should capture exception raised by the module instead.
         expected1 = "Usage: "
         expected2 = "run --help' for help"
-        expected3 = "Error: Invalid value for 'BENCHMARK_PATH': Path"
+        expected3 = "Error: Invalid value for 'BENCHMARK': Path"
         assert result.returncode == 2
         assert_in_output(result.stderr, expected1)
         assert_in_output(result.stderr, expected2)
