@@ -34,7 +34,8 @@ def test_archive_benchmark_dry_run():
         patch("omnibenchmark.archive.archive.prepare_archive_results") as mock_results,
     ):
         mock_config.return_value = [Path("benchmark.yaml")]
-        mock_code.return_value = [Path("code.py")]
+        # Code returns tuples of (source_path, arcname)
+        mock_code.return_value = [(Path("/tmp/repo/code.py"), "modules/abc123/code.py")]
         mock_software.return_value = [Path("environment.yml")]
         mock_results.return_value = [Path("results.json")]
 
@@ -47,11 +48,11 @@ def test_archive_benchmark_dry_run():
             dry_run=True,
         )
 
-        # Should return list of files
+        # Should return list of arcnames (paths as they appear in the archive)
         assert isinstance(result, list)
         assert len(result) == 4
         assert Path("benchmark.yaml") in result
-        assert Path("code.py") in result
+        assert Path("modules/abc123/code.py") in result
         assert Path("environment.yml") in result
         assert Path("results.json") in result
 
@@ -66,7 +67,7 @@ def test_archive_benchmark_compression_types():
     with patch("omnibenchmark.archive.archive.prepare_archive_config") as mock_config:
         mock_config.return_value = [Path("benchmark.yaml")]
 
-        # Test different compression types
+        # Test ZIP-based compression types
         test_cases = [
             (zipfile.ZIP_STORED, ".zip"),
             (zipfile.ZIP_DEFLATED, ".zip"),
@@ -89,6 +90,32 @@ def test_archive_benchmark_compression_types():
                 # Check that correct file extension is used
                 assert result[0].suffix == expected_ext
                 assert f"test_benchmark_1.0{expected_ext}" in str(result[0])
+
+
+@pytest.mark.short
+def test_archive_benchmark_gzip_compression():
+    """Test archive_benchmark handles gzip (tar.gz) compression correctly."""
+    mock_benchmark = Mock()
+    mock_benchmark.get_benchmark_name.return_value = "test_benchmark"
+    mock_benchmark.get_benchmark_version.return_value = "1.0"
+
+    with patch("omnibenchmark.archive.archive.prepare_archive_config") as mock_config:
+        mock_config.return_value = [Path("benchmark.yaml")]
+
+        with (
+            patch("tarfile.open") as mock_tarfile,
+            patch("pathlib.Path.is_file", return_value=True),
+        ):
+            mock_archive = MagicMock()
+            mock_tarfile.return_value.__enter__.return_value = mock_archive
+
+            result = archive_benchmark(
+                benchmark=mock_benchmark, compression="gzip", dry_run=False
+            )
+
+            # Check that correct file extension is used (.tar.gz)
+            assert str(result[0]).endswith(".tar.gz")
+            assert "test_benchmark_1.0.tar.gz" in str(result[0])
 
 
 @pytest.mark.short
@@ -192,7 +219,8 @@ def test_archive_benchmark_selective_components():
         patch("omnibenchmark.archive.archive.prepare_archive_results") as mock_results,
     ):
         mock_config.return_value = [Path("benchmark.yaml")]
-        mock_code.return_value = [Path("code.py")]
+        # Code returns tuples of (source_path, arcname)
+        mock_code.return_value = [(Path("/tmp/repo/code.py"), "modules/abc123/code.py")]
         mock_software.return_value = [Path("environment.yml")]
         mock_results.return_value = [Path("results.json")]
 

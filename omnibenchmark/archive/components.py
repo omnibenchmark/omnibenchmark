@@ -37,17 +37,22 @@ def prepare_archive_config(benchmark: BenchmarkExecution) -> List[Path]:
     return config_files
 
 
-def prepare_archive_code(benchmark: BenchmarkExecution) -> List[Path]:
+def prepare_archive_code(
+    benchmark: BenchmarkExecution,
+) -> List[tuple[Path, str]]:
     """
-    Prepare the code files to archive and return list of all filenames.
+    Prepare the code files to archive and return list of (source_path, arcname) tuples.
 
     Args:
         benchmark: The benchmark execution object
 
     Returns:
-        List[Path]: The filenames of all code to archive
+        List of tuples (source_path, arcname) where:
+            - source_path: absolute path to the file on disk
+            - arcname: relative path to use inside the archive
     """
     from omnibenchmark.git.clone import clone_module
+    from omnibenchmark.model.repo import get_repo_hash
 
     nodes = benchmark.get_nodes()
     repositories = set()
@@ -58,17 +63,23 @@ def prepare_archive_code(benchmark: BenchmarkExecution) -> List[Path]:
     files = []
 
     while repositories:
-        repo = repositories.pop()
+        repo_url, repo_commit = repositories.pop()
         try:
-            repo_path = clone_module(repo[0], repo[1])
+            repo_path = clone_module(repo_url, repo_commit)
             if repo_path.exists():
-                files += list(repo_path.rglob("*"))
+                # Create a meaningful name for the repo in the archive
+                repo_name = get_repo_hash(repo_url, repo_commit)
+                for f in repo_path.rglob("*"):
+                    if f.is_file():
+                        # Create arcname as modules/{repo_name}/{relative_path}
+                        rel_path = f.relative_to(repo_path)
+                        arcname = f"modules/{repo_name}/{rel_path}"
+                        files.append((f, arcname))
         except Exception:
             # Skip repositories that can't be cloned
             continue
 
-    # Filter to only include actual files (not directories)
-    return [f for f in files if f.is_file()]
+    return files
 
 
 def prepare_archive_software(benchmark: BenchmarkExecution) -> List[Path]:

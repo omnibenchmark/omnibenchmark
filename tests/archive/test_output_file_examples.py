@@ -29,14 +29,20 @@ def test_output_file_examples():
 
         with (
             patch("zipfile.ZipFile") as mock_zipfile,
+            patch("tarfile.open") as mock_tarfile,
             patch("pathlib.Path.is_file", return_value=True),
         ):
-            mock_archive = MagicMock()
-            mock_zipfile.return_value.__enter__.return_value = mock_archive
+            mock_zip_archive = MagicMock()
+            mock_zipfile.return_value.__enter__.return_value = mock_zip_archive
+            mock_tar_archive = MagicMock()
+            mock_tarfile.return_value.__enter__.return_value = mock_tar_archive
 
-            # Example 1: Basic custom filename with default compression (bzip2)
+            # Example 1: Basic custom filename with bzip2 compression
             result1 = archive_benchmark(
-                benchmark=mock_benchmark, custom_filename="my_backup.bz2", dry_run=False
+                benchmark=mock_benchmark,
+                compression=zipfile.ZIP_BZIP2,
+                custom_filename="my_backup.bz2",
+                dry_run=False,
             )
             assert result1[0].name == "my_backup.bz2"
 
@@ -58,13 +64,14 @@ def test_output_file_examples():
             )
             assert result3[0].name == "project_alpha_results.zip"
 
-            # Example 4: Version-specific archive (overriding auto-generated name)
+            # Example 4: Version-specific archive with gzip (tar.gz)
             result4 = archive_benchmark(
                 benchmark=mock_benchmark,
-                custom_filename="benchmark_v1.5_final.bz2",
+                compression="gzip",
+                custom_filename="benchmark_v1.5_final.tar.gz",
                 dry_run=False,
             )
-            assert result4[0].name == "benchmark_v1.5_final.bz2"
+            assert result4[0].name == "benchmark_v1.5_final.tar.gz"
 
 
 @pytest.mark.short
@@ -82,6 +89,7 @@ def test_output_file_compression_matrix():
         "deflated": [".zip"],
         "bzip2": [".bz2"],
         "lzma": [".xz"],
+        "gzip": [".tar.gz", ".tgz"],
     }
 
     # Test each valid combination
@@ -90,8 +98,11 @@ def test_output_file_compression_matrix():
             # This would be valid in CLI usage
             example_filename = f"test_archive{ext}"
 
-            # Verify extension matches what we expect
-            assert Path(example_filename).suffix == ext
+            # Verify extension matches what we expect (handle .tar.gz specially)
+            if ext == ".tar.gz":
+                assert example_filename.endswith(".tar.gz")
+            else:
+                assert Path(example_filename).suffix == ext
 
     # Invalid combinations that should be rejected
     invalid_combinations = [
@@ -99,6 +110,7 @@ def test_output_file_compression_matrix():
         ("lzma", ".bz2"),  # lzma compression with bzip2 extension
         ("none", ".xz"),  # no compression with xz extension
         ("deflated", ".bz2"),  # deflated compression with bzip2 extension
+        ("gzip", ".zip"),  # gzip compression with zip extension
     ]
 
     # These combinations should be caught by CLI validation
@@ -118,31 +130,31 @@ def test_output_file_usage_scenarios():
 
     # Scenario 1: Timestamped backups
     timestamp_examples = [
-        "backup_2024-12-14_morning.bz2",
+        "backup_2024-12-14_morning.tar.gz",
         "results_2024-12-14T19-30-00.xz",
         "archive_20241214.zip",
     ]
 
     # Scenario 2: Experiment naming
     experiment_examples = [
-        "experiment_001_baseline.bz2",
+        "experiment_001_baseline.tar.gz",
         "exp_002_modified_params.xz",
         "trial_03_final_run.zip",
     ]
 
     # Scenario 3: Environment-specific archives
     environment_examples = [
-        "production_results.bz2",
+        "production_results.tar.gz",
         "development_test.zip",
         "staging_validation.xz",
     ]
 
     # Scenario 4: Full path examples
     path_examples = [
-        "/home/user/backups/benchmark.bz2",
+        "/home/user/backups/benchmark.tar.gz",
         "./archives/experiment_001.xz",
         "../shared/results.zip",
-        "results/2024/december/final.bz2",
+        "results/2024/december/final.tar.gz",
     ]
 
     all_examples = (
@@ -151,21 +163,25 @@ def test_output_file_usage_scenarios():
 
     # Verify all examples have valid extensions
     for example in all_examples:
+        # Check for .tar.gz first (two-part extension)
+        if example.endswith(".tar.gz"):
+            continue  # Valid tar.gz extension
         path = Path(example)
         ext = path.suffix.lower()
         assert ext in [
             ".zip",
             ".bz2",
             ".xz",
+            ".gz",
         ], f"Invalid extension in example: {example}"
 
     # Document the count for each type
     zip_count = sum(1 for ex in all_examples if Path(ex).suffix.lower() == ".zip")
-    bz2_count = sum(1 for ex in all_examples if Path(ex).suffix.lower() == ".bz2")
+    tar_gz_count = sum(1 for ex in all_examples if ex.endswith(".tar.gz"))
     xz_count = sum(1 for ex in all_examples if Path(ex).suffix.lower() == ".xz")
 
     assert zip_count > 0  # At least some ZIP examples
-    assert bz2_count > 0  # At least some BZIP2 examples
+    assert tar_gz_count > 0  # At least some tar.gz examples
     assert xz_count > 0  # At least some XZ examples
 
 
@@ -179,16 +195,18 @@ def test_output_file_cli_examples():
 
     # CLI Examples (as documentation - not executed)
     cli_examples = [
-        # Basic usage with default bzip2 compression
-        "omnibenchmark archive -b config.yaml -r -o my_results.bz2",
+        # Basic usage with default gzip compression (tar.gz)
+        "omnibenchmark archive config.yaml -r -o my_results.tar.gz",
         # Custom compression with matching extension
-        "omnibenchmark archive -b config.yaml -r --compression lzma -o compressed.xz",
+        "omnibenchmark archive config.yaml -r --compression lzma -o compressed.xz",
         # Full path output
-        "omnibenchmark archive -b config.yaml -r -o /backup/archive.bz2",
+        "omnibenchmark archive config.yaml -r -o /backup/archive.tar.gz",
         # With other options
-        "omnibenchmark archive -b config.yaml -r -c -s -o full_backup.bz2",
+        "omnibenchmark archive config.yaml -r -c -s -o full_backup.tar.gz",
         # Dry run to preview
-        "omnibenchmark archive -b config.yaml -r -o test.bz2 --dry-run",
+        "omnibenchmark archive config.yaml -r -o test.tar.gz --dry-run",
+        # ZIP format
+        "omnibenchmark archive config.yaml -r --compression deflated -o results.zip",
     ]
 
     # Parse each example to verify format
@@ -196,13 +214,14 @@ def test_output_file_cli_examples():
         # Basic validation that examples follow expected format
         assert "omnibenchmark archive" in example
         assert "-o " in example or "--output-file" in example
-        assert any(ext in example for ext in [".zip", ".bz2", ".xz"])
+        assert any(ext in example for ext in [".zip", ".bz2", ".xz", ".tar.gz"])
 
     # Document compression/extension mappings shown in examples
     extension_mappings = {
-        ".bz2": "bzip2 (default)",
+        ".tar.gz": "gzip (default)",
         ".xz": "lzma",
         ".zip": "none or deflated",
+        ".bz2": "bzip2",
     }
 
     for ext, compression in extension_mappings.items():
