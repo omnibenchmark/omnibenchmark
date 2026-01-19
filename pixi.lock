@@ -91,7 +91,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.19.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.2.5-pyhcf101f3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/pyright-1.1.407-py312h5253ce2_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/pyright-1.1.408-py312h5253ce2_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.0.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-cov-7.0.0-pyhcf101f3_1.conda
@@ -267,7 +267,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.19.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.2.5-pyhcf101f3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-64/pyright-1.1.407-py312h01f6755_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-64/pyright-1.1.408-py312hf7082af_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.0.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-cov-7.0.0-pyhcf101f3_1.conda
@@ -440,7 +440,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pluggy-1.6.0-pyhf9edf01_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.19.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.2.5-pyhcf101f3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyright-1.1.407-py312h37e1c23_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyright-1.1.408-py312hb3ab3e3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.0.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-cov-7.0.0-pyhcf101f3_1.conda
@@ -670,7 +670,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pymdown-extensions-10.19.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pypandoc-1.16.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.2.5-pyhcf101f3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/pyright-1.1.407-py312h5253ce2_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/pyright-1.1.408-py312h5253ce2_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.0.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-cov-7.0.0-pyhcf101f3_1.conda
@@ -876,7 +876,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pymdown-extensions-10.19.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pypandoc-1.16.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.2.5-pyhcf101f3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-64/pyright-1.1.407-py312h01f6755_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-64/pyright-1.1.408-py312hf7082af_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.0.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-cov-7.0.0-pyhcf101f3_1.conda
@@ -1079,7 +1079,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pymdown-extensions-10.19.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pypandoc-1.16.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.2.5-pyhcf101f3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyright-1.1.407-py312h37e1c23_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyright-1.1.408-py312hb3ab3e3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-9.0.2-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pytest-cov-7.0.0-pyhcf101f3_1.conda
@@ -4824,6 +4824,47 @@ packages:
   - minio==7.2.18 ; extra == 'test'
   requires_python: '>=3.12.0,<3.14'
   editable: true
+- pypi: ./
+  name: omnibenchmark
+  version: 0.4.0rc2.post4
+  sha256: 8eb2ef7b4992900fe8469efb1d676fa393863ae15aab7f85288185e45ba6b4ba
+  requires_dist:
+  - click>=8.1.7
+  - python-dateutil>=2.9.0.post0
+  - filelock>=3.4.0
+  - spdx-license-list>=3.19
+  - pyyaml
+  - humanfriendly
+  - pydantic
+  - python-dotenv>=1.0.0
+  - gitpython>=3.1.0
+  - snakemake>=9.0,<9.10
+  - pandas
+  - copier>=9.0.0
+  - matplotlib==3.8.0
+  - pydot>=3.0.2
+  - tqdm>=4.66.4
+  - minio==7.2.18 ; extra == 's3'
+  - boto3>=1.34.102 ; extra == 's3'
+  - snakemake-storage-plugin-s3>=0.2.12 ; extra == 's3'
+  - snakemake-executor-plugin-slurm>=1.4.0,<2.0.0 ; extra == 'slurm'
+  - pandas ; extra == 'slurm'
+  - pandas ; extra == 'export'
+  - ipython ; extra == 'dev'
+  - pre-commit ; extra == 'dev'
+  - ruff ; extra == 'dev'
+  - typing-extensions ; extra == 'dev'
+  - isort ; extra == 'dev'
+  - pyright ; extra == 'dev'
+  - pytest-cov>=4.1.0 ; extra == 'test'
+  - pytest-split>=0.9.0 ; extra == 'test'
+  - pytest-xdist>=3.6.1 ; extra == 'test'
+  - testcontainers>=4.5.1 ; extra == 'test'
+  - pytest-timeout==2.3.1 ; extra == 'test'
+  - s3fs>=2023.12.0 ; extra == 'test'
+  - minio==7.2.18 ; extra == 'test'
+  requires_python: '>=3.12.0,<3.14'
+  editable: true
 - conda: https://conda.anaconda.org/conda-forge/linux-64/oniguruma-6.9.10-hb9d3cd8_0.conda
   sha256: bbff8a60f70d5ebab138b564554f28258472e1e63178614562d4feee29d10da2
   md5: 6ce853cb231f18576d2db5c2d4cb473e
@@ -6168,26 +6209,26 @@ packages:
   version: 1.2.0
   sha256: 9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913
   requires_python: '>=3.7'
-- conda: https://conda.anaconda.org/conda-forge/linux-64/pyright-1.1.407-py312h5253ce2_0.conda
-  sha256: 1f2311310c3df0017a5cef26643dfdcdbdaf6bcf7bf14604dbd5254de2928461
-  md5: 1b79aa44ff4fac303e17a02a15234f5e
+- conda: https://conda.anaconda.org/conda-forge/linux-64/pyright-1.1.408-py312h5253ce2_0.conda
+  sha256: 322c3b30fa00fa6d759fae449a281e74bec5acbf863ed82b15d6f2eff245de67
+  md5: 80a544b026a01c0b9e6b1fc2196de949
   depends:
   - nodeenv >=1.6.0
   - nodejs
   - python
   - typing_extensions >=4.1
-  - __glibc >=2.17,<3.0.a0
   - libgcc >=14
+  - __glibc >=2.17,<3.0.a0
   - python_abi 3.12.* *_cp312
   license: MIT
   license_family: MIT
   purls:
   - pkg:pypi/pyright?source=hash-mapping
-  size: 3861355
-  timestamp: 1761354195528
-- conda: https://conda.anaconda.org/conda-forge/osx-64/pyright-1.1.407-py312h01f6755_0.conda
-  sha256: 1c1c9cc5d09730a749c7b6d28df7915e876bab3b4c704872c9267b6a798e942f
-  md5: fd45cb0fd6ead8b03c18c4962cba458b
+  size: 4101313
+  timestamp: 1767872890841
+- conda: https://conda.anaconda.org/conda-forge/osx-64/pyright-1.1.408-py312hf7082af_0.conda
+  sha256: d538bac9736105d6c66e3fe356cc9ded04309fa517405a2cb329b3c25de868ba
+  md5: 51667b055791a1643c143eba6d93f735
   depends:
   - nodeenv >=1.6.0
   - nodejs
@@ -6199,25 +6240,25 @@ packages:
   license_family: MIT
   purls:
   - pkg:pypi/pyright?source=hash-mapping
-  size: 3861566
-  timestamp: 1761354314115
-- conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyright-1.1.407-py312h37e1c23_0.conda
-  sha256: 56515f0f110e12136bcf2868aed6d7a31e688d9f84bf2b22143e04abf8cb4e80
-  md5: 530cdd6cdb8a669d145917e9aa32390f
+  size: 4102127
+  timestamp: 1767873115418
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyright-1.1.408-py312hb3ab3e3_0.conda
+  sha256: 971b7800f996ab203bbdc97480772e38d506fc4615566fb1440c3433a8a95a64
+  md5: 42de17c3d5f6439292b77f558366698f
   depends:
   - nodeenv >=1.6.0
   - nodejs
   - python
   - typing_extensions >=4.1
-  - python 3.12.* *_cpython
   - __osx >=11.0
+  - python 3.12.* *_cpython
   - python_abi 3.12.* *_cp312
   license: MIT
   license_family: MIT
   purls:
   - pkg:pypi/pyright?source=hash-mapping
-  size: 3864633
-  timestamp: 1761354367216
+  size: 4105355
+  timestamp: 1767872955083
 - conda: https://conda.anaconda.org/conda-forge/noarch/pysocks-1.7.1-pyha55dd90_7.conda
   sha256: ba3b032fa52709ce0d9fd388f63d330a026754587a2f461117cac9ab73d8d0d8
   md5: 461219d1a5bd61342293efa2c0c90eac
