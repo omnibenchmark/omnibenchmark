@@ -141,8 +141,14 @@ class SnakemakeEngine(WorkflowEngine):
         if write_to_disk:
             snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
         else:
+            from omnibenchmark.config import get_temp_prefix
+
             temp_file = tempfile.NamedTemporaryFile(
-                delete=False, mode="w+", suffix=".smk", encoding="utf-8"
+                delete=False,
+                mode="w+",
+                suffix=".smk",
+                prefix=get_temp_prefix(),
+                encoding="utf-8",
             )
             snakefile_path = Path(temp_file.name)
 
@@ -304,8 +310,14 @@ class SnakemakeEngine(WorkflowEngine):
         if write_to_disk:
             snakefile_path = Path(os.path.join(output_dir, "Snakefile"))
         else:
+            from omnibenchmark.config import get_temp_prefix
+
             temp_file = tempfile.NamedTemporaryFile(
-                delete=False, mode="w+", suffix=".smk", encoding="utf-8"
+                delete=False,
+                mode="w+",
+                suffix=".smk",
+                prefix=get_temp_prefix(),
+                encoding="utf-8",
             )
             snakefile_path = Path(temp_file.name)
 

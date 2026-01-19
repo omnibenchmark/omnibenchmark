@@ -14,7 +14,6 @@ import json
 import logging
 import os
 import re
-import tempfile
 
 from packaging.version import Version
 from pathlib import Path
@@ -186,9 +185,12 @@ class MinIOStorage(RemoteStorage):
         # and allow for more flexibility in managing versions (monotonic, etc)
         from omnibenchmark.versioning import BenchmarkVersionManager
 
+        from omnibenchmark.config import get_temp_dir
+
+        temp_dir = get_temp_dir()
         self.version_manager = BenchmarkVersionManager(
-            benchmark_path=Path(tempfile.gettempdir()) / f"{benchmark}.yaml",
-            lock_dir=Path(tempfile.gettempdir()) / "omnibenchmark_locks",
+            benchmark_path=temp_dir / f"{benchmark}.yaml",
+            lock_dir=temp_dir / "locks",
             lock_timeout=30.0,
         )
 
@@ -345,13 +347,17 @@ class MinIOStorage(RemoteStorage):
         self._get_versions()
 
         # Initialize version manager based on whether benchmark is provided
+        from omnibenchmark.config import get_temp_dir
+
+        temp_dir = get_temp_dir()
+
         if benchmark is not None:
             # Try git-aware version manager first, fall back to basic if git not available
             try:
                 self.version_manager = GitAwareBenchmarkVersionManager(
                     benchmark_path=benchmark.get_definition_file(),
                     git_repo_path=benchmark.context.directory,
-                    lock_dir=Path(tempfile.gettempdir()) / "omnibenchmark_locks",
+                    lock_dir=temp_dir / "locks",
                     lock_timeout=30.0,
                 )
                 # Sync known versions from storage
@@ -362,7 +368,7 @@ class MinIOStorage(RemoteStorage):
 
                 self.version_manager = BenchmarkVersionManager(
                     benchmark_path=benchmark.get_definition_file(),
-                    lock_dir=Path(tempfile.gettempdir()) / "omnibenchmark_locks",
+                    lock_dir=temp_dir / "locks",
                     lock_timeout=30.0,
                 )
                 self.version_manager.set_known_versions([str(v) for v in self.versions])
@@ -371,8 +377,8 @@ class MinIOStorage(RemoteStorage):
             from omnibenchmark.versioning import BenchmarkVersionManager
 
             self.version_manager = BenchmarkVersionManager(
-                benchmark_path=Path(tempfile.gettempdir()) / f"{self.benchmark}.yaml",
-                lock_dir=Path(tempfile.gettempdir()) / "omnibenchmark_locks",
+                benchmark_path=temp_dir / f"{self.benchmark}.yaml",
+                lock_dir=temp_dir / "locks",
                 lock_timeout=30.0,
             )
             self.version_manager.set_known_versions([str(v) for v in self.versions])
@@ -400,7 +406,7 @@ class MinIOStorage(RemoteStorage):
 
                     self.version_manager = BenchmarkVersionManager(
                         benchmark_path=benchmark.get_definition_file(),
-                        lock_dir=Path(tempfile.gettempdir()) / "omnibenchmark_locks",
+                        lock_dir=temp_dir / "locks",
                         lock_timeout=30.0,
                     )
                     self.version_manager.set_known_versions(

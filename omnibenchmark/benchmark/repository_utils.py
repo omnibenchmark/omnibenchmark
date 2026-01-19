@@ -6,7 +6,6 @@ module repositories used by both validation and citation extraction workflows.
 
 import logging
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
@@ -25,8 +24,10 @@ class RepositoryManager:
         Args:
             prefix: Prefix for temporary directory names
         """
+        from omnibenchmark.config import get_temp_dir
+
         self.prefix = prefix
-        self.temp_base_dir = Path(tempfile.gettempdir()) / "omnibenchmark" / "tmp_repos"
+        self.temp_base_dir = get_temp_dir() / "tmp_repos"
         self.temp_base_dir.mkdir(parents=True, exist_ok=True)
 
     def get_local_repo_path(self, repo_url: str, commit_hash: str) -> Path:
@@ -160,7 +161,9 @@ def cleanup_temp_repositories():
 
     This function removes the dedicated omnibenchmark temporary directory.
     """
-    temp_base_dir = Path(tempfile.gettempdir()) / "omnibenchmark" / "tmp_repos"
+    from omnibenchmark.config import get_temp_dir
+
+    temp_base_dir = get_temp_dir() / "tmp_repos"
 
     if temp_base_dir.exists():
         try:

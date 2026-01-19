@@ -3,8 +3,10 @@
 # TODO: make sure this is in use
 
 import configparser
+import getpass
 import os
 import platform
+import tempfile
 from typing import Optional, Any
 
 from pathlib import Path
@@ -195,3 +197,41 @@ def get_git_modules_dir() -> Path:
     git_modules_dir.mkdir(parents=True, exist_ok=True)
 
     return git_modules_dir
+
+
+def get_temp_dir() -> Path:
+    """
+    Get the omnibenchmark-specific temporary directory for the current user.
+
+    This creates a user-specific subdirectory under the system temp directory
+    to avoid conflicts in multi-tenant environments.
+
+    Returns:
+        Path to the user-specific omnibenchmark temp directory
+        (e.g., /tmp/omnibenchmark_username/)
+    """
+    try:
+        username = getpass.getuser()
+    except Exception:
+        # Fallback if username cannot be determined
+        username = str(os.getuid()) if hasattr(os, "getuid") else "unknown"
+
+    temp_base = Path(tempfile.gettempdir()) / f"omnibenchmark_{username}"
+    temp_base.mkdir(parents=True, exist_ok=True)
+    return temp_base
+
+
+def get_temp_prefix() -> str:
+    """
+    Get a prefix string for temporary files that includes the username.
+
+    Returns:
+        A prefix string like 'omnibenchmark_username_' for use with
+        tempfile.NamedTemporaryFile and similar functions.
+    """
+    try:
+        username = getpass.getuser()
+    except Exception:
+        username = str(os.getuid()) if hasattr(os, "getuid") else "unknown"
+
+    return f"omnibenchmark_{username}_"
