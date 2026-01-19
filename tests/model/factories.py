@@ -39,7 +39,7 @@ def make_iofile(**kwargs) -> IOFile:
     """Create an IOFile following the spec."""
     defaults = {
         "id": "output1",
-        "path": "results/output.txt",  # Always relative paths
+        "path": "output.txt",  # Simple filename without directory separator
     }
     return IOFile(**{**defaults, **kwargs})
 
@@ -287,7 +287,7 @@ def make_complete_benchmark(**kwargs) -> Benchmark:
                 "modules": [
                     {"id": "preprocess_mod", "software_environment": "conda_env"}
                 ],
-                "outputs": [{"id": "cleaned_data", "path": "data/cleaned.csv"}],
+                "outputs": [{"id": "cleaned_data", "path": "cleaned.csv"}],
             },
             {
                 "id": "analysis",
@@ -295,14 +295,14 @@ def make_complete_benchmark(**kwargs) -> Benchmark:
                     {"id": "analysis_mod", "software_environment": "container_env"}
                 ],
                 "inputs": [["cleaned_data"]],
-                "outputs": [{"id": "results", "path": "results/analysis.json"}],
+                "outputs": [{"id": "results", "path": "analysis.json"}],
             },
         ],
         "metric_collectors": [
             {
                 "id": "performance_metrics",
                 "software_environment": "conda_env",
-                "inputs": [{"id": "results", "path": "results/analysis.json"}],
+                "inputs": [{"id": "results", "path": "analysis.json"}],
             }
         ],
     }

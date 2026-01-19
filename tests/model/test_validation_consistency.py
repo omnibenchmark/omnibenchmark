@@ -119,17 +119,15 @@ class TestValidationConsistency:
                 {
                     "id": "data_stage",
                     "modules": [],
-                    "outputs": [{"id": "data_output", "path": "data/output.csv"}],
+                    "outputs": [{"id": "data_output", "path": "output.csv"}],
                 }
             ],
             metric_collectors=[
                 {
                     "id": "collector1",
                     "software_environment": "metrics_env",
-                    "inputs": [{"id": "data_output", "path": "data/output.csv"}],
-                    "outputs": [
-                        {"id": "metrics_result", "path": "metrics/report.html"}
-                    ],
+                    "inputs": [{"id": "data_output", "path": "output.csv"}],
+                    "outputs": [{"id": "metrics_result", "path": "report.html"}],
                 }
             ],
         )
@@ -143,14 +141,14 @@ class TestValidationConsistency:
                     {
                         "id": "data_stage",
                         "modules": [],
-                        "outputs": [{"id": "real_output", "path": "data/output.csv"}],
+                        "outputs": [{"id": "real_output", "path": "output.csv"}],
                     }
                 ],
                 metric_collectors=[
                     {
                         "id": "collector1",
                         "software_environment": "metrics_env",
-                        "inputs": [{"id": "fake_output", "path": "fake/output.csv"}],
+                        "inputs": [{"id": "fake_output", "path": "output.csv"}],
                         "outputs": [],
                     }
                 ],
@@ -248,13 +246,13 @@ class TestValidationConsistency:
                 {
                     "id": "producer",
                     "modules": [],
-                    "outputs": [{"id": "intermediate_data", "path": "temp/data.csv"}],
+                    "outputs": [{"id": "intermediate_data", "path": "data.csv"}],
                 },
                 {
                     "id": "consumer",
                     "modules": [],
                     "inputs": [["intermediate_data"]],  # InputCollection format
-                    "outputs": [{"id": "final_result", "path": "results/final.json"}],
+                    "outputs": [{"id": "final_result", "path": "final.json"}],
                 },
             ]
         )
@@ -267,7 +265,7 @@ class TestValidationConsistency:
                     {
                         "id": "producer",
                         "modules": [],
-                        "outputs": [{"id": "real_output", "path": "temp/data.csv"}],
+                        "outputs": [{"id": "real_output", "path": "data.csv"}],
                     },
                     {
                         "id": "consumer",
@@ -297,21 +295,21 @@ class TestValidationConsistency:
                     "modules": [
                         {"id": "preprocess_mod", "software_environment": "conda_env"}
                     ],
-                    "outputs": [{"id": "cleaned_data", "path": "data/cleaned.csv"}],
+                    "outputs": [{"id": "cleaned_data", "path": "cleaned.csv"}],
                 },
                 {
                     "id": "analysis",
                     "modules": [
                         {"id": "analysis_mod", "software_environment": "analysis_env"}
                     ],
-                    "outputs": [{"id": "results", "path": "results/analysis.json"}],
+                    "outputs": [{"id": "results", "path": "analysis.json"}],
                 },
             ],
             metric_collectors=[
                 {
                     "id": "performance_metrics",
                     "software_environment": "conda_env",
-                    "inputs": [{"id": "results", "path": "results/analysis.json"}],
+                    "inputs": [{"id": "results", "path": "analysis.json"}],
                 }
             ],
         )
