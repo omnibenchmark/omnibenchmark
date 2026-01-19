@@ -202,3 +202,88 @@ metric_collectors:
                 assert len(path_warnings) == 0
         finally:
             Path(yaml_path).unlink()
+
+
+class TestFactoryPathValidation:
+    """Test that factory functions don't produce path validation warnings."""
+
+    def test_make_iofile_default_no_warning(self):
+        """Test that make_iofile() doesn't produce warnings by default."""
+        from tests.model.factories import make_iofile
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            io_file = make_iofile()
+
+            # Should not trigger any warnings with default values
+            assert len(w) == 0
+            assert io_file.path == "output.txt"
+            assert "/" not in io_file.path
+
+    def test_make_stage_default_no_warning(self):
+        """Test that make_stage() doesn't produce warnings by default."""
+        from tests.model.factories import make_stage
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            stage = make_stage()
+
+            # Should not trigger any warnings with default values
+            path_warnings = [
+                warning for warning in w if "contains '/'" in str(warning.message)
+            ]
+            assert len(path_warnings) == 0
+
+            # Check that outputs use simple filenames
+            for output in stage.outputs:
+                assert (
+                    "/" not in output.path
+                ), f"Output path '{output.path}' should not contain '/'"
+
+    def test_make_benchmark_default_no_warning(self):
+        """Test that make_benchmark() doesn't produce warnings by default."""
+        from tests.model.factories import make_benchmark
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            benchmark = make_benchmark()
+
+            # Should not trigger any path-related warnings with default values
+            path_warnings = [
+                warning for warning in w if "contains '/'" in str(warning.message)
+            ]
+            assert len(path_warnings) == 0
+
+            # Check that all stage outputs use simple filenames
+            for stage in benchmark.stages:
+                for output in stage.outputs:
+                    assert (
+                        "/" not in output.path
+                    ), f"Output path '{output.path}' should not contain '/'"
+
+    def test_factory_explicit_slash_path_produces_warning_in_stage(self):
+        """Test that factory functions with explicit slash paths produce warnings in stages."""
+        from tests.model.factories import make_benchmark
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            # Explicitly create a benchmark with a stage output that has a slash
+            _benchmark = make_benchmark(
+                stages=[
+                    {
+                        "id": "test_stage",
+                        "modules": [],
+                        "outputs": [{"id": "output1", "path": "results/output.txt"}],
+                    }
+                ]
+            )
+
+            # Should trigger warning for stage output with slash
+            path_warnings = [
+                warning for warning in w if "contains '/'" in str(warning.message)
+            ]
+            assert len(path_warnings) >= 1
