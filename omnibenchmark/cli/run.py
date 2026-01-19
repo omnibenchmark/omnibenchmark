@@ -44,7 +44,7 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     name="run",
     context_settings=dict(allow_extra_args=True),
 )
-@click.argument("benchmark_path", type=click.Path(exists=True))
+@click.argument("benchmark", type=click.Path(exists=True))
 @click.option(
     "-m",
     "--module",
@@ -121,7 +121,7 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
 @click.pass_context
 def run(
     ctx,
-    benchmark_path,
+    benchmark,
     module,
     input_dir,
     cores,
@@ -136,6 +136,8 @@ def run(
     out_dir,
 ):
     """Run a benchmark or a specific module.
+
+    BENCHMARK: Path to benchmark YAML file.
 
     Examples:
 
@@ -162,7 +164,7 @@ def run(
     # Decide whether to run whole benchmark or module
     if module:
         _run_module(
-            benchmark_path=benchmark_path,
+            benchmark_path=benchmark,
             module=module,
             input_dir=input_dir,
             out_dir=out_dir,
@@ -182,7 +184,7 @@ def run(
             raise click.UsageError("--out-dir can only be used with local storage")
 
         _run_benchmark(
-            benchmark_path=benchmark_path,
+            benchmark_path=benchmark,
             cores=cores,
             update=update,
             dry=dry,
