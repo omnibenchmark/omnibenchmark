@@ -139,11 +139,15 @@ class TestCleanupTempRepositories:
 
     def test_when_temp_dir_exists_then_removes_it(self):
         """When temp directory exists, cleanup should remove it."""
-        with patch("omnibenchmark.benchmark.repository_utils.Path") as mock_path_class:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = True
-            mock_path_class.return_value = mock_path
+        mock_temp_dir = MagicMock()
+        mock_tmp_repos = MagicMock()
+        mock_tmp_repos.exists.return_value = True
+        mock_temp_dir.__truediv__.return_value = mock_tmp_repos
 
+        with patch(
+            "omnibenchmark.config.get_temp_dir",
+            return_value=mock_temp_dir,
+        ):
             with patch(
                 "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
             ) as mock_rmtree:
@@ -153,28 +157,21 @@ class TestCleanupTempRepositories:
 
     def test_when_temp_dir_missing_then_does_nothing(self):
         """When temp directory doesn't exist, should do nothing."""
-        with patch("tempfile.gettempdir", return_value="/tmp"):
+        mock_temp_dir = MagicMock()
+        mock_tmp_repos = MagicMock()
+        mock_tmp_repos.exists.return_value = False
+        mock_temp_dir.__truediv__.return_value = mock_tmp_repos
+
+        with patch(
+            "omnibenchmark.config.get_temp_dir",
+            return_value=mock_temp_dir,
+        ):
             with patch(
-                "omnibenchmark.benchmark.repository_utils.Path"
-            ) as mock_path_class:
-                # Mock the path construction chain: Path(gettempdir()) / "omnibenchmark" / "tmp_repos"
-                mock_final_path = MagicMock()
-                mock_final_path.exists.return_value = False
+                "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
+            ) as mock_rmtree:
+                cleanup_temp_repositories()
 
-                mock_intermediate_path = MagicMock()
-                mock_intermediate_path.__truediv__.return_value = mock_final_path
-
-                mock_base_path = MagicMock()
-                mock_base_path.__truediv__.return_value = mock_intermediate_path
-
-                mock_path_class.return_value = mock_base_path
-
-                with patch(
-                    "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
-                ) as mock_rmtree:
-                    cleanup_temp_repositories()
-
-                    mock_rmtree.assert_not_called()
+                mock_rmtree.assert_not_called()
 
 
 class TestGetModuleRepositoryInfo:
