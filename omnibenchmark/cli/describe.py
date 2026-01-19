@@ -26,17 +26,16 @@ def describe(ctx):
 
 @add_debug_option
 @describe.command("snakemake")
-@click.option(
-    "--benchmark",
-    "-b",
-    required=True,
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
 )
 @click.pass_context
 def snakemake_graph(ctx, benchmark: str):
-    """Export a snakemake computational graph to dot format."""
+    """Export a snakemake computational graph to dot format.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     b = BenchmarkExecution(benchmark_yaml=Path(benchmark))
     if b is None:
         return
@@ -46,17 +45,16 @@ def snakemake_graph(ctx, benchmark: str):
 
 @add_debug_option
 @describe.command("topology")
-@click.option(
-    "--benchmark",
-    "-b",
-    required=True,
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
 )
 @click.pass_context
 def plot_topology(ctx, benchmark: str):
-    """Export benchmark topology to mermaid diagram format."""
+    """Export benchmark topology to mermaid diagram format.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     b = BenchmarkExecution(benchmark_yaml=Path(benchmark))
     if b is None:
         return
