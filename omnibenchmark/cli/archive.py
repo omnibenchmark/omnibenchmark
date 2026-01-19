@@ -44,9 +44,11 @@ from .debug import add_debug_option
 )
 @click.option(
     "--compression",
-    type=click.Choice(["none", "deflated", "bzip2", "lzma"], case_sensitive=False),
-    default="bzip2",
-    help="Compression method.",
+    type=click.Choice(
+        ["none", "deflated", "bzip2", "lzma", "gzip"], case_sensitive=False
+    ),
+    default="gzip",
+    help="Compression method. 'gzip' creates a tar.gz archive, others create ZIP archives.",
     show_default=True,
 )
 @click.option(
@@ -79,7 +81,7 @@ from .debug import add_debug_option
 @click.option(
     "-o",
     "--output-file",
-    help="Custom output file path for the archive. Extension must match compression type: none/deflated (.zip), bzip2 (.bz2), lzma (.xz).",
+    help="Custom output file path for the archive. Extension must match compression type: none/deflated (.zip), bzip2 (.bz2), lzma (.xz), gzip (.tar.gz).",
     default=None,
     type=click.Path(),
 )
@@ -116,28 +118,31 @@ def archive(
     # Validate output_file extension against compression
     if output_file:
         output_path = Path(output_file)
-        expected_extensions = {
-            zipfile.ZIP_STORED: [".zip"],
-            zipfile.ZIP_DEFLATED: [".zip"],
-            zipfile.ZIP_BZIP2: [".bz2"],
-            zipfile.ZIP_LZMA: [".xz"],
+        # Map compression types to valid extensions
+        extension_map = {
+            "none": [".zip"],
+            "deflated": [".zip"],
+            "bzip2": [".bz2"],
+            "lzma": [".xz"],
+            "gzip": [".tar.gz", ".tgz"],
         }
 
-        # Convert compression string to zipfile constant for validation
-        compression_map = {
-            "none": zipfile.ZIP_STORED,
-            "deflated": zipfile.ZIP_DEFLATED,
-            "bzip2": zipfile.ZIP_BZIP2,
-            "lzma": zipfile.ZIP_LZMA,
-        }
+        valid_extensions = extension_map.get(compression.lower(), [".zip"])
 
-        compression_type = compression_map.get(compression, zipfile.ZIP_STORED)
-        valid_extensions = expected_extensions.get(compression_type, [".zip"])
+        # Handle .tar.gz which has two suffixes
+        file_ext = output_path.suffix.lower()
+        if file_ext == ".gz" and output_path.stem.endswith(".tar"):
+            file_ext = ".tar.gz"
 
-        if output_path.suffix.lower() not in valid_extensions:
-            all_combinations = ["none/deflated → .zip", "bzip2 → .bz2", "lzma → .xz"]
+        if file_ext not in valid_extensions:
+            all_combinations = [
+                "none/deflated → .zip",
+                "bzip2 → .bz2",
+                "lzma → .xz",
+                "gzip → .tar.gz",
+            ]
             raise click.UsageError(
-                f"Output file extension '{output_path.suffix}' does not match "
+                f"Output file extension '{file_ext}' does not match "
                 f"compression type '{compression}'. Expected for '{compression}': {', '.join(valid_extensions)}.\n"
                 f"Valid combinations: {' | '.join(all_combinations)}"
             )
@@ -151,17 +156,21 @@ def archive(
         # For local-only archiving, we can load benchmark without storage requirements
         benchmark_obj = BenchmarkExecution(Path(benchmark))
 
+    # Convert compression string to constant
+    # For gzip, we use a string marker since it uses tarfile instead of zipfile
     match compression:
         case "none":
-            compression = zipfile.ZIP_STORED
+            compression_type = zipfile.ZIP_STORED
         case "deflated":
-            compression = zipfile.ZIP_DEFLATED
+            compression_type = zipfile.ZIP_DEFLATED
         case "bzip2":
-            compression = zipfile.ZIP_BZIP2
+            compression_type = zipfile.ZIP_BZIP2
         case "lzma":
-            compression = zipfile.ZIP_LZMA
+            compression_type = zipfile.ZIP_LZMA
+        case "gzip":
+            compression_type = "gzip"
         case _:
-            compression = zipfile.ZIP_STORED
+            compression_type = "gzip"
 
     results_dir = out_dir if out_dir else "out"
 
@@ -182,7 +191,7 @@ def archive(
         software=software,
         results=results,
         results_dir=results_dir,
-        compression=compression,
+        compression=compression_type,
         compresslevel=compresslevel,
         dry_run=dry_run,
         remote_storage=use_remote_storage,
