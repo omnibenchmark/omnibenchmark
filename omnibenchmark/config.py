@@ -42,24 +42,24 @@ def init_dirs():
 
     Fails gracefully if directories cannot be created (e.g., read-only filesystem).
     """
-    import logging
-
-    logger = logging.getLogger(__name__)
+    import warnings
 
     try:
         os.makedirs(bench_dir, exist_ok=True)
     except OSError as e:
-        logger.warning(
+        warnings.warn(
             f"Could not create benchmark directory {bench_dir}: {e}. "
-            "This may affect git module caching but won't prevent execution."
+            "This may affect git module caching but won't prevent execution.",
+            stacklevel=2,
         )
 
     try:
         os.makedirs(config_dir, exist_ok=True)
     except OSError as e:
-        logger.warning(
+        warnings.warn(
             f"Could not create config directory {config_dir}: {e}. "
-            "Using in-memory configuration only."
+            "Using in-memory configuration only.",
+            stacklevel=2,
         )
 
 
@@ -138,17 +138,16 @@ class ConfigAccessor:
 
         Fails gracefully if the file cannot be written (e.g., read-only filesystem).
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
+        import warnings
 
         try:
             with open(self.config_path, "w") as configfile:
                 self.config.write(configfile)
         except (OSError, IOError) as e:
-            logger.warning(
+            warnings.warn(
                 f"Could not save configuration to {self.config_path}: {e}. "
-                "Configuration changes will not persist."
+                "Configuration changes will not persist.",
+                stacklevel=2,
             )
 
     def sections(self) -> list:
