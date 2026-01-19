@@ -10,7 +10,6 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import List, Optional, Callable
-import tempfile
 
 from .exceptions import (
     VersioningError,
@@ -55,8 +54,10 @@ class BenchmarkVersionManager:
 
         # Set up lock directory (transient, not persisted)
         if lock_dir is None:
-            # Use system temp directory for transient locks
-            lock_dir = Path(tempfile.gettempdir()) / "omnibenchmark_locks"
+            # Use user-specific temp directory for transient locks
+            from omnibenchmark.config import get_temp_dir
+
+            lock_dir = get_temp_dir() / "locks"
         self.lock_dir = Path(lock_dir)
         self.lock_dir.mkdir(parents=True, exist_ok=True)
 

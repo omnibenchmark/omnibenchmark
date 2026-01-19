@@ -257,8 +257,10 @@ def _extract_stage_inputs(
 
             logger.info(f"Fetching benchmark from URL: {benchmark_path_or_url}")
 
+            from omnibenchmark.config import get_temp_prefix
+
             with tempfile.NamedTemporaryFile(
-                mode="w+", suffix=".yaml", delete=False
+                mode="w+", suffix=".yaml", prefix=get_temp_prefix(), delete=False
             ) as tmp_file:
                 tmp_path = Path(tmp_file.name)
 
