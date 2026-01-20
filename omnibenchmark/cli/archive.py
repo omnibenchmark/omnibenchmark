@@ -7,6 +7,7 @@ from pathlib import Path
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.cli.remote import StorageAuth
 from omnibenchmark.archive import archive_benchmark
+from omnibenchmark.constants import COMPRESSION_GZIP, DEFAULT_COMPRESSION
 from omnibenchmark.remote.tree import tree_string_from_list
 
 from .debug import add_debug_option
@@ -47,8 +48,8 @@ from .debug import add_debug_option
     type=click.Choice(
         ["none", "deflated", "bzip2", "lzma", "gzip"], case_sensitive=False
     ),
-    default="gzip",
-    help="Compression method. 'gzip' creates a tar.gz archive, others create ZIP archives.",
+    default=DEFAULT_COMPRESSION,
+    help=f"Compression method. '{DEFAULT_COMPRESSION}' creates a tar.gz archive, others create ZIP archives.",
     show_default=True,
 )
 @click.option(
@@ -168,9 +169,9 @@ def archive(
         case "lzma":
             compression_type = zipfile.ZIP_LZMA
         case "gzip":
-            compression_type = "gzip"
+            compression_type = COMPRESSION_GZIP
         case _:
-            compression_type = "gzip"
+            compression_type = COMPRESSION_GZIP
 
     results_dir = out_dir if out_dir else "out"
 
