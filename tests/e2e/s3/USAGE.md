@@ -29,7 +29,7 @@ pixi run test-e2e-s3
 
 The S3 e2e tests are **minimal and fast** - they focus on CLI signatures rather than comprehensive pipeline testing:
 
-1. **CLI Signature Test**: Verifies `ob run benchmark -b config.yaml --use-remote-storage` works
+1. **CLI Signature Test**: Verifies `ob run config.yaml --use-remote-storage` works
 2. **Error Handling Test**: Checks behavior when S3 config is used without `--use-remote-storage`
 3. **S3 Integration Test**: Validates bucket creation, upload, and download operations
 
@@ -155,7 +155,7 @@ tests/e2e/
 ### Command Line Interface
 ```bash
 # This exact command is tested:
-ob run benchmark -b 06_s3_minimal.yaml --use-remote-storage
+ob run 06_s3_minimal.yaml --use-remote-storage
 ```
 
 ### S3 Operations

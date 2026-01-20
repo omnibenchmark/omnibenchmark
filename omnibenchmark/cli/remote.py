@@ -117,16 +117,15 @@ remote.add_command(policy)
 
 @add_debug_option
 @version.command(name="create")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    required=True,
-    envvar="OB_BENCHMARK",
 )
 def create_benchmark_version(benchmark: str):
-    """Create a new benchmark version."""
+    """Create a new benchmark version.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     assert benchmark is not None
 
     storage_auth = StorageAuth(benchmark)
@@ -145,13 +144,9 @@ def create_benchmark_version(benchmark: str):
 
 @add_debug_option
 @files.command(name="list")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    required=True,
-    envvar="OB_BENCHMARK",
 )
 @click.option(
     "-t",
@@ -171,7 +166,10 @@ def list_all_files(
     module: str = "",
     file_id: str = "",
 ):
-    """List all or specific files for a benchmark."""
+    """List all or specific files for a benchmark.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     if file_id is not None:
         logger.error("--file_id is not implemented")
         sys.exit(1)
@@ -187,13 +185,9 @@ def list_all_files(
 
 @add_debug_option
 @files.command(name="download")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    required=True,
-    envvar="OB_BENCHMARK",
 )
 @click.option(
     "-t",
@@ -227,7 +221,10 @@ def download_all_files(
     file_id: str = "",
     overwrite: bool = False,
 ):
-    """Download all or specific files for a benchmark."""
+    """Download all or specific files for a benchmark.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     if file_id is not None:
         logger.error("--file_id is not implemented")
         raise click.Abort()
@@ -248,16 +245,15 @@ def download_all_files(
 
 @add_debug_option
 @files.command(name="checksum")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    required=True,
-    envvar="OB_BENCHMARK",
 )
 def checksum_all_files(benchmark: str):
-    """Generate md5sums of all benchmark outputs"""
+    """Generate md5sums of all benchmark outputs.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
 
     # ARCHITECTURAL NOTE: Business Logic in CLI Layer
     # This function contains domain logic (checksum validation) that belongs in
@@ -286,11 +282,10 @@ def checksum_all_files(benchmark: str):
 @click.option(
     "-b",
     "--benchmark",
-    "benchmark_path",
-    help="Path to benchmark yaml file.",
+    "benchmark",
+    help="Path to benchmark YAML file.",
     type=click.Path(exists=True),
     required=False,
-    envvar="OB_BENCHMARK",
 )
 @click.option(
     "--bucket",
@@ -299,7 +294,7 @@ def checksum_all_files(benchmark: str):
     type=str,
     required=False,
 )
-def create_policy(benchmark_path: str, bucket_name: str):
+def create_policy(benchmark: str, bucket_name: str):
     """Generate an S3/MinIO IAM policy for a benchmark bucket.
 
     This command generates a least-privilege AWS IAM policy JSON that can be used
@@ -307,7 +302,7 @@ def create_policy(benchmark_path: str, bucket_name: str):
     on the bucket but denies deletion and governance bypass.
 
     You can either:
-    - Provide a benchmark YAML file (-b) to read the bucket name from storage.bucket_name
+    - Provide a benchmark YAML file (-b/--benchmark) to read the bucket name from storage.bucket_name
     - Provide the bucket name directly (--bucket)
     """
     from omnibenchmark.remote.S3config import benchmarker_access_token_policy
@@ -317,20 +312,20 @@ def create_policy(benchmark_path: str, bucket_name: str):
     if bucket_name:
         # Direct bucket name provided
         bucket = bucket_name
-    elif benchmark_path:
+    elif benchmark:
         # Load from benchmark YAML
         from omnibenchmark.model.benchmark import Benchmark
 
         try:
-            benchmark = Benchmark.from_yaml(Path(benchmark_path))
+            benchmark_model = Benchmark.from_yaml(Path(benchmark))
         except BenchmarkParseError as e:
             formatted_error = pretty_print_parse_error(e)
             logger.error(f"Failed to load benchmark:\n{formatted_error}")
             sys.exit(1)
 
         # Get storage configuration
-        api = benchmark.get_storage_api()
-        bucket = benchmark.get_storage_bucket_name()
+        api = benchmark_model.get_storage_api()
+        bucket = benchmark_model.get_storage_bucket_name()
 
         # Validate we have bucket name
         if bucket is None:
@@ -369,14 +364,9 @@ def create_policy(benchmark_path: str, bucket_name: str):
 
 @add_debug_option
 @version.command("diff")
-@click.option(
-    "--benchmark",
-    "-b",
-    "benchmark_path",
-    required=True,
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
 )
 @click.option(
     "--version1",
@@ -393,15 +383,18 @@ def create_policy(benchmark_path: str, bucket_name: str):
     help="Version to compare with.",
 )
 @click.pass_context
-def diff_benchmark(ctx, benchmark_path: str, version1, version2):
-    """Show differences between 2 benchmark versions."""
+def diff_benchmark(ctx, benchmark: str, version1, version2):
+    """Show differences between 2 benchmark versions.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     from omnibenchmark.remote.storage import get_storage, remote_storage_args
 
     logger.info(
-        f"Found the following differences in {benchmark_path} for {version1} and {version2}."
+        f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
-    b = BenchmarkExecution(Path(benchmark_path))
-    auth_options = remote_storage_args(benchmark_path)
+    b = BenchmarkExecution(Path(benchmark))
+    auth_options = remote_storage_args(benchmark)
 
     api = b.get_storage_api()
     bucket = b.get_storage_bucket_name()
@@ -459,23 +452,21 @@ def diff_benchmark(ctx, benchmark_path: str, version1, version2):
 
 @add_debug_option
 @version.command("list")
-@click.option(
-    "--benchmark",
-    "-b",
-    "benchmark_path",
-    required=True,
+@click.argument(
+    "benchmark",
     type=click.Path(exists=True),
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
 )
 @click.pass_context
-def list_versions(ctx, benchmark_path: str):
-    """List all available benchmark versions."""
+def list_versions(ctx, benchmark: str):
+    """List all available benchmark versions.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
     from omnibenchmark.remote.storage import get_storage, remote_storage_args
 
-    logger.info(f"Available versions of {benchmark_path}:")
+    logger.info(f"Available versions of {benchmark}:")
 
-    b = BenchmarkExecution(Path(benchmark_path))
+    b = BenchmarkExecution(Path(benchmark))
     auth_options = remote_storage_args(b)
     api = b.get_storage_api()
     bucket = b.get_storage_bucket_name()
