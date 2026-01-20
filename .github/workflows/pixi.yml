@@ -248,7 +248,7 @@ jobs:
 
       - name: Clone clustering example repo
         run: |
-          git clone https://github.com/omnibenchmark/clustering_example.git
+          git clone --branch update-to-0.4 https://github.com/omnibenchmark/clustering_example.git
           cd clustering_example
           ls -la
 
@@ -326,7 +326,7 @@ jobs:
 
       - name: Clone clustering example repo
         run: |
-          git clone https://github.com/omnibenchmark/clustering_example.git
+          git clone --branch update-to-0.4 https://github.com/omnibenchmark/clustering_example.git
           cd clustering_example
           ls -la
 
