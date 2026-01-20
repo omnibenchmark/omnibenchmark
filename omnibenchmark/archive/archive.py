@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.constants import COMPRESSION_GZIP, DEFAULT_COMPRESSION
 
 from .components import (
     prepare_archive_code,
@@ -29,7 +30,7 @@ def archive_benchmark(
     software: bool = False,
     results: bool = False,
     results_dir: str = "out",
-    compression: Union[int, str] = "gzip",
+    compression: Union[int, str] = DEFAULT_COMPRESSION,
     compresslevel: Optional[int] = None,
     dry_run: bool = False,
     remote_storage: bool = False,
@@ -100,7 +101,7 @@ def archive_benchmark(
             archive_path = outdir / outfile
 
         # Save all files to archive
-        if compression == "gzip":
+        if compression == COMPRESSION_GZIP:
             # Use tarfile for tar.gz archives
             # Wrap contents in a top-level directory to avoid tar bomb
             with tarfile.open(
@@ -128,7 +129,7 @@ def archive_benchmark(
 
 def get_archive_file_extension(compression: Union[int, str]) -> str:
     """Get appropriate file extension for compression method."""
-    if compression == "gzip":
+    if compression == COMPRESSION_GZIP:
         return ".tar.gz"
     match compression:
         case zipfile.ZIP_BZIP2:

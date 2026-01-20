@@ -6,7 +6,7 @@ All tests are marked as 'short' since they test simple constant definitions.
 """
 
 import pytest
-from omnibenchmark.constants import LayoutDesign
+from omnibenchmark.constants import LayoutDesign, COMPRESSION_GZIP, DEFAULT_COMPRESSION
 from omnibenchmark.benchmark.constants import LOCAL_TIMEOUT_VAR, OUTPUT_PATH_PREFIX
 
 
@@ -87,3 +87,18 @@ class TestBenchmarkConstants:
         # Verify they maintain their values
         assert timeout_var == "local_task_timeout"
         assert path_prefix == "{input}/{stage}/{module}/{params}"
+
+
+@pytest.mark.short
+class TestCompressionConstants:
+    """Test compression constants."""
+
+    def test_compression_gzip_value(self):
+        """Test that COMPRESSION_GZIP has expected value."""
+        assert COMPRESSION_GZIP == "gzip"
+        assert isinstance(COMPRESSION_GZIP, str)
+
+    def test_default_compression_is_gzip(self):
+        """Test that DEFAULT_COMPRESSION is set to COMPRESSION_GZIP."""
+        assert DEFAULT_COMPRESSION == COMPRESSION_GZIP
+        assert DEFAULT_COMPRESSION == "gzip"
