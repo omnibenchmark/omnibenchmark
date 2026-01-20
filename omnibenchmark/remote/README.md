@@ -97,7 +97,7 @@ The module provides three main file operations:
 List available files for a benchmark:
 
 ```bash
-ob remote files list -b benchmark.yaml
+ob remote files list benchmark.yaml
 ```
 
 #### Download Files
@@ -105,7 +105,7 @@ ob remote files list -b benchmark.yaml
 Download files with checksum verification:
 
 ```bash
-ob remote files download -b benchmark.yaml [--overwrite]
+ob remote files download benchmark.yaml [--overwrite]
 ```
 
 #### Checksum Validation
@@ -113,7 +113,7 @@ ob remote files download -b benchmark.yaml [--overwrite]
 Verify file integrity using MD5 checksums:
 
 ```bash
-ob remote files checksum -b benchmark.yaml
+ob remote files checksum benchmark.yaml
 ```
 
 ### Policy Generation
@@ -150,7 +150,7 @@ The archive behavior differs significantly based on the `--use-remote-storage` f
 
 #### With `--use-remote-storage` (Remote Mode)
 ```bash
-ob archive -b benchmark.yaml --results --use-remote-storage
+ob archive benchmark.yaml --results --use-remote-storage
 ```
 
 **Behavior:**
@@ -172,7 +172,7 @@ ob archive -b benchmark.yaml --results --use-remote-storage
 
 #### Without `--use-remote-storage` (Local Mode)
 ```bash
-ob archive -b benchmark.yaml --results
+ob archive benchmark.yaml --results
 ```
 
 **Behavior:**
@@ -214,10 +214,10 @@ lzma:     RemoteBucketOperations_1.0.xz  (2,594 bytes) - 29% reduction
 #### No Version Selection
 ```bash
 # ❌ NOT SUPPORTED: Cannot specify which version to archive
-ob archive -b benchmark.yaml --results --version 1.0
+ob archive benchmark.yaml --results --version 1.0
 
 # ✅ CURRENT BEHAVIOR: Always uses version from benchmark.yaml
-ob archive -b benchmark.yaml --results --use-remote-storage
+ob archive benchmark.yaml --results --use-remote-storage
 ```
 
 **Impact:** Archive always uses the version specified in the `benchmark.yaml` file. To archive version 1.0, you must:
@@ -258,7 +258,7 @@ storage:
 Create a new version snapshot of your benchmark results:
 
 ```bash
-ob remote version create -b benchmark.yaml
+ob remote version create benchmark.yaml
 ```
 
 This command:
@@ -269,7 +269,7 @@ This command:
 #### List Available Versions
 
 ```bash
-ob remote version list -b benchmark.yaml
+ob remote version list benchmark.yaml
 ```
 
 Example output:
@@ -285,7 +285,7 @@ Available versions of benchmark.yaml:
 Show differences between two benchmark versions:
 
 ```bash
-ob remote version diff -b benchmark.yaml --version1 0.1 --version2 0.2
+ob remote version diff benchmark.yaml --version1 0.1 --version2 0.2
 ```
 
 This displays a unified diff showing:
@@ -300,7 +300,7 @@ This displays a unified diff showing:
 List all benchmark output files:
 
 ```bash
-ob remote files list -b benchmark.yaml
+ob remote files list benchmark.yaml
 ```
 
 Example output:
@@ -314,13 +314,13 @@ a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6 out/methods/M1/default/result.csv
 Download all benchmark files to local directory:
 
 ```bash
-ob remote files download -b benchmark.yaml
+ob remote files download benchmark.yaml
 ```
 
 Overwrite existing local files:
 
 ```bash
-ob remote files download -b benchmark.yaml --overwrite
+ob remote files download benchmark.yaml --overwrite
 ```
 
 #### Verify Checksums
@@ -328,7 +328,7 @@ ob remote files download -b benchmark.yaml --overwrite
 Generate and verify MD5 checksums for all benchmark outputs:
 
 ```bash
-ob remote files checksum -b benchmark.yaml
+ob remote files checksum benchmark.yaml
 ```
 
 This command:
@@ -388,16 +388,16 @@ Create a complete benchmark archive:
 
 ```bash
 # Archive everything (config, code, software, results)
-ob archive -b benchmark.yaml --code --software --results
+ob archive benchmark.yaml --code --software --results
 
 # With remote storage (downloads from S3 first)
-ob archive -b benchmark.yaml --results --use-remote-storage
+ob archive benchmark.yaml --results --use-remote-storage
 
 # With compression
-ob archive -b benchmark.yaml --code --software --results --compression lzma
+ob archive benchmark.yaml --code --software --results --compression lzma
 
 # Dry run (preview what will be archived)
-ob archive -b benchmark.yaml --code --software --results --dry-run
+ob archive benchmark.yaml --code --software --results --dry-run
 ```
 
 #### Archive Component Selection
@@ -411,39 +411,39 @@ Components can be selected individually:
 
 ```bash
 # Archive with remote results (recommended for complete archives)
-ob archive -b benchmark.yaml --results --use-remote-storage
+ob archive benchmark.yaml --results --use-remote-storage
 
 # Archive local results only (may be incomplete)
-ob archive -b benchmark.yaml --results
+ob archive benchmark.yaml --results
 
 # Mixed approach: code + remote results
-ob archive -b benchmark.yaml --code --results --use-remote-storage
+ob archive benchmark.yaml --code --results --use-remote-storage
 
 # Local development archive (config + code only)
-ob archive -b benchmark.yaml --code
+ob archive benchmark.yaml --code
 ```
 
 #### Compression Examples
 
 ```bash
 # Fast archive (no compression)
-ob archive -b benchmark.yaml --results --compression none
+ob archive benchmark.yaml --results --compression none
 
 # Balanced (standard compression)
-ob archive -b benchmark.yaml --results --compression deflated
+ob archive benchmark.yaml --results --compression deflated
 
 # Small archive (best compression, slower)
-ob archive -b benchmark.yaml --results --compression lzma
+ob archive benchmark.yaml --results --compression lzma
 ```
 
 #### Dry Run Usage
 
 ```bash
 # Preview what would be archived
-ob archive -b benchmark.yaml --code --software --results --dry-run
+ob archive benchmark.yaml --code --software --results --dry-run
 
 # Check remote files without downloading
-ob archive -b benchmark.yaml --results --use-remote-storage --dry-run
+ob archive benchmark.yaml --results --use-remote-storage --dry-run
 ```
 
 The archive will be created in the current directory with a name like:
@@ -539,22 +539,22 @@ echo '{"access_key": "KEY", "secret_key": "SECRET"}' > ~/.ob/s3-config.json
 
 # 4. Run benchmark with remote storage
 export OB_STORAGE_S3_CONFIG=~/.ob/s3-config.json
-ob run benchmark -b benchmark.yaml
+ob run benchmark.yaml
 
 # 5. Create version snapshot
-ob remote version create -b benchmark.yaml
+ob remote version create benchmark.yaml
 
 # 6. List versions
-ob remote version list -b benchmark.yaml
+ob remote version list benchmark.yaml
 
 # 7. Download results
-ob remote files download -b benchmark.yaml
+ob remote files download benchmark.yaml
 
 # 8. Verify integrity
-ob remote files checksum -b benchmark.yaml
+ob remote files checksum benchmark.yaml
 
 # 9. Create archive
-ob archive -b benchmark.yaml --code --software --results --compression lzma
+ob archive benchmark.yaml --code --software --results --compression lzma
 ```
 
 ## Related Documentation
