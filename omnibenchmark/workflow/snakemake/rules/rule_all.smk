@@ -25,20 +25,17 @@ def get_script_path(script_name: str) -> str:
 def create_all_rule(config, paths: List[str], aggregate_performance: bool = False):
     out_dir = config['out_dir']
 
-    if not aggregate_performance:
+    if aggregate_performance:
         rule all:
-            input: paths,
-            # "out/data/D2/default/D2.data.ext",
-            # "out/data/D2/default/process/P1/default/D2.txt.gz",
-            # "out/data/D1/default/process/P2/default/methods/M2/default/D1.model.out.gz"
-            # "out/data/D1/default/process/P2/default/methods/M2/default/m1/default/D1.results.txt"
+            input: paths + [f"{out_dir}/performances.tsv"]
+
+        rule aggregate_performance:
+            input: paths
+            output: f"{out_dir}/performances.tsv"
+            script: get_script_path("aggregate_performance.py")
     else:
         rule all:
             input: paths
-            output:
-                f"{benchmark.context.out_dir}/performances.tsv"
-            script:
-                get_script_path("aggregate_performance.py")
 
 
 def create_metric_collector_rule(benchmark: Benchmark, collector: MetricCollector, config: dict[str, Any], node_output_paths: List[str]):
