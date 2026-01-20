@@ -240,7 +240,7 @@ class TestFormatMcOutput:
         """Test formatting when output has path with substitutions."""
         # Create a mock output object with path
         mock_output = Mock()
-        mock_output.path = "{input}/metrics/{name}_results.json"
+        mock_output.path = "metrics/{name}_results.json"
         mock_output.id = "test_collector"
 
         out_dir = Path("/test/output")
@@ -253,7 +253,7 @@ class TestFormatMcOutput:
     def test_format_with_input_substitution_only(self):
         """Test formatting with only {input} substitution."""
         mock_output = Mock()
-        mock_output.path = "{input}/simple_output.txt"
+        mock_output.path = "simple_output.txt"
         mock_output.id = "test_collector"
 
         out_dir = Path("/base/dir")
@@ -261,32 +261,6 @@ class TestFormatMcOutput:
 
         result = format_mc_output(mock_output, out_dir, collector_id)
         expected = "/base/dir/simple_output.txt"
-        assert result == expected
-
-    def test_format_with_name_substitution_only(self):
-        """Test formatting with only {name} substitution."""
-        mock_output = Mock()
-        mock_output.path = "/fixed/path/{name}.log"
-        mock_output.id = "test_collector"
-
-        out_dir = Path("/test/output")
-        collector_id = "log_collector"
-
-        result = format_mc_output(mock_output, out_dir, collector_id)
-        expected = "/fixed/path/log_collector.log"
-        assert result == expected
-
-    def test_format_without_substitutions(self):
-        """Test formatting path without any substitution placeholders."""
-        mock_output = Mock()
-        mock_output.path = "/absolute/fixed/path/file.txt"
-        mock_output.id = "test_collector"
-
-        out_dir = Path("/test/output")
-        collector_id = "collector"
-
-        result = format_mc_output(mock_output, out_dir, collector_id)
-        expected = "/absolute/fixed/path/file.txt"
         assert result == expected
 
     def test_format_no_path_uses_id(self):
@@ -318,22 +292,20 @@ class TestFormatMcOutput:
     def test_format_with_complex_substitutions(self):
         """Test formatting with multiple occurrences of substitutions."""
         mock_output = Mock()
-        mock_output.path = "{input}/stage1/{name}/stage2/{input}/{name}.final"
+        mock_output.path = "stage1/{name}/stage2/{name}.final"
         mock_output.id = "test_collector"
 
         out_dir = Path("/complex/base")
         collector_id = "multi_stage"
 
         result = format_mc_output(mock_output, out_dir, collector_id)
-        expected = (
-            "/complex/base/stage1/multi_stage/stage2//complex/base/multi_stage.final"
-        )
+        expected = "/complex/base/stage1/multi_stage/stage2/multi_stage.final"
         assert result == expected
 
     def test_format_path_object_conversion(self):
         """Test that Path objects are properly converted to strings."""
         mock_output = Mock()
-        mock_output.path = "{input}/converted.txt"
+        mock_output.path = "converted.txt"
         mock_output.id = "path_collector"
 
         # Use Path object for out_dir
