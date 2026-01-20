@@ -19,14 +19,7 @@ DASHBOARD_FORMAT_EXT_DICT = {"bettr": "json"}
 
 @add_debug_option
 @click.command(name="dashboard")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
-    required=True,
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
-)
+@click.argument("benchmark", type=click.Path(exists=True))
 @click.option(
     "--format",
     "-f",
