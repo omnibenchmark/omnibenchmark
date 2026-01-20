@@ -255,4 +255,4 @@ metric_collectors:
       - methods_group3.result
     outputs:
       - id: metrics.summary
-        path: "{input}/metrics/metrics.json"
+        path: "metrics/metrics.json"

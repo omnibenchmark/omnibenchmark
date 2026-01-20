@@ -76,4 +76,4 @@ metric_collectors:
     outputs:
       - id: metrics.summary
         # TODO: this "input" here is really unintuitive. it really means "output" dir.
-        path: "{input}/metrics/metrics.json"
+        path: "metrics/metrics.json"

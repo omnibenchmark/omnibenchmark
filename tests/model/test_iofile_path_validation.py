@@ -178,7 +178,7 @@ metric_collectors:
     inputs: ["data.result"]
     outputs:
       - id: metrics.json
-        path: "{input}/metrics/metrics.json"
+        path: "metrics/metrics.json"
 """)
             yaml_path = f.name
 

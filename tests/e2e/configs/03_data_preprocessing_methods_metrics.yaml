@@ -132,4 +132,4 @@ metric_collectors:
       - methods.result
     outputs:
       - id: metrics.summary
-        path: "{input}/metrics/metrics.json"
+        path: "metrics/metrics.json"

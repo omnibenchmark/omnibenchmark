@@ -338,7 +338,7 @@ metric_collectors:
       - metrics.json
     outputs:
       - id: plotting.html
-        path: "{input}/{name}/plotting_report.html"
+        path: "{name}/plotting_report.html"
 ```
 
 Similarly to any other module, the associated code to run the processing is stored as a git-compatible remote (with `url` and `commit id`). In the example above, `multiple_to_one` only generates one output, a report named `plotting.html` collecting all computed `metrics.json` files.
