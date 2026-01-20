@@ -1,15 +1,15 @@
-# 004: Omnibenchmark YAML Specification (v0.3)
+# 004: Omnibenchmark YAML Specification (v0.1)
 
-[![Status: Accepted](https://img.shields.io/badge/Status-Accepted-green.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.3](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Status: Under Review](https://img.shields.io/badge/Status-UnderReview-yellow.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 0.1](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: ben,
+**Authors**: ben
 **Date**: 2025-01-20
 **Status**: Under Review
 **Version**: 0.1
 **Supersedes**: N/A
-**Reviewed-by**: TBD
-**Related Issues**: TBD
+**Reviewed-by**: daninci
+**Related Issues**: #283
 
 ## Changes
 
@@ -189,7 +189,6 @@ Modules MUST NOT declare these in their YAML configuration.
 #### Parameter Values
 
 - **String**: Passed directly (`evaluate: "1+1"` → `--evaluate 1+1`)
-- **List**: Joined with commas (`items: [a, b, c]` → `--items a,b,c`)
 
 #### Wildcard-Based Resolution
 
