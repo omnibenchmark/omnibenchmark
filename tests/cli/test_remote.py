@@ -37,7 +37,6 @@ def test_create_version(minio_storage):  # noqa: F811
                 "remote",
                 "version",
                 "create",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ]
         )
@@ -122,7 +121,6 @@ def test_list_files(minio_storage):  # noqa: F811
                 "remote",
                 "version",
                 "create",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ],
             cwd=minio_storage.out_dir,
@@ -136,7 +134,6 @@ def test_list_files(minio_storage):  # noqa: F811
                 "remote",
                 "files",
                 "list",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ]
         )
@@ -161,7 +158,6 @@ def test_download_files(minio_storage):  # noqa: F811
                 "remote",
                 "version",
                 "create",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ],
             cwd=minio_storage.out_dir,
@@ -182,7 +178,6 @@ def test_download_files(minio_storage):  # noqa: F811
                 "remote",
                 "files",
                 "download",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ],
             cwd=minio_storage.out_dir,
@@ -219,7 +214,6 @@ def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
                     "remote",
                     "version",
                     "create",
-                    "--benchmark",
                     str(minio_storage.benchmark_file),
                 ],
                 cwd=minio_storage.out_dir,
@@ -276,7 +270,6 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
                     "remote",
                     "version",
                     "create",
-                    "--benchmark",
                     str(minio_storage.benchmark_file),
                 ],
                 cwd=minio_storage.out_dir,
@@ -367,7 +360,6 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
                     "remote",
                     "version",
                     "create",
-                    "--benchmark",
                     str(minio_storage.benchmark_file),
                 ],
                 cwd=minio_storage.out_dir,

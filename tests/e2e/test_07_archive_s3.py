@@ -428,7 +428,6 @@ def test_archive_version_limitation(
             "remote",
             "version",
             "create",
-            "--benchmark",
             str(config_file_in_tmp),
         ]
         version_result = omni.call(version_create_args, cwd=str(tmp_path))
