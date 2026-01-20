@@ -23,12 +23,14 @@
 
 Previous [spec for module metadata](https://github.com/omnibenchmark/internal_docs/blob/master/architecture/method_contributor_design.md) suggested to expose attribution fields (for citation) and execution details (entrypoints, environment specs) in a single YAML file.
 
-We also rely on a `config.cfg` file to be [present at the root of a valid omnibenchmark module](https://github.com/imallona/clustbench_fcps/blob/main/config.cfg). As of today, this file only contains information about the module entrypoint:
-
-```
-[DEFAULT]
-SCRIPT=run_fcps.R
-```
+> **Note on Legacy Format**: Prior to this design, omnibenchmark relied on a `config.cfg` file to be [present at the root of a valid omnibenchmark module](https://github.com/imallona/clustbench_fcps/blob/main/config.cfg). This file only contained information about the module entrypoint:
+>
+> ```
+> [DEFAULT]
+> SCRIPT=run_fcps.R
+> ```
+>
+> **Deprecation Timeline**: The legacy `config.cfg` format is still supported in version 0.4.0 with deprecation warnings, but is scheduled for removal in version 0.6.0. All modules should migrate to `omnibenchmark.yaml` as described in this design document.
 
 ### Non-Goals
 
