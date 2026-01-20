@@ -7,4 +7,4 @@ dependencies:
   - conda-forge::python == 3.12
   - conda-forge::pip >= 24.1.2
   - pip:
-     - omnibenchmark==0.4.0rc2
+     - omnibenchmark==0.4.0
