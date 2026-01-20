@@ -62,8 +62,7 @@ def format_mc_output(output, out_dir: Path, collector_id: str):
         collector_id: Collector identifier
     """
     if output.path:
-        o = output.path.replace("{input}", str(out_dir))
-        o = o.replace("{name}", collector_id)
-        return o
+        o = output.path.replace("{name}", collector_id)
+        return f"{out_dir}/{o}"
     else:
         return str(out_dir / output.id)
