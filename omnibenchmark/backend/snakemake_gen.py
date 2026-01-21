@@ -98,7 +98,7 @@ class SnakemakeGenerator:
         f.write("#\n")
         f.write("# This Snakefile was generated from resolved benchmark nodes.\n")
         f.write("# All modules have been cloned and entrypoints dereferenced.\n")
-        f.write("# Module checkouts are in .modules/{commit}/\n")
+        f.write("# Module checkouts are in .modules/{repo_name}/{commit}/\n")
         f.write("#\n")
         f.write("#" * 80 + "\n")
         f.write("\n")
@@ -237,7 +237,7 @@ class SnakemakeGenerator:
         - If has_shebang: execute entrypoint directly
         - Otherwise: use inferred interpreter
 
-        Note: After cd .repos/HASH, we use ../../ to get back to out/ directory
+        Note: After cd .modules/repo/HASH, we use ../../../ to get back to out/ directory
         """
         f.write("    shell:\n")
         f.write('        """\n')
@@ -265,8 +265,8 @@ class SnakemakeGenerator:
         if node.module.has_shebang:
             # Has shebang, execute directly
             f.write("        ./{params.entrypoint} \\\\\n")
-            # Use ../../ to get back to out/ directory from .repos/HASH/
-            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            # Use ../../../ to get back to out/ directory from .modules/repo/HASH/
+            f.write("            --output_dir $(dirname ../../../{output[0]}) \\\\\n")
             # Use resolved dataset value if available, otherwise use wildcard
             if node.dataset:
                 f.write(f"            --name {node.dataset}")
@@ -278,13 +278,15 @@ class SnakemakeGenerator:
                 for i, key in enumerate(node.inputs.keys()):
                     # Use original name if available, otherwise use sanitized name
                     original_name = node.input_name_mapping.get(key, key)
-                    # Prefix input paths with ../../ to get back to out/ directory
+                    # Prefix input paths with ../../../ to get back to out/ directory
                     if i < len(node.inputs) - 1 or node.parameters:
                         f.write(
-                            f"            --{original_name} ../../{{input.{key}}} \\\\\n"
+                            f"            --{original_name} ../../../{{input.{key}}} \\\\\n"
                         )
                     else:
-                        f.write(f"            --{original_name} ../../{{input.{key}}}")
+                        f.write(
+                            f"            --{original_name} ../../../{{input.{key}}}"
+                        )
 
             if node.parameters:
                 f.write(" \\\\\n")
@@ -295,8 +297,8 @@ class SnakemakeGenerator:
             # No shebang, use inferred interpreter
             interpreter = node.module.interpreter or "python3"
             f.write(f"        {interpreter} {{params.entrypoint}} \\\\\n")
-            # Use ../../ to get back to out/ directory from .repos/HASH/
-            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            # Use ../../../ to get back to out/ directory from .modules/repo/HASH/
+            f.write("            --output_dir $(dirname ../../../{output[0]}) \\\\\n")
             # Use resolved dataset value if available, otherwise use wildcard
             if node.dataset:
                 f.write(f"            --name {node.dataset}")
@@ -308,13 +310,15 @@ class SnakemakeGenerator:
                 for i, key in enumerate(node.inputs.keys()):
                     # Use original name if available, otherwise use sanitized name
                     original_name = node.input_name_mapping.get(key, key)
-                    # Prefix input paths with ../../ to get back to out/ directory
+                    # Prefix input paths with ../../../ to get back to out/ directory
                     if i < len(node.inputs) - 1 or node.parameters:
                         f.write(
-                            f"            --{original_name} ../../{{input.{key}}} \\\\\n"
+                            f"            --{original_name} ../../../{{input.{key}}} \\\\\n"
                         )
                     else:
-                        f.write(f"            --{original_name} ../../{{input.{key}}}")
+                        f.write(
+                            f"            --{original_name} ../../../{{input.{key}}}"
+                        )
 
             if node.parameters:
                 f.write(" \\\\\n")
@@ -416,22 +420,22 @@ class SnakemakeGenerator:
         if collector.module.has_shebang:
             # Has shebang, execute directly
             f.write("        ./{params.entrypoint} \\\\\n")
-            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write("            --output_dir $(dirname ../../../{output[0]}) \\\\\n")
             f.write(f"            --name {collector.id}")
         else:
             # No shebang, use inferred interpreter
             interpreter = collector.module.interpreter or "python3"
             f.write(f"        {interpreter} {{params.entrypoint}} \\\\\n")
-            f.write("            --output_dir $(dirname ../../{output[0]}) \\\\\n")
+            f.write("            --output_dir $(dirname ../../../{output[0]}) \\\\\n")
             f.write(f"            --name {collector.id}")
 
         # Add all input files
         if collector.input_patterns:
             f.write(" \\\\\n")
             # Pass all input files as arguments
-            # We need to prefix them with ../../ to get back to out/ directory
+            # We need to prefix them with ../../../ to get back to out/ directory
             f.write(
-                '            $(printf " %s" $(for f in {input}; do echo "../../$f"; done))'
+                '            $(printf " %s" $(for f in {input}; do echo "../../../$f"; done))'
             )
 
         # Add parameters if present
