@@ -144,24 +144,63 @@ class ModuleResolver:
             raise RuntimeError(
                 f"Module '{module_id}' has no commit specified. "
                 "This is required in production mode (dirty=False). "
-                "Use dirty=True for development with working copies."
+                "Use --dirty for development with working copies."
+            )
+
+        # Check if the ref is pinned (commit hash or tag) vs unpinned (branch)
+        is_pinned = self._is_pinned_ref(repo.commit)
+
+        if not dirty and not is_pinned:
+            raise RuntimeError(
+                f"Module '{module_id}' uses unpinned reference '{repo.commit}'. "
+                "For reproducibility, use a commit hash (e.g., 'abc1234') or tag (e.g., 'v1.0.0'). "
+                "Use --dirty to allow branch references during development."
             )
 
         logger.info(f"Resolving module '{module_id}': {repo.url}@{repo.commit}")
 
         # Clone and checkout to work directory
-        # Work dir structure: work_base_dir/{commit_hash}/
-        # Use commit hash prefix for shorter paths
-        commit_prefix = repo.commit[:12] if repo.commit else "working"
-        work_dir = self.work_base_dir / commit_prefix
+        # Work dir structure: work_base_dir/{repo_name}/{commit_hash}/
+        # This allows multiple modules from the same repo at different commits
+        from omnibenchmark.git.cache import parse_repo_url
+
+        repo_path = parse_repo_url(repo.url)
+        # Extract just the repo name (last component) for shorter paths
+        # e.g., "github.com/user/repo" -> "repo"
+        repo_name = Path(repo_path).name
 
         try:
+            # First, clone/checkout to get the resolved commit
+            # Use a temporary path based on the ref, then we'll know the actual commit
+            temp_ref = repo.commit[:12] if repo.commit else "working"
+            temp_work_dir = self.work_base_dir / repo_name / temp_ref
+
             actual_work_dir, resolved_commit = clone_module_v2(
                 repository_url=repo.url,
                 ref=repo.commit,
-                work_dir=work_dir,
+                work_dir=temp_work_dir,
                 cache_dir=self.cache_dir,
             )
+
+            # If the ref was a branch (dirty mode), the resolved_commit will be different
+            # Move to the correct location based on resolved commit
+            commit_prefix = resolved_commit[:7]
+            final_work_dir = self.work_base_dir / repo_name / commit_prefix
+
+            if actual_work_dir != final_work_dir and not final_work_dir.exists():
+                # Move to the correct location
+                import shutil
+
+                if actual_work_dir.exists():
+                    shutil.move(str(actual_work_dir), str(final_work_dir))
+                    actual_work_dir = final_work_dir
+            elif final_work_dir.exists() and actual_work_dir != final_work_dir:
+                # Already exists at the correct location, remove temp
+                import shutil
+
+                if actual_work_dir.exists() and actual_work_dir != final_work_dir:
+                    shutil.rmtree(actual_work_dir, ignore_errors=True)
+                actual_work_dir = final_work_dir
         except Exception as e:
             logger.error(f"Failed to clone module '{module_id}': {e}")
             # Log full traceback for debugging
@@ -224,6 +263,42 @@ class ModuleResolver:
         )
 
         return resolved
+
+    def _is_pinned_ref(self, ref: str) -> bool:
+        """
+        Check if a git reference is pinned (commit hash or tag) vs unpinned (branch).
+
+        Pinned references:
+        - Commit hash: 7-40 character hex string (e.g., 'abc1234', 'abc1234567890...')
+        - Semver tag: starts with 'v' followed by digits (e.g., 'v1.0.0', 'v2.3.4-beta')
+        - Other tags: contains digits and dots like version numbers (e.g., '1.0.0', '2.3.4')
+
+        Unpinned references (branches):
+        - 'main', 'master', 'develop', 'feature/foo', etc.
+
+        Args:
+            ref: Git reference string
+
+        Returns:
+            True if the reference is pinned, False if it's a branch
+        """
+        import re
+
+        if not ref:
+            return False
+
+        ref = ref.strip()
+
+        # Check for commit hash (7-40 hex characters)
+        if re.match(r"^[0-9a-fA-F]{7,40}$", ref):
+            return True
+
+        # Check for semver-like tags: v1.0.0, v2.3.4-beta, 1.0.0, etc.
+        if re.match(r"^v?\d+\.\d+(\.\d+)?(-[\w.]+)?$", ref):
+            return True
+
+        # Everything else is considered a branch (unpinned)
+        return False
 
     def _check_shebang(self, entrypoint_path: Path) -> tuple[bool, Optional[str]]:
         """

@@ -43,6 +43,7 @@ def resolve_metric_collectors(
     benchmark: Benchmark,
     resolver: ModuleResolver,
     quiet: bool = False,
+    dirty: bool = False,
 ) -> List[ResolvedNode]:
     """
     Convert metric collectors to regular ResolvedNode instances.
@@ -56,6 +57,7 @@ def resolve_metric_collectors(
         benchmark: Benchmark model (for looking up stages/outputs)
         resolver: ModuleResolver for resolving collector repositories
         quiet: If True, suppress info logging
+        dirty: If True, allow unpinned refs (branches)
 
     Returns:
         List of ResolvedNode instances representing metric collectors
@@ -82,6 +84,7 @@ def resolve_metric_collectors(
                 collector=collector,
                 resolver=resolver,
                 quiet=quiet,
+                dirty=dirty,
             )
 
             # Expand parameters (same as regular modules)
@@ -172,6 +175,7 @@ def _resolve_collector_module(
     collector: MetricCollector,
     resolver: ModuleResolver,
     quiet: bool = False,
+    dirty: bool = False,
 ):
     """
     Resolve a metric collector's repository/module.
@@ -233,7 +237,7 @@ def _resolve_collector_module(
                 module=synthetic_module,
                 module_id=collector.id,
                 software_environment_id=collector.software_environment,
-                dirty=False,
+                dirty=dirty,
             )
         finally:
             # Restore logging if it was suppressed

@@ -70,6 +70,12 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=None,
     type=str,
 )
+@click.option(
+    "--dirty",
+    help="Allow unpinned module references (branches, local paths). Use for development only.",
+    is_flag=True,
+    default=False,
+)
 @click.pass_context
 def run(
     ctx,
@@ -78,6 +84,7 @@ def run(
     dry,
     continue_on_error,
     out_dir,
+    dirty,
 ):
     """Run a benchmark.
 
@@ -93,11 +100,19 @@ def run(
       ob run benchmark.yaml                    # Run full benchmark
       ob run benchmark.yaml --cores 8          # Run with 8 cores
       ob run benchmark.yaml --dry              # Generate Snakefile only
+      ob run benchmark.yaml --dirty            # Allow unpinned refs (dev mode)
     """
     ctx.ensure_object(dict)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
+
+    # Warn if using dirty mode
+    if dirty:
+        logger.warning(
+            "Running in --dirty mode: unpinned module references allowed. "
+            "Results may not be reproducible."
+        )
 
     _run_benchmark(
         benchmark_path=benchmark,
@@ -106,6 +121,7 @@ def run(
         continue_on_error=continue_on_error,
         out_dir=out_dir,
         debug=debug,
+        dirty=dirty,
     )
 
 
@@ -116,6 +132,7 @@ def _run_benchmark(
     continue_on_error,
     out_dir,
     debug,
+    dirty,
 ):
     """Run a full benchmark."""
     import time
@@ -159,6 +176,7 @@ def _run_benchmark(
         cores=cores,
         quiet=use_clean_ui,
         start_time=start_time,
+        dirty=dirty,
     )
 
     # If dry run, exit here
@@ -191,21 +209,43 @@ def _run_snakemake(
     """
     Run snakemake on the generated Snakefile.
 
+    Captures stdout/stderr to log files while showing interactive progress.
+    Log files are stored in out_dir/.logs/
+
+    In normal mode, displays an interactive progress panel with:
+    - Progress bar showing completed/total jobs
+    - Current rule being executed (shortened name)
+    - Press 'L' to toggle live log view
+    - Press 'Q'/ESC/'P' to return to progress view
+
     Args:
         out_dir: Output directory containing the Snakefile
         cores: Number of cores to use
         continue_on_error: Whether to continue on job failures
         software_backend: Software backend (determines --use-conda etc.)
-        debug: Whether to enable verbose output
+        debug: Whether to enable verbose output (shows full output instead of progress)
     """
+    from omnibenchmark.cli.progress import ProgressDisplay, InteractiveProgress
+    from datetime import datetime
+    import re
+
     snakefile_path = out_dir / "Snakefile"
 
     if not snakefile_path.exists():
         log_error_and_quit(logger, f"Snakefile not found at {snakefile_path}")
         return
 
+    # Create logs directory (use absolute path since we'll chdir later)
+    logs_dir = out_dir.resolve() / ".logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Log file with timestamp (absolute path)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = logs_dir / f"snakemake_{timestamp}.log"
+
     # Build snakemake command
-    cmd = ["snakemake", "--snakefile", str(snakefile_path), "--cores", str(cores)]
+    # Use just "Snakefile" since we chdir to out_dir before running
+    cmd = ["snakemake", "--snakefile", "Snakefile", "--cores", str(cores)]
 
     # Add software environment flag based on backend
     if software_backend == SoftwareBackendEnum.conda:
@@ -225,20 +265,138 @@ def _run_snakemake(
     if debug:
         cmd.extend(["--verbose", "--debug"])
 
-    logger.info(f"Running: {' '.join(cmd)}")
-
-    # Change to output directory and run snakemake
+    # Change to output directory
     original_dir = os.getcwd()
+    os.chdir(out_dir)
+
+    # For summary messages after progress finishes
+    summary_console = ProgressDisplay().console
+
     try:
-        os.chdir(out_dir)
-        result = subprocess.run(cmd)
+        if debug:
+            # In debug mode, show full output directly
+            logger.info(f"Running: {' '.join(cmd)}")
+            logger.info(f"Log file: {log_file}")
+
+            with open(log_file, "w") as f:
+                result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+
+            # Also print to console in debug mode
+            with open(log_file, "r") as f:
+                print(f.read())
+        else:
+            # In normal mode, show interactive progress with log toggle
+            summary_console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
+            summary_console.print(f"[dim]Log file: {log_file}[/dim]")
+            summary_console.print()
+
+            # Start snakemake with output capture
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+
+            # Regex patterns for snakemake output
+            rule_start_pattern = re.compile(r"rule (\w+):")
+            job_error_pattern = re.compile(r"Error in rule (\w+):")
+            localrule_pattern = re.compile(r"localrule (\w+):")
+
+            # Interactive progress (starts after we know total jobs)
+            progress: InteractiveProgress | None = None
+            total_jobs = None
+
+            with open(log_file, "w") as f:
+                for line in process.stdout:
+                    # Write to log file
+                    f.write(line)
+                    f.flush()
+
+                    # Check for keyboard input (L=log view, Q/ESC=progress view)
+                    if progress:
+                        progress.check_keyboard()
+
+                    # Parse for progress info
+                    line_stripped = line.strip()
+
+                    # Check for total job count (appears early in snakemake output)
+                    if line_stripped.startswith("total") and total_jobs is None:
+                        parts = line_stripped.split()
+                        if len(parts) >= 2:
+                            try:
+                                total_jobs = int(parts[1])
+                                # Start interactive progress now that we know total
+                                progress = InteractiveProgress(
+                                    log_file=log_file, tail_lines=25
+                                )
+                                progress.start("Running benchmark", total=total_jobs)
+                            except ValueError:
+                                pass
+
+                    # Check for rule start
+                    match = rule_start_pattern.search(line)
+                    if match:
+                        current_rule = match.group(1)
+                        if progress:
+                            progress.update(current_rule=current_rule)
+
+                    match = localrule_pattern.search(line)
+                    if match:
+                        current_rule = match.group(1)
+                        if progress:
+                            progress.update(current_rule=current_rule)
+
+                    # Check for job completion
+                    if "Finished job" in line or "Nothing to be done" in line:
+                        if progress:
+                            progress.update(advance=1)
+
+                    # Check for errors
+                    match = job_error_pattern.search(line)
+                    if match:
+                        if progress:
+                            progress.add_failed_rule(match.group(1))
+
+            process.wait()
+            result = process
+
+            # Get stats before finishing
+            completed_jobs = progress.completed if progress else 0
+            failed_rules = progress.failed_rules if progress else []
+
+            if progress:
+                progress.finish()
+
+            # Show summary
+            if result.returncode == 0:
+                summary_console.print(
+                    f"[green]Completed {completed_jobs} jobs successfully[/green]"
+                )
+            else:
+                summary_console.print(
+                    f"[red]Failed with {len(failed_rules)} error(s)[/red]"
+                )
+                if failed_rules:
+                    summary_console.print()
+                    summary_console.print("[red]Failed rules:[/red]")
+                    for rule in failed_rules[:5]:  # Show first 5
+                        summary_console.print(f"  [red]✗[/red] {rule}")
+                    if len(failed_rules) > 5:
+                        summary_console.print(f"  ... and {len(failed_rules) - 5} more")
+                summary_console.print()
+                summary_console.print(f"[dim]See full log: {log_file}[/dim]")
 
         if result.returncode == 0:
+            if not debug:
+                summary_console.print()
             logger.info("Benchmark run completed successfully.")
             sys.exit(0)
         else:
             logger.error(f"Benchmark run failed with exit code {result.returncode}")
             sys.exit(result.returncode)
+
     finally:
         os.chdir(original_dir)
 
@@ -399,6 +557,7 @@ def _generate_explicit_snakefile(
     cores: int = 4,
     quiet: bool = False,
     start_time: float = None,
+    dirty: bool = False,
 ):
     """
     Generate explicit Snakefile.
@@ -415,6 +574,7 @@ def _generate_explicit_snakefile(
         cores: Number of parallel workers for module resolution
         quiet: If True, use clean progress UI
         start_time: Start time for timing
+        dirty: If True, allow unpinned refs (branches). If False, require pinned commits/tags.
     """
     from omnibenchmark.cli.progress import ProgressDisplay
     import time
@@ -486,7 +646,7 @@ def _generate_explicit_snakefile(
                     module=module,
                     module_id=module_id,
                     software_environment_id=software_env_id,
-                    dirty=False,
+                    dirty=dirty,
                 )
                 for warning in w:
                     module_warnings.append((module_id, str(warning.message)))
@@ -505,6 +665,9 @@ def _generate_explicit_snakefile(
     if quiet:
         progress.start_task("Resolving modules", total=len(unique_modules))
 
+    # Collect resolution errors for clear reporting
+    resolution_errors = []
+
     with ThreadPoolExecutor(max_workers=cores) as executor:
         futures = {
             executor.submit(resolve_module_task, mod_id, mod, env_id): mod_id
@@ -518,9 +681,8 @@ def _generate_explicit_snakefile(
                 captured_warnings.extend(module_warnings)
 
             if error:
-                if quiet:
-                    progress.error(f"{module_id}: {error}")
-                else:
+                resolution_errors.append((module_id, error))
+                if not quiet:
                     logger.error(f"Failed to resolve {module_id}: {error}")
             else:
                 with resolution_lock:
@@ -552,6 +714,20 @@ def _generate_explicit_snakefile(
         logger.info(
             f"Successfully resolved {len(resolved_modules_cache)}/{len(unique_modules)} modules"
         )
+
+    # If any modules failed to resolve, show clear error and exit
+    if resolution_errors:
+        if quiet:
+            progress.console.print()
+            progress.console.print("[bold red]Resolution failed:[/bold red]")
+            for mod_id, error in resolution_errors:
+                progress.console.print(f"  [red]✗[/red] [bold]{mod_id}:[/bold] {error}")
+            progress.console.print()
+        else:
+            logger.error("Resolution failed:")
+            for mod_id, error in resolution_errors:
+                logger.error(f"  {mod_id}: {error}")
+        sys.exit(1)
 
     # Build nodes from resolved modules
     if not quiet:
@@ -663,8 +839,13 @@ def _generate_explicit_snakefile(
                         if inputs:
                             from pathlib import Path as PathLib
 
-                            first_input = next(iter(inputs.values()))
-                            base_path = str(PathLib(first_input).parent)
+                            # Use the deepest input path as base to preserve full lineage
+                            # This ensures outputs nest under the most specific ancestor
+                            # e.g., metrics should nest under methods, not datasets
+                            deepest_input = max(
+                                inputs.values(), key=lambda p: len(PathLib(p).parts)
+                            )
+                            base_path = str(PathLib(deepest_input).parent)
 
                     # Determine dataset value
                     if not inputs:
@@ -757,6 +938,7 @@ def _generate_explicit_snakefile(
         benchmark=benchmark.model,
         resolver=resolver,
         quiet=quiet,
+        dirty=dirty,
     )
 
     resolved_nodes.extend(collector_nodes)
