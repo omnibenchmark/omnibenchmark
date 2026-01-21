@@ -161,6 +161,11 @@ class SnakemakeGenerator:
                 f.write("    benchmark:\n")
                 f.write(f'        "{benchmark_file}"\n')
 
+        # Log directive (captures stdout/stderr per rule)
+        rule_name = self._sanitize_rule_name(node.id)
+        f.write("    log:\n")
+        f.write(f'        ".logs/{rule_name}.log"\n')
+
         # Software environment directive
         self._write_environment_directive(f, node)
 
@@ -238,11 +243,26 @@ class SnakemakeGenerator:
         - Otherwise: use inferred interpreter
 
         Note: After cd .modules/repo/HASH, we use ../../../ to get back to out/ directory
+
+        Output is tee'd to both stdout (for interactive log viewer) and {log} (for telemetry).
         """
         f.write("    shell:\n")
         f.write('        """\n')
-        # Create output directory and parameters.json before cd (relative to out/)
-        f.write("        mkdir -p $(dirname {output[0]})\n")
+        # Create output directory and log directory before cd (relative to out/)
+        f.write("        mkdir -p $(dirname {output[0]}) $(dirname {log})\n")
+
+        # Start tee to capture all output to both stdout and per-rule log file
+        # Use absolute path for log since we'll cd later
+        f.write("        LOG_FILE=$(pwd)/{log}\n")
+        f.write('        exec > >(tee "$LOG_FILE") 2>&1\n')
+
+        # Log rule context info
+        f.write("        echo '=== Rule: {rule} ==='\n")
+        f.write("        echo 'Started:' $(date -Iseconds)\n")
+        f.write(
+            "        if [ -n \"$CONDA_PREFIX\" ]; then echo 'Conda env:' $CONDA_PREFIX; fi\n"
+        )
+        f.write("        echo '---'\n")
 
         # Write parameters.json if node has parameters
         if node.parameters:
@@ -259,72 +279,45 @@ class SnakemakeGenerator:
                 f"        echo '{params_json_escaped}' > $(dirname {{output[0]}})/parameters.json\n"
             )
 
+        # Build the command arguments
+        cmd_parts = []
+
         f.write("        cd {params.module_dir}\n")
 
         # Use pre-resolved execution info instead of runtime checking
         if node.module.has_shebang:
             # Has shebang, execute directly
-            f.write("        ./{params.entrypoint} \\\\\n")
-            # Use ../../../ to get back to out/ directory from .modules/repo/HASH/
-            f.write("            --output_dir $(dirname ../../../{output[0]}) \\\\\n")
-            # Use resolved dataset value if available, otherwise use wildcard
-            if node.dataset:
-                f.write(f"            --name {node.dataset}")
-            else:
-                f.write("            --name {wildcards.dataset}")
-
-            if node.inputs:
-                f.write(" \\\\\n")
-                for i, key in enumerate(node.inputs.keys()):
-                    # Use original name if available, otherwise use sanitized name
-                    original_name = node.input_name_mapping.get(key, key)
-                    # Prefix input paths with ../../../ to get back to out/ directory
-                    if i < len(node.inputs) - 1 or node.parameters:
-                        f.write(
-                            f"            --{original_name} ../../../{{input.{key}}} \\\\\n"
-                        )
-                    else:
-                        f.write(
-                            f"            --{original_name} ../../../{{input.{key}}}"
-                        )
-
-            if node.parameters:
-                f.write(" \\\\\n")
-                f.write("            {params.cli_args}\n")
-            else:
-                f.write("\n")
+            cmd_parts.append("./{params.entrypoint}")
         else:
             # No shebang, use inferred interpreter
             interpreter = node.module.interpreter or "python3"
-            f.write(f"        {interpreter} {{params.entrypoint}} \\\\\n")
-            # Use ../../../ to get back to out/ directory from .modules/repo/HASH/
-            f.write("            --output_dir $(dirname ../../../{output[0]}) \\\\\n")
-            # Use resolved dataset value if available, otherwise use wildcard
-            if node.dataset:
-                f.write(f"            --name {node.dataset}")
-            else:
-                f.write("            --name {wildcards.dataset}")
+            cmd_parts.append(f"{interpreter} {{params.entrypoint}}")
 
-            if node.inputs:
-                f.write(" \\\\\n")
-                for i, key in enumerate(node.inputs.keys()):
-                    # Use original name if available, otherwise use sanitized name
-                    original_name = node.input_name_mapping.get(key, key)
-                    # Prefix input paths with ../../../ to get back to out/ directory
-                    if i < len(node.inputs) - 1 or node.parameters:
-                        f.write(
-                            f"            --{original_name} ../../../{{input.{key}}} \\\\\n"
-                        )
-                    else:
-                        f.write(
-                            f"            --{original_name} ../../../{{input.{key}}}"
-                        )
+        # Use ../../../ to get back to out/ directory from .modules/repo/HASH/
+        cmd_parts.append("--output_dir $(dirname ../../../{output[0]})")
 
-            if node.parameters:
-                f.write(" \\\\\n")
-                f.write("            {params.cli_args}\n")
+        # Use resolved dataset value if available, otherwise use wildcard
+        if node.dataset:
+            cmd_parts.append(f"--name {node.dataset}")
+        else:
+            cmd_parts.append("--name {wildcards.dataset}")
+
+        if node.inputs:
+            for key in node.inputs.keys():
+                # Use original name if available, otherwise use sanitized name
+                original_name = node.input_name_mapping.get(key, key)
+                # Prefix input paths with ../../../ to get back to out/ directory
+                cmd_parts.append(f"--{original_name} ../../../{{input.{key}}}")
+
+        if node.parameters:
+            cmd_parts.append("{params.cli_args}")
+
+        # Write command (stdout/stderr already redirected via exec above)
+        for i, part in enumerate(cmd_parts):
+            if i < len(cmd_parts) - 1:
+                f.write(f"        {part} \\\\\n")
             else:
-                f.write("\n")
+                f.write(f"        {part}\n")
 
         f.write('        """\n')
 
