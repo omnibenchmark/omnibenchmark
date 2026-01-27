@@ -1,0 +1,90 @@
+id: Benchmark_001
+description: simple benchmark, somewhat explicit, simple params
+version: "1.0"
+benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
+storage: https://storage.github.com/
+api_version: "0.3.0"
+storage_api: S3
+storage_bucket_name: benchmark001
+software_backend: host
+software_environments:
+  zlib_old:
+    description: "zlib-1.2.11"
+    easyconfig: zlib-1.2.11.eb
+    envmodule: "zlib/1.2.11"
+    conda: envs/zlib_1.2.11.yaml
+    apptainer: http://registry.ch/notavailable.sif
+  zlib_new:
+    description: "zlib-1.3.1"
+    easyconfig: zlib-1.3.1.eb
+    envmodule: "zlib/1.3.1"
+    conda: envs/zlib_1.3.1.yaml
+    apptainer: http://registry.ch/notavailable.sif
+metric_collectors:
+  - id: biometrics
+    name: "Biologically-relevant performance metrics gathering and postprocessing."
+    software_environment: "zlib_new"
+    repository:
+      url: https://github.com/omnibenchmark-example/metric-collector.git
+      commit: ef4a601
+    inputs:
+      - id: metrics.mapping
+        path: "metrics.mapping"
+    outputs:
+      - id: biometrics_report
+        path: "biometrics_report.html"
+      - id: biometrics_tsv
+        path: "biometrics.tsv"
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "zlib_old"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{dataset}.txt.gz"
+      - id: data.meta
+        path: "{dataset}.meta.json"
+      - id: data.data_specific_params
+        path: "{dataset}_params.txt"
+
+  - id: methods
+    modules:
+      - id: M1
+        software_environment: "zlib_old"
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+    inputs:
+      - entries:
+          - data.counts
+          - data.meta
+          - data.data_specific_params
+    outputs:
+      - id: methods.mapping
+        path: "{dataset}.model.out.gz"
+
+  - id: metrics
+    modules:
+      - id: m1
+        software_environment: "zlib_old"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+      - id: m2
+        software_environment: "zlib_old"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+    inputs:
+      - entries:
+          - methods.mapping
+          - data.meta
+          - data.data_specific_params
+    outputs:
+      - id: metrics.mapping
+        path: "{dataset}.results.txt"

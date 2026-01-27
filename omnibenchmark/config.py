@@ -3,8 +3,10 @@
 # TODO: make sure this is in use
 
 import configparser
+import getpass
 import os
 import platform
+import tempfile
 from typing import Optional, Any
 
 from pathlib import Path
@@ -19,7 +21,9 @@ xdg_bench_home = os.environ.get("XDG_DATA_HOME") or os.path.join(
 )
 
 
-default_cfg = {"dirs": {"datasets": f"~/{APP_NAME}/datasets"}}
+default_cfg = {
+    "dirs": {"datasets": f"~/{APP_NAME}/datasets", "git_modules": f".{APP_NAME}/git"}
+}
 
 bench_dir = os.path.join(xdg_bench_home, APP_NAME)
 
@@ -36,8 +40,29 @@ def get_config_file():
 
 
 def init_dirs():
-    os.makedirs(bench_dir, exist_ok=True)
-    os.makedirs(config_dir, exist_ok=True)
+    """Initialize configuration and benchmark directories.
+
+    Fails gracefully if directories cannot be created (e.g., read-only filesystem).
+    """
+    import warnings
+
+    try:
+        os.makedirs(bench_dir, exist_ok=True)
+    except OSError as e:
+        warnings.warn(
+            f"Could not create benchmark directory {bench_dir}: {e}. "
+            "This may affect git module caching but won't prevent execution.",
+            stacklevel=2,
+        )
+
+    try:
+        os.makedirs(config_dir, exist_ok=True)
+    except OSError as e:
+        warnings.warn(
+            f"Could not create config directory {config_dir}: {e}. "
+            "Using in-memory configuration only.",
+            stacklevel=2,
+        )
 
 
 # def _get_config(config_path):
@@ -112,9 +137,20 @@ class ConfigAccessor:
     def save(self) -> None:
         """
         Save the current configuration to the config file.
+
+        Fails gracefully if the file cannot be written (e.g., read-only filesystem).
         """
-        with open(self.config_path, "w") as configfile:
-            self.config.write(configfile)
+        import warnings
+
+        try:
+            with open(self.config_path, "w") as configfile:
+                self.config.write(configfile)
+        except (OSError, IOError) as e:
+            warnings.warn(
+                f"Could not save configuration to {self.config_path}: {e}. "
+                "Configuration changes will not persist.",
+                stacklevel=2,
+            )
 
     def sections(self) -> list:
         """
@@ -143,3 +179,59 @@ class ConfigAccessor:
 
 # Create a global config accessor instance
 config = ConfigAccessor()
+
+
+def get_git_modules_dir() -> Path:
+    """
+    Get the configured directory for caching git modules/repositories.
+
+    Returns:
+        Path to the git modules cache directory (defaults to .omnibenchmark/git)
+    """
+    git_modules_dir_str = config.get(
+        "dirs", "git_modules", default_cfg["dirs"]["git_modules"]
+    )
+    git_modules_dir = Path(git_modules_dir_str).expanduser()
+
+    # Create directory if it doesn't exist
+    git_modules_dir.mkdir(parents=True, exist_ok=True)
+
+    return git_modules_dir
+
+
+def get_temp_dir() -> Path:
+    """
+    Get the omnibenchmark-specific temporary directory for the current user.
+
+    This creates a user-specific subdirectory under the system temp directory
+    to avoid conflicts in multi-tenant environments.
+
+    Returns:
+        Path to the user-specific omnibenchmark temp directory
+        (e.g., /tmp/omnibenchmark_username/)
+    """
+    try:
+        username = getpass.getuser()
+    except Exception:
+        # Fallback if username cannot be determined
+        username = str(os.getuid()) if hasattr(os, "getuid") else "unknown"
+
+    temp_base = Path(tempfile.gettempdir()) / f"omnibenchmark_{username}"
+    temp_base.mkdir(parents=True, exist_ok=True)
+    return temp_base
+
+
+def get_temp_prefix() -> str:
+    """
+    Get a prefix string for temporary files that includes the username.
+
+    Returns:
+        A prefix string like 'omnibenchmark_username_' for use with
+        tempfile.NamedTemporaryFile and similar functions.
+    """
+    try:
+        username = getpass.getuser()
+    except Exception:
+        username = str(os.getuid()) if hasattr(os, "getuid") else "unknown"
+
+    return f"omnibenchmark_{username}_"

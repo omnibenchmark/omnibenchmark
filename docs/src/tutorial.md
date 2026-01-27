@@ -45,7 +45,7 @@ id: bench1
 description: a simple benchmark
 
 ## Benchmark version. `1.0`. This is our first attempt, so let's call it major version 1, minor version 0: `1.0`.
-version: 1.0
+version: "1.0"
 
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
@@ -59,10 +59,7 @@ storage_api: S3
 storage: https://s3_object_storage_url.ch
 
 ## Benchmark YAML schema/specification version.
-benchmark_yaml_spec: 0.01
-
-## License
-## license: MIT  # not yet part of the schema
+benchmark_yaml_spec: "0.0.1"
 
 ## The software backend used to run the benchmark
 software_backend: apptainer
@@ -123,6 +120,7 @@ stages:
     outputs:
         ## output id
       - id: data.image
+        ## output path.
         path: "{dataset}.png"
 ```
 
@@ -151,6 +149,7 @@ This stage is not initial: its modules have both inputs and outputs.
     ## stage-specific outputs
     outputs:
       - id: methods.matrix
+        ## output path.
         path: "{dataset}.matrix.tsv.gz"
 ```
 
@@ -214,7 +213,7 @@ id: bench1
 description: a simple benchmark
 
 ## Benchmark version. `1.0`. This is our first attempt, so let's call it major version 1, minor version 0: `1.0`.
-version: 1.0
+version: "1.0"
 
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
@@ -228,7 +227,7 @@ storage_api: S3
 storage: https://s3_object_storage_url.ch
 
 ## Benchmark YAML schema/specification version.
-benchmark_yaml_spec: 0.01
+benchmark_yaml_spec: "0.0.1"
 
 ## License
 # license: MIT # not yet part of the schema
@@ -339,7 +338,7 @@ metric_collectors:
       - metrics.json
     outputs:
       - id: plotting.html
-        path: "{input}/{name}/plotting_report.html"
+        path: "{name}/plotting_report.html"
 ```
 
 Similarly to any other module, the associated code to run the processing is stored as a git-compatible remote (with `url` and `commit id`). In the example above, `multiple_to_one` only generates one output, a report named `plotting.html` collecting all computed `metrics.json` files.
@@ -351,7 +350,7 @@ Let's save the benchmark above as a file named `benchmark_test.yaml`. Then we va
 === "Shell"
 
     ```shell
-    ob run validate -b benchmark_test.yaml
+    ob validate plan benchmark_test.yaml
     ```
 
 === "Output"
@@ -389,11 +388,11 @@ stages:
         path: "{dataset}.png"
 ```
 
-Hence, the git repository implementing module `D1` doesn't have any input, but generates one output. In this case, the repository implementing `D1` has [a config file](https://github.com/omnibenchmark-example/data/blob/main/config.cfg) indicating the entrypoint is a python script named `entrypoint_data.py`:
+Hence, the git repository implementing module `D1` doesn't have any input, but generates one output. In this case, the repository implementing `D1` has [an omnibenchmark.yaml file](https://github.com/omnibenchmark-example/data/blob/main/omnibenchmark.yaml) indicating the entrypoint is a python script named `entrypoint_data.py`:
 
-```
-[DEFAULT]
-SCRIPT=entrypoint_data.py
+```yaml
+entrypoints:
+  default: entrypoint_data.py
 ```
 
 `entrypoint_data.py` uses the python library `argparse` to receive two arguments when called from the command line:
@@ -428,11 +427,11 @@ stages:
         path: "{dataset}.txt.gz"
 ```
 
-So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [config file](https://github.com/omnibenchmark-example/process/blob/main/config.cfg) indicates:
+So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [omnibenchmark.yaml file](https://github.com/omnibenchmark-example/process/blob/main/omnibenchmark.yaml) indicates:
 
-```
-[DEFAULT]
-SCRIPT=entrypoint_process.R
+```yaml
+entrypoints:
+  default: entrypoint_process.R
 ```
 
 so the script to be executed is named `entrypoint_process.R`. In this case, [the script](https://github.com/omnibenchmark-example/process/blob/aeec1db790542d447899d6ac4cb8564a9172b6e0/entrypoint_process.R#L3C1-L13C1) uses the R library `argparse` to provide a commandline interface:
@@ -457,7 +456,7 @@ The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local-storage --dry
+    ob run tests/data/Benchmark_001.yaml  --cores 1 --dry
     ```
 
 === "Output"
@@ -491,7 +490,7 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 === "Shell"
 
     ```shell
-    ob run benchmark --benchmark tests/data/Benchmark_001.yaml  --cores 1 --local-storage
+    ob run tests/data/Benchmark_001.yaml  --cores 1
     ```
 
 === "Output"
@@ -515,12 +514,12 @@ So it plans to run 71 jobs in total. Its methods are fast, so we can run it (it 
 
 ## Run an initial module
 
-The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml) contains several initial steps which generate datasets and don't receive any input. To run these, we have to use the `ob run module` verb.
+The benchmark [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml) contains several initial steps which generate datasets and don't receive any input. To run these, we have to use the `ob run [benchmark.yaml] --module [MODULE_ID]` verb.
 
 === "Shell"
 
     ```shell
-    ob run module --benchmark tests/data/Benchmark_001.yaml --module D1
+    ob run tests/data/Benchmark_001.yaml --module D1
     ```
 
 === "Output"
@@ -574,13 +573,13 @@ $ ls out/data/D1/default/
 D1.meta.json  D1_params.txt  D1.txt.gz
 ```
 
-If not, run the whole benchmark first (with [`ob run benchmark`](https://omnibenchmark.org/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
-run `ob run module` with:
+If not, run the whole benchmark first (with [`ob run`](https://omnibenchmark.org/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
+run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
 
 === "Shell"
 
     ```shell
-    ob run module --benchmark tests/data/Benchmark_001.yaml --module P1 --input_dir out/data/D1/default
+    ob run tests/data/Benchmark_001.yaml --module P1 --input-dir out/data/D1/default
     ```
 
 === "Output"
@@ -628,7 +627,7 @@ To restrict access to a dedicated bucket an access key with a specific policy ha
 
 Create new policy with
 ```
-ob storage create-policy --benchmark tests/data/Benchmark_001.yaml
+ob remote policy create --benchmark tests/data/Benchmark_001.yaml
 ```
 The output of this command needs to be added to either MinIO or AWS as described below.
 
@@ -656,20 +655,20 @@ Save the access key and secret key in a `<CONFIG>.json` file somewhere with the 
 To use the credentials to write to the remote storage the access key and secret key are passed to omnibenchmark with environment variables. If the credentials have been stored as described above the environment variable `OB_STORAGE_S3_CONFIG` can be set which is the name of the config file. For example:
 
 ```
-OB_STORAGE_S3_CONFIG=<CONFIG>.json ob run benchmark -b tests/data/Benchmark_003.yaml
+OB_STORAGE_S3_CONFIG=<CONFIG>.json ob run tests/data/Benchmark_003.yaml
 ```
 
 alternatively `OB_STORAGE_S3_ACCESS_KEY` and `OB_STORAGE_S3_SECRET_KEY` can be set. For example:
 
 ```
-OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob run benchmark -b tests/data/Benchmark_003.yaml
+OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob run tests/data/Benchmark_003.yaml
 ```
 
 ### Versioning
 
 To version currently stored data in the remote (i.e. make it read-only) run the following:
 ```
-ob storage create-version -b tests/data/Benchmark_003.yaml
+ob remote version create tests/data/Benchmark_003.yaml
 ```
 
 A second execution will result in an error since this version now already exists. To create a new version, first update the version in the Benchmark.yaml file and then rerun the above command.

@@ -1,11 +1,11 @@
 # 001: Module Metadata
 
-[![Status: Approved](https://img.shields.io/badge/Status-Approved-green.svg)](https://github.com/omnibenchmark/docs/design)
+[![Status: Implemented](https://img.shields.io/badge/Status-Implemented-brightgreen.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: ben, ...
+**Authors**: ben
 **Date**: 2025-06-18
-**Status**: Approved
+**Status**: Implemented
 **Version**: 0.1.0
 **Supersedes**: N/A
 **Reviewed-by**: dincicau, csoneson, imallona
@@ -16,18 +16,21 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 0.1.0 | 2025-06-18 | Initial draft | ben |
+| 0.1.0 | 2025-12-16 | Marked as implemented | ben |
 
 
 ## 1. Problem statement
 
 Previous [spec for module metadata](https://github.com/omnibenchmark/internal_docs/blob/master/architecture/method_contributor_design.md) suggested to expose attribution fields (for citation) and execution details (entrypoints, environment specs) in a single YAML file.
 
-We also rely on a `config.cfg` file to be [present at the root of a valid omnibenchmark module](https://github.com/imallona/clustbench_fcps/blob/main/config.cfg). As of today, this file only contains information about the module entrypoint:
-
-```
-[DEFAULT]
-SCRIPT=run_fcps.R
-```
+> **Note on Legacy Format**: Prior to this design, omnibenchmark relied on a `config.cfg` file to be [present at the root of a valid omnibenchmark module](https://github.com/imallona/clustbench_fcps/blob/main/config.cfg). This file only contained information about the module entrypoint:
+>
+> ```
+> [DEFAULT]
+> SCRIPT=run_fcps.R
+> ```
+>
+> **Deprecation Timeline**: The legacy `config.cfg` format is still supported in version 0.4.0 with deprecation warnings, but is scheduled for removal in version 0.6.0. All modules should migrate to `omnibenchmark.yaml` as described in this design document.
 
 ### Non-Goals
 
@@ -85,7 +88,7 @@ references:
 ```
 
 
-It remains to be defined what omnibenchmark execution should do with the provided environments. One conservative option is to use the benchmark YAML environments, but make use of the contributor provided environment (if any) as references of known, good working environments (in terms of version compativbility, it's understood that module contributors only provide assurances about the tested list of explicit and implicit dependencies.)
+It remains to be defined what omnibenchmark execution should do with the provided environments. One conservative option is to use the benchmark YAML environments, but make use of the contributor provided environment (if any) as references of known, good working environments (in terms of version compatibility, it's understood that module contributors only provide assurances about the tested list of explicit and implicit dependencies.)
 
 ### Semantic Fields
 

@@ -1,0 +1,135 @@
+id: LinearArithmeticWithPreprocessing
+description: Linear pipeline with preprocessing, methods and metrics for e2e testing with arithmetic operations
+version: "1.0"
+benchmarker: "E2E Test Suite"
+benchmark_yaml_spec: "0.3"
+#api_version: "0.3.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+
+      - id: D2
+        name: "Dataset 2 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "2+2"]
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: preprocessing
+    modules:
+      - id: P1
+        name: "Preprocessing 1 - Add 1"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+1",
+                "--input",
+                "data.raw",
+                "--kind",
+                "preprocessed",
+              ]
+
+      - id: P2
+        name: "Preprocessing 2 - Multiply by 2"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input*2",
+                "--input",
+                "data.raw",
+                "--kind",
+                "preprocessed",
+              ]
+    inputs:
+      - entries:
+          - data.raw
+    outputs:
+      - id: preprocessing.processed
+        # XXX the dummy module does not have a lot of flexibility as
+        # to how to name the output file, so we're basically reusing
+        # the filename from the data step - but in a more nested path.
+        path: "{dataset}_preprocessed.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Method 1 - Add 10"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input+10",
+                "--input",
+                "preprocessing.processed",
+                "--kind",
+                "method",
+              ]
+
+      - id: M2
+        name: "Method 2 - Multiply by 5"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              [
+                "--evaluate",
+                "input*5",
+                "--input",
+                "preprocessing.processed",
+                "--kind",
+                "method",
+              ]
+    inputs:
+      - entries:
+          - preprocessing.processed
+    outputs:
+      - id: methods.result
+        path: "{dataset}_method.json"
+
+metric_collectors:
+  - id: MC1
+    name: "Gather and calculate metrics from method results"
+    software_environment: "host"
+    repository:
+      url: bundles/dummycollector_9e3a99a.bundle
+      commit: 9e3a99a
+    inputs:
+      - methods.result
+    outputs:
+      - id: metrics.summary
+        path: "metrics/metrics.json"

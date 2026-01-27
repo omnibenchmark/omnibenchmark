@@ -1,0 +1,37 @@
+coverage:
+  status:
+    patch:
+      default:
+        target: 70%
+        threshold: 2%
+        informational: true
+    project:
+      default:
+        threshold: 3%
+        informational: false
+
+  ignore:
+    - "tests/"
+    - "docs/"
+    - "scripts/"
+    - "examples/"
+    - "*.lock"
+    - "*.bundle"
+    - ".pixi/"
+    - ".omnibenchmark/"
+    - "build/"
+    - "dist/"
+    - "htmlcov/"
+    - "*.yaml"
+    - "*.yml"
+    - "*.toml"
+    - "*.cfg"
+    - "*.ini"
+    - "CHANGELOG.md"
+    - "README.md"
+    - "LICENSE"
+    - "requirements.txt"
+
+  range: 50..100
+  round: down
+  precision: 2

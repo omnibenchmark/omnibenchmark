@@ -4,7 +4,7 @@ import pytest
 
 from pathlib import Path
 
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+from tests.remote.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 
 def get_benchmark_data_path() -> Path:

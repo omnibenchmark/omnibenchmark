@@ -1,0 +1,46 @@
+name: {{ name }}
+version: {{ version }}
+
+structure (#modules, #nodes):
+{{ benchmark_structure }}
+
+file completion: {{ (files_total_n_observed / files_total_n * 100) | round(0) | int }}% ({{ files_total_n_observed }}/{{ files_total_n }})
+{%- set dash_count = 24 + max_str_len_stage + 1 + max_str_len_stage + 1 %}
+{{ '-' * dash_count }}
+{%- for st in stages %}
+    {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_observed'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_observed'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+{%- endfor -%}
+{% if show_incomplete_reason %}
+
+  incomplete reason:
+    file missing:
+{%- for st in stages %}
+      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_missing'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_missing'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+{%- endfor %}
+    file invalid because of timestamps of dependent files:
+{%- for st in stages %}
+      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_invalid_input_file_is_newer'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_invalid_input_file_is_newer'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+{%- endfor %}
+    file invalid because of timestamps of dependent repo:
+{%- for st in stages %}
+      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_invalid_repo_is_newer'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_invalid_repo_is_newer'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+{%- endfor %}
+    file empty:
+{%- for st in stages %}
+      {{ '{:>{w}}'.format(st, w=max_str_len_stage) }}: {{ ((stage_stats[st]['n_empty'] / stage_stats[st]['n']) * 100) | round(0) | int if stage_stats[st]['n'] else 0 | int }}% ({{ '{:>{w}d}'.format(stage_stats[st]['n_empty'], w=max_file_len) }}/{{ '{:>{w}d}'.format(stage_stats[st]['n'], w=max_file_len) }})
+{%- endfor %}
+{% endif %}
+{% if show_missing_files %}
+Missing result files: 
+    .: all files present
+    M: missing output files
+    E: empty output files
+    I: invalid output files
+{%- if show_incomplete_reason %}
+    R: repo timestamp older than output files
+    F: input file missing or timestamps older than output files
+{% endif %}
+{{ exec_paths_block }}
+{% endif %}
+aggregated results: 
+{{ result_file_str }}

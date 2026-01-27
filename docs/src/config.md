@@ -30,8 +30,9 @@ Omnibenchmark uses the following standard configuration sections:
   - `MODULEPATH`: Path to module installations
   - `ROBOTPATH`: Path to easyconfigs repository
 
-- `dirs`: Contains paths for dataset storage
+- `dirs`: Contains paths for dataset storage and git module caching
   - `datasets`: Path to store benchmark datasets
+  - `git_modules`: Path to cache cloned git repositories (default: `.omnibenchmark/git`)
 
 ## Programmatic Access
 
@@ -79,7 +80,7 @@ from omnibenchmark.config import ConfigAccessor
 from pathlib import Path
 
 # Create a custom config accessor with a specific path
-custom_config = ConfigAccessor(Path('/path/to/custom/config.cfg'))
+custom_config = ConfigAccessor(Path('/path/to/custom/omnibenchmark.cfg'))
 
 # Use it the same way as the global config
 value = custom_config.get('section', 'key', default='default_value')

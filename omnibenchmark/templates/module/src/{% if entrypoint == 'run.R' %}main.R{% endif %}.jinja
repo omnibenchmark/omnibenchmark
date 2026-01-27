@@ -1,0 +1,46 @@
+# Main functions for the OmniBenchmark module
+
+#' Process data using parsed command-line arguments
+#'
+#' @param args Parsed arguments containing:
+#'   - output_dir: Output directory path
+#'   - name: Module name
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+#'   - {{ input.var_name }}: Input files for {{ input.id }} (CLI: --{{ input.id }})
+{%- endfor %}
+#'
+#' @note Input IDs with dots (e.g., 'data.raw') are converted to underscores
+#'   in R variable names (e.g., 'data_raw') but preserve dots in CLI args.
+{%- endif %}
+process_data <- function(args) {
+  # Create output directory if needed
+  dir.create(args$output_dir, recursive = TRUE, showWarnings = FALSE)
+
+  cat("Processing module:", args$name, "\n")
+{%- if stage_inputs %}
+
+  # Access stage inputs
+{%- for input in stage_inputs %}
+  {{ input.var_name }}_files <- args${{ input.var_name }}
+  cat("  {{ input.id }}:", {{ input.var_name }}_files, "\n")
+{%- endfor %}
+{%- endif %}
+
+  # TODO: Implement your processing logic here
+  # Example: Read inputs, process, write outputs
+
+  # Write a simple output file
+  output_file <- file.path(args$output_dir, paste0(args$name, "_result.txt"))
+  output_lines <- c(
+    paste("Processed module:", args$name)
+{%- if stage_inputs %}
+{%- for input in stage_inputs %},
+    paste("{{ input.id }}:", length({{ input.var_name }}_files), "file(s)")
+{%- endfor %}
+{%- endif %}
+  )
+  writeLines(output_lines, output_file)
+
+  cat("Results written to:", output_file, "\n")
+}

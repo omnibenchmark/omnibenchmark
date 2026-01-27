@@ -27,12 +27,12 @@ class SymlinkManager:
     for easier browsing and access.
 
     The storage structure is:
-        {base_dir}/               # Human-readable symlinks
-            a_1-b_2-c_3/          # -> {.hash123}
-            x_1-y_2/              # -> {.hash456}
-            {.hash123}/           # Actual storage
+        {base_dir}/               # Human-readable symlinks (visible)
+            a_1-b_2-c_3/          # -> {.hash12}
+            x_1-y_2/              # -> {.hash34}
+            {.hash12}/            # Actual storage (8-char hash, hidden)
                 parameters.json
-            {.hash456}/
+            {.hash34}/
                 parameters.json
 
     Args:
@@ -72,7 +72,7 @@ class SymlinkManager:
 
         # If too long, append a short 8 characters hash
         if len(name) > max_len:
-            short_hash = params.hash()[:8]
+            short_hash = params.hash_short()
             name = name[: max_len - 9] + "_" + short_hash
         return name
 
@@ -115,9 +115,11 @@ class SymlinkManager:
         """
         if params:
             with self.lock:
-                hash_id = params.hash()
+                hash_id = params.hash_short()
                 hash_folder = f".{hash_id}"
-                human_name = self._make_human_name(params)
+                human_name = self._make_human_name(
+                    params
+                )  # Keep human-readable visible
 
                 # Create hash directory and store params
                 hash_path = self.base_dir / hash_folder
@@ -135,7 +137,21 @@ class SymlinkManager:
 
                 self._write_params(params, hash_path, symlink_path)
 
-                return {"folder": hash_folder, "params": params, "human": human_name}
+                # Return symlink path for snakemake usage
+                symlink_full_path = self.base_dir / human_name
+                result = {
+                    "folder": hash_folder,
+                    "params": params,
+                    "human": human_name,
+                    "symlink_path": symlink_full_path,  # Path to use in snakemake
+                }
+
+            # Clean up lock file after releasing the lock
+            lock_path = Path(self.lock.lock_file)
+            if lock_path.exists():
+                lock_path.unlink()
+
+            return result
 
     def get_params(self, human_name):
         """

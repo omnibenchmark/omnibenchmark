@@ -1,9 +1,8 @@
 from pathlib import Path
 
 import pytest
-from omni_schema.datamodel import omni_schema
 
-from omnibenchmark.utils import parse_instance
+from omnibenchmark.model import Benchmark
 
 
 @pytest.mark.short
@@ -12,6 +11,12 @@ def test_parse_benchmark():
     benchmark_file_path = Path(__file__).parent / benchmark_file
 
     try:
-        parse_instance(benchmark_file_path, omni_schema.Benchmark)
+        benchmark = Benchmark.from_yaml(benchmark_file_path)
+        # Verify basic properties
+        assert benchmark is not None
+        assert isinstance(benchmark, Benchmark)
+        assert hasattr(benchmark, "id")
+        assert hasattr(benchmark, "stages")
+        assert hasattr(benchmark, "software_environments")
     except Exception as e:
         pytest.fail(f"Parsing benchmark model failed: {e}")

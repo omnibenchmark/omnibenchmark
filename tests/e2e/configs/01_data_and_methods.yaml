@@ -1,0 +1,57 @@
+id: LinearArithmeticDataset
+description: Simple linear pipeline for e2e testing with arithmetic operations
+version: "1.0"
+benchmarker: "E2E Test Suite"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      # this writes to out/data/D1/.../D1_data.json
+      - id: D1
+        name: "Dataset 1 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+
+      # this writes to out/data/D2/.../D2_data.json
+      - id: D2
+        name: "Dataset 2 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "2+2"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Method 1 - Process data"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          # --data.raw will be passed as input by us, but we
+          # need to keep the module generic so we need to pass that
+          # information.
+          - evaluate: "input+100"
+            input: "data.raw"
+    inputs:
+      - data.raw
+    outputs:
+      - id: methods.result
+        # XXX I think this is wrong. This module gets passed --name D1...
+        # but I expect name to be M1.
+        path: "{dataset}_method.json"

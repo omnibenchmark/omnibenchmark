@@ -1,0 +1,160 @@
+{%- if entrypoint == "run.py" -%}
+#!/usr/bin/env python3
+
+import argparse
+import sys
+from pathlib import Path
+
+# Add src directory to Python path
+src_dir = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_dir))
+
+from main import process_data
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='OmniBenchmark module')
+
+    # Required by OmniBenchmark
+    parser.add_argument('--output_dir', type=str, required=True,
+                       help='Output directory for results')
+    parser.add_argument('--name', type=str, required=True,
+                       help='Module name/identifier')
+
+{%- if stage_inputs %}
+    # Stage-specific inputs
+{%- for input in stage_inputs %}
+    parser.add_argument('--{{ input.id }}', nargs='+', dest='{{ input.var_name }}', required=True,
+                       help='Input: {{ input.id }}')
+{%- endfor %}
+{%- else %}
+    # Add your custom input arguments here
+    # Example:
+    # parser.add_argument('--input', type=str, help='Input file')
+{%- endif %}
+
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+
+    print(f"Output directory: {args.output_dir}")
+    print(f"Module name: {args.name}")
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+    print(f"{{ input.id }}: {args.{{ input.var_name }}}")
+{%- endfor %}
+{%- endif %}
+
+    # TODO: Implement your module logic
+    # Process the data using main function
+    process_data(args)
+
+if __name__ == "__main__":
+    main()
+{%- elif entrypoint == "run.R" -%}
+#!/usr/bin/env Rscript
+
+library(argparse)
+
+# Source main functions
+source("src/main.R")
+
+# Parse command line arguments
+parser <- ArgumentParser(description="OmniBenchmark module")
+
+# Required by OmniBenchmark
+parser$add_argument("--output_dir", dest="output_dir", type="character", required=TRUE,
+                   help="Output directory for results")
+parser$add_argument("--name", dest="name", type="character", required=TRUE,
+                   help="Module name/identifier")
+
+{%- if stage_inputs %}
+# Stage-specific inputs
+{%- for input in stage_inputs %}
+parser$add_argument("--{{ input.id }}", dest="{{ input.var_name }}",
+                   type="character", nargs="+", required=TRUE,
+                   help="Input: {{ input.id }}")
+{%- endfor %}
+{%- else %}
+# Add your custom input arguments here
+# Example:
+# parser$add_argument("--input", dest="input", type="character", help="Input file")
+{%- endif %}
+
+args <- parser$parse_args()
+
+cat("Output directory:", args$output_dir, "\n")
+cat("Module name:", args$name, "\n")
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+cat("{{ input.id }}:", args${{ input.var_name }}, "\n")
+{%- endfor %}
+{%- endif %}
+
+# TODO: Implement your module logic
+# Process the data using main function
+process_data(args)
+{%- else -%}
+#!/bin/bash
+
+set -euo pipefail
+
+# Source main functions
+source "$(dirname "$0")/src/main.sh"
+
+# Parse command line arguments
+OUTPUT_DIR=""
+NAME=""
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+{{ input.var_name_upper }}=()
+{%- endfor %}
+{%- endif %}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --output_dir)
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    --name)
+      NAME="$2"
+      shift 2
+      ;;
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+    --{{ input.id }})
+      shift
+      # Collect all values until next flag
+      while [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; do
+        {{ input.var_name_upper }}+=("$1")
+        shift
+      done
+      ;;
+{%- endfor %}
+{%- endif %}
+    *)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+  esac
+done
+
+# Check required arguments
+if [[ -z "$OUTPUT_DIR" || -z "$NAME" ]]; then
+    echo "Usage: $0 --output_dir DIR --name NAME [inputs...]"
+    exit 1
+fi
+
+echo "Output directory: $OUTPUT_DIR"
+echo "Module name: $NAME"
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+echo "{{ input.id }}: ${{ '{' }}{{ input.var_name_upper }}[@]{{ '}' }}"
+{%- endfor %}
+{%- endif %}
+
+# TODO: Implement your module logic
+# Process the data using main function
+process_data
+{%- endif %}

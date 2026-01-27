@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from tests.io.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+from tests.remote.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
 
 from .path import data
 

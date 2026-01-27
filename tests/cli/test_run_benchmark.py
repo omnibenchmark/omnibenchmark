@@ -1,10 +1,9 @@
 import os
-import shutil
 from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
 
-from .asserts import assert_startswith, assert_in_output
+from .asserts import assert_in_output
 from .path import data
 
 # TODO: deprecate fixtures in this module
@@ -23,8 +22,6 @@ def test_remote(minio_storage):  # noqa: F811
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(minio_storage.benchmark_file),
             ]
         )
@@ -36,15 +33,12 @@ def test_remote(minio_storage):  # noqa: F811
 
 
 def test_benchmark_not_found():
-    expected = """Error: Invalid value for '-b' / '--benchmark'"""
+    expected = """Error: Invalid value for 'BENCHMARK'"""
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "does_not_exist.yaml"),
-                "--local-storage",
             ]
         )
         assert result.returncode == 2
@@ -57,10 +51,7 @@ def test_benchmark_format_incorrect():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "benchmark_format_incorrect.yaml"),
-                "--local-storage",
             ]
         )
         assert result.returncode == 1
@@ -68,16 +59,13 @@ def test_benchmark_format_incorrect():
 
 def test_benchmark_software_does_not_exist():
     expected = """
-    Error: An unexpected error occurred: Software environment with id 'python' does not have a valid backend definition for: 'conda'.
+    Failed to load benchmark: Software environment with id 'python' does not have a valid backend definition for: 'conda'.
     """
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "benchmark_software_does_not_exist.yaml"),
-                "--local-storage",
             ]
         )
 
@@ -85,30 +73,26 @@ def test_benchmark_software_does_not_exist():
         assert_in_output(result.stdout, expected)
 
 
-def test_local():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark..."""
+def test_local(tmp_path):
+    # Check that benchmark runs successfully (may have deprecation warnings)
+    expected = "Benchmark run has finished successfully"
 
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local-storage",
             ],
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
 
-def test_custom_out_dir():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark..."""
+def test_custom_out_dir(tmp_path):
+    # Check that benchmark runs successfully with custom output directory
+    expected = "Benchmark run has finished successfully"
 
     custom_out_dir = "out_2313_custom"
 
@@ -116,57 +100,47 @@ def test_custom_out_dir():
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local-storage",
                 "--out-dir",
                 custom_out_dir,
             ],
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
-        assert os.path.exists(custom_out_dir)
-        shutil.rmtree(custom_out_dir)
+        assert os.path.exists(tmp_path / custom_out_dir)
 
 
 def test_local_dry():
-    expected_output = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark...
-    """
+    # Dry run should complete successfully (may have warnings)
+    expected_output = "Running benchmark"
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local-storage",
                 "--dry",
             ]
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected_output)
+        assert_in_output(result.stdout, expected_output)
 
 
-def test_local_update_true():
+def test_local_update_true(tmp_path):
     expected1 = "Running benchmark"
     expected2 = "Benchmark run has finished successfully."
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local-storage",
                 "--update",
             ],
             input="y",
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0
@@ -175,46 +149,37 @@ def test_local_update_true():
 
 
 def test_local_update_false():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    """
+    # When user declines update, should abort with code 1
+    expected = "Are you sure you want to re-run the entire workflow"
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local-storage",
                 "--update",
             ],
             input="n",
         )
 
         assert result.returncode == 1
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
 
 def test_local_dry_update():
-    expected = """
-    Benchmark YAML file integrity check passed.
-    Running benchmark...
-    """
+    # Dry run with update should complete successfully
+    expected = "Running benchmark"
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 str(data / "mock_benchmark.yaml"),
-                "--local-storage",
                 "--update",
                 "--dry",
             ]
         )
 
         assert result.returncode == 0
-        assert_startswith(result.stdout, expected)
+        assert_in_output(result.stdout, expected)
 
 
 def test_benchmark_does_fail_if_one_module_fails(bundled_repos, tmp_path):  # noqa: F811
@@ -222,10 +187,7 @@ def test_benchmark_does_fail_if_one_module_fails(bundled_repos, tmp_path):  # no
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (data / "benchmark_failing_module.yaml").as_posix(),
-                "--local-storage",
             ],
             input="y",
             cwd=tmp_path,
@@ -245,10 +207,7 @@ def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos)
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (data / "benchmark_failing_module.yaml").as_posix(),
-                "--local-storage",
                 "--continue-on-error",
             ],
             input="y",
@@ -265,3 +224,60 @@ def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos)
             / "out"
             / "data/D1/output-D1.txt/process/P1/ok-1/analyze/A1/ok-1_output-analyzed.txt"
         )
+
+
+def test_run_benchmark_with_invalid_timeout():
+    """Test that invalid timeout format is rejected."""
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                str(data / "mock_benchmark.yaml"),
+                "--task-timeout",
+                "invalid_format",
+                "--dry",
+            ]
+        )
+
+        assert result.returncode == 1
+        assert (
+            "Invalid timeout value" in result.stderr
+            or "Invalid timeout value" in result.stdout
+        )
+
+
+def test_run_benchmark_out_dir_with_remote_storage():
+    """Test that --out-dir fails when used with --use-remote-storage."""
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                str(data / "mock_benchmark.yaml"),
+                "--use-remote-storage",
+                "--out-dir",
+                "custom_output",
+                "--dry",
+            ]
+        )
+
+        assert result.returncode == 2
+        error_msg = "--out-dir can only be used with local storage"
+        assert error_msg in result.stderr or error_msg in result.stdout
+
+
+def test_run_benchmark_with_valid_timeout():
+    """Test that valid human-friendly timeout formats are accepted."""
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                str(data / "mock_benchmark.yaml"),
+                "--task-timeout",
+                "5m",
+                "--dry",
+            ]
+        )
+
+        # Should not fail during timeout parsing
+        assert "Invalid timeout value" not in result.stderr
+        assert "Invalid timeout value" not in result.stdout

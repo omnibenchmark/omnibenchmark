@@ -1,7 +1,7 @@
-id: incorrect_format 
-version: 1.0
+id: incorrect_format
+version: "1.0"
 benchmarker: "John Doe at Robinsons lab, john.doe@uzh.ch"
-benchmark_yaml_spec: 0.01
+api_version: "0.3.0"
 software_backend:
 software_environments:
 stages:

@@ -1,0 +1,418 @@
+# This pipeline simplifies the running of linting, build, short and integration tests.
+name: pixi
+
+env:
+  PIXI_VERSION: v0.55.0
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Run linting
+        run: pixi run lint
+
+      - name: Run type checking
+        run: pixi run typecheck
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Build wheel
+        run: pixi run build
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/*.whl
+          retention-days: 7
+
+  test-short:
+    name: Short Tests
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Run short tests (excluding e2e)
+        run: pixi run test-short
+        # TODO: make sure we do coverage in pixi target:
+        # uv run pytest -m short --cov --cov-branch --cov-report=xml
+
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-python-versions:
+    name: Test Python 3.13
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Run Python 3.13 tests with wheel
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run -e py313 pip install "$WHEEL_FILE[test]"
+          pixi run -e py313 test-py313
+
+  test-integration:
+    name: Integration Tests
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install wheel with test extras
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run pip install "$WHEEL_FILE[test]"
+
+      - name: Install additional system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap
+
+      - name: Set up module environment (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export MODULEPATH="$HOME/.local/easybuild/modules/all:$GITHUB_WORKSPACE/tests/data/envs"
+          echo "MODULEPATH=$MODULEPATH" >> $GITHUB_ENV
+
+      - name: Run integration tests
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            pixi run pytest -m "not short and not e2e_s3" && pixi run pytest tests/software/
+          else
+            # macOS - skip platform-specific tests
+            pixi run pytest -m "not short and not e2e_s3" && pixi run pytest tests/software/ -k "not apptainer"
+          fi
+
+  test-e2e:
+    name: End-to-End Tests
+    needs: [build]
+    runs-on: ubuntu-latest
+    # Run on workflow_dispatch, or if not a docs-only change
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        !contains(github.event.head_commit.message, '[skip e2e]')
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.title, '[skip e2e]')
+      )
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install wheel with test extras
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run pip install "$WHEEL_FILE[test]"
+
+      - name: Install additional system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap
+
+      - name: Set up module environment
+        run: |
+          export MODULEPATH="$HOME/.local/easybuild/modules/all:$GITHUB_WORKSPACE/tests/data/envs"
+          echo "MODULEPATH=$MODULEPATH" >> $GITHUB_ENV
+
+      - name: Run end-to-end tests
+        run: pixi run test-e2e
+
+  e2e-clustering-conda:
+    name: E2E Clustering Example (Conda)
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install micromamba
+        run: |
+          pixi add micromamba
+
+      - name: Install wheel with micromamba
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          # more things than needed, but:
+          # clustbench hits s3 code (should investigate why)
+          pixi run micromamba run -n base pip install "$WHEEL_FILE[s3]"
+
+      - name: Clone clustering example repo
+        run: |
+          git clone --branch update-to-0.4 https://github.com/omnibenchmark/clustering_example.git
+          cd clustering_example
+          ls -la
+
+      - name: Configure conda to use prefix.dev mirror
+        working-directory: clustering_example
+        run: |
+          # Use prefix.dev mirror to avoid anaconda.org 503 errors
+          # Replace conda-forge with prefix.dev mirror in conda env files
+          for env_file in envs/*.yml; do
+            if [ -f "$env_file" ]; then
+              sed -i 's|^  - conda-forge$|  - https://prefix.dev/conda-forge|g' "$env_file"
+              # For r channel, keep it as 'r' since prefix.dev handles it via conda-forge
+              # The r channel is typically available through conda-forge mirror
+            fi
+          done
+          echo "Patched conda environment files to use prefix.dev:"
+          grep -A 5 "^channels:" envs/*.yml || true
+
+      - name: Run clustering benchmark with conda backend
+        working-directory: clustering_example
+        run: |
+          set +e  # Don't exit on error immediately
+          # Ensure micromamba's Python is used by Snakemake subprocesses
+          eval "$(pixi run micromamba shell hook --shell bash)"
+          micromamba activate base
+          ob run Clustering_conda.yml --yes --continue-on-error
+
+      - name: Upload output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clustbench-conda-output
+          path: |
+            clustering_example/**/*.log
+            clustering_example/**/*.yaml
+            clustering_example/**/*.yml
+            clustering_example/out/**/*
+            clustering_example/.snakemake/log/**/*
+          retention-days: 7
+
+  e2e-clustering-apptainer:
+    name: E2E Clustering Example (Apptainer)
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install apptainer
+        run: |
+          sudo add-apt-repository -y ppa:apptainer/ppa
+          sudo apt-get update
+          sudo apt-get install -y apptainer
+
+      - name: Install micromamba
+        run: |
+          pixi add micromamba
+
+      - name: Install wheel with micromamba
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run micromamba run -n base pip install "$WHEEL_FILE[s3]"
+
+      - name: Clone clustering example repo
+        run: |
+          git clone --branch update-to-0.4 https://github.com/omnibenchmark/clustering_example.git
+          cd clustering_example
+          ls -la
+
+      - name: Run clustering benchmark with apptainer backend
+        working-directory: clustering_example
+        run: |
+          pixi run micromamba run -n base ob run Clustering_oras.yml --yes --continue-on-error
+
+      - name: Upload output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clustbench-apptainer-output
+          path: clustering_example/
+          retention-days: 7
+
+  test-e2e-s3:
+    name: S3 E2E Tests (Local MinIO)
+    needs: [test-short, lint-and-typecheck]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.0
+        with:
+          pixi-version: ${{ env.PIXI_VERSION }}
+          cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: omnibenchmark-wheel
+          path: dist/
+
+      - name: Install wheel with test extras
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          pixi run pip install "$WHEEL_FILE[test]"
+
+      - name: Run S3 E2E tests with local MinIO (Docker)
+        timeout-minutes: 15
+        run: |
+          echo "🚀 Running S3 E2E tests with local MinIO in Docker..."
+          echo "Note: Tests will use testcontainers to spin up MinIO automatically"
+          pixi run pytest -m e2e_s3 -v -s
+        
+      - name: Collect diagnostic information on failure
+        if: failure()
+        run: |
+          echo "=== Collecting diagnostic information ==="
+          
+          # Find pytest temp directories
+          PYTEST_DIRS=$(find /tmp -type d -name "pytest-of-*" 2>/dev/null || true)
+          
+          for dir in $PYTEST_DIRS; do
+            echo "Found pytest directory: $dir"
+            
+            # Find Snakemake logs
+            find "$dir" -name "*.snakemake.log" -type f 2>/dev/null | while read log; do
+              echo "=== Snakemake log: $log ==="
+              tail -n 500 "$log"
+            done
+            
+            # Find any error logs
+            find "$dir" -name "*.log" -type f 2>/dev/null | while read log; do
+              echo "=== Log file: $log ==="
+              tail -n 100 "$log"
+            done
+            
+            # Check for local output files
+            find "$dir" -name "*.json" -type f 2>/dev/null | head -20 | while read file; do
+              echo "Found JSON output: $file"
+            done
+          done
+        
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3-e2e-test-artifacts-${{ github.run_id }}
+          path: |
+            /tmp/pytest-of-*/**/*.log
+            /tmp/pytest-of-*/**/*.json
+            /tmp/pytest-of-*/**/*.yaml
+          retention-days: 3
+          if-no-files-found: warn

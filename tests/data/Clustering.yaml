@@ -1,12 +1,12 @@
 id: clustering_benchmark
 description: Clustering benchmark on Iris and Penguins Dataset.
-version: 1.0
+version: "1.0"
 benchmarker: "OmniBenchmark Team at Robinsons Lab"
-storage: https://play.min.io
-benchmark_yaml_spec: 0.01
+api_version: "0.3.0"
+storage: https://rgw.science-it.uzh.ch/
 storage_api: S3
-storage_bucket_name: clustering_benchmark
-software_backend: host
+storage_bucket_name: omnibenchmark-remote-testing
+software_backend: conda
 software_environments:
   R:
     description: "R 4.4.1 with gfbf-2023 toolchain"
@@ -26,12 +26,15 @@ metric_collectors:
     software_environment: "python"
     repository:
       url: https://github.com/omnibenchmark-example/metric-collector.git
-      commit: ef4a601
+      commit: 31e592d
     inputs:
-      - metrics.mapping
+      - id: metrics.mapping
+        path: "{dataset}.mapping.json"
     outputs:
-      - "biometrics_report.html"
-      - "biometrics.tsv"
+      - id: biometrics_report.html
+        path: "biometrics_report.html"
+      - id: biometrics.tsv
+        path: "biometrics.tsv"
 stages:
   - id: data
     modules:
@@ -40,13 +43,13 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/iris.git
-          commit: 47c63f0
+          commit: 78d23a0
       - id: penguins
         name: "Penguins Dataset"
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/penguins.git
-          commit: 9032478
+          commit: "3e48199"
     outputs:
       - id: data.features
         path: "{dataset}.features.csv"
@@ -58,16 +61,11 @@ stages:
       - id: D1
         software_environment: "python"
         parameters:
-          - values: ["--measure", "cosine"]
-          - values: ["--measure", "euclidean"]
-          - values: ["--measure", "manhattan"]
-          - values: ["--measure", "chebyshev"]
+          - measure: ["cosine", "euclidean", "manhattan", "chebyshev"]
         repository:
           url: https://github.com/omnibenchmark-example/distance.git
-          commit: dd99d4f
-    inputs:
-      - entries:
-          - data.features
+          commit: 649df9c
+    inputs: [ data.features ]
     outputs:
       - id: distances
         path: "{dataset}.distances.csv"
@@ -78,15 +76,13 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/kmeans.git
-          commit: 049c8b1
+          commit: 60cee11
       - id: ward
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/ward.git
-          commit: 976e3f3
-    inputs:
-      - entries:
-          - distances
+          commit: f24dd42
+    inputs: [ distances ]
     outputs:
       - id: methods.clusters
         path: "{dataset}.clusters.csv"
@@ -97,16 +93,13 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/ari.git
-          commit: 72708f0
+          commit: 27c5f3f
       - id: accuracy
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/accuracy.git
-          commit: e26b32f
-    inputs:
-      - entries:
-          - methods.clusters
-          - data.labels
+          commit: 3fedcea
+    inputs: [ methods.clusters, data.labels ]
     outputs:
       - id: metrics.mapping
         path: "{dataset}.metrics.txt"

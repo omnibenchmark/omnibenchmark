@@ -12,7 +12,7 @@ timeout_benchmark = "timeout_benchmark.yaml"
 
 
 def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
-    """Test that benchmark run with no timeout does not fail"""
+    """Test that benchmark run with no timeout (default None) does not fail"""
 
     shutil.copy(data / timeout_benchmark, tmp_path / timeout_benchmark)
     shutil.copytree(envs, tmp_path / "envs")
@@ -21,14 +21,11 @@ def test_benchmark_run_no_timeout_does_not_fail(tmp_path):
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (tmp_path / timeout_benchmark).as_posix(),
-                "--local-storage",
             ],
             cwd=tmp_path,
         )
-    # should not fail, just wait for completion
+    # should not fail, just wait for completion (uses default timeout of None)
     assert result.returncode == 0
 
 
@@ -42,12 +39,9 @@ def test_benchmark_run_with_timeout_less_than_task_fails(tmp_path):
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (tmp_path / timeout_benchmark).as_posix(),
                 "--task-timeout",
                 "1s",
-                "--local-storage",
             ],
             cwd=tmp_path,
         )
@@ -63,12 +57,9 @@ def test_benchmark_run_high_timeout(tmp_path):
         result = omni.call(
             [
                 "run",
-                "benchmark",
-                "--benchmark",
                 (tmp_path / timeout_benchmark).as_posix(),
                 "--task-timeout",
                 "5s",
-                "--local-storage",
             ],
             cwd=tmp_path,
         )

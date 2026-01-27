@@ -1,0 +1,67 @@
+# {{ module_title }}
+
+{{ description if description else 'An OmniBenchmark module for computational benchmarking.' }}
+
+**Generated with [OmniBenchmark](https://omnibenchmark.org) v{{ omnibenchmark_version }}**
+
+## Quick Start
+
+### Prerequisites
+
+{% if environment_type == 'conda' -%}
+- [Conda](https://conda.io/) or [Mamba](https://mamba.readthedocs.io/)
+{%- elif environment_type == 'apptainer' -%}
+- [Apptainer](https://apptainer.org/) (formerly Singularity)
+{%- elif environment_type == 'envmodules' -%}
+- Environment Modules system
+{%- endif %}
+
+### Installation
+
+Clone this repository:
+```bash
+git clone https://github.com/CHANGE_ME/{{ module_name }}.git
+cd {{ module_name }}
+```
+
+{% if environment_type == 'conda' -%}
+Create and activate the conda environment:
+```bash
+conda env create -f {{ conda_environment }}
+conda activate {{ module_name }}
+```
+{%- elif environment_type == 'apptainer' -%}
+Build or pull the Apptainer container:
+```bash
+apptainer build {{ apptainer_container }} container.def
+```
+{%- elif environment_type == 'envmodules' -%}
+Load the required environment modules:
+```bash
+module load {{ envmodules_spec }}
+```
+{%- endif %}
+
+### Usage
+
+Run the module:
+
+```bash
+{% if environment_type == 'apptainer' -%}
+apptainer exec {{ apptainer_container }} ./{{ entrypoint }}
+{%- else -%}
+./{{ entrypoint }}
+{%- endif %}
+```
+
+## Citation
+
+If you use this module in your research, please cite it using the information in `CITATION.cff`.
+
+## License
+
+This project is licensed under the {{ license }} License - see the `CITATION.cff` file for details.
+
+---
+
+**Note**: Remember to update the GitHub URL (`CHANGE_ME`) to point to your actual repository!

@@ -2,11 +2,12 @@ id: Benchmark_002
 name: peiying_with_easyconfigs
 description: peiying's fixed yaml
 benchmarker: "Peiying Cai at Robinsons Lab"
-version: 1.0
-storage: https://storage.github.com/
-storage_api: S3
-storage_bucket_name: benchmark002
-benchmark_yaml_spec: 0.01
+version: "1.0"
+api_version: "0.3.0"
+storage:
+  api: S3
+  bucket_name: benchmark002
+  endpoint: s3.omnibenchmark.com
 software_backend: host
 software_environments:
   R:
@@ -49,10 +50,7 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 3b17081
     inputs:
-      - entries: [
-          data.counts,
-          data.meta
-        ]
+      - entries: [data.counts, data.meta]
     outputs:
       - id: data.normalized
         path: "{dataset}.txt.gz"
@@ -63,12 +61,12 @@ stages:
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
       - id: seurat
         software_environment: "scanpy"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries:
           - data.normalized
@@ -76,7 +74,7 @@ stages:
           - data.meta
     outputs:
       - id: select_counts.selected
-        path: "{dataset}.txt.gz"
+        path: "{dataset}_counts.txt.gz"
 
   - id: select_lognorm
     modules:
@@ -85,13 +83,13 @@ stages:
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
       - id: scran
         exclude: [select_counts]
         software_environment: "R"
         repository:
           url: https://github.com/omnibenchmark-example/process.git
-          commit: 3b17081
+          commit: 706edb9
     inputs:
       - entries:
           - data.normalized
@@ -99,14 +97,14 @@ stages:
           - data.coord
     outputs:
       - id: select_lognorm.selected
-        path: "{dataset}.txt.gz"
+        path: "{dataset}_lognorm.txt.gz"
 
   - id: dimred
     modules:
       - id: sklearn
         software_environment: "scanpy"
         repository:
-          url : https://github.com/omnibenchmark-example/method.git
+          url: https://github.com/omnibenchmark-example/method.git
           commit: 8f2f835
         parameters:
           - values: ["-scale false"]
@@ -118,7 +116,7 @@ stages:
           - select_counts.selected
     outputs:
       - id: pca.matrix
-        path: "{dataset}.txt.gz"
+        path: "{dataset}_dimred.txt.gz"
 
   - id: methods
     modules:

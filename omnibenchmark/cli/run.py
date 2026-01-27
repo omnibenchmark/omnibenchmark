@@ -1,47 +1,63 @@
 """cli commands related to benchmark/module execution and start"""
 
 import os
+import shutil
 import sys
 from itertools import chain
 from pathlib import Path
 
 import click
 import humanfriendly
+from pydantic import ValidationError as PydanticValidationError
 
-from omnibenchmark.benchmark.constants import DEFAULT_TIMEOUT_HUMAN
+from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.cli.error_formatting import pretty_print_parse_error
+from omnibenchmark.cli.utils.args import parse_extra_args
 from omnibenchmark.cli.utils.logging import logger
-from omnibenchmark.cli.utils.validation import validate_benchmark
-from omnibenchmark.io.storage import get_storage_from_benchmark
-from omnibenchmark.io.storage import remote_storage_snakemake_args
+from omnibenchmark.model.validation import BenchmarkParseError
+from omnibenchmark.remote.storage import (
+    get_storage_from_benchmark,
+    remote_storage_snakemake_args,
+)
 from omnibenchmark.workflow.snakemake import SnakemakeEngine
 from omnibenchmark.workflow.workflow import WorkflowEngine
 
-from .debug import add_debug_option
-from .utils.args import parse_extra_args
+
+def format_pydantic_errors(e: PydanticValidationError) -> str:
+    """Format Pydantic validation errors to show which fields are missing or invalid."""
+    error_lines = ["Validation failed:"]
+    for error in e.errors():
+        field = " -> ".join(str(loc) for loc in error["loc"])
+        msg = error["msg"]
+        error_type = error["type"]
+
+        # Make missing field errors more explicit
+        if error_type == "missing":
+            error_lines.append(f"  - Missing required field: '{field}'")
+        else:
+            error_lines.append(f"  - Field '{field}': {msg}")
+
+    return "\n".join(error_lines)
 
 
-@click.group(name="run")
-@click.pass_context
-def run(ctx):
-    """Run benchmarks or benchmark modules."""
-    ctx.ensure_object(dict)
-
-
-@add_debug_option
-@run.command(
-    name="benchmark",
-    context_settings=dict(
-        ignore_unknown_options=True,
-        allow_extra_args=True,
-    ),
+@click.command(
+    name="run",
+    context_settings=dict(allow_extra_args=True),
+)
+@click.argument("benchmark", type=click.Path(exists=True))
+@click.option(
+    "-m",
+    "--module",
+    help="Module id to execute. If specified, runs a specific module instead of the full benchmark.",
+    type=str,
+    default=None,
 )
 @click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
-    required=True,
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
+    "-i",
+    "--input-dir",
+    help="Path to the folder with the appropriate input files (only used with --module).",
+    type=click.Path(exists=True, writable=True),
+    default=None,
 )
 @click.option(
     "-c",
@@ -73,9 +89,9 @@ def run(ctx):
     default=False,
 )
 @click.option(
-    "-l",
-    "--local-storage",
-    help="Execute and store results locally. Default False.",
+    "-r",
+    "--use-remote-storage",
+    help="Execute and store results remotely. Default False.",
     is_flag=True,
     default=False,
 )
@@ -87,8 +103,8 @@ def run(ctx):
 @click.option(
     "--task-timeout",
     type=str,
-    default=DEFAULT_TIMEOUT_HUMAN,
-    help="Timeout for each separate task execution (local only). Do note that total runtime is not additive.",
+    default=None,
+    help="A `human friendly` timeout for each separate task execution (local only). Do note that total runtime is not additive. Example: 4h, 42m, 12s",
 )
 @click.option(
     "--executor",
@@ -97,49 +113,127 @@ def run(ctx):
     default=None,
 )
 @click.option(
-    "--out-dir", type=str, default="out", help="Output folder name (local only)."
+    "--out-dir",
+    help="Output folder name (local only). Default: `out`",
+    default=None,
+    type=str,
 )
 @click.pass_context
-def run_benchmark(
+def run(
     ctx,
     benchmark,
+    module,
+    input_dir,
     cores,
     update,
     dry,
     yes,
-    local_storage,
+    use_remote_storage,
     keep_module_logs,
     continue_on_error,
     task_timeout,
     executor,
     out_dir,
 ):
-    """Run a benchmark as specified in the yaml."""
+    """Run a benchmark or a specific module.
+
+    BENCHMARK: Path to benchmark YAML file.
+
+    Examples:
+
+      ob run benchmark.yaml                    # Run full benchmark
+
+      ob run benchmark.yaml --module my_module --input-dir ./data  # Run specific module
+    """
     ctx.ensure_object(dict)
     extra_args = parse_extra_args(ctx.args)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
-    try:
-        timeout_s = int(humanfriendly.parse_timespan(task_timeout))
-    except humanfriendly.InvalidTimespan:
-        logger.error(f"Invalid timeout value: {task_timeout}")
-        sys.exit(1)
 
-    # Validate out_dir usage
-    if not local_storage and out_dir != "out":
-        logger.error(
-            "-Invalid arguments: --out-dir can only be used with --local-storage"
+    # Parse timeout
+    if task_timeout is None:
+        timeout_s = None
+    else:
+        try:
+            timeout_s = int(humanfriendly.parse_timespan(task_timeout))
+        except humanfriendly.InvalidTimespan:
+            logger.error(f"Invalid timeout value: {task_timeout}")
+            sys.exit(1)
+
+    # Decide whether to run whole benchmark or module
+    if module:
+        _run_module(
+            benchmark_path=benchmark,
+            module=module,
+            input_dir=input_dir,
+            out_dir=out_dir,
+            out_dir_explicit=out_dir is not None,
+            cores=cores,
+            update=update,
+            dry=dry,
+            keep_module_logs=keep_module_logs,
+            continue_on_error=continue_on_error,
+            timeout_s=timeout_s,
+            executor=executor,
+            extra_args=extra_args,
         )
-        sys.exit(1)
+    else:
+        # Validate out_dir usage
+        if use_remote_storage and out_dir:
+            raise click.UsageError("--out-dir can only be used with local storage")
 
-    b = validate_benchmark(benchmark, out_dir)
-    if b is None:
-        # this should not happen, because validate raises, but that's not proper behavior.
-        # We should sys.exit from here instead. But just to keep the signature valid.
-        log_error_and_quit(logger, "Invalid benchmark file")
+        _run_benchmark(
+            benchmark_path=benchmark,
+            cores=cores,
+            update=update,
+            dry=dry,
+            yes=yes,
+            use_remote_storage=use_remote_storage,
+            keep_module_logs=keep_module_logs,
+            continue_on_error=continue_on_error,
+            timeout_s=timeout_s,
+            executor=executor,
+            out_dir=out_dir,
+            debug=debug,
+            extra_args=extra_args,
+        )
+
+
+def _run_benchmark(
+    benchmark_path,
+    cores,
+    update,
+    dry,
+    yes,
+    use_remote_storage,
+    keep_module_logs,
+    continue_on_error,
+    timeout_s,
+    executor,
+    out_dir,
+    debug,
+    extra_args,
+):
+    """Run a full benchmark."""
+    try:
+        out_dir = out_dir if out_dir else "out"
+        b = BenchmarkExecution(Path(benchmark_path), Path(out_dir))
+        logger.info("Benchmark YAML file integrity check passed.")
+    except PydanticValidationError as e:
+        # Handle Pydantic validation errors with detailed field information
+        log_error_and_quit(
+            logger, f"Failed to load benchmark:\n{format_pydantic_errors(e)}"
+        )
         return
-
+    except BenchmarkParseError as e:
+        # Format parse errors with file location and context
+        formatted_error = pretty_print_parse_error(e)
+        log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
+        return
+    except Exception as e:
+        log_error_and_quit(logger, f"Failed to load benchmark: {e}")
+        return
     assert b is not None
 
     # it is as --continue_on_error originally
@@ -151,7 +245,7 @@ def run_benchmark(
         msg = "re-run the entire workflow"
         abort_if_user_does_not_confirm(msg, logger)
 
-    if not local_storage:
+    if use_remote_storage:
         storage_options = remote_storage_snakemake_args(b)
         # creates bucket if it doesn't exist
         _ = get_storage_from_benchmark(b)
@@ -176,7 +270,6 @@ def run_benchmark(
         backend=b.get_benchmark_software_backend(),
         debug=debug,
         executor=executor,
-        out_dir=out_dir,
         local_timeout=timeout_s,
         **storage_options,
         **extra_args,
@@ -185,108 +278,48 @@ def run_benchmark(
     log_result_and_quit(logger, success, type="Benchmark")
 
 
-@run.command(
-    name="module",
-    context_settings=dict(
-        ignore_unknown_options=True,
-        allow_extra_args=True,
-    ),
-)
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
-    required=True,
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
-)
-@click.option("-m", "--module", help="Module id to execute", type=str, required=True)
-@click.option(
-    "-i",
-    "--input_dir",
-    help="Path to the folder with the appropriate input files.",
-    type=click.Path(exists=True, writable=True),
-    default=None,
-)
-@click.option("-d", "--dry", help="Dry run.", is_flag=True, default=False)
-@click.option(
-    "-u",
-    "--update",
-    help="Force re-run execution for all modules and stages.",
-    is_flag=True,
-    default=False,
-)
-@click.option(
-    "-k",
-    "--continue-on-error",
-    help="Go on with independent jobs if a job fails (--keep-going in snakemake).",
-    is_flag=True,
-    default=False,
-)
-@click.option(
-    "--keep-module-logs/--no-keep-module-logs",
-    default=False,
-    help="Keep module-specific log files after execution.",
-)
-@click.option(
-    "--executor",
-    help="Specify a custom executor to use for workflow execution. Example: slurm",
-    type=str,
-    default=None,
-)
-@click.pass_context
-def run_module(
-    ctx,
-    benchmark,
+def _run_module(
+    benchmark_path,
     module,
     input_dir,
-    dry,
+    out_dir,
+    out_dir_explicit,
+    cores,
     update,
+    dry,
     keep_module_logs,
     continue_on_error,
+    timeout_s,
     executor,
+    extra_args,
 ):
-    """
-    Run a specific module that is part of the benchmark.
-    """
-    behaviours = {"input": input_dir, "example": None, "all": None}
-    extra_args = parse_extra_args(ctx.args)
-
-    non_none_behaviours = {
-        key: value for key, value in behaviours.items() if value is not None
-    }
-    if len(non_none_behaviours) >= 2:
-        log_error_and_quit(
-            logger,
-            "Error: Only one of '--input_dir', '--example', or '--all' should be set. Please choose only one option.",
-        )
-        return
-
-    # Construct a message specifying which option is set
-    behaviour = list(non_none_behaviours)[0] if non_none_behaviours else None
-
-    if behaviour == "example" or behaviour == "all":
-        howmany = "all" if behaviour == "all" else "a"
-        logger.info(f"Running module on {howmany} predefined remote example dataset.")
-
-        # TODO Check how snakemake storage decorators work, do we have caching locally or just remote?
-        # TODO Implement remote execution using remote url from benchmark definition
-        log_error_and_quit(
-            logger,
-            "Error: Remote execution is not supported yet. Workflows can only be run in local mode.",
-        )
-        return
-
+    """Run a specific module that is part of the benchmark."""
     logger.info("Running module on a local dataset.")
 
-    b = validate_benchmark(benchmark, "/tmp")
-    if b is None:
-        # this should not happen, because validate raises, but that's not proper behavior. We should sys.exit
-        # from here instead. But just to keep the signature valid.
-        log_error_and_quit(logger, "Error: Invalid benchmark file.")
-        return
+    # Use provided out_dir or default to "out"
+    work_dir = Path(out_dir) if out_dir else Path("out")
 
+    # Convert paths to absolute paths to avoid issues when work_dir changes
+    work_dir = work_dir.resolve()
+    benchmark_path_abs = Path(benchmark_path).resolve()
+
+    try:
+        b = BenchmarkExecution(benchmark_path_abs, work_dir)
+    except PydanticValidationError as e:
+        # Handle Pydantic validation errors with detailed field information
+        log_error_and_quit(
+            logger, f"Failed to load benchmark:\n{format_pydantic_errors(e)}"
+        )
+        return
+    except BenchmarkParseError as e:
+        formatted_error = pretty_print_parse_error(e)
+        log_error_and_quit(logger, f"Failed to load benchmark: {formatted_error}")
+        return
+    except Exception as e:
+        log_error_and_quit(logger, f"Failed to load benchmark: {e}")
+        return
     assert b is not None
+
     benchmark_nodes = b.get_nodes_by_module_id(module_id=module)
 
     is_entrypoint_module = all([node.is_entrypoint() for node in benchmark_nodes])
@@ -301,15 +334,20 @@ def run_module(
     assert len(benchmark_nodes) > 0
     logger.info(f"Found {len(benchmark_nodes)} workflow nodes for module {module}.")
 
-    if not is_entrypoint_module and len(non_none_behaviours) == 0:
-        log_error_and_quit(
-            logger,
-            "Error: At least one option must be specified. Use '--input_dir', '--example', or '--all'.",
-        )
-        return
-
     if input_dir is None:
-        input_dir = os.getcwd()
+        # Default to 'out' folder in current directory if it exists
+        default_input_dir = os.path.join(os.getcwd(), "out")
+        if os.path.exists(default_input_dir) and os.path.isdir(default_input_dir):
+            input_dir = default_input_dir
+            logger.info(f"Using default input directory: {input_dir}")
+        elif not is_entrypoint_module:
+            log_error_and_quit(
+                logger,
+                "Error: --input-dir is required for non-entrypoint modules when 'out' folder doesn't exist in current directory.",
+            )
+            return
+        else:
+            input_dir = os.getcwd()
 
     logger.info("Running module benchmark...")
 
@@ -324,15 +362,33 @@ def run_module(
 
     benchmark_datasets = b.get_benchmark_datasets()
 
+    # Initialize actual_input_dir to track where files are actually located
+    actual_input_dir = input_dir
+
     # Check available files in input to figure out what dataset are we processing
     if module in benchmark_datasets:
         # we're given the initial dataset module to process, then we know
         dataset = module
     else:
         # we try to figure the dataset based on the files present in the input directory
-        files = os.listdir(input_dir)
+        files = os.listdir(actual_input_dir)
         base_names = [file.split(".")[0] for file in files]
         dataset = next((d for d in benchmark_datasets if d in base_names), None)
+
+        # If not found directly, look in data/ subdirectory structure: data/{dataset}/{params}/
+        if dataset is None:
+            data_dir = os.path.join(input_dir, "data")
+            if os.path.exists(data_dir) and os.path.isdir(data_dir):
+                subdirs = os.listdir(data_dir)
+                dataset = next((d for d in benchmark_datasets if d in subdirs), None)
+                if dataset is not None:
+                    # Update actual_input_dir to point to the actual data location
+                    # Find the first parameter directory under data/{dataset}/
+                    dataset_dir = os.path.join(data_dir, dataset)
+                    if os.path.exists(dataset_dir) and os.path.isdir(dataset_dir):
+                        param_dirs = os.listdir(dataset_dir)
+                        if len(param_dirs) > 0:
+                            actual_input_dir = os.path.join(dataset_dir, param_dirs[0])
 
     if dataset is None:
         log_error_and_quit(
@@ -353,7 +409,7 @@ def run_module(
         file.format(dataset=dataset) for file in required_input_files
     ]
 
-    input_files = os.listdir(input_dir)
+    input_files = os.listdir(actual_input_dir)
     missing_files = [file for file in required_input_files if file not in input_files]
 
     if len(missing_files) > 0:
@@ -364,40 +420,100 @@ def run_module(
         return
     assert len(missing_files) == 0
 
+    # If out_dir was explicitly provided and differs from input location,
+    # create output structure and symlink input files
+    # This allows Snakemake to find inputs while writing outputs to the correct location
+    workflow_input_dir = actual_input_dir
+    if (
+        out_dir_explicit
+        and Path(actual_input_dir).resolve() != (work_dir / "data" / dataset).resolve()
+    ):
+        # Determine the relative path structure from actual_input_dir
+        # Expected: actual_input_dir is something like input_dir/data/{dataset}/{params}
+        try:
+            # Extract the path components
+            input_path = Path(actual_input_dir).resolve()
+            # Find the data/ directory level
+            parts = input_path.parts
+            data_idx = next((i for i, p in enumerate(parts) if p == "data"), None)
+
+            if data_idx is not None and data_idx + 2 < len(parts):
+                # Reconstruct: data/{dataset}/{params}
+                relative_structure = Path(*parts[data_idx:])
+                output_data_dir = work_dir / relative_structure
+
+                # Create the output directory structure
+                os.makedirs(output_data_dir, exist_ok=True)
+
+                # Copy only the required input FILES (not directories) to the output directory
+                # This ensures we don't copy output directories from previous module runs
+                # Using copy instead of symlink avoids issues with container bind mounts
+                for file in required_input_files:
+                    src = Path(actual_input_dir) / file
+                    dst = output_data_dir / file
+                    # Only copy if it's a file (not a directory) and doesn't already exist
+                    if src.is_file() and not dst.exists():
+                        shutil.copy2(src, dst)
+                        logger.info(f"Copied {src} -> {dst}")
+
+                # Recreate human-readable parameter symlinks in the dataset directory
+                # These are symlinks like dataset_generator-fcps_dataset_name-atom -> .46bb23e0
+                dataset_dir = output_data_dir.parent  # This is work_dir/data/{dataset}
+                source_dataset_dir = Path(
+                    actual_input_dir
+                ).parent  # Original data/{dataset} dir
+                if source_dataset_dir.exists():
+                    for item in source_dataset_dir.iterdir():
+                        if item.is_symlink():
+                            # Recreate the symlink in the new location
+                            target = item.readlink()
+                            new_symlink = dataset_dir / item.name
+                            if not new_symlink.exists():
+                                os.symlink(target, new_symlink)
+                                logger.info(
+                                    f"Recreated symlink {new_symlink} -> {target}"
+                                )
+
+                # Update workflow_input_dir to point to the copied location
+                workflow_input_dir = str(output_data_dir)
+        except Exception as e:
+            logger.warning(
+                f"Could not create copied input structure: {e}. Using original input directory."
+            )
+
+    logger.info(f"Running workflow with input_dir: {workflow_input_dir}")
+    logger.info(f"Dataset: {dataset}")
+    logger.info(f"Work dir: {work_dir if out_dir_explicit else 'default (cwd)'}")
+
     workflow: WorkflowEngine = SnakemakeEngine()
+
+    # Prepare workflow arguments (without node, which is set in the loop)
+    workflow_args = {
+        "input_dir": Path(workflow_input_dir),
+        "dataset": dataset,
+        "cores": 1,
+        "update": update,
+        "dryrun": dry,
+        "continue_on_error": continue_on_error,
+        "keep_module_logs": keep_module_logs,
+        "backend": b.get_benchmark_software_backend(),
+        "executor": executor,
+        "local_timeout": timeout_s,
+        "benchmark_file_path": b.get_definition_file(),
+    }
+
+    # Only pass work_dir if out_dir was explicitly provided
+    if out_dir_explicit:
+        workflow_args["work_dir"] = work_dir
+
+    workflow_args.update(extra_args)
 
     for benchmark_node in benchmark_nodes:
         # When running a single module, it doesn't have sense to make parallelism level (cores) configurable
-        success = workflow.run_node_workflow(
-            node=benchmark_node,
-            input_dir=Path(input_dir),
-            dataset=dataset,
-            cores=1,
-            update=update,
-            dryrun=dry,
-            continue_on_error=continue_on_error,
-            keep_module_logs=keep_module_logs,
-            backend=b.get_benchmark_software_backend(),
-            executor=executor,
-            **extra_args,
-        )
+        workflow_args["node"] = benchmark_node
+        success = workflow.run_node_workflow(**workflow_args)
 
         log_result_and_quit(logger, success, type="Module")
-
-
-@run.command(no_args_is_help=True, name="validate")
-@click.option(
-    "-b",
-    "--benchmark",
-    help="Path to benchmark yaml file or benchmark id.",
-    envvar="OB_BENCHMARK",
-    type=click.Path(exists=True),
-)
-@click.pass_context
-def validate_yaml(ctx, benchmark):
-    """Validate a benchmark yaml."""
-    logger.info("Validating a benchmark yaml.")
-    _ = validate_benchmark(benchmark, "/tmp")
 
 
 def log_error_and_quit(logger, error):

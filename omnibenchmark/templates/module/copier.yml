@@ -1,0 +1,62 @@
+_templates_suffix: .jinja
+_envops:
+  block_start_string: "{%"
+  block_end_string: "%}"
+  variable_start_string: "{{"
+  variable_end_string: "}}"
+  comment_start_string: "{#"
+  comment_end_string: "#}"
+
+# Git initialization and commits are handled by the CLI
+
+module_name:
+  type: str
+  help: What is the name of your module?
+  placeholder: my-awesome-module
+  default: my-awesome-module
+
+module_title:
+  type: str
+  help: What is the display title of your module?
+  placeholder: My Awesome Module
+  default: "{{ module_name.replace('-', ' ').replace('_', ' ').title() }}"
+
+author_name:
+  type: str
+  help: What is your name?
+  placeholder: Your Name
+  default: Your Name
+
+author_email:
+  type: str
+  help: What is your email?
+  placeholder: you@example.com
+  default: you@example.com
+
+license:
+  type: str
+  help: Choose a license for your module
+  choices:
+    - MIT
+    - Apache-2.0
+    - GPL-3.0-or-later
+    - BSD-3-Clause
+    - CC0-1.0
+  default: MIT
+
+description:
+  type: str
+  help: Brief description of your module
+  placeholder: A brief description of what this module does
+  default: ""
+
+entrypoint:
+  type: str
+  help: Main entrypoint script for your module
+  choices:
+    - run.R
+    - run.py
+    - run.sh
+  default: run.sh
+
+

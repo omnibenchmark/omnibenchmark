@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Main functions for the OmniBenchmark module
+
+# Process data using parsed command-line arguments
+#
+# Expects global variables to be set:
+#   - OUTPUT_DIR: Output directory path
+#   - NAME: Module name
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+#   - {{ input.var_name_upper }}: Array of input files for {{ input.id }} (CLI: --{{ input.id }})
+{%- endfor %}
+#
+# Note: Input IDs with dots (e.g., 'data.raw') are converted to underscores and
+#   uppercased in bash variable names (e.g., 'DATA_RAW') but preserve dots in CLI args.
+{%- endif %}
+process_data() {
+    # Create output directory if needed
+    mkdir -p "$OUTPUT_DIR"
+
+    echo "Processing module: $NAME"
+{%- if stage_inputs %}
+
+    # Access stage inputs
+{%- for input in stage_inputs %}
+    echo "  {{ input.id }}: ${{ '{' }}#{{ input.var_name_upper }}[@]{{ '}' }} file(s)"
+    for file in "${{ '{' }}{{ input.var_name_upper }}[@]{{ '}' }}"; do
+        echo "    - $file"
+    done
+{%- endfor %}
+{%- endif %}
+
+    # TODO: Implement your processing logic here
+    # Example: Read inputs, process, write outputs
+
+    # Write a simple output file
+    local output_file="$OUTPUT_DIR/${NAME}_result.txt"
+    {
+        echo "Processed module: $NAME"
+{%- if stage_inputs %}
+{%- for input in stage_inputs %}
+        echo "{{ input.id }}: ${{ '{' }}#{{ input.var_name_upper }}[@]{{ '}' }} file(s)"
+{%- endfor %}
+{%- endif %}
+    } > "$output_file"
+
+    echo "Results written to: $output_file"
+}

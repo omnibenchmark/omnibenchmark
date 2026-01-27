@@ -1,0 +1,79 @@
+id: LinearArithmeticWithMetrics
+description: Simple linear pipeline for e2e testing with arithmetic operations and metrics collection
+version: "1.0"
+benchmarker: "E2E Test Suite"
+benchmark_yaml_spec: "0.3"
+#api_version: "0.3.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      # this writes to out/data/D1/.../D1_data.json
+      - id: D1
+        name: "Dataset 1 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+
+      # this writes to out/data/D2/.../D2_data.json
+      - id: D2
+        name: "Dataset 2 - Generate test values"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "2+2"]
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Method 1 - Process data"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          # --data.raw will be passed as input by us, but we
+          # need to keep the module generic so we need to pass that
+          # information.
+          - values: ["--evaluate", "input+100", "--input", "data.raw"]
+    inputs:
+      # TODO: entries should be deprecated
+      - entries:
+          - data.raw
+    outputs:
+      - id: methods.result
+        # XXX I think this is wrong. This module gets passed --name D1...
+        # but I expect name to be M1?
+        path: "{dataset}_data.json"
+
+metric_collectors:
+  - id: MC1
+    name: "Gather and calculate metrics from method results"
+    software_environment: "host"
+    repository:
+      url: bundles/dummycollector_9e3a99a.bundle
+      commit: 9e3a99a
+    # FIXME: metric collector does not support parameters
+    inputs:
+      # FIXME - the inputs are passed in a very weird way: space-separated
+      # after --methods.result ONE TWO THREE.
+      # this is a quite convoluted way of passing data, and it probably
+      # will break for a few reasons.
+      - methods.result
+    outputs:
+      - id: metrics.summary
+        # TODO: this "input" here is really unintuitive. it really means "output" dir.
+        path: "metrics/metrics.json"

@@ -16,42 +16,39 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
 ]
-requires-python = "~=3.12"
+requires-python = ">=3.12.0, <3.14"
 
 dynamic = ["version"]
 
 dependencies = [
     "click>=8.1.7",
-    "aiohttp>=3.9.5",
-    "async>=0.6.2",
-    "tqdm>=4.66.4",
-    "requests>=2.31.0",
     "python-dateutil>=2.9.0.post0",
     "filelock>=3.4.0",
     "spdx-license-list>=3.19",
     "PyYAML",
     "humanfriendly",
     "pydantic",
-
-    # DAG & Visualization
-    "networkx>=3.3",     # this might be overkill for the DAG
-    "matplotlib==3.8.0",
-    "pydot>=3.0.2",
+    "python-dotenv>=1.0.0",
 
     # Cloning modules
     "GitPython>=3.1.0",
 
     # Workflow
-    "snakemake>=8.0", # modify constraints.txt if you need stricter pinning
+    # TODO: Pinned to <9.10 because Snakemake 9.10+ has stricter rule name validation
+    # that detects duplicate rule names. See
+    # https://github.com/omnibenchmark/omnibenchmark/issues/269
+    "snakemake>=9.0,<9.10", # Require 9.0+ for proper storage plugin support
+    "pandas",  # TODO: Remove when all modules stop depending on it (see #232)
 
-    # Build tools
-    "easybuild>=5.0.0",
-    "easybuild-easyblocks>=5.0.0",
+    # Templating
+    "copier>=9.0.0",
 
-    # Other runtime dependencies
-    "omni-schema>=0.0.6",                               # To be deprecated
-    "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
+    # graph visualization (can be made optional)
+    "matplotlib==3.8.0",
+    "pydot>=3.0.2",
 
+    # can probably move to optional deps
+    "tqdm>=4.66.4",
 ]
 
 [project.urls]
@@ -59,16 +56,22 @@ Homepage = "https://omnibenchmark.org"
 Repository = "https://github.com/omnibenchmark/omnibenchmark"
 
 [project.optional-dependencies]
-s3 = ["minio>=7.2.7", "boto3>=1.34.102", "snakemake-storage-plugin-s3>=0.2.12"]
+s3 = ["minio==7.2.18", "boto3>=1.34.102", "snakemake-storage-plugin-s3>=0.2.12"]  # Pin to 7.2.18, 7.2.19 has breaking API changes
+slurm = [
+    "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
+    "pandas",  # Required by snakemake-executor-plugin-slurm
+]
+export = ["pandas"]
+dev = ["ipython", "pre-commit", "ruff", "typing-extensions", "isort", "pyright"]
 test = [
     "pytest-cov>=4.1.0",
     "pytest-split>=0.9.0",
     "pytest-xdist>=3.6.1",
     "testcontainers>=4.5.1",
     "pytest-timeout==2.3.1",
-    "s3fs[boto3]>=2023.12.0",
+    "s3fs>=2023.12.0",
+    "minio==7.2.18",  # Pin to 7.2.18, 7.2.19 has breaking API changes
 ]
-dev = ["ipython", "pre-commit", "ruff", "typing-extensions", "isort", "pyright"]
 
 [project.scripts]
 ob = 'omnibenchmark.cli.main:cli'
@@ -79,7 +82,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["omnibenchmark"]
+include = ["omnibenchmark*"]
+
+[tool.setuptools.package-data]
+omnibenchmark = ["templates/**/*"]
 
 [tool.setuptools_scm]
 # Optional settings (or leave empty for default)
@@ -92,6 +98,66 @@ profile = "black"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+typeCheckingMode = "standard"
+
+# Strict type checking for new modules
+include = ["omnibenchmark"]
+ignore = ["omnibenchmark/io/**"]  # TODO: Fix type errors in io module before re-enabling strict checking
+strict = [
+    "omnibenchmark/dag/**",
+    "omnibenchmark/model/**",
+]
+
+# Type checking rules
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportGeneralTypeIssues = "error"
+reportPropertyTypeMismatch = "error"
+reportFunctionMemberAccess = "error"
+reportMissingParameterType = "error"
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
+reportUnknownMemberType = "error"
+reportUnknownArgumentType = "error"
+reportUnknownLambdaType = "error"
+reportIncompatibleMethodOverride = "error"
+reportUntypedFunctionDecorator = "error"
+reportUntypedClassDecorator = "error"
+reportUnboundVariable = "error"
+reportInvalidStringEscapeSequence = "error"
+reportMissingTypeArgument = "error"
+reportCallInDefaultInitializer = "error"
+reportUnnecessaryIsInstance = "warning"
+reportUnnecessaryCast = "warning"
+reportUnnecessaryComparison = "warning"
+reportUnnecessaryContains = "warning"
+reportImplicitStringConcatenation = "warning"
+reportInvalidStubStatement = "error"
+reportIncompleteStub = "warning"
+reportUnsupportedDunderAll = "warning"
+reportUnusedExpression = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportMatchNotExhaustive = "error"
+reportArgumentType = "error"
+reportAssignmentType = "error"
+reportReturnType = "error"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+
+# Strict mode settings for new modules
+[tool.pyright.strictListInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model"]
+
+[tool.pyright.strictDictionaryInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model"]
+
+[tool.pyright.strictSetInference]
+paths = ["omnibenchmark/dag", "omnibenchmark/model"]
+
 
 [tool.ruff]
 line-length = 88 # Match Black's default line length
@@ -118,6 +184,3 @@ exclude_lines = [
 ]
 show_missing = true
 skip_covered = false
-
-[tool.coverage.xml]
-output = "reports/coverage.xml"

@@ -157,25 +157,25 @@ cython_debug/
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+.idea/
 
 # tildes
 *~
 
-# pixi environments (not using it officially yet)
+# pixi environments 
 .pixi
-pixi.lock
-pixi.toml
 
 # snakemake stuff
 Snakefile
 .snakemake/
+.omnibenchmark/
 
 # Custom omni-benchmark specific folders
 out/
 log/
 output_dag.png
 Snakefile
+.omnibenchmark/
 
 # Editors
 *.swp
@@ -186,3 +186,4 @@ Snakefile
 
 # docs
 docs/site/*
+coverage.xml
