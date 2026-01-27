@@ -3,7 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## [0.4.0](main) UNRELEASED
+## [0.4.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.4.0) (Jan 27th 2026)
 
 - feat: add create benchmark & create module command (#171)
 - feat: add ob status (#184)
