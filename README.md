@@ -42,7 +42,7 @@ Check [CONTRIBUTING.md](https://github.com/omnibenchmark/omnibenchmark/blob/main
 
 Omnibenchmark incorporates great FOSS components, including but not limited to: [snakemake](https://snakemake.readthedocs.io/en/stable/), [easybuild](https://easybuild.io/), [apptainer](https://apptainer.org/), [lmod](https://lmod.readthedocs.io/en/latest/) and [git](https://git-scm.com/). Thank you!
 
-## Pre-prints
+## Publications
 
+- [Building a continuous benchmarking ecosystem in bioinformatics](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1013658) (2025)
 - [Omnibenchmark (alpha) for continuous and open benchmarking in bioinformatics](https://arxiv.org/abs/2409.17038) (2024)
-- [Building a continuous benchmarking ecosystem in bioinformatics](https://arxiv.org/abs/2409.15472) (2024)
