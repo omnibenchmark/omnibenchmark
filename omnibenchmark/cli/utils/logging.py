@@ -16,5 +16,6 @@ def configure_logging(debug: bool):
     log_level = logging.DEBUG if debug else logging.INFO
     logger.setLevel(log_level)
 
+    logger.propagate = False
     if not logger.hasHandlers():
         logger.addHandler(handler)

@@ -1,12 +1,12 @@
 # Omnibenchmark Telemetry
 
-OTLP-compatible telemetry for observing benchmark execution in logfire or other OpenTelemetry backends.
+OTLP-compatible telemetry for observing benchmark execution in OpenTelemetry backends (Aspire Dashboard, Jaeger, etc.).
 
 ## Overview
 
 The telemetry module emits structured JSON Lines (NDJSON) following the OpenTelemetry Protocol (OTLP) format. This allows you to:
 
-- View the benchmark DAG as a browseable hierarchy in logfire
+- View the benchmark DAG as a browseable span hierarchy
 - Monitor rule execution status (pending → running → completed/failed)
 - Capture stdout/stderr from rule execution
 - Pipe telemetry over SSH from remote execution (e.g., Slurm clusters)
@@ -17,13 +17,17 @@ The benchmark structure is represented as nested spans:
 
 ```
 benchmark: my_benchmark (root span)
+├── setup: module resolution
+├── setup: environment preparation
 ├── stage: datasets
-│   ├── rule: datasets_iris_abc123
-│   └── rule: datasets_wine_def456
+│   ├── module: iris_loader
+│   │   └── rule: datasets_iris_abc123
+│   └── module: wine_loader
+│       └── rule: datasets_wine_def456
 ├── stage: methods
-│   ├── rule: methods_kmeans_iris_abc123
-│   ├── rule: methods_kmeans_wine_def456
-│   └── ...
+│   └── module: kmeans
+│       ├── rule: methods_kmeans_iris_abc123
+│       └── rule: methods_kmeans_wine_def456
 └── stage: metrics
     └── ...
 ```
@@ -153,7 +157,7 @@ emitter.benchmark_completed(success=True)
 
 ## Troubleshooting
 
-### No spans appearing in logfire
+### No spans appearing in dashboard
 
 1. Check the collector is receiving data:
    ```bash
