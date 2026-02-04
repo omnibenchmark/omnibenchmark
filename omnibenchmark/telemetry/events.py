@@ -99,6 +99,20 @@ class Span:
 
     def to_otlp(self) -> dict:
         """Convert to OTLP span format."""
+        # Add otel.status_code / otel.status_description for backends that
+        # rely on semantic-convention attributes (Aspire Dashboard, etc.)
+        extra_attrs: list[Attribute] = []
+        if self.status == SpanStatus.ERROR:
+            extra_attrs.append(Attribute("otel.status_code", "ERROR"))
+            if self.status_message:
+                extra_attrs.append(
+                    Attribute("otel.status_description", self.status_message)
+                )
+        elif self.status == SpanStatus.OK:
+            extra_attrs.append(Attribute("otel.status_code", "OK"))
+
+        all_attrs = self.attributes + extra_attrs
+
         span = {
             "traceId": self.trace_id,
             "spanId": self.span_id,
@@ -107,7 +121,7 @@ class Span:
             "status": {
                 "code": int(self.status),
             },
-            "attributes": [a.to_otlp() for a in self.attributes],
+            "attributes": [a.to_otlp() for a in all_attrs],
         }
 
         if self.parent_span_id:

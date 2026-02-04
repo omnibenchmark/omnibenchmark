@@ -92,6 +92,7 @@ class TelemetryEmitter:
     _rules: dict = field(default_factory=dict)
 
     # Track what's been emitted
+    _emitted_rules: set = field(default_factory=set)
     _emitted_modules: set = field(default_factory=set)
     _emitted_stages: set = field(default_factory=set)
 
@@ -406,7 +407,7 @@ class TelemetryEmitter:
         stderr: Optional[str] = None,
     ):
         """Mark rule as completed and emit its span."""
-        if rule_name not in self._rules:
+        if rule_name not in self._rules or rule_name in self._emitted_rules:
             return
 
         rule = self._rules[rule_name]
@@ -420,6 +421,7 @@ class TelemetryEmitter:
 
         # Emit the rule span
         self._emit_rule_span(rule_name)
+        self._emitted_rules.add(rule_name)
 
         # Update module tracking
         stage_id = rule["stage_id"]
@@ -438,7 +440,7 @@ class TelemetryEmitter:
         stderr: Optional[str] = None,
     ):
         """Mark rule as failed and emit its span."""
-        if rule_name not in self._rules:
+        if rule_name not in self._rules or rule_name in self._emitted_rules:
             return
 
         rule = self._rules[rule_name]
@@ -453,6 +455,7 @@ class TelemetryEmitter:
 
         # Emit the rule span
         self._emit_rule_span(rule_name)
+        self._emitted_rules.add(rule_name)
 
         # Update module tracking
         stage_id = rule["stage_id"]
@@ -492,6 +495,8 @@ class TelemetryEmitter:
             attributes.append(Attribute("rule.inputs", list(rule["inputs"].values())))
         if rule["parameters"]:
             attributes.append(Attribute("rule.parameters", rule["parameters"]))
+        if rule["error"]:
+            attributes.append(Attribute("error.type", "RuleExecutionError"))
 
         events = []
         if rule["stdout"]:
@@ -574,6 +579,26 @@ class TelemetryEmitter:
                 )
             )
 
+        # Emit a prominent ERROR log for failed rules so they stand out in
+        # the Structured Logs view (separate from the stderr stream log).
+        if rule["status"] == SpanStatus.ERROR and rule["error"]:
+            self._emit_log(
+                LogRecord(
+                    trace_id=self._trace_id,
+                    span_id=rule["span_id"],
+                    body=f"FAILED: {rule_name} — {rule['error']}",
+                    severity=SeverityNumber.ERROR,
+                    severity_text="ERROR",
+                    timestamp_ns=rule["end_time"],
+                    attributes=[
+                        Attribute("rule.name", rule_name),
+                        Attribute("error.type", "RuleExecutionError"),
+                        Attribute("rule.stage_id", rule["stage_id"]),
+                        Attribute("rule.module_id", rule["module_id"]),
+                    ],
+                )
+            )
+
     def _maybe_emit_module(self, module_key: tuple):
         """Emit module span if all its rules are complete."""
         if module_key in self._emitted_modules:
@@ -605,6 +630,7 @@ class TelemetryEmitter:
             else self._benchmark_span_id
         )
 
+        has_failures = module["has_failures"]
         span = Span(
             trace_id=self._trace_id,
             span_id=module["span_id"],
@@ -613,7 +639,10 @@ class TelemetryEmitter:
             kind=SpanKind.INTERNAL,
             start_time_ns=module["start_time"] or self._benchmark_start_time,
             end_time_ns=end_time,
-            status=SpanStatus.ERROR if module["has_failures"] else SpanStatus.OK,
+            status=SpanStatus.ERROR if has_failures else SpanStatus.OK,
+            status_message=f"One or more rules failed in {module['module_id']}"
+            if has_failures
+            else "",
             attributes=[
                 Attribute("module.id", module["module_id"]),
                 Attribute("module.stage_id", stage_id),
@@ -638,6 +667,7 @@ class TelemetryEmitter:
         stage = self._stages[stage_id]
         end_time = now_ns()
 
+        has_failures = stage["has_failures"]
         span = Span(
             trace_id=self._trace_id,
             span_id=stage["span_id"],
@@ -646,7 +676,10 @@ class TelemetryEmitter:
             kind=SpanKind.INTERNAL,
             start_time_ns=stage["start_time"] or self._benchmark_start_time,
             end_time_ns=end_time,
-            status=SpanStatus.ERROR if stage["has_failures"] else SpanStatus.OK,
+            status=SpanStatus.ERROR if has_failures else SpanStatus.OK,
+            status_message=f"One or more modules failed in stage {stage['name']}"
+            if has_failures
+            else "",
             attributes=[
                 Attribute("stage.id", stage_id),
                 Attribute("stage.name", stage["name"]),

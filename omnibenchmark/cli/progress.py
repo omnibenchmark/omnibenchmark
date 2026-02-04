@@ -532,7 +532,8 @@ class InteractiveProgress:
             self._live.update(self._render_current_view())
 
     def add_failed_rule(self, rule: str):
-        self._failed_rules.append(rule)
+        if rule not in self._failed_rules:
+            self._failed_rules.append(rule)
 
     def finish(self):
         """Clean up all resources."""

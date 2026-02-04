@@ -465,7 +465,8 @@ def _run_snakemake(
                     match = job_error_pattern.search(line)
                     if match:
                         failed_rule = match.group(1)
-                        failed_rules.append(failed_rule)
+                        if failed_rule not in failed_rules:
+                            failed_rules.append(failed_rule)
                         capturing_error = True
                         error_lines = [line_stripped]
 
