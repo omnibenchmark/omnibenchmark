@@ -2,17 +2,19 @@
 Telemetry module for omnibenchmark.
 
 Provides OTLP-compatible structured logging that can be piped to
-logfire, OpenTelemetry collectors, or other observability backends.
+OpenTelemetry backends (Aspire Dashboard, Jaeger, etc.).
 
 The telemetry output represents the benchmark DAG as a span hierarchy:
 
     benchmark_run (root span)
+    ├── setup: module resolution
+    ├── setup: environment preparation
     ├── stage: datasets
-    │   ├── rule: datasets_iris_abc123
-    │   └── rule: datasets_wine_def456
+    │   └── module: ...
+    │       └── rule: datasets_iris_abc123
     ├── stage: methods
-    │   ├── rule: methods_kmeans_iris_...
-    │   └── ...
+    │   └── module: ...
+    │       └── rule: methods_kmeans_iris_...
     └── stage: metrics
         └── ...
 

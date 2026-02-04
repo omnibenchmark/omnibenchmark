@@ -2,7 +2,7 @@
 OTLP JSON emitter for telemetry data.
 
 Outputs OTLP-compatible JSON Lines (NDJSON) that can be:
-- Piped to logfire or other OTLP collectors
+- Piped to OTLP collectors (Aspire Dashboard, Jaeger, etc.)
 - Written to a .jsonl file
 - Sent via HTTP to an OTLP endpoint
 
@@ -296,17 +296,66 @@ class TelemetryEmitter:
         self, output: str, start_time_ns: int = None, end_time_ns: int = None
     ):
         """Emit a setup span for environment preparation (conda, apptainer, etc.)."""
+        self.emit_phase_span(
+            name="setup: environment preparation",
+            phase="environment_setup",
+            setup_type="environment",
+            output=output,
+            start_time_ns=start_time_ns,
+            end_time_ns=end_time_ns,
+        )
+
+    def emit_phase_started(self, name: str, phase: str):
+        """Emit a log record signalling that a phase has started.
+
+        This lets the dashboard show activity immediately, before the phase
+        span is emitted (which requires both start and end times).
+        """
+        self._emit_log(
+            LogRecord(
+                trace_id=self._trace_id,
+                span_id=self._benchmark_span_id,
+                body=f"Started: {name}",
+                severity=SeverityNumber.INFO,
+                severity_text="setup",
+                timestamp_ns=now_ns(),
+                attributes=[
+                    Attribute("phase", phase),
+                    Attribute("phase.status", "started"),
+                ],
+            )
+        )
+
+    def emit_phase_span(
+        self,
+        name: str,
+        phase: str,
+        setup_type: str,
+        output: str = "",
+        start_time_ns: int = None,
+        end_time_ns: int = None,
+    ):
+        """Emit a span for a benchmark phase (resolution, environment setup, etc.).
+
+        Args:
+            name: Human-readable span name (e.g., "setup: module resolution")
+            phase: Phase identifier for log attribute (e.g., "module_resolution")
+            setup_type: Setup type attribute value (e.g., "resolution")
+            output: Captured output text for the phase
+            start_time_ns: Phase start time in nanoseconds
+            end_time_ns: Phase end time in nanoseconds
+        """
         span = Span(
             trace_id=self._trace_id,
             span_id=generate_span_id(),
             parent_span_id=self._benchmark_span_id,
-            name="setup: environment preparation",
+            name=name,
             kind=SpanKind.INTERNAL,
             start_time_ns=start_time_ns or self._benchmark_start_time,
             end_time_ns=end_time_ns or now_ns(),
             status=SpanStatus.OK,
             attributes=[
-                Attribute("setup.type", "environment"),
+                Attribute("setup.type", setup_type),
             ],
         )
         self._emit_span(span)
@@ -322,7 +371,7 @@ class TelemetryEmitter:
                     severity_text="setup",
                     timestamp_ns=end_time_ns or now_ns(),
                     attributes=[
-                        Attribute("phase", "environment_setup"),
+                        Attribute("phase", phase),
                     ],
                 )
             )

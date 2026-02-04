@@ -230,6 +230,15 @@ class SnakemakeGenerator:
 
         # Create empty output files for dry-run
         f.write("        mkdir -p $(dirname {output[0]})\n")
+
+        # Create human-readable symlink for the parameter directory
+        if node.parameters:
+            human_name = self._make_human_name(node.parameters)
+            hash_folder = f".{node.parameters.hash_short()}"
+            f.write(
+                f"        ln -sfn {hash_folder} $(dirname {{output[0]}})/../{human_name}\n"
+            )
+
         for i, _ in enumerate(node.outputs):
             f.write(f"        touch {{output[{i}]}}\n")
 
@@ -250,6 +259,14 @@ class SnakemakeGenerator:
         f.write('        """\n')
         # Create output directory and log directory before cd (relative to out/)
         f.write("        mkdir -p $(dirname {output[0]}) $(dirname {log})\n")
+
+        # Create human-readable symlink for the parameter directory
+        if node.parameters:
+            human_name = self._make_human_name(node.parameters)
+            hash_folder = f".{node.parameters.hash_short()}"
+            f.write(
+                f"        ln -sfn {hash_folder} $(dirname {{output[0]}})/../{human_name}\n"
+            )
 
         # Start tee to capture all output to both stdout and per-rule log file
         # Use absolute path for log since we'll cd later
@@ -701,6 +718,20 @@ class SnakemakeGenerator:
             f.write(f",\n        runtime={node.resources.runtime}")
 
         f.write("\n")
+
+    def _make_human_name(self, params) -> str:
+        """Create a human-readable name from parameters for symlinks.
+
+        Replicates SymlinkManager._make_human_name logic so symlinks can be
+        emitted directly in generated shell commands.
+        """
+        parts = [f"{k}-{v}" for k, v in params.items()]
+        name = "_".join(parts)
+        for unsafe in ["/", "\\", ":", "*", "?", '"', "<", ">", "|", " "]:
+            name = name.replace(unsafe, "_")
+        if len(name) > 255:
+            name = name[:246] + "_" + params.hash_short()
+        return name
 
     def _sanitize_rule_name(self, node_id: str) -> str:
         """

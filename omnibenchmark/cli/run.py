@@ -196,7 +196,19 @@ def _run_benchmark(
 
         logging.getLogger("omnibenchmark").setLevel(logging.WARNING)
 
+    # Setup telemetry emitter early so pre-snakemake phases are traced
+    telemetry_emitter = None
+    if telemetry == "json":
+        from omnibenchmark.telemetry import TelemetryEmitter
+
+        if telemetry_output:
+            telemetry_emitter = TelemetryEmitter(output=Path(telemetry_output))
+        else:
+            telemetry_emitter = TelemetryEmitter()  # stdout
+
     # Step 1: Populate git cache (fetch all repos)
+    resolution_start_ns = int(time.time() * 1_000_000_000)
+
     _populate_git_cache(b, quiet=use_clean_ui, cores=cores)
 
     # Step 2: Generate explicit Snakefile
@@ -210,6 +222,28 @@ def _run_benchmark(
         start_time=start_time,
         dirty=dirty,
     )
+
+    # Initialize telemetry with resolved nodes and emit resolution span
+    if telemetry_emitter and resolved_nodes:
+        stages = [{"id": s.id, "name": s.name or s.id} for s in b.model.stages]
+        telemetry_emitter.emit_manifest(
+            benchmark_name=b.model.get_name(),
+            benchmark_version=b.model.get_version(),
+            benchmark_author=b.model.get_author(),
+            software_backend=str(b.get_benchmark_software_backend().value),
+            cores=cores,
+            stages=stages,
+            resolved_nodes=resolved_nodes,
+        )
+        resolution_end_ns = int(time.time() * 1_000_000_000)
+        telemetry_emitter.emit_phase_span(
+            name="setup: module resolution",
+            phase="module_resolution",
+            setup_type="resolution",
+            output=f"Resolved {len(resolved_nodes)} nodes",
+            start_time_ns=resolution_start_ns,
+            end_time_ns=resolution_end_ns,
+        )
 
     # If dry run, exit here
     if dry:
@@ -228,8 +262,7 @@ def _run_benchmark(
         continue_on_error=continue_on_error,
         software_backend=b.get_benchmark_software_backend(),
         debug=debug,
-        telemetry=telemetry,
-        telemetry_output=telemetry_output,
+        telemetry_emitter=telemetry_emitter,
         benchmark=b,
         resolved_nodes=resolved_nodes,
     )
@@ -252,8 +285,7 @@ def _run_snakemake(
     continue_on_error: bool,
     software_backend: SoftwareBackendEnum,
     debug: bool,
-    telemetry: str = None,
-    telemetry_output: str = None,
+    telemetry_emitter=None,
     benchmark: "BenchmarkExecution" = None,
     resolved_nodes: list = None,
 ):
@@ -275,8 +307,7 @@ def _run_snakemake(
         continue_on_error: Whether to continue on job failures
         software_backend: Software backend (determines --use-conda etc.)
         debug: Whether to enable verbose output (shows full output instead of progress)
-        telemetry: Telemetry format ('json' or None)
-        telemetry_output: Path to write telemetry (if None and telemetry='json', uses stdout)
+        telemetry_emitter: Pre-initialized TelemetryEmitter (or None)
         benchmark: BenchmarkExecution instance (for telemetry metadata)
         resolved_nodes: List of ResolvedNode objects (for telemetry manifest)
     """
@@ -298,32 +329,9 @@ def _run_snakemake(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = logs_dir / f"snakemake_{timestamp}.log"
 
-    # Setup telemetry emitter if requested
-    telemetry_emitter = None
-    use_telemetry_stdout = telemetry == "json" and not telemetry_output
-
-    if telemetry == "json":
-        from omnibenchmark.telemetry import TelemetryEmitter
-
-        if telemetry_output:
-            telemetry_emitter = TelemetryEmitter(output=Path(telemetry_output))
-        else:
-            telemetry_emitter = TelemetryEmitter()  # stdout
-
-        # Emit the manifest (full DAG) upfront
-        if benchmark and resolved_nodes:
-            stages = [
-                {"id": s.id, "name": s.name or s.id} for s in benchmark.model.stages
-            ]
-            telemetry_emitter.emit_manifest(
-                benchmark_name=benchmark.model.get_name(),
-                benchmark_version=benchmark.model.get_version(),
-                benchmark_author=benchmark.model.get_author(),
-                software_backend=str(software_backend.value),
-                cores=cores,
-                stages=stages,
-                resolved_nodes=resolved_nodes,
-            )
+    use_telemetry_stdout = (
+        telemetry_emitter is not None and telemetry_emitter._file_handle is sys.stdout
+    )
 
     # Build snakemake command
     # Use just "Snakefile" since we chdir to out_dir before running
@@ -395,6 +403,10 @@ def _run_snakemake(
             setup_buffer = []
             first_rule_seen = False
             setup_start_ns = int(time.time() * 1_000_000_000)
+            if telemetry_emitter:
+                telemetry_emitter.emit_phase_started(
+                    "environment preparation", "environment_setup"
+                )
 
             with open(log_file, "w") as f:
                 for line in process.stdout:
@@ -532,6 +544,12 @@ def _run_snakemake(
             setup_buffer = []
             first_rule_seen = False
             setup_start_ns = int(time.time() * 1_000_000_000)
+            if telemetry_emitter:
+                telemetry_emitter.emit_phase_started(
+                    "environment preparation", "environment_setup"
+                )
+            setup_status = summary_console.status("Setting up...")
+            setup_status.start()
 
             with open(log_file, "w") as f:
                 for line in process.stdout:
@@ -549,6 +567,8 @@ def _run_snakemake(
                     # Capture setup output before first rule
                     if not first_rule_seen:
                         setup_buffer.append(line_stripped)
+                        if line_stripped and setup_status:
+                            setup_status.update(f"[dim]{line_stripped}[/dim]")
                     else:
                         rule_output_buffer.append(line_stripped)
 
@@ -562,7 +582,9 @@ def _run_snakemake(
                         if len(parts) >= 2:
                             try:
                                 total_jobs = int(parts[1])
-                                # Start interactive progress now that we know total
+                                # Stop setup status, start interactive progress
+                                setup_status.stop()
+                                setup_status = None
                                 progress = InteractiveProgress(
                                     log_file=log_file, tail_lines=25
                                 )
@@ -661,6 +683,9 @@ def _run_snakemake(
 
             process.wait()
             result = process
+
+            if setup_status:
+                setup_status.stop()
 
             # Emit setup span if no rules were seen (edge case)
             if not first_rule_seen and telemetry_emitter and setup_buffer:

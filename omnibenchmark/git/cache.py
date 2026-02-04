@@ -269,40 +269,46 @@ def checkout_to_work_dir(
         # Resolve and checkout the ref
         from dulwich.objectspec import parse_commit
 
-        # Try to resolve the ref - handle both short and full commit hashes
+        # Try to resolve the ref - handle commit hashes, local branches, tags,
+        # and remote tracking branches (refs/remotes/origin/{ref})
         try:
             commit_obj = parse_commit(work_repo, ref.encode("ascii"))
             commit_hash_hex = commit_obj.id.hex()
             logging.debug(f"Resolved {ref} to {commit_hash_hex}")
         except KeyError:
+            commit_obj = None
+
+            # Try remote tracking branch: refs/remotes/origin/{ref}
+            remote_ref = f"refs/remotes/origin/{ref}".encode("ascii")
+            if remote_ref in work_repo.refs:
+                sha = work_repo.refs[remote_ref]
+                commit_obj = parse_commit(work_repo, sha)
+                commit_hash_hex = commit_obj.id.hex()
+                logging.debug(
+                    f"Resolved {ref} via remote tracking branch to {commit_hash_hex}"
+                )
+
             # If that fails and ref looks like a short hash, try to expand it
-            if re.match(r"^[0-9a-f]{6,39}$", ref, re.IGNORECASE):
-                # It's a partial commit hash - search for matching commits
+            if commit_obj is None and re.match(r"^[0-9a-f]{4,39}$", ref, re.IGNORECASE):
                 ref_prefix = ref.lower()
                 matching_commits = []
 
-                # Iterate through all objects to find matches
                 for obj_id in work_repo.object_store:
                     obj_hex = obj_id.hex()
                     if obj_hex.startswith(ref_prefix):
                         matching_commits.append(obj_hex)
 
-                if len(matching_commits) == 0:
-                    raise RuntimeError(
-                        f"Reference '{ref}' not found in repository {repo_url}"
-                    )
-                elif len(matching_commits) > 1:
-                    raise RuntimeError(
-                        f"Reference '{ref}' is ambiguous (matches {len(matching_commits)} commits) in repository {repo_url}"
-                    )
-                else:
-                    # Found exactly one match
+                if len(matching_commits) == 1:
                     full_hash = matching_commits[0]
                     logging.debug(f"Expanded short hash {ref} to {full_hash}")
                     commit_obj = parse_commit(work_repo, full_hash.encode("ascii"))
                     commit_hash_hex = commit_obj.id.hex()
-            else:
-                # Not a short hash, re-raise the original error
+                elif len(matching_commits) > 1:
+                    raise RuntimeError(
+                        f"Reference '{ref}' is ambiguous (matches {len(matching_commits)} commits) in repository {repo_url}"
+                    )
+
+            if commit_obj is None:
                 raise RuntimeError(
                     f"Reference '{ref}' not found in repository {repo_url}"
                 )

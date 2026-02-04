@@ -2,7 +2,7 @@
 Span hierarchy builder for benchmark DAG.
 
 Converts the benchmark structure (stages, modules, rules) into
-a hierarchy of OTLP spans that can be browsed in logfire.
+a hierarchy of OTLP spans that can be browsed in OpenTelemetry backends.
 """
 
 from dataclasses import dataclass, field
