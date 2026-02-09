@@ -15,6 +15,7 @@ from omnibenchmark.model.benchmark import (
     Parameter,
     IOFile,
     InputCollection,
+    GatherInput,
     SoftwareEnvironment,
     SoftwareEnvironmentReference,
     Module,
@@ -24,7 +25,6 @@ from omnibenchmark.model.benchmark import (
     # Exceptions (moved to validation module)
     # ValidationError,
     # Utility functions
-    expand_output_path,
     validate_non_empty_string,
     validate_non_empty_commit,
     validate_hex_string,
@@ -40,6 +40,7 @@ from omnibenchmark.model.module import (
     ModuleMetadata,
 )
 from omnibenchmark.model.resolved import (
+    TemplateContext,
     ResolvedModule,
     ResolvedNode,
     ResolvedMetricCollector,
@@ -60,6 +61,7 @@ __all__ = [
     "Parameter",
     "IOFile",
     "InputCollection",
+    "GatherInput",
     "SoftwareEnvironment",
     "SoftwareEnvironmentReference",
     "Module",
@@ -74,11 +76,11 @@ __all__ = [
     "DerivedSoftware",
     "ModuleMetadata",
     # Resolved entities
+    "TemplateContext",
     "ResolvedModule",
     "ResolvedNode",
     "ResolvedMetricCollector",
     # Utility functions
-    "expand_output_path",
     "validate_non_empty_string",
     "validate_non_empty_commit",
     "validate_hex_string",

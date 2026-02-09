@@ -1,3 +1,4 @@
+import os.path
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -21,8 +22,10 @@ def expand_stage_nodes(
     nodes = []
 
     input_dirname = str(out_dir) if model.is_initial(stage) else "{pre}"
-    stage_outputs = model.get_stage_outputs(stage).values()
-    outputs = [x.replace("{input}", input_dirname) for x in stage_outputs]
+    raw_outputs = model.get_stage_outputs(stage).values()
+    # Build expanded paths: {input}/{stage}/{module}/{params}/<raw_path>
+    prefix = os.path.join(input_dirname, "{stage}", "{module}", "{params}")
+    outputs = [os.path.join(prefix, p) for p in raw_outputs]
 
     inputs_for_stage = model.get_stage_implicit_inputs(stage)
     if not inputs_for_stage or len(inputs_for_stage) == 0:
@@ -101,7 +104,10 @@ def build_stage_dag(model: Benchmark) -> DiGraph:
     for stage_id, stage in model.get_stages().items():
         g.add_node(stage_id)
         input_ids = [
-            input_id for input in (stage.inputs or []) for input_id in input.entries
+            input_id
+            for input in (stage.inputs or [])
+            if hasattr(input, "entries")
+            for input_id in input.entries
         ]
         dep_stages = [model.get_output_stage(input_id) for input_id in input_ids]
         for dep in dep_stages:

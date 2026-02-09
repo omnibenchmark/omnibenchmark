@@ -1,7 +1,7 @@
 # 004: Omnibenchmark YAML Specification (v0.3)
 
-[![Status: Accepted](https://img.shields.io/badge/Status-Accepted-green.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.3](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Status: Under Review](https://img.shields.io/badge/Status-Accepted-green.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 0.4](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben,
 **Date**: 2025-01-20
@@ -15,7 +15,7 @@
 
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
-| 0.1 | 2026-01-20 | Initial specification for v0.4 | ben |
+| 0.1 | 2026-01-20 | Initial specification for v0.4.0 | ben |
 
 ## 1. Problem Statement
 
@@ -33,7 +33,7 @@ Without a formal specification, the format's semantics are implicit in the imple
 - **Modular**: Enable reusable components with clear interfaces
 - **Reproducible**: Explicit versioning and environment specifications
 - **Scalable**: Automatic cartesian product expansion across modules
-- **Backend-agnostic**: Compile to multiple workflow engines
+- **Backend-agnostic**: Compile to multiple workflow engines in the future, with primary focus on Snakemake for the time being
 
 ### Non-Goals
 
@@ -68,7 +68,7 @@ stages: <array>                        # Required: pipeline stages (≥1)
 #### Optional Fields
 
 - `description`: Human-readable benchmark description
-- `api_version`: Specification version (default: `"0.3"`)
+- `api_version`: Specification version, matching omnibenchmark version (default to the version that produced the config, e.g. `"0.4"`)
 - `software_backend`: Default execution backend
 - `software_environments`: Named environment definitions
 

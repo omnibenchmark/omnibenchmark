@@ -71,16 +71,8 @@ class SnakemakeGenerator:
             for collector in collectors:
                 self._write_collector_rule(f, collector, debug_mode)
 
-            # Collect dataset values from entrypoint nodes (first stage, no inputs)
-            dataset_values = []
-            for node in nodes:
-                if node.is_entrypoint():
-                    # Entrypoint node - module_id is the dataset value
-                    if node.module_id not in dataset_values:
-                        dataset_values.append(node.module_id)
-
             # Generate all rule
-            self._write_all_rule(f, nodes, collectors, dataset_values)
+            self._write_all_rule(f, nodes, collectors)
 
     def _write_header(self, f: TextIO):
         """Write Snakefile header."""
@@ -105,12 +97,15 @@ class SnakemakeGenerator:
 
     def _write_node_rule(self, f: TextIO, node: ResolvedNode, debug_mode: bool):
         """Write a rule for a resolved node."""
-        # Check if this is a collector node
+        # Check if this is a collector or gather node
         is_collector = node.stage_id.startswith("_collector_")
+        is_gather = node.id.startswith("gather_")
 
         f.write(f"# Stage: {node.stage_id}, Module: {node.module_id}\n")
         if is_collector:
             f.write("# Type: Metric Collector\n")
+        elif is_gather:
+            f.write("# Type: Gather Stage\n")
         f.write(f"# Repository: {node.module.repository_url}\n")
         f.write(f"# Commit: {node.module.commit}\n")
         f.write(f"rule {self._sanitize_rule_name(node.id)}:\n")
@@ -146,7 +141,7 @@ class SnakemakeGenerator:
             f.write('        cli_args="",\n')
 
         # Benchmark directive (for performance tracking)
-        if not is_collector:
+        if not is_collector and not is_gather:
             # Generate benchmark file path in the same directory as the output
             # All path variables (like {dataset}) should have been substituted during node resolution
             if node.outputs:
@@ -174,12 +169,12 @@ class SnakemakeGenerator:
 
         # Shell command
         if debug_mode:
-            if is_collector:
+            if is_collector or is_gather:
                 self._write_debug_collector_shell_v2(f, node)
             else:
                 self._write_debug_shell(f, node)
         else:
-            if is_collector:
+            if is_collector or is_gather:
                 self._write_exec_collector_shell_v2(f, node)
             else:
                 self._write_exec_shell(f, node)
@@ -213,11 +208,14 @@ class SnakemakeGenerator:
         f.write('        echo "Would execute:"\n')
         f.write('        echo "  cd {params.module_dir} && ./{params.entrypoint} \\"\n')
         f.write('        echo "    --output_dir $(dirname {output[0]}) \\"\n')
-        # Use resolved dataset value if available, otherwise use wildcard
-        if node.dataset:
-            f.write(f'        echo "    --name {node.dataset} \\"\n')
-        else:
-            f.write('        echo "    --name {wildcards.dataset} \\"\n')
+        # Use dataset from template context
+        dataset = (
+            node.template_context.provides.get("dataset")
+            if node.template_context
+            else None
+        )
+        if dataset:
+            f.write(f'        echo "    --name {dataset} \\"\n')
 
         if node.inputs:
             for key in node.inputs.keys():
@@ -313,11 +311,14 @@ class SnakemakeGenerator:
         # Use ../../../ to get back to out/ directory from .modules/repo/HASH/
         cmd_parts.append("--output_dir $(dirname ../../../{output[0]})")
 
-        # Use resolved dataset value if available, otherwise use wildcard
-        if node.dataset:
-            cmd_parts.append(f"--name {node.dataset}")
-        else:
-            cmd_parts.append("--name {wildcards.dataset}")
+        # Use dataset from template context
+        dataset = (
+            node.template_context.provides.get("dataset")
+            if node.template_context
+            else None
+        )
+        if dataset:
+            cmd_parts.append(f"--name {dataset}")
 
         if node.inputs:
             for key in node.inputs.keys():
@@ -458,7 +459,7 @@ class SnakemakeGenerator:
         f.write('        """\n')
 
     def _write_debug_collector_shell_v2(self, f: TextIO, node: ResolvedNode):
-        """Write debug shell command for a collector node (ResolvedNode version)."""
+        """Write debug shell command for a collector/gather node (ResolvedNode version)."""
         # Group inputs by their original names before writing
         from collections import defaultdict
 
@@ -468,10 +469,13 @@ class SnakemakeGenerator:
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 
+        node_type = (
+            "GATHER STAGE" if node.id.startswith("gather_") else "METRIC COLLECTOR"
+        )
         f.write("    shell:\n")
         f.write('        """\n')
         f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
-        f.write(f'        echo "METRIC COLLECTOR: {node.module_id}"\n')
+        f.write(f'        echo "{node_type}: {node.module_id}"\n')
         f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
         f.write('        echo "Module: {params.module_dir}"\n')
         f.write('        echo "Entrypoint: {params.entrypoint}"\n')
@@ -577,46 +581,28 @@ class SnakemakeGenerator:
         f: TextIO,
         nodes: List[ResolvedNode],
         collectors: List[ResolvedMetricCollector],
-        dataset_values: List[str],
     ):
         """
         Write the 'all' rule that depends on all outputs.
 
-        Expands {dataset} wildcards in outputs to concrete dataset values.
+        All output paths are already fully resolved (no wildcards).
 
         Args:
             f: File handle
             nodes: List of resolved nodes
             collectors: List of resolved metric collectors
-            dataset_values: List of dataset values (module IDs from entrypoint nodes)
         """
         f.write("# Target rule: executes entire benchmark\n")
         f.write("rule all:\n")
         f.write("    input:\n")
 
-        # All node outputs (expand {dataset} wildcard)
         for node in nodes:
             for output in node.outputs:
-                if "{dataset}" in output:
-                    # Expand wildcard to all dataset values
-                    for dataset in dataset_values:
-                        expanded_output = output.replace("{dataset}", dataset)
-                        f.write(f'        "{expanded_output}",\n')
-                else:
-                    # No wildcard, write as-is
-                    f.write(f'        "{output}",\n')
+                f.write(f'        "{output}",\n')
 
-        # All collector outputs (expand {dataset} wildcard)
         for collector in collectors:
             for output in collector.outputs:
-                if "{dataset}" in output:
-                    # Expand wildcard to all dataset values
-                    for dataset in dataset_values:
-                        expanded_output = output.replace("{dataset}", dataset)
-                        f.write(f'        "{expanded_output}",\n')
-                else:
-                    # No wildcard, write as-is
-                    f.write(f'        "{output}",\n')
+                f.write(f'        "{output}",\n')
 
         f.write("    default_target: True\n")
         f.write("\n")

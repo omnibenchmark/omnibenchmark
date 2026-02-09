@@ -23,6 +23,7 @@ software_environments:
 
 stages:
   - id: datasets
+    provides: [dataset]
     outputs:
         - id: data.matrix
           path: "{dataset}.data.gz"

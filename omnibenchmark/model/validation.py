@@ -1,6 +1,7 @@
 """Validation logic for benchmark models."""
 
 import os
+import re
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
@@ -140,17 +141,24 @@ class BenchmarkValidator:
                     f"Output path for file {output.id} must be relative, not absolute: {output.path}"  # type: ignore
                 )
 
-        # 3. Validate stage inputs reference valid outputs
+        # 3. Validate stage inputs reference valid outputs (skip GatherInput)
+        from .benchmark import GatherInput
+
         for stage in self.stages:  # type: ignore
             if stage.inputs:  # type: ignore
-                for input_collection in stage.inputs:  # type: ignore
-                    for input_id in input_collection.entries:  # type: ignore
+                for input_item in stage.inputs:  # type: ignore
+                    if isinstance(input_item, GatherInput):
+                        continue  # Gather inputs validated separately below
+                    for input_id in input_item.entries:  # type: ignore
                         if input_id not in output_ids:
                             errors.append(
                                 f"Input with id '{input_id}' in stage '{stage.id}' is not valid"  # type: ignore
                             )
 
-        # 4. Validate that software environment references exist
+        # 4. Validate gather stages
+        self._validate_gather_stages(errors)
+
+        # 5. Validate that software environment references exist
         self._validate_software_environments(errors)
 
         # Raise error if any validation failed
@@ -191,6 +199,56 @@ class BenchmarkValidator:
                         errors.append(
                             f"Input with id '{input_id}' for metric collector '{collector.id}' is not valid."  # type: ignore
                         )
+
+    def _validate_gather_stages(self, errors: List[str]) -> None:
+        """Validate gather stage semantics.
+
+        Checks:
+        1. Every `gather: X` has at least one stage with `provides: [X]`
+        2. Gather stage output paths must not contain template variables
+        3. Provides labels are non-empty strings
+        """
+        from .benchmark import GatherInput
+
+        # Build provides registry: label -> list of stage IDs
+        provides_registry: dict[str, list[str]] = {}
+        for stage in self.stages:  # type: ignore
+            if stage.provides:  # type: ignore
+                for label in stage.provides:  # type: ignore
+                    if not label or not label.strip():
+                        errors.append(
+                            f"Stage '{stage.id}' has an empty provides label"  # type: ignore
+                        )
+                        continue
+                    provides_registry.setdefault(label, []).append(stage.id)  # type: ignore
+
+        for stage in self.stages:  # type: ignore
+            if not stage.inputs:  # type: ignore
+                continue
+
+            gather_inputs = [
+                inp
+                for inp in stage.inputs
+                if isinstance(inp, GatherInput)  # type: ignore
+            ]
+            if not gather_inputs:
+                continue
+
+            # Validate each gather reference has a provider
+            for gather_input in gather_inputs:
+                label = gather_input.gather
+                if label not in provides_registry:
+                    errors.append(
+                        f"Stage '{stage.id}' gathers '{label}' but no stage provides it"  # type: ignore
+                    )
+
+            # Validate gather stage output paths have no template variables
+            for output in stage.outputs:  # type: ignore
+                if re.search(r"\{[^}]+\}", output.path):  # type: ignore
+                    errors.append(
+                        f"Gather stage '{stage.id}' has template variable in output "  # type: ignore
+                        f"path '{output.path}'. Gather stages must produce fixed output paths."  # type: ignore
+                    )
 
     # Note: The old validate_structure method has been split into:
     # - validate_model_structure() for pure model validation (above)

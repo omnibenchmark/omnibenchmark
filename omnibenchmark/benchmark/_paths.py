@@ -1,5 +1,6 @@
 """Path construction utilities for omnibenchmark workflows."""
 
+import os.path
 import re
 from pathlib import Path
 from typing import List, Dict, Set, Optional
@@ -58,24 +59,19 @@ def construct_output_paths(
 
     # Use cache if provided, otherwise get stage outputs
     if stage_outputs_cache and head.stage_id in stage_outputs_cache:
-        stage_outputs = stage_outputs_cache[head.stage_id].values()
+        raw_outputs = stage_outputs_cache[head.stage_id].values()
     else:
-        stage_outputs = model.get_stage_outputs(head.stage_id).values()
+        raw_outputs = model.get_stage_outputs(head.stage_id).values()
 
     current_path = f"{head.stage_id}/{head.module_id}"
-    if any(["{params}" in o for o in stage_outputs]):
+    if head.param_id:
         current_path += f"/{head.param_id}"
 
     new_prefix = f"{prefix}/{current_path}"
+    # Build expanded paths: {prefix}/{stage}/{module}/{params}/<raw>
     paths = [
-        x.format(
-            input=str(prefix),
-            stage=head.stage_id,
-            module=head.module_id,
-            params=head.param_id,
-            dataset="{dataset}",
-        )
-        for x in stage_outputs
+        os.path.join(str(prefix), head.stage_id, head.module_id, head.param_id, p)
+        for p in raw_outputs
     ]
 
     return paths + construct_output_paths(

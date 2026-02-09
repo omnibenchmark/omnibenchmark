@@ -283,7 +283,6 @@ def _gather_collector_inputs(
     A collector input like "metrics.scores" means:
     - Find the stage that produces output "scores"
     - Collect ALL output files from ALL resolved nodes in that stage
-    - Expand {dataset} wildcards to concrete values using node.dataset
 
     Args:
         collector: MetricCollector definition
@@ -293,7 +292,6 @@ def _gather_collector_inputs(
     Returns:
         Dictionary mapping input names (e.g., "metrics.scores") to lists of file paths
         This preserves the grouping needed for passing as named arguments to the collector
-        (with {dataset} wildcards expanded to concrete values)
 
     Complexity Analysis:
         - For each collector input (usually 1-3): O(i)
@@ -313,19 +311,12 @@ def _gather_collector_inputs(
 
         if stage:
             # Gather ALL outputs from this stage across all resolved nodes
+            # Output paths are already fully resolved (no wildcards)
             stage_outputs = []
             for node in resolved_nodes:
                 if node.stage_id == stage.id:
-                    # Add all outputs from this node
-                    # If output contains {dataset} wildcard, expand it using node.dataset
                     for output in node.outputs:
-                        if "{dataset}" in output and node.dataset:
-                            # Expand {dataset} to concrete value from this node
-                            expanded_output = output.replace("{dataset}", node.dataset)
-                            stage_outputs.append(expanded_output)
-                        else:
-                            # No wildcard or no dataset value, use as-is
-                            stage_outputs.append(output)
+                        stage_outputs.append(output)
 
             if stage_outputs:
                 inputs_by_name[input_id] = stage_outputs

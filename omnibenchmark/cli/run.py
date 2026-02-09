@@ -21,7 +21,7 @@ from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.config import get_git_cache_dir
 from omnibenchmark.git import get_or_update_cached_repo
 from omnibenchmark.model import SoftwareBackendEnum
-from omnibenchmark.model.resolved import ResolvedNode
+from omnibenchmark.model.resolved import ResolvedNode, TemplateContext
 from omnibenchmark.model.validation import BenchmarkParseError
 
 
@@ -891,6 +891,169 @@ def _populate_git_cache(
             logger.warning(f"  {repo_url}: {error}")
 
 
+def _substitute_params_in_path(template: str, params) -> str:
+    """Substitute {params.key} placeholders in an output path template.
+
+    Supports dot notation: ``{params.k}`` is replaced by the value of
+    parameter ``k``.  Unknown ``{params.*}`` references are left as-is
+    so that later stages can still detect unresolved templates.
+
+    Args:
+        template: Path template string, e.g. ``"{dataset}_k{params.k}.csv"``
+        params: A ``Params`` instance (or None).
+
+    Returns:
+        The template with all matching ``{params.*}`` placeholders resolved.
+    """
+    if params is None or "{params." not in template:
+        return template
+
+    import re
+
+    def _replace(match):
+        key = match.group(1)
+        try:
+            return str(params[key])
+        except KeyError:
+            return match.group(0)  # leave unresolved
+
+    return re.sub(r"\{params\.([^}]+)\}", _replace, template)
+
+
+def _build_template_context(
+    stage,
+    module_id: str,
+    input_node=None,
+) -> TemplateContext:
+    """Build a TemplateContext for a node during expansion.
+
+    For entrypoints (no *input_node*): provides come from the stage's own
+    ``provides`` list.  ``dataset`` is always injected as the module's own ID
+    (entrypoints *are* the dataset).
+
+    For downstream map nodes: inherits the input node's provides (full
+    ancestor chain) and adds the current stage's provides labels.
+
+    For gather nodes: call with ``input_node=None`` and the stage will
+    typically not have ``provides`` — returns a context with only
+    ``module_attrs``.
+    """
+    provides: dict[str, str] = {}
+    module_attrs: dict[str, str] = {"id": module_id, "stage": stage.id}
+
+    if input_node is not None:
+        # Downstream: inherit ancestor provides (includes "dataset")
+        if input_node.template_context is not None:
+            provides.update(input_node.template_context.provides)
+
+        # Add own stage's provides labels
+        if stage.provides:
+            for label in stage.provides:
+                provides[label] = module_id
+
+        module_attrs["parent.id"] = input_node.module_id
+        module_attrs["parent.stage"] = input_node.stage_id
+    else:
+        # Entrypoint (or gather with no input_node)
+        if stage.provides:
+            for label in stage.provides:
+                provides[label] = module_id
+
+        # Entrypoints define the dataset identity
+        if not stage.is_gather_stage():
+            provides.setdefault("dataset", module_id)
+
+    return TemplateContext(provides=provides, module_attrs=module_attrs)
+
+
+def _build_gather_inputs(
+    gather_labels: list[str],
+    resolved_nodes: list,
+    benchmark_model,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Build the inputs dict and name mapping for a gather stage.
+
+    Enumerates all outputs from all resolved nodes belonging to stages that
+    provide the gathered labels.
+
+    Args:
+        gather_labels: Labels being gathered (e.g., ["method"])
+        resolved_nodes: All resolved nodes so far
+        benchmark_model: Benchmark model (for get_provider_stages)
+
+    Returns:
+        (inputs_dict, input_name_mapping) where:
+        - inputs_dict maps "input_0", "input_1", ... to concrete output paths
+        - input_name_mapping maps "input_0", ... to the gathered label name
+    """
+    inputs = {}
+    name_mapping = {}
+    idx = 0
+    for label in gather_labels:
+        provider_ids = {s.id for s in benchmark_model.get_provider_stages(label)}
+        for node in resolved_nodes:
+            if node.stage_id not in provider_ids:
+                continue
+            for output_path in node.outputs:
+                key = f"input_{idx}"
+                inputs[key] = output_path
+                name_mapping[key] = label
+                idx += 1
+    return inputs, name_mapping
+
+
+class GatherOrderingError(Exception):
+    """Raised when gather stages appear before their providers in document order."""
+
+    def __init__(self, errors: list[str]):
+        self.errors = errors
+        super().__init__("\n".join(errors))
+
+
+def _validate_gather_ordering(stages) -> None:
+    """Validate that all provider stages appear before their gather consumers.
+
+    For the MVP we keep document-order processing and simply check that
+    every stage referenced via ``provides`` for a gathered label has already
+    been seen when we encounter the gather stage.
+
+    Raises:
+        GatherOrderingError: if a provider appears after its gather consumer.
+    """
+    from omnibenchmark.model.benchmark import GatherInput
+
+    # Build provides registry and stage positions in document order
+    seen_providers: dict[str, list[str]] = {}  # label -> [stage_id, ...]
+    stage_index: dict[str, int] = {}
+
+    for idx, stage in enumerate(stages):
+        stage_index[stage.id] = idx
+        if stage.provides:
+            for label in stage.provides:
+                seen_providers.setdefault(label, []).append(stage.id)
+
+    # Check that every gather reference is satisfied by earlier stages
+    errors = []
+    for idx, stage in enumerate(stages):
+        if not stage.inputs:
+            continue
+        for inp in stage.inputs:
+            if not isinstance(inp, GatherInput):
+                continue
+            label = inp.gather
+            providers = seen_providers.get(label, [])
+            for provider_id in providers:
+                if stage_index[provider_id] >= idx:
+                    errors.append(
+                        f"Stage '{stage.id}' gathers '{label}' but provider "
+                        f"stage '{provider_id}' appears after it (or is the same stage). "
+                        f"Move '{provider_id}' before '{stage.id}' in the YAML."
+                    )
+
+    if errors:
+        raise GatherOrderingError(errors)
+
+
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -1076,6 +1239,15 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info("\nBuilding execution graph...")
 
+    # Validate gather stage ordering: all providers must appear before their consumers
+    try:
+        _validate_gather_ordering(benchmark.model.stages)
+    except GatherOrderingError as e:
+        logger.error("Gather ordering error:")
+        for err in e.errors:
+            logger.error(f"  {err}")
+        sys.exit(1)
+
     resolved_nodes = []
     output_to_nodes = {}
     previous_stage_nodes = []
@@ -1083,6 +1255,103 @@ def _generate_explicit_snakefile(
     for stage in benchmark.model.stages:
         current_stage_nodes = []
 
+        # === Gather stage expansion ===
+        if stage.is_gather_stage():
+            gather_labels = stage.get_gather_labels()
+
+            # Enumerate all outputs from provider nodes
+            gather_inputs, gather_input_name_mapping = _build_gather_inputs(
+                gather_labels, resolved_nodes, benchmark.model
+            )
+
+            # One node per (module x params) in the gather stage
+            for module in stage.modules:
+                module_id = module.id
+
+                try:
+                    if module_id not in resolved_modules_cache:
+                        logger.warning(
+                            f"      Module {module_id} not in cache, skipping"
+                        )
+                        continue
+
+                    resolved_module = resolved_modules_cache[module_id]
+
+                    if module.parameters:
+                        params_list = []
+                        for param in module.parameters:
+                            params_list.extend(Params.expand_from_parameter(param))
+                    else:
+                        params_list = [None]
+
+                    for params in params_list:
+                        param_id = f".{params.hash_short()}" if params else ".default"
+                        node_id = f"gather_{stage.id}-{module_id}{param_id}"
+
+                        # Build template context (gather: no provides, only module attrs)
+                        ctx = _build_template_context(
+                            stage=stage,
+                            module_id=module_id,
+                        )
+
+                        # Build output paths (no base_path for gather)
+                        outputs = []
+                        for output_spec in stage.outputs:
+                            resolved_path = ctx.substitute(
+                                output_spec.path, params=params
+                            )
+                            output_path = (
+                                f"{stage.id}/{module_id}/{param_id}/{resolved_path}"
+                            )
+                            outputs.append(output_path)
+                            output_to_nodes.setdefault(output_spec.id, []).append(
+                                (node_id, output_path)
+                            )
+
+                        node_resources = None
+                        if hasattr(module, "resources") and module.resources:
+                            node_resources = module.resources
+                        elif hasattr(stage, "resources") and stage.resources:
+                            node_resources = stage.resources
+
+                        node = ResolvedNode(
+                            id=node_id,
+                            stage_id=stage.id,
+                            module_id=module_id,
+                            param_id=param_id,
+                            module=resolved_module,
+                            parameters=params,
+                            inputs=dict(gather_inputs),
+                            outputs=outputs,
+                            input_name_mapping=dict(gather_input_name_mapping),
+                            benchmark_name=benchmark.model.get_name(),
+                            benchmark_version=benchmark.model.get_version(),
+                            benchmark_author=benchmark.model.get_author(),
+                            resources=node_resources,
+                            template_context=ctx,
+                        )
+
+                        resolved_nodes.append(node)
+                        current_stage_nodes.append(node)
+
+                    if not quiet:
+                        logger.info(
+                            f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} "
+                            f"gather node(s) for {module_id} "
+                            f"(gathering {len(gather_inputs)} inputs)"
+                        )
+
+                except Exception as e:
+                    logger.error(f"      Failed to resolve {module_id}: {e}")
+                    import traceback
+
+                    if logger.level <= 10:
+                        traceback.print_exc()
+
+            previous_stage_nodes = current_stage_nodes
+            continue
+
+        # === Regular (map) stage expansion ===
         for module in stage.modules:
             module_id = module.id
 
@@ -1167,6 +1436,8 @@ def _generate_explicit_snakefile(
 
                         if stage.inputs:
                             for input_collection in stage.inputs:
+                                if not hasattr(input_collection, "entries"):
+                                    continue
                                 for input_id in input_collection.entries:
                                     if input_id in output_id_to_path:
                                         sanitized_id = input_id.replace(".", "_")
@@ -1190,27 +1461,19 @@ def _generate_explicit_snakefile(
                             )
                             base_path = str(PathLib(deepest_input).parent)
 
-                    # Determine dataset value
-                    if not inputs:
-                        dataset_value = module_id
-                    elif (
-                        input_node
-                        and hasattr(input_node, "dataset")
-                        and input_node.dataset
-                    ):
-                        dataset_value = input_node.dataset
-                    else:
-                        dataset_value = None
+                    # Build template context
+                    ctx = _build_template_context(
+                        stage=stage,
+                        module_id=module_id,
+                        input_node=input_node,
+                    )
 
                     # Build output paths
                     outputs = []
                     for output_spec in stage.outputs:
-                        output_path_template = output_spec.path
-
-                        if dataset_value and "{dataset}" in output_path_template:
-                            output_path_template = output_path_template.replace(
-                                "{dataset}", dataset_value
-                            )
+                        output_path_template = ctx.substitute(
+                            output_spec.path, params=params
+                        )
 
                         if nesting_strategy == "nested":
                             if base_path:
@@ -1246,12 +1509,12 @@ def _generate_explicit_snakefile(
                         parameters=params,
                         inputs=inputs,
                         outputs=outputs,
-                        dataset=dataset_value,
                         input_name_mapping=input_name_mapping,
                         benchmark_name=benchmark.model.get_name(),
                         benchmark_version=benchmark.model.get_version(),
                         benchmark_author=benchmark.model.get_author(),
                         resources=node_resources,
+                        template_context=ctx,
                     )
 
                     resolved_nodes.append(node)

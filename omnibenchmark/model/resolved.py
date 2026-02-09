@@ -13,12 +13,80 @@ Design Principles:
 - Self-contained: Contains all information needed for execution
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from omnibenchmark.benchmark.params import Params
 from omnibenchmark.model.benchmark import SoftwareBackendEnum
+
+
+@dataclass(frozen=True)
+class TemplateContext:
+    """Accumulated template variables for a resolved node.
+
+    Built during node expansion from the node's lineage.  Used to substitute
+    template variables in output paths, parameter values, and other fields.
+
+    Three namespaces:
+      1. ``{label}``       — from ``provides`` dict (ancestor lineage)
+      2. ``{module.attr}`` — from ``module_attrs`` dict (current node)
+      3. ``{params.key}``  — from ``params`` argument (not stored here)
+    """
+
+    # {label} -> module_id from provides declarations in lineage
+    provides: Dict[str, str] = field(default_factory=dict)
+
+    # {module.*} -> structural attributes of the current node
+    module_attrs: Dict[str, str] = field(default_factory=dict)
+
+    _MODULE_RE = re.compile(r"\{module\.([^}]+)\}")
+    _PARAMS_RE = re.compile(r"\{params\.([^}]+)\}")
+
+    def substitute(self, template: str, params=None) -> str:
+        """Apply all template variables to *template*.
+
+        Resolution order: provides → module attrs → params.
+        Unknown variables are left as-is.
+        """
+        if not template or "{" not in template:
+            return template
+
+        result = template
+
+        # 1. Provides-derived variables: {label}
+        for label, value in self.provides.items():
+            result = result.replace(f"{{{label}}}", str(value))
+
+        # 2. Module attributes: {module.attr}
+        def _replace_module(match):
+            attr = match.group(1)
+            return self.module_attrs.get(attr, match.group(0))
+
+        result = self._MODULE_RE.sub(_replace_module, result)
+
+        # 3. Params: {params.key}
+        if params is not None and "{params." in result:
+
+            def _replace_params(match):
+                key = match.group(1)
+                try:
+                    return str(params[key])
+                except KeyError:
+                    return match.group(0)
+
+            result = self._PARAMS_RE.sub(_replace_params, result)
+
+        return result
+
+    def to_dict(self) -> Dict[str, str]:
+        """Flat dict for serialization / debugging."""
+        d: Dict[str, str] = {}
+        d.update(self.provides)
+        for attr, value in self.module_attrs.items():
+            d[f"module.{attr}"] = value
+        return d
 
 
 @dataclass(frozen=True)
@@ -147,11 +215,6 @@ class ResolvedNode:
     # Maps Snakemake-safe input names (data_matrix) to original names (data.matrix)
     input_name_mapping: Dict[str, str] = field(default_factory=dict)
 
-    # Dataset resolution (for entrypoint nodes)
-    dataset: Optional[str] = (
-        None  # Resolved dataset value (module_id for entrypoint nodes)
-    )
-
     # Execution Config
     timeout: Optional[int] = None
 
@@ -162,6 +225,9 @@ class ResolvedNode:
 
     # Resource requirements (from module or stage)
     resources: Optional[Any] = None  # Resources object from benchmark.Resources
+
+    # Template variable context (built during node expansion)
+    template_context: Optional[TemplateContext] = None
 
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
@@ -236,11 +302,13 @@ class ResolvedNode:
             "inputs": self.inputs,
             "outputs": self.outputs,
             "input_name_mapping": self.input_name_mapping,
-            "dataset": self.dataset,
             "timeout": self.timeout,
             "benchmark_name": self.benchmark_name,
             "benchmark_version": self.benchmark_version,
             "benchmark_author": self.benchmark_author,
+            "template_context": self.template_context.to_dict()
+            if self.template_context
+            else None,
         }
 
     @staticmethod

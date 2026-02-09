@@ -309,6 +309,27 @@ class IOFile(IdentifiableEntity):
         return validate_non_empty_string(v)
 
 
+class GatherInput(BaseModel):
+    """Gather input declaration for collecting all outputs from provider stages.
+
+    Used in stage inputs to express: "collect ALL concrete outputs from every
+    stage that `provides` this label."
+
+    Example YAML:
+        inputs:
+          - gather: method    # Collect from all stages providing "method"
+    """
+
+    gather: str = Field(..., description="The provides label to gather")
+
+    @field_validator("gather")
+    @classmethod
+    def validate_gather_label(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("gather label must be a non-empty string")
+        return v
+
+
 class InputCollection(BaseModel):
     """Collection of input file IDs."""
 
@@ -424,12 +445,31 @@ class Stage(DescribableEntity):
     """Stage definition."""
 
     modules: List[Module] = Field(..., description="Modules in this stage")
-    inputs: Optional[List[InputCollection]] = Field(None, description="Stage inputs")
+    inputs: Optional[List[Union[InputCollection, GatherInput]]] = Field(
+        None, description="Stage inputs (regular references or gather declarations)"
+    )
     outputs: List[IOFile] = Field(..., description="Stage outputs")
+    provides: Optional[List[str]] = Field(
+        None,
+        description="Abstract output contracts this stage satisfies. "
+        "Used by downstream gather stages to collect all outputs from providers.",
+    )
     resources: Optional[Resources] = Field(
         None,
         description="Resource requirements for rules in this stage (cores, memory, etc.)",
     )
+
+    def is_gather_stage(self) -> bool:
+        """Check if this stage uses gather inputs."""
+        if not self.inputs:
+            return False
+        return any(isinstance(inp, GatherInput) for inp in self.inputs)
+
+    def get_gather_labels(self) -> List[str]:
+        """Get the list of gathered labels for this stage."""
+        if not self.inputs:
+            return []
+        return [inp.gather for inp in self.inputs if isinstance(inp, GatherInput)]
 
     @field_validator("outputs")
     @classmethod
@@ -463,7 +503,7 @@ class Stage(DescribableEntity):
     @field_validator("inputs", mode="before")
     @classmethod
     def validate_inputs(cls, v, info):
-        """Convert legacy string format to InputCollection."""
+        """Convert legacy string format to InputCollection, and parse gather inputs."""
         if v is None:
             return v
 
@@ -473,17 +513,22 @@ class Stage(DescribableEntity):
             return [InputCollection(entries=v)]
 
         result = []
+        has_gather = False
+        has_regular = False
+
         for idx, item in enumerate(v):
-            # If it's a dict with 'entries' (legacy format with explicit entries field)
-            if isinstance(item, dict) and "entries" in item:
+            # Gather input: {gather: "label"}
+            if isinstance(item, dict) and "gather" in item:
+                result.append(GatherInput(**item))
+                has_gather = True
+            # Legacy format with explicit entries field
+            elif isinstance(item, dict) and "entries" in item:
                 import warnings
 
                 # Try to get line number from context
                 line_info = ""
                 if info.context and "line_map" in info.context:
                     line_map = info.context["line_map"]
-                    # Search for any key containing inputs[idx].entries
-                    # We don't know the stage index, so we search through all keys
                     search_pattern = f"inputs[{idx}].entries"
                     for key in line_map:
                         if search_pattern in key:
@@ -500,9 +545,21 @@ class Stage(DescribableEntity):
                     stacklevel=2,
                 )
                 result.append(item)
-            # If it's already an InputCollection or other dict, keep as-is
+                has_regular = True
+            # Already-constructed objects or other dicts
+            elif isinstance(item, GatherInput):
+                result.append(item)
+                has_gather = True
             else:
                 result.append(item)
+                has_regular = True
+
+        if has_gather and has_regular:
+            raise ValueError(
+                "A stage cannot mix regular inputs and gather inputs. "
+                "Use either regular inputs (referencing output IDs) or "
+                "gather inputs (collecting from providers), not both."
+            )
 
         return result
 
@@ -946,31 +1003,38 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         return {module.id: module for module in stage.modules}
 
     def get_stage_implicit_inputs(self, stage: Union[str, Stage]) -> List[List[str]]:
-        """Get implicit inputs of a stage by stage/stage_id."""
+        """Get implicit inputs of a stage by stage/stage_id.
+
+        Only returns regular InputCollection entries. GatherInput items are
+        skipped (they don't reference output IDs directly).
+        """
         if isinstance(stage, str):
             stage_obj = self.get_stage(stage)
             if not stage_obj or not stage_obj.inputs:
                 return []
-            return [input_col.entries for input_col in stage_obj.inputs]
+            return [
+                input_col.entries
+                for input_col in stage_obj.inputs
+                if hasattr(input_col, "entries")
+            ]
         if not stage.inputs:
             return []
-        return [input_col.entries for input_col in stage.inputs]
+        return [
+            input_col.entries
+            for input_col in stage.inputs
+            if hasattr(input_col, "entries")
+        ]
 
     def get_explicit_inputs(self, input_ids: List[str]) -> Dict[str, str]:
         """Get explicit inputs of a stage by input_id(s)."""
         all_stages_outputs: List[Dict[str, str]] = []
         for stage in self.stages:
-            stage_outputs = self.get_stage_outputs(stage)
-            # Substitute the actual stage_id into the template like the old LinkML code
+            raw_outputs = self.get_stage_outputs(stage)
+            # Build expanded paths: {input}/{stage}/{module}/{params}/<raw>
+            # then substitute the actual stage_id
             stage_outputs = {
-                key: value.format(
-                    input="{input}",
-                    stage=stage.id,  # Substitute actual stage_id here
-                    module="{module}",
-                    params="{params}",
-                    dataset="{dataset}",
-                )
-                for key, value in stage_outputs.items()
+                key: os.path.join("{input}", stage.id, "{module}", "{params}", value)
+                for key, value in raw_outputs.items()
             }
             all_stages_outputs.append(stage_outputs)
 
@@ -995,7 +1059,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 return {}
             stage = stage_obj
 
-        return {output.id: expand_output_path(output) for output in stage.outputs}
+        return {output.id: output.path for output in stage.outputs}
 
     def get_output_stage(self, output_id: str) -> Optional[Stage]:
         """Get stage that returns output with output_id."""
@@ -1048,6 +1112,12 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     def get_metric_collectors(self) -> List[MetricCollector]:
         """Get metric collectors."""
         return self.metric_collectors or []
+
+    def get_provider_stages(self, label: str) -> List[Stage]:
+        """Get all stages that provide the given label."""
+        return [
+            stage for stage in self.stages if stage.provides and label in stage.provides
+        ]
 
     def is_initial(self, stage: Stage) -> bool:
         """Check if a stage is initial (has no inputs)."""
@@ -1171,41 +1241,6 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     )
 
         return errors
-
-
-def expand_output_path(file: IOFile) -> str:
-    """
-    Expands a relative output path into a standardized templated format.
-
-    This function ensures output paths follow a consistent structure by:
-    1. Prepending the standard OUTPUT_PATH_PREFIX if not already present
-    2. Adding a {dataset} placeholder to the filename if not already included
-    """
-    # Import here to avoid circular imports
-    OUTPUT_PATH_PREFIX = os.path.join("{input}", "{stage}", "{module}", "{params}")
-
-    output_path = file.path
-    if output_path.strip() == "":
-        raise ValueError(f"Output path for file {file.id} is empty")
-
-    if os.path.isabs(output_path):
-        raise ValueError(
-            f"Output path for file {file.id} must be relative, not absolute: {output_path}"
-        )
-
-    if not output_path.startswith(OUTPUT_PATH_PREFIX):
-        output_path = os.path.join(OUTPUT_PATH_PREFIX, output_path)
-
-    if "{dataset}" not in output_path:
-        parts = output_path.rsplit(os.path.sep, 1)
-        if len(parts) == 2:
-            directory, filename = parts
-            output_path = os.path.join(directory, f"{{dataset}}.{filename}")
-        else:
-            filename = parts[0]
-            output_path = f"{{dataset}}.{filename}"
-
-    return output_path
 
 
 # For backwards compatibility

@@ -308,10 +308,11 @@ def _extract_stage_inputs(
             )
             return []
 
-        # Flatten inputs from InputCollection objects
+        # Flatten inputs from InputCollection objects (skip GatherInput)
         input_ids = []
         for input_collection in target_stage.inputs:
-            input_ids.extend(input_collection.entries)
+            if hasattr(input_collection, "entries"):
+                input_ids.extend(input_collection.entries)
 
         if debug:
             logger.debug(f"Extracted inputs for stage '{stage_id}': {input_ids}")
