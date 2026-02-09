@@ -5,12 +5,15 @@ These tests verify the module resolution process:
 - Cloning to cache
 - Checking out to work directory
 - Dereferencing entrypoints from omnibenchmark.yaml or config.cfg
+- Named entrypoint resolution
 """
 
 import pytest
 from pathlib import Path
 import tempfile
 import shutil
+
+import yaml
 
 from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.model import Benchmark
@@ -332,3 +335,207 @@ class TestModuleResolver:
         # Verify symlink points to the correct source file
         source_path = benchmark_dir / "containers" / "myimage.sif"
         assert symlink_path.resolve() == source_path.resolve()
+
+
+class TestReadEntrypoint:
+    """Tests for _read_entrypoint with named entrypoint keys."""
+
+    @pytest.fixture
+    def resolver(self, temp_work_dir):
+        return ModuleResolver(work_base_dir=temp_work_dir)
+
+    @pytest.fixture
+    def module_dir_with_entrypoints(self, tmp_path):
+        """Create a module directory with multiple entrypoints in omnibenchmark.yaml."""
+        module_dir = tmp_path / "test_module"
+        module_dir.mkdir()
+
+        config = {
+            "entrypoints": {
+                "default": "run.py",
+                "preprocess": "preprocess.py",
+                "validate": "scripts/validate.R",
+            }
+        }
+        (module_dir / "omnibenchmark.yaml").write_text(yaml.dump(config))
+        return module_dir
+
+    @pytest.fixture
+    def module_dir_with_config_cfg(self, tmp_path):
+        """Create a module directory with legacy config.cfg."""
+        module_dir = tmp_path / "legacy_module"
+        module_dir.mkdir()
+
+        (module_dir / "config.cfg").write_text("[DEFAULT]\nSCRIPT = legacy_run.py\n")
+        return module_dir
+
+    def test_default_entrypoint(self, resolver, module_dir_with_entrypoints):
+        """Default entrypoint key resolves to 'default' entry."""
+        result = resolver._read_entrypoint(module_dir_with_entrypoints, "mod1")
+        assert result == "run.py"
+
+    def test_explicit_default_key(self, resolver, module_dir_with_entrypoints):
+        """Explicitly passing 'default' works the same."""
+        result = resolver._read_entrypoint(
+            module_dir_with_entrypoints, "mod1", entrypoint_key="default"
+        )
+        assert result == "run.py"
+
+    def test_named_entrypoint(self, resolver, module_dir_with_entrypoints):
+        """A named entrypoint key resolves to the correct script."""
+        result = resolver._read_entrypoint(
+            module_dir_with_entrypoints, "mod1", entrypoint_key="preprocess"
+        )
+        assert result == "preprocess.py"
+
+    def test_another_named_entrypoint(self, resolver, module_dir_with_entrypoints):
+        """Another named entrypoint resolves correctly."""
+        result = resolver._read_entrypoint(
+            module_dir_with_entrypoints, "mod1", entrypoint_key="validate"
+        )
+        assert result == "scripts/validate.R"
+
+    def test_missing_entrypoint_key_returns_none(
+        self, resolver, module_dir_with_entrypoints
+    ):
+        """A missing entrypoint key returns None."""
+        result = resolver._read_entrypoint(
+            module_dir_with_entrypoints, "mod1", entrypoint_key="nonexistent"
+        )
+        assert result is None
+
+    def test_missing_entrypoint_key_logs_available(
+        self, resolver, module_dir_with_entrypoints, caplog
+    ):
+        """A missing entrypoint key logs the available keys."""
+        import logging
+
+        with caplog.at_level(logging.ERROR):
+            resolver._read_entrypoint(
+                module_dir_with_entrypoints, "mod1", entrypoint_key="nonexistent"
+            )
+        assert "nonexistent" in caplog.text
+        assert "Available entrypoints:" in caplog.text
+        assert "default" in caplog.text
+        assert "preprocess" in caplog.text
+
+    def test_config_cfg_default_key_works(self, resolver, module_dir_with_config_cfg):
+        """config.cfg fallback works for default entrypoint."""
+        with pytest.warns(FutureWarning, match="deprecated config.cfg"):
+            result = resolver._read_entrypoint(
+                module_dir_with_config_cfg, "mod1", entrypoint_key="default"
+            )
+        assert result == "legacy_run.py"
+
+    def test_config_cfg_named_key_rejected(
+        self, resolver, module_dir_with_config_cfg, caplog
+    ):
+        """config.cfg fallback rejects non-default entrypoint keys."""
+        import logging
+
+        with caplog.at_level(logging.ERROR):
+            result = resolver._read_entrypoint(
+                module_dir_with_config_cfg, "mod1", entrypoint_key="preprocess"
+            )
+        assert result is None
+        assert "only supports" in caplog.text
+        assert "preprocess" in caplog.text
+
+
+class TestRepositoryEntrypointField:
+    """Tests for the entrypoint field on Repository model."""
+
+    def test_repository_default_entrypoint_is_none(self):
+        """Repository without entrypoint field defaults to None."""
+        from omnibenchmark.model.benchmark import Repository
+
+        repo = Repository(url="https://example.com/repo.git", commit="abc123")
+        assert repo.entrypoint is None
+
+    def test_repository_with_entrypoint(self):
+        """Repository with entrypoint field stores the value."""
+        from omnibenchmark.model.benchmark import Repository
+
+        repo = Repository(
+            url="https://example.com/repo.git",
+            commit="abc123",
+            entrypoint="preprocess",
+        )
+        assert repo.entrypoint == "preprocess"
+
+    def test_repository_empty_entrypoint_rejected(self):
+        """Repository with empty string entrypoint is rejected."""
+        from pydantic import ValidationError as PydanticValidationError
+        from omnibenchmark.model.benchmark import Repository
+
+        with pytest.raises(PydanticValidationError, match="entrypoint"):
+            Repository(
+                url="https://example.com/repo.git",
+                commit="abc123",
+                entrypoint="",
+            )
+
+    def test_repository_whitespace_entrypoint_rejected(self):
+        """Repository with whitespace-only entrypoint is rejected."""
+        from pydantic import ValidationError as PydanticValidationError
+        from omnibenchmark.model.benchmark import Repository
+
+        with pytest.raises(PydanticValidationError, match="entrypoint"):
+            Repository(
+                url="https://example.com/repo.git",
+                commit="abc123",
+                entrypoint="   ",
+            )
+
+    def test_repository_entrypoint_from_yaml(self):
+        """Repository entrypoint parses correctly from YAML."""
+        yaml_content = """\
+id: test
+benchmarker: tester
+version: "1.0.0"
+software_backend: host
+software_environments:
+  host:
+    description: host
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: host
+        repository:
+          url: https://example.com/repo.git
+          commit: abc123
+          entrypoint: preprocess
+    outputs:
+      - id: data.raw
+        path: output.json
+"""
+        benchmark = Benchmark.from_yaml(yaml_content)
+        module = benchmark.stages[0].modules[0]
+        assert module.repository.entrypoint == "preprocess"
+
+    def test_repository_without_entrypoint_from_yaml(self):
+        """Repository without entrypoint in YAML defaults to None."""
+        yaml_content = """\
+id: test
+benchmarker: tester
+version: "1.0.0"
+software_backend: host
+software_environments:
+  host:
+    description: host
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: host
+        repository:
+          url: https://example.com/repo.git
+          commit: abc123
+    outputs:
+      - id: data.raw
+        path: output.json
+"""
+        benchmark = Benchmark.from_yaml(yaml_content)
+        module = benchmark.stages[0].modules[0]
+        assert module.repository.entrypoint is None

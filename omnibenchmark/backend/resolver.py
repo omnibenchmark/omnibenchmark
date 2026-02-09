@@ -210,7 +210,8 @@ class ModuleResolver:
             raise RuntimeError(f"Failed to clone module '{module_id}': {e}")
 
         # Dereference entrypoint
-        entrypoint = self._read_entrypoint(actual_work_dir, module_id)
+        entrypoint_key = module.repository.entrypoint or "default"
+        entrypoint = self._read_entrypoint(actual_work_dir, module_id, entrypoint_key)
         if entrypoint is None:
             raise RuntimeError(
                 f"Failed to dereference entrypoint for module '{module_id}'. "
@@ -585,7 +586,9 @@ class ModuleResolver:
             backend_type=SoftwareBackendEnum.envmodules, reference=env.envmodule
         )
 
-    def _read_entrypoint(self, module_dir: Path, module_id: str) -> Optional[str]:
+    def _read_entrypoint(
+        self, module_dir: Path, module_id: str, entrypoint_key: str = "default"
+    ) -> Optional[str]:
         """
         Read entrypoint from omnibenchmark.yaml or fall back to config.cfg.
 
@@ -595,6 +598,7 @@ class ModuleResolver:
         Args:
             module_dir: Path to module directory
             module_id: Module identifier (for error messages)
+            entrypoint_key: Key to look up in the entrypoints dict (default: "default")
 
         Returns:
             Entrypoint path relative to module_dir, or None if not found
@@ -608,16 +612,23 @@ class ModuleResolver:
 
                 if config and "entrypoints" in config:
                     entrypoints = config["entrypoints"]
-                    if isinstance(entrypoints, dict) and "default" in entrypoints:
-                        entrypoint = entrypoints["default"]
+                    if isinstance(entrypoints, dict) and entrypoint_key in entrypoints:
+                        entrypoint = entrypoints[entrypoint_key]
                         logger.debug(
-                            f"Found entrypoint in omnibenchmark.yaml: {entrypoint}"
+                            f"Found entrypoint '{entrypoint_key}' in omnibenchmark.yaml: {entrypoint}"
                         )
                         return entrypoint
+                    elif isinstance(entrypoints, dict):
+                        available = ", ".join(sorted(entrypoints.keys()))
+                        logger.error(
+                            f"Entrypoint '{entrypoint_key}' not found in module '{module_id}'. "
+                            f"Available entrypoints: {available}"
+                        )
+                        return None
                     else:
                         logger.error(
                             f"Invalid omnibenchmark.yaml format in '{module_id}'. "
-                            "Expected 'entrypoints.default' key."
+                            "Expected 'entrypoints' to be a dict."
                         )
                         return None
             except yaml.YAMLError as e:
@@ -629,6 +640,14 @@ class ModuleResolver:
         # Fall back to old-style config.cfg
         config_path = module_dir / "config.cfg"
         if config_path.exists():
+            if entrypoint_key != "default":
+                logger.error(
+                    f"Module '{module_id}' uses deprecated config.cfg which only supports "
+                    f"the 'default' entrypoint. Requested entrypoint: '{entrypoint_key}'. "
+                    "Please migrate to omnibenchmark.yaml to use named entrypoints."
+                )
+                return None
+
             warnings.warn(
                 f"Module '{module_id}' is using deprecated config.cfg. "
                 "Please migrate to omnibenchmark.yaml. "

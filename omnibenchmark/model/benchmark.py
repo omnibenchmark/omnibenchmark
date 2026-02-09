@@ -191,6 +191,20 @@ class Repository(BaseModel):
         return validate_non_empty_commit(v_str)
 
     type: RepositoryType = Field(RepositoryType.git, description="Repository type")
+    entrypoint: Optional[str] = Field(
+        None,
+        description="Named entrypoint key from the module's omnibenchmark.yaml. "
+        "Defaults to 'default' when not specified.",
+    )
+
+    @field_validator("entrypoint")
+    @classmethod
+    def validate_entrypoint(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("entrypoint must be a non-empty string if specified")
+        return v
 
 
 class Storage(BaseModel):

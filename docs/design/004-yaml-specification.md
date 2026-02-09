@@ -16,6 +16,7 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 0.1 | 2026-01-20 | Initial specification for v0.4.0 | ben |
+| 0.2 | 2026-02-09 | Add named entrypoints (Section 3.5) | ben |
 
 ## 1. Problem Statement
 
@@ -160,11 +161,57 @@ modules:
 
 ```yaml
 repository:
-  url: <string>      # Repository URL (git, local path, etc.)
-  commit: <string>   # Commit hash, tag, or branch
+  url: <string>            # Required: Repository URL (git, local path, etc.)
+  commit: <string>         # Required: Commit hash, tag, or branch
+  entrypoint: <string>     # Optional: named entrypoint key (default: "default")
 ```
 
-### 3.5 Parameters
+### 3.5 Entrypoints
+
+Each module repository contains an `omnibenchmark.yaml` that declares one or more named entrypoints:
+
+```yaml
+# Module's omnibenchmark.yaml
+entrypoints:
+  default: "run.py"
+  preprocess: "preprocess.py"
+  validate: "scripts/validate.R"
+```
+
+#### Default Behavior
+
+When a module's `repository` block in the benchmark plan omits the `entrypoint` field, the system uses the `default` key from the module's `omnibenchmark.yaml`. This preserves full backward compatibility.
+
+#### Named Entrypoints
+
+A benchmark plan can select a specific entrypoint by name. This allows a single repository to expose multiple scripts without requiring separate modules or multiple dispatch:
+
+```yaml
+modules:
+  - id: preprocess_step
+    software_environment: "host"
+    repository:
+      url: "bundles/pipeline.bundle"
+      commit: "abc123"
+      entrypoint: "preprocess"       # uses entrypoints.preprocess
+
+  - id: validate_step
+    software_environment: "host"
+    repository:
+      url: "bundles/pipeline.bundle"
+      commit: "abc123"
+      entrypoint: "validate"         # uses entrypoints.validate
+```
+
+#### Resolution Rules
+
+1. If `entrypoint` is omitted or not specified, use `"default"`
+2. Look up the key in the module's `omnibenchmark.yaml` `entrypoints` dict
+3. If the key is not found, resolution fails with an error listing available entrypoints
+4. An empty or whitespace-only `entrypoint` value is a validation error
+5. Legacy `config.cfg` modules only support the `"default"` entrypoint; requesting a named entrypoint from a `config.cfg` module is an error
+
+### 3.6 Parameters
 
 Parameters are passed to module execution as GNU-style command-line arguments.
 
@@ -212,7 +259,7 @@ params:
     evaluate=lambda wildcards: {"D1": "1+1", "D2": "2+2"}[wildcards.dataset]
 ```
 
-### 3.6 Inputs and Outputs
+### 3.7 Inputs and Outputs
 
 #### Output Declarations
 
@@ -244,7 +291,7 @@ The compiler maintains an output registry:
 2. Resolve inputs by lookup
 3. Pass to modules: `--data.raw data/{dataset}/{dataset}_data.json`
 
-### 3.7 Path Strategy
+### 3.8 Path Strategy
 
 #### Default Nesting
 
@@ -283,7 +330,7 @@ A deterministic hash distinguishes parameter combinations:
 - Empty parameters → hash of empty string
 - List values → comma-joined before hashing
 
-### 3.8 Wildcard System
+### 3.9 Wildcard System
 
 #### Wildcard Naming
 
