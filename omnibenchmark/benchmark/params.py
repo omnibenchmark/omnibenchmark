@@ -161,6 +161,18 @@ class Params:
                     args.append(f"--{key}={value}")
         return args
 
+    def to_compact_args(self):
+        """
+        Convert parameters to compact representation for mermaid.
+
+        Returns:
+            list: List of command line argument strings
+        """
+        args = []
+        for key, value in self._params.items():
+            args.extend([f"{key}:", str(value)])
+        return args
+
     @classmethod
     def from_cli_args(cls, args: List[str]) -> "Params":
         """

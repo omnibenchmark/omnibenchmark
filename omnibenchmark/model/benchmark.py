@@ -979,7 +979,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     return None
                 return module.exclude
 
-    def get_module_parameters(self, module: Union[str, Module]) -> Optional[List[Any]]:
+    def get_module_parameters(self, module: Union[str, Module], 
+                              compact_params: bool = False) -> Optional[List[Any]]:
         """Get module parameters by module/module_id."""
         from omnibenchmark.benchmark.params import Params
 
@@ -991,9 +992,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         result: List[Any] = []
         for p in module_obj.parameters:
-            result.extend(Params.expand_from_parameter(p))
+            #print("P.PARAMS.TYPE:--------", type(p.params))
+            #print("P.PARAMS:--------", p.params)
+            if compact_params:
+                result.append(p.params)
+            else:
+                result.extend(Params.expand_from_parameter(p))
 
         return result
+
 
     def get_module_repository(self, module: Union[str, Module]) -> Optional[Repository]:
         """Get module repository by module/module_id."""

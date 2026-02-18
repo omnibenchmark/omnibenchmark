@@ -12,7 +12,8 @@ class MermaidDiagramGenerator:
         self.model = model
         self.graph = graph
 
-    def generate_diagram(self, show_params: bool = True) -> str:
+    def generate_diagram(self, show_params: bool = True, 
+                         compact_params: bool = False) -> str:
         """Generate a complete Mermaid flowchart diagram.
 
         Args:
@@ -29,7 +30,7 @@ class MermaidDiagramGenerator:
         ]
 
         if show_params:
-            diagram_parts.append(self._generate_parameter_subgraphs())
+            diagram_parts.append(self._generate_parameter_subgraphs(compact_params=compact_params))
 
         return "\n".join(diagram_parts)
 
@@ -81,37 +82,64 @@ class MermaidDiagramGenerator:
 
         return connections
 
-    def _generate_parameter_subgraphs(self) -> str:
+    def _generate_parameter_subgraphs(self, compact_params: bool) -> str:
         """Generate parameter subgraphs and their connections to modules."""
         param_subgraphs = []
-        module_id_params_dict = self._collect_module_parameters()
-
+        module_id_params_dict = self._collect_module_parameters(compact_params)
+        
         for module_id, params in module_id_params_dict.items():
             # Create parameter subgraph
             subgraph_lines = [f"\tsubgraph params_{module_id}"]
 
-            for param in params:
-                param_node = f"{param.hash()}{param.to_cli_args()}"
-                subgraph_lines.append(f"\t\t{param_node}")
+            if compact_params:
+                # each element is a list of parameter set
+                for paramset in range(len(params)):
+                    mylist = []
+                    for key, vals in params[paramset].items():
+                        #print(type(vals))
+                        val_str = str(vals)
+                        if isinstance(vals, list):
+                            val_str = ",".join(str(v) for v in vals)
+                        # if isinstance(vals, list):
+                        #     if len(vals) > 3:
+                        #         val_str = str(vals[0]) + ",..[" + str(len(vals)-2) + "]..," + str(vals[len(vals)-1])
+                        #     else:
+                        #         val_str = ",".join(str(v) for v in vals)
+                        mylist.append(key + ":" + val_str)
+                        print("+++++++++++", key)
+                        print("-----------", val_str)
+                    comp_str = " ".join(mylist)
+                    print("-=-=-=-=-=-=-=-=-")
+                    print(comp_str)
+                    paramset_node = f"{module_id}_paramset{paramset}"
+                    subgraph_lines.append(f"\t\t{paramset_node}[{comp_str}]")
+
+            else:
+                # each element is a parameter expansion
+                for param in params:
+                    param_node = f"{param.hash()}{param.to_cli_args()}"
+                    subgraph_lines.append(f"\t\t{param_node}")
 
             subgraph_lines.extend(
                 ["\tend", f"\tparams_{module_id}:::param --o {module_id}"]
             )
-
             param_subgraphs.append("\n".join(subgraph_lines))
 
         return "\n".join(param_subgraphs)
 
-    def _collect_module_parameters(self) -> Dict[str, Any]:
+    def _collect_module_parameters(self, compact_params: bool) -> Dict[str, Any]:
         """Collect parameters for all modules that have them."""
         module_id_params_dict = {}
 
         for stage_id, stage in self.model.get_stages().items():
+            #print("STAGE_ID:-------", stage_id)
             for module_id, module in self.model.get_modules_by_stage(stage).items():
-                module_parameters = self.model.get_module_parameters(module)
+                module_parameters = self.model.get_module_parameters(module, compact_params)
+                #print("MODULE:----------", module)
                 if module_parameters:
                     module_id_params_dict[module_id] = module_parameters
 
+        #print("MODULE_ID_PARAMS_DICT:----------", module_id_params_dict)
         return module_id_params_dict
 
     def _get_nodes_by_module_id(self, module_id: str) -> List:
@@ -120,8 +148,8 @@ class MermaidDiagramGenerator:
 
 
 def generate_mermaid_diagram(
-    model: BenchmarkModel, graph, show_params: bool = True
-) -> str:
+    model: BenchmarkModel, graph, show_params: bool = True,
+           compact_params: bool = False) -> str:
     """Generate a Mermaid diagram for a benchmark workflow.
 
     Args:
@@ -133,4 +161,4 @@ def generate_mermaid_diagram(
         A string containing the complete Mermaid diagram syntax
     """
     generator = MermaidDiagramGenerator(model, graph)
-    return generator.generate_diagram(show_params)
+    return generator.generate_diagram(show_params, compact_params)

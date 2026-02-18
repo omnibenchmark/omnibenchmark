@@ -247,7 +247,7 @@ class BenchmarkExecution:
 
         return environment_path
 
-    def export_to_mermaid(self, show_params: bool = True) -> str:
+    def export_to_mermaid(self, show_params: bool = True, compact_params: bool = False) -> str:
         """Export the benchmark workflow as a Mermaid diagram.
 
         Args:
@@ -256,7 +256,7 @@ class BenchmarkExecution:
         Returns:
             A string containing the complete Mermaid diagram syntax
         """
-        return generate_mermaid_diagram(self.model, self.G, show_params)
+        return generate_mermaid_diagram(self.model, self.G, show_params, compact_params)
 
     def __str__(self):
         return f"Benchmark({self.get_definition})"
