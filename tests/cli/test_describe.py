@@ -72,6 +72,37 @@ def test_benchmark_topology_plot(tmp_path):
         assert strip(expected_methods) in strip(result.stdout)
 
 
+def test_topology_no_show_params():
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "describe",
+                "topology",
+                str(benchmark_data_path / "Benchmark_001.yaml"),
+                "--no-show-params",
+            ],
+        )
+
+        assert result.returncode == 0
+        assert "subgraph params_" not in result.stdout
+
+
+def test_topology_compact_params():
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "describe",
+                "topology",
+                str(benchmark_data_path / "Benchmark_dict_params.yaml"),
+                "--compact-params",
+            ],
+        )
+
+        assert result.returncode == 0
+        assert "M1_paramset0" in result.stdout
+        assert "M1_paramset1" in result.stdout
+
+
 def test_describe_status_with_out_dir(tmp_path):
     """Test that describe status command respects --out-dir parameter."""
     import shutil

@@ -49,16 +49,27 @@ def snakemake_graph(ctx, benchmark: str):
     "benchmark",
     type=click.Path(exists=True),
 )
+@click.option(
+    "--show-params/--no-show-params",
+    default=True,
+    help="Whether to write parameters to the mermaid output.",
+)
+@click.option(
+    "--compact-params/--no-compact-params",
+    default=False,
+    help="Whether to write parameters compactly (only used if --show-params).",
+)
+
 @click.pass_context
-def plot_topology(ctx, benchmark: str):
-    """Export benchmark topology to mermaid diagram format.
+def plot_topology(ctx, benchmark, show_params, compact_params):
+    """Export benchmark topology to MERMAID diagram format.
 
     BENCHMARK: Path to benchmark YAML file.
     """
     b = BenchmarkExecution(benchmark_yaml=Path(benchmark))
     if b is None:
         return
-    mermaid = b.export_to_mermaid()
+    mermaid = b.export_to_mermaid(show_params, compact_params)
     click.echo(mermaid)
 
 

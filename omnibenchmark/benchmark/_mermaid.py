@@ -1,8 +1,10 @@
 """Mermaid diagram generation utilities for omnibenchmark."""
 
-from typing import Dict, Any, List
+from typing import Dict, List
 from omnibenchmark.model import Benchmark as BenchmarkModel
+from omnibenchmark.model.benchmark import Parameter
 from omnibenchmark.benchmark._graph import get_nodes_by_module_id
+from omnibenchmark.benchmark.params import Params
 
 
 class MermaidDiagramGenerator:
@@ -12,7 +14,9 @@ class MermaidDiagramGenerator:
         self.model = model
         self.graph = graph
 
-    def generate_diagram(self, show_params: bool = True) -> str:
+    def generate_diagram(
+        self, show_params: bool = True, compact_params: bool = False
+    ) -> str:
         """Generate a complete Mermaid flowchart diagram.
 
         Args:
@@ -29,7 +33,9 @@ class MermaidDiagramGenerator:
         ]
 
         if show_params:
-            diagram_parts.append(self._generate_parameter_subgraphs())
+            diagram_parts.append(
+                self._generate_parameter_subgraphs(compact_params=compact_params)
+            )
 
         return "\n".join(diagram_parts)
 
@@ -81,36 +87,44 @@ class MermaidDiagramGenerator:
 
         return connections
 
-    def _generate_parameter_subgraphs(self) -> str:
+    def _generate_parameter_subgraphs(self, compact_params: bool) -> str:
         """Generate parameter subgraphs and their connections to modules."""
         param_subgraphs = []
         module_id_params_dict = self._collect_module_parameters()
 
-        for module_id, params in module_id_params_dict.items():
-            # Create parameter subgraph
+        for module_id, parameters in module_id_params_dict.items():
             subgraph_lines = [f"\tsubgraph params_{module_id}"]
 
-            for param in params:
-                param_node = f"{param.hash()}{param.to_cli_args()}"
-                subgraph_lines.append(f"\t\t{param_node}")
+            if compact_params:
+                # One node per Parameter before expansion (dict-format only)
+                for paramset, parameter in enumerate(parameters):
+                    if parameter.params is None:
+                        continue
+                    comp_str = " ".join(f"{k}:{v}" for k, v in parameter.params.items())
+                    paramset_node = f"{module_id}_paramset{paramset}"
+                    subgraph_lines.append(f"\t\t{paramset_node}[{comp_str}]")
+            else:
+                # Expand each Parameter and render one node per combination
+                for parameter in parameters:
+                    for param in Params.expand_from_parameter(parameter):
+                        param_node = f"{param.hash()}{param.to_cli_args()}"
+                        subgraph_lines.append(f"\t\t{param_node}")
 
             subgraph_lines.extend(
                 ["\tend", f"\tparams_{module_id}:::param --o {module_id}"]
             )
-
             param_subgraphs.append("\n".join(subgraph_lines))
 
         return "\n".join(param_subgraphs)
 
-    def _collect_module_parameters(self) -> Dict[str, Any]:
-        """Collect parameters for all modules that have them."""
+    def _collect_module_parameters(self) -> Dict[str, List[Parameter]]:
+        """Collect raw Parameter objects for all modules that have them."""
         module_id_params_dict = {}
 
         for stage_id, stage in self.model.get_stages().items():
             for module_id, module in self.model.get_modules_by_stage(stage).items():
-                module_parameters = self.model.get_module_parameters(module)
-                if module_parameters:
-                    module_id_params_dict[module_id] = module_parameters
+                if module.parameters:
+                    module_id_params_dict[module_id] = module.parameters
 
         return module_id_params_dict
 
@@ -120,7 +134,7 @@ class MermaidDiagramGenerator:
 
 
 def generate_mermaid_diagram(
-    model: BenchmarkModel, graph, show_params: bool = True
+    model: BenchmarkModel, graph, show_params: bool = True, compact_params: bool = False
 ) -> str:
     """Generate a Mermaid diagram for a benchmark workflow.
 
@@ -133,4 +147,4 @@ def generate_mermaid_diagram(
         A string containing the complete Mermaid diagram syntax
     """
     generator = MermaidDiagramGenerator(model, graph)
-    return generator.generate_diagram(show_params)
+    return generator.generate_diagram(show_params, compact_params)

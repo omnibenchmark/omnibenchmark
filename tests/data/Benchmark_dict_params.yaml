@@ -1,0 +1,39 @@
+id: Benchmark_dict_params
+description: minimal benchmark with dict-format parameters for testing compact_params
+version: "1.0"
+benchmarker: "test"
+software_backend: host
+api_version: "0.3.0"
+software_environments:
+  env1:
+    description: "test env"
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: env1
+        repository:
+          url: https://github.com/example/data.git
+          commit: abc1234
+    outputs:
+      - id: data.out
+        path: "data.txt"
+
+  - id: methods
+    modules:
+      - id: M1
+        software_environment: env1
+        repository:
+          url: https://github.com/example/method.git
+          commit: abc1234
+        parameters:
+          - alpha: 0.1
+            beta: 1
+          - alpha: 0.5
+            beta: 2
+    inputs:
+      - entries:
+          - data.out
+    outputs:
+      - id: methods.out
+        path: "result.txt"
