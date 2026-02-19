@@ -1,4 +1,4 @@
-# 004: Omnibenchmark YAML Specification (v0.3)
+# 004: Omnibenchmark YAML Specification (v0.5)
 
 [![Status: Under Review](https://img.shields.io/badge/Status-Accepted-green.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 0.4](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
@@ -6,7 +6,7 @@
 **Authors**: ben,
 **Date**: 2025-01-20
 **Status**: Under Review
-**Version**: 0.1
+**Version**: 0.5
 **Supersedes**: N/A
 **Reviewed-by**: TBD
 **Related Issues**: TBD
@@ -17,6 +17,7 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-01-20 | Initial specification for v0.4.0 | ben |
 | 0.2 | 2026-02-09 | Add named entrypoints (Section 3.5) | ben |
+| 0.3 | 2026-02-19 | Add gather stages and path templates (Section 7) | ben |
 
 ## 1. Problem Statement
 
@@ -493,3 +494,260 @@ Backends must support:
 1. [Omnibenchmark Documentation](https://docs.omnibenchmark.org)
 2. [Snakemake Documentation](https://snakemake.readthedocs.io)
 3. [Semantic Versioning](https://semver.org)
+
+---
+
+## 7. Gather Stages (v0.3+)
+
+> **Status:** Implemented (phases 1–6 complete as of 2026-02-08).
+> This section documents the `provides` / `gather` extension to the stage model.
+
+### 7.1 Motivation
+
+The pipeline has two execution patterns:
+
+- **Map stages** (`stages`): each module runs once per input combination (cartesian product). First-class, composable.
+- **Reduce/gather stages** (`metric_collectors`): a module runs once and receives *all* outputs from referenced stages. Second-class, not composable, not chainable.
+
+Gather stages generalise the reduce pattern: any stage can gather all outputs from any set of provider stages, and gather stage outputs participate in the DAG like regular stage outputs.
+
+### 7.2 New YAML Keywords
+
+Two new keywords extend the stage model:
+
+- **`provides: {label: output_id, ...}`** on a stage — a map from label name to the output ID that satisfies it. Downstream stages can `gather` by label, and downstream map stages get `{label}` as a path template variable resolving to the provider's module ID.
+- **`gather: label`** as an entry in a stage's `inputs` list — collects the declared output (by output_id) from every resolved node of all stages that `provides` that label.
+
+```yaml
+stages:
+  - id: data
+    provides:
+      dataset: data.raw              # label "dataset" is satisfied by output "data.raw"
+    modules:
+      - id: D1
+        ...
+      - id: D2
+        ...
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"     # {dataset} = own module ID
+
+  - id: methods_fast
+    provides:
+      method: methods_fast.result    # label "method" is satisfied by "methods_fast.result"
+    inputs: [data.raw]
+    modules:
+      - id: M1
+        ...
+    outputs:
+      - id: methods_fast.result
+        path: "{dataset}_{method}_result.json"
+
+  - id: methods_accurate
+    provides:
+      method: methods_accurate.result
+    inputs: [data.raw]
+    modules:
+      - id: M2
+        ...
+    outputs:
+      - id: methods_accurate.result
+        path: "{dataset}_{method}_result.json"
+
+  - id: summary
+    modules:
+      - id: S1
+        ...
+    inputs:
+      - gather: method               # collects from methods_fast + methods_accurate
+    outputs:
+      - id: summary.report
+        path: "report.json"
+```
+
+### 7.3 Semantics of `provides`
+
+`provides: {label: output_id}` on a stage has two roles:
+
+**Role 1: Gather contract.** Any downstream stage with `gather: label` in its inputs collects the specified output path (by `output_id`) from every resolved node of all stages providing that label. Only the named output is gathered — if a stage has multiple outputs, only the one declared in `provides` is exposed to gatherers.
+
+**Role 2: Template variable.** Any downstream map stage that transitively depends on a providing stage gets `{label}` as a template variable in its output paths. The variable resolves to the module ID of the ancestor that provided that label. For the providing stage itself, `{label}` resolves to its own module ID (self-reference).
+
+`provides` labels live in a separate namespace from output IDs. A stage can have both `provides: {dataset: data.raw}` and `outputs: [{id: dataset.raw, ...}]` without conflict.
+
+Multiple stages can provide the same label. Map stages still reference specific output IDs via `inputs:`; the `provides` label is only used for `gather:` and template variable propagation.
+
+### 7.4 Semantics of `gather:`
+
+`gather: label` in a stage's inputs means:
+
+1. Find every stage that `provides: {label: output_id}`
+2. Collect that `output_id`'s concrete output path from every resolved node of those stages
+3. Pass all of them as inputs to the gather stage's single rule invocation
+4. The gather stage runs **once** per (module × params) combination in the gather stage itself — not once per upstream combination
+
+**Constraints:**
+- A stage with `gather:` inputs cannot also have regular `inputs:` (either map or gather, not both)
+- A gather stage's output path must not contain provides-derived template variables (it produces a single file per module × params combination)
+- A gather stage can have multiple modules and parameters; each combination produces one gather rule that receives all upstream outputs
+
+### 7.5 Composability
+
+Gather stage outputs are regular stage outputs and participate in the DAG:
+
+```yaml
+# Gather → Map
+- id: summary
+  inputs:
+    - gather: method
+  outputs:
+    - id: summary.report
+      path: "report.json"
+
+- id: postprocess
+  inputs: [summary.report]             # single file, maps once
+  outputs:
+    - id: postprocess.result
+      path: "postprocessed.json"
+```
+
+```yaml
+# Gather → Gather (chained)
+- id: first_gather
+  provides:
+    intermediate: first_gather.output
+  inputs:
+    - gather: method
+  outputs:
+    - id: first_gather.output
+      path: "intermediate.json"
+
+- id: second_gather
+  inputs:
+    - gather: intermediate
+  outputs:
+    - id: final.output
+      path: "final.json"
+```
+
+### 7.6 Snakemake Mapping
+
+Each (module × params) combination in a gather stage becomes one Snakemake rule with all provider outputs enumerated as named inputs:
+
+```python
+rule summary_S1_default:
+    input:
+        input_0="data/D1/.f4a3b2c1/methods_fast/M1/.29b6dbbe/D1_M1_result.json",
+        input_1="data/D2/.a1b2c3d4/methods_fast/M1/.29b6dbbe/D2_M1_result.json",
+        input_2="data/D1/.f4a3b2c1/methods_accurate/M2/.7e8f9a0b/D1_M2_result.json",
+        input_3="data/D2/.a1b2c3d4/methods_accurate/M2/.7e8f9a0b/D2_M2_result.json",
+    output:
+        "summary/S1/.default/report.json"
+    shell:
+        "... --method {input.input_0} {input.input_1} {input.input_2} {input.input_3} ..."
+```
+
+The `benchmark:` directive is omitted for gather nodes (same as existing `metric_collectors`).
+
+### 7.7 Output Path Templates
+
+`provides` labels and structural attributes are available as template variables in the `path:` field of `outputs:`.
+
+#### Available variables
+
+| Variable | Resolves to |
+|----------|-------------|
+| `{label}` | Module ID of the ancestor (or self) that `provides: {label: ...}` |
+| `{params.key}` | Value of parameter `key` for the current node |
+| `{module.id}` | Module ID of the current node |
+| `{module.stage}` | Stage ID of the current node |
+| `{module.parent.id}` | Module ID of the input/parent node |
+| `{dataset}` | Backward-compat alias; equivalent to `{dataset}` provides label |
+
+#### Variable availability by stage type
+
+| Variable | First map stage | Downstream map stage | Gather stage |
+|----------|-----------------|----------------------|--------------|
+| `{label}` (provides) | own module ID if self-provides | ancestor module ID | not available |
+| `{params.key}` | yes | yes | yes |
+| `{module.*}` | yes | yes | `{module.id}`, `{module.stage}` only |
+| `{dataset}` (legacy) | own module ID | propagated from ancestor | not available |
+
+#### Examples
+
+```yaml
+# Provider stage: {dataset} = own module ID
+- id: data
+  provides:
+    dataset: data.raw
+  outputs:
+    - id: data.raw
+      path: "{dataset}_data.csv"       # → D1_data.csv, D2_data.csv
+
+# Downstream map: {dataset} from ancestor, {method} = own
+- id: methods
+  provides:
+    method: methods.result
+  inputs: [data.raw]
+  outputs:
+    - id: methods.result
+      path: "{dataset}_{method}_result.csv"   # → D1_M1_result.csv, etc.
+
+# Gather stage: no provides-derived variables; {params.*} allowed
+- id: summary
+  inputs:
+    - gather: method
+  modules:
+    - id: reporter
+      parameters:
+        - format: [html, pdf]
+  outputs:
+    - id: summary.report
+      path: "report.{params.format}"   # → report.html, report.pdf
+```
+
+### 7.8 Ordering and Validation
+
+Stages are still processed in document order. Provider stages must appear before their gather consumers. The compiler validates this and errors with a clear message if violated:
+
+- `"No stage provides 'X'"` — `gather: X` references unknown label
+- `"Stage 'Y' gathers 'X' but provider stage 'Z' appears after it"` — ordering violation
+- `"Gather stage 'X' cannot mix regular and gather inputs"` — constraint violation
+
+### 7.9 Migration from `metric_collectors`
+
+`metric_collectors` continue to work through the existing resolution path. Gather stages are a superset: composable, chainable, and part of the main stage DAG.
+
+Conceptual equivalence:
+
+```yaml
+# Old
+metric_collectors:
+  - id: MC1
+    inputs: [methods.result]
+    outputs: [{ id: metrics.summary, path: "metrics.json" }]
+    repository: ...
+
+# New
+stages:
+  - id: metrics
+    inputs:
+      - gather: method
+    outputs:
+      - id: metrics.summary
+        path: "metrics.json"
+    modules:
+      - id: MC1
+        repository: ...
+```
+
+### 7.10 Planned Extensions
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| `{dataset}` deprecation | Warnings then removal of hardcoded magic | Planned |
+| Real toposort | `graphlib.TopologicalSorter` for arbitrary DAG shapes | Planned |
+| `expand_output_path()` deprecation | Remove legacy path injection | Planned |
+| Partial collapse | `gather: method, over: [method]` — collapse one dim, keep others | Planned |
+| Scoped provides | `provides: [{method: output_id}]` — map label to specific output | Planned |
+| Mixed map+gather | Same stage maps one dimension, gathers another | Planned |

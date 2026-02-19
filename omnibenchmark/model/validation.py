@@ -204,9 +204,9 @@ class BenchmarkValidator:
         """Validate gather stage semantics.
 
         Checks:
-        1. Every `gather: X` has at least one stage with `provides: [X]`
+        1. Every `gather: X` has at least one stage with `provides: {X: output_id}`
         2. Gather stage output paths must not contain template variables
-        3. Provides labels are non-empty strings
+        3. Provides labels and output IDs are non-empty strings
         """
         from .benchmark import GatherInput
 
@@ -214,10 +214,15 @@ class BenchmarkValidator:
         provides_registry: dict[str, list[str]] = {}
         for stage in self.stages:  # type: ignore
             if stage.provides:  # type: ignore
-                for label in stage.provides:  # type: ignore
+                for label, output_id in stage.provides.items():  # type: ignore
                     if not label or not label.strip():
                         errors.append(
                             f"Stage '{stage.id}' has an empty provides label"  # type: ignore
+                        )
+                        continue
+                    if not output_id or not output_id.strip():
+                        errors.append(
+                            f"Stage '{stage.id}' provides label '{label}' with empty output ID"  # type: ignore
                         )
                         continue
                     provides_registry.setdefault(label, []).append(stage.id)  # type: ignore

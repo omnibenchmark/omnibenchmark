@@ -60,7 +60,7 @@ class TestValidGatherOrdering:
     def test_provider_before_gather(self):
         """Provider appears before gather — valid."""
         stages = [
-            _stage(id="data", provides=["dataset"]),
+            _stage(id="data", provides={"dataset": "data.raw"}),
             _stage(
                 id="summary",
                 inputs=[GatherInput(gather="dataset")],
@@ -72,8 +72,8 @@ class TestValidGatherOrdering:
     def test_multiple_providers_before_gather(self):
         """Multiple providers all appear before the gather — valid."""
         stages = [
-            _stage(id="methods_fast", provides=["method"]),
-            _stage(id="methods_slow", provides=["method"]),
+            _stage(id="methods_fast", provides={"method": "methods.result"}),
+            _stage(id="methods_slow", provides={"method": "methods.result"}),
             _stage(
                 id="summary",
                 inputs=[GatherInput(gather="method")],
@@ -96,7 +96,7 @@ class TestValidGatherOrdering:
     def test_provides_without_gather(self):
         """Provides with no gather consumer — valid (unused provides is ok)."""
         stages = [
-            _stage(id="data", provides=["dataset"]),
+            _stage(id="data", provides={"dataset": "data.raw"}),
             _stage(id="methods"),
         ]
         _validate_gather_ordering(stages)
@@ -108,7 +108,7 @@ class TestValidGatherOrdering:
     def test_provider_immediately_before_gather(self):
         """Provider is the stage immediately preceding gather — valid."""
         stages = [
-            _stage(id="data", provides=["dataset"]),
+            _stage(id="data", provides={"dataset": "data.raw"}),
             _stage(
                 id="gather",
                 inputs=[GatherInput(gather="dataset")],
@@ -120,7 +120,7 @@ class TestValidGatherOrdering:
     def test_gather_with_gap_between_provider(self):
         """Non-provider stages between provider and gather — valid."""
         stages = [
-            _stage(id="data", provides=["dataset"]),
+            _stage(id="data", provides={"dataset": "data.raw"}),
             _stage(id="preprocessing"),
             _stage(id="methods"),
             _stage(
@@ -136,12 +136,12 @@ class TestValidGatherOrdering:
         stages = [
             _stage(
                 id="methods",
-                provides=["method"],
+                provides={"method": "methods.result"},
                 outputs=[_iofile(id="m.result", path="result.json")],
             ),
             _stage(
                 id="first_gather",
-                provides=["intermediate"],
+                provides={"intermediate": "fg.out"},
                 inputs=[GatherInput(gather="method")],
                 outputs=[_iofile(id="fg.out", path="intermediate.json")],
             ),
@@ -169,7 +169,7 @@ class TestInvalidGatherOrdering:
                 inputs=[GatherInput(gather="dataset")],
                 outputs=[_iofile(id="s.out", path="report.json")],
             ),
-            _stage(id="data", provides=["dataset"]),
+            _stage(id="data", provides={"dataset": "data.raw"}),
         ]
         with pytest.raises(GatherOrderingError, match="appears after it"):
             _validate_gather_ordering(stages)
@@ -182,7 +182,7 @@ class TestInvalidGatherOrdering:
                 inputs=[GatherInput(gather="method")],
                 outputs=[_iofile(id="s.out", path="report.json")],
             ),
-            _stage(id="my_methods", provides=["method"]),
+            _stage(id="my_methods", provides={"method": "methods.result"}),
         ]
         with pytest.raises(GatherOrderingError) as exc_info:
             _validate_gather_ordering(stages)
@@ -196,7 +196,7 @@ class TestInvalidGatherOrdering:
         stages = [
             _stage(
                 id="self_ref",
-                provides=["dataset"],
+                provides={"dataset": "data.raw"},
                 inputs=[GatherInput(gather="dataset")],
                 outputs=[_iofile(id="s.out", path="out.json")],
             ),
@@ -207,13 +207,13 @@ class TestInvalidGatherOrdering:
     def test_one_provider_before_one_after(self):
         """One provider before, one after — error only for the late one."""
         stages = [
-            _stage(id="methods_fast", provides=["method"]),
+            _stage(id="methods_fast", provides={"method": "methods.result"}),
             _stage(
                 id="summary",
                 inputs=[GatherInput(gather="method")],
                 outputs=[_iofile(id="s.out", path="report.json")],
             ),
-            _stage(id="methods_slow", provides=["method"]),
+            _stage(id="methods_slow", provides={"method": "methods.result"}),
         ]
         with pytest.raises(GatherOrderingError) as exc_info:
             _validate_gather_ordering(stages)
@@ -235,8 +235,8 @@ class TestInvalidGatherOrdering:
                 inputs=[GatherInput(gather="b")],
                 outputs=[_iofile(id="g2.out", path="g2.json")],
             ),
-            _stage(id="provider_a", provides=["a"]),
-            _stage(id="provider_b", provides=["b"]),
+            _stage(id="provider_a", provides={"a": "a.out"}),
+            _stage(id="provider_b", provides={"b": "b.out"}),
         ]
         with pytest.raises(GatherOrderingError) as exc_info:
             _validate_gather_ordering(stages)

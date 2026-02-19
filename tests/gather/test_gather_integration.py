@@ -80,7 +80,7 @@ class TestGatherPipelineIntegration:
 
           - id: method_a
             provides:
-              - method_output
+              method_output: method_a.result
             modules:
               - id: MA
                 name: "Method A"
@@ -96,7 +96,7 @@ class TestGatherPipelineIntegration:
 
           - id: method_b
             provides:
-              - method_output
+              method_output: method_b.result
             modules:
               - id: MB
                 name: "Method B"
@@ -139,8 +139,8 @@ class TestGatherPipelineIntegration:
     def test_provides_parsed_correctly(self):
         """Stages with 'provides' should have the labels parsed."""
         bm = self._parse_benchmark()
-        assert bm.stages[1].provides == ["method_output"]
-        assert bm.stages[2].provides == ["method_output"]
+        assert bm.stages[1].provides == {"method_output": "method_a.result"}
+        assert bm.stages[2].provides == {"method_output": "method_b.result"}
         assert bm.stages[0].provides is None
         assert bm.stages[3].provides is None
 
@@ -178,28 +178,18 @@ class TestGatherPipelineIntegration:
         """_build_gather_inputs should collect outputs from provider nodes."""
         bm = self._parse_benchmark()
 
-        # Simulate resolved nodes from method_a and method_b
-        provider_nodes = [
-            ResolvedNode(
-                id="method_a-MA-.default-D1",
-                stage_id="method_a",
-                module_id="MA",
-                param_id=".default",
-                module=FAKE_MODULE,
-                outputs=["method_a/MA/.default/D1_result.csv"],
-            ),
-            ResolvedNode(
-                id="method_b-MB-.default-D1",
-                stage_id="method_b",
-                module_id="MB",
-                param_id=".default",
-                module=FAKE_MODULE,
-                outputs=["method_b/MB/.default/D1_result.csv"],
-            ),
-        ]
+        # Build output_to_nodes as the expansion loop would
+        output_to_nodes = {
+            "method_a.result": [
+                ("method_a-MA-.default-D1", "method_a/MA/.default/D1_result.csv")
+            ],
+            "method_b.result": [
+                ("method_b-MB-.default-D1", "method_b/MB/.default/D1_result.csv")
+            ],
+        }
 
         inputs, name_mapping = _build_gather_inputs(
-            ["method_output"], provider_nodes, bm
+            ["method_output"], [], bm, output_to_nodes
         )
 
         assert len(inputs) == 2
@@ -368,7 +358,7 @@ class TestGatherWithMultipleDatasets:
                     path: "{dataset}_data.csv"
               - id: methods
                 provides:
-                  - method_output
+                  method_output: methods.result
                 modules:
                   - id: MA
                     software_environment: "host"
@@ -406,20 +396,26 @@ class TestGatherWithMultipleDatasets:
 
         # Simulate 4 resolved nodes: 2 datasets x 2 methods
         method_nodes = []
+        output_to_nodes = {}
         for dataset in ["D1", "D2"]:
             for method in ["MA", "MB"]:
+                node_id = f"methods-{method}-.default-{dataset}"
+                path = f"methods/{method}/.default/{dataset}_result.csv"
                 method_nodes.append(
                     ResolvedNode(
-                        id=f"methods-{method}-.default-{dataset}",
+                        id=node_id,
                         stage_id="methods",
                         module_id=method,
                         param_id=".default",
                         module=FAKE_MODULE,
-                        outputs=[f"methods/{method}/.default/{dataset}_result.csv"],
+                        outputs=[path],
                     )
                 )
+                output_to_nodes.setdefault("methods.result", []).append((node_id, path))
 
-        inputs, name_mapping = _build_gather_inputs(["method_output"], method_nodes, bm)
+        inputs, name_mapping = _build_gather_inputs(
+            ["method_output"], method_nodes, bm, output_to_nodes
+        )
 
         # Should have 4 inputs (2 datasets x 2 methods)
         assert len(inputs) == 4
@@ -451,7 +447,7 @@ class TestGatherWithMultipleLabels:
             stages:
               - id: preprocessing
                 provides:
-                  - preprocessed
+                  preprocessed: preprocessing.output
                 modules:
                   - id: PP
                     software_environment: "host"
@@ -463,7 +459,7 @@ class TestGatherWithMultipleLabels:
                     path: preprocessed.csv
               - id: methods
                 provides:
-                  - method_result
+                  method_result: methods.result
                 modules:
                   - id: MA
                     software_environment: "host"
@@ -518,10 +514,23 @@ class TestGatherWithMultipleLabels:
             outputs=["methods/MA/.default/result.csv"],
         )
 
+        output_to_nodes = {
+            "preprocessing.output": [
+                (
+                    "preprocessing-PP-.default",
+                    "preprocessing/PP/.default/preprocessed.csv",
+                )
+            ],
+            "methods.result": [
+                ("methods-MA-.default", "methods/MA/.default/result.csv")
+            ],
+        }
+
         inputs, name_mapping = _build_gather_inputs(
             ["preprocessed", "method_result"],
             [pp_node, ma_node],
             bm,
+            output_to_nodes,
         )
 
         assert len(inputs) == 2

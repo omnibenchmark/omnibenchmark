@@ -83,13 +83,13 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     "--telemetry",
     type=click.Choice(["json"]),
     default=None,
-    help="Output OTLP telemetry. 'json' outputs JSON Lines to stdout (disables Rich progress).",
+    help="Output OTLP telemetry as JSON Lines. Written to <out_dir>/telemetry.jsonl by default.",
 )
 @click.option(
     "--telemetry-output",
     type=click.Path(),
     default=None,
-    help="Write telemetry to file instead of stdout. Allows Rich progress to remain active.",
+    help="Write telemetry to this file instead of <out_dir>/telemetry.jsonl.",
 )
 @click.option(
     "-m",
@@ -188,10 +188,6 @@ def _run_benchmark(
     out_dir = out_dir if out_dir else "out"
     out_dir_path = Path(out_dir)
 
-    # Determine if we should use Rich UI
-    # Telemetry to stdout disables Rich progress (they'd conflict)
-    use_telemetry_stdout = telemetry == "json" and not telemetry_output
-
     # Load and validate benchmark
     try:
         benchmark_path_abs = Path(benchmark_path).resolve()
@@ -211,14 +207,7 @@ def _run_benchmark(
         return
 
     # Use clean UI when not in debug mode
-    # For telemetry stdout mode, we also want quiet mode (no Rich, but also no INFO logs)
     use_clean_ui = not debug
-
-    # Suppress all logging when outputting telemetry to stdout
-    if use_telemetry_stdout:
-        import logging
-
-        logging.getLogger("omnibenchmark").setLevel(logging.WARNING)
 
     # Setup telemetry emitter early so pre-snakemake phases are traced
     telemetry_emitter = None
@@ -226,9 +215,12 @@ def _run_benchmark(
         from omnibenchmark.telemetry import TelemetryEmitter
 
         if telemetry_output:
-            telemetry_emitter = TelemetryEmitter(output=Path(telemetry_output))
+            telemetry_path = Path(telemetry_output)
+            telemetry_path.parent.mkdir(parents=True, exist_ok=True)
         else:
-            telemetry_emitter = TelemetryEmitter()  # stdout
+            out_dir_path.mkdir(parents=True, exist_ok=True)
+            telemetry_path = out_dir_path / "telemetry.jsonl"
+        telemetry_emitter = TelemetryEmitter(output=telemetry_path)
 
     # Step 1: Populate git cache (fetch all repos)
     resolution_start_ns = int(time.time() * 1_000_000_000)
@@ -354,10 +346,6 @@ def _run_snakemake(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = logs_dir / f"snakemake_{timestamp}.log"
 
-    use_telemetry_stdout = (
-        telemetry_emitter is not None and telemetry_emitter._file_handle is sys.stdout
-    )
-
     # Build snakemake command
     # Use just "Snakefile" since we chdir to out_dir before running
     cmd = ["snakemake", "--snakefile", "Snakefile", "--cores", str(cores)]
@@ -384,8 +372,7 @@ def _run_snakemake(
     original_dir = os.getcwd()
     os.chdir(out_dir)
 
-    # For summary messages after progress finishes (only if not in telemetry-stdout mode)
-    summary_console = None if use_telemetry_stdout else ProgressDisplay().console
+    summary_console = ProgressDisplay().console
 
     try:
         if debug:
@@ -399,143 +386,6 @@ def _run_snakemake(
             # Also print to console in debug mode
             with open(log_file, "r") as f:
                 print(f.read())
-        elif use_telemetry_stdout:
-            # Telemetry JSON mode: no Rich progress, just emit telemetry events
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
-
-            # Regex patterns for snakemake output
-            rule_start_pattern = re.compile(r"rule (\w+):")
-            job_error_pattern = re.compile(r"Error in rule (\w+):")
-            localrule_pattern = re.compile(r"localrule (\w+):")
-            _finished_job_pattern = re.compile(r"Finished job (\d+)\.")
-
-            current_rule = None
-            completed_jobs = 0
-            failed_rules = []
-
-            # Buffer to capture output per rule for telemetry
-            rule_output_buffer: deque = deque(maxlen=100)  # Last 100 lines per rule
-            capturing_error = False
-            error_lines = []
-
-            # Track setup phase (before first rule)
-            setup_buffer = []
-            first_rule_seen = False
-            setup_start_ns = int(time.time() * 1_000_000_000)
-            if telemetry_emitter:
-                telemetry_emitter.emit_phase_started(
-                    "environment preparation", "environment_setup"
-                )
-
-            with open(log_file, "w") as f:
-                for line in process.stdout:
-                    # Write to log file
-                    f.write(line)
-                    f.flush()
-
-                    line_stripped = line.strip()
-
-                    # Capture setup output before first rule
-                    if not first_rule_seen:
-                        setup_buffer.append(line_stripped)
-                    else:
-                        rule_output_buffer.append(line_stripped)
-
-                    # Capture error output after "Error in rule"
-                    if capturing_error:
-                        error_lines.append(line_stripped)
-
-                    # Check for rule start
-                    match = rule_start_pattern.search(line)
-                    if not match:
-                        match = localrule_pattern.search(line)
-                    if match:
-                        # Emit setup span when first rule starts
-                        if not first_rule_seen and telemetry_emitter:
-                            setup_end_ns = int(time.time() * 1_000_000_000)
-                            setup_output = "\n".join(setup_buffer)
-                            telemetry_emitter.emit_setup_span(
-                                setup_output, setup_start_ns, setup_end_ns
-                            )
-                            first_rule_seen = True
-
-                        current_rule = match.group(1)
-                        rule_output_buffer.clear()
-                        if telemetry_emitter:
-                            telemetry_emitter.rule_started(current_rule)
-
-                    # Check for job completion
-                    if "Finished job" in line or "Nothing to be done" in line:
-                        completed_jobs += 1
-                        if telemetry_emitter and current_rule:
-                            # Combine snakemake prep output (buffer) with command output (log file)
-                            snakemake_output = "\n".join(rule_output_buffer)
-                            rule_log = _read_rule_log(Path("."), current_rule)
-                            if rule_log:
-                                full_output = f"{snakemake_output}\n--- Command Output ---\n{rule_log}"
-                            else:
-                                full_output = snakemake_output
-                            telemetry_emitter.rule_completed(
-                                current_rule, stdout=full_output
-                            )
-                        rule_output_buffer.clear()
-
-                    # Check for errors
-                    match = job_error_pattern.search(line)
-                    if match:
-                        failed_rule = match.group(1)
-                        if failed_rule not in failed_rules:
-                            failed_rules.append(failed_rule)
-                        capturing_error = True
-                        error_lines = [line_stripped]
-
-                    # End of error block (next rule or empty line after error content)
-                    if capturing_error and (
-                        line_stripped == ""
-                        or "Shutting down" in line
-                        or "Error executing rule" in line
-                    ):
-                        if telemetry_emitter and failed_rules:
-                            # Combine snakemake output with per-rule log
-                            snakemake_output = "\n".join(rule_output_buffer)
-                            rule_log = _read_rule_log(Path("."), failed_rules[-1])
-                            if rule_log:
-                                stderr = f"{snakemake_output}\n--- Command Output ---\n{rule_log}"
-                            else:
-                                stderr = snakemake_output or "\n".join(error_lines)
-                            telemetry_emitter.rule_failed(
-                                failed_rules[-1],
-                                f"Error in rule {failed_rules[-1]}",
-                                stderr=stderr,
-                            )
-                        capturing_error = False
-                        error_lines = []
-
-            process.wait()
-            result = process
-
-            # Emit setup span if no rules were seen (edge case)
-            if not first_rule_seen and telemetry_emitter and setup_buffer:
-                setup_end_ns = int(time.time() * 1_000_000_000)
-                setup_output = "\n".join(setup_buffer)
-                telemetry_emitter.emit_setup_span(
-                    setup_output, setup_start_ns, setup_end_ns
-                )
-
-            # Emit benchmark completion
-            if telemetry_emitter:
-                telemetry_emitter.benchmark_completed(
-                    success=(result.returncode == 0),
-                    message=f"Completed {completed_jobs} jobs"
-                    if result.returncode == 0
-                    else f"Failed with {len(failed_rules)} error(s)",
-                )
         else:
             # In normal mode, show interactive progress with log toggle
             summary_console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
@@ -996,6 +846,7 @@ def _build_template_context(
                     provides[label] = str(params[label])
                 else:
                     provides[label] = module_id
+                # (output_id is used by gather consumers, not needed here)
 
         # Entrypoints define the dataset identity
         if not stage.is_gather_stage():
@@ -1011,16 +862,19 @@ def _build_gather_inputs(
     gather_labels: list[str],
     resolved_nodes: list,
     benchmark_model,
+    output_to_nodes: dict[str, list],
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Build the inputs dict and name mapping for a gather stage.
 
-    Enumerates all outputs from all resolved nodes belonging to stages that
-    provide the gathered labels.
+    For each gathered label, finds the output_id declared in the provider
+    stage's ``provides`` map and collects only those paths from
+    ``output_to_nodes``.
 
     Args:
         gather_labels: Labels being gathered (e.g., ["method"])
-        resolved_nodes: All resolved nodes so far
+        resolved_nodes: All resolved nodes so far (unused, kept for signature compat)
         benchmark_model: Benchmark model (for get_provider_stages)
+        output_to_nodes: Registry mapping output_id -> [(node_id, path), ...]
 
     Returns:
         (inputs_dict, input_name_mapping) where:
@@ -1031,11 +885,9 @@ def _build_gather_inputs(
     name_mapping = {}
     idx = 0
     for label in gather_labels:
-        provider_ids = {s.id for s in benchmark_model.get_provider_stages(label)}
-        for node in resolved_nodes:
-            if node.stage_id not in provider_ids:
-                continue
-            for output_path in node.outputs:
+        for provider_stage in benchmark_model.get_provider_stages(label):
+            output_id = provider_stage.provides[label]
+            for _node_id, output_path in output_to_nodes.get(output_id, []):
                 key = f"input_{idx}"
                 inputs[key] = output_path
                 name_mapping[key] = label
@@ -1071,7 +923,9 @@ def _validate_gather_ordering(stages) -> None:
         stage_index[stage.id] = idx
         if stage.provides:
             for label in stage.provides:
-                seen_providers.setdefault(label, []).append(stage.id)
+                seen_providers.setdefault(label, []).append(
+                    stage.id
+                )  # provides is now dict
 
     # Check that every gather reference is satisfied by earlier stages
     errors = []
@@ -1340,9 +1194,9 @@ def _generate_explicit_snakefile(
         if stage.is_gather_stage():
             gather_labels = stage.get_gather_labels()
 
-            # Enumerate all outputs from provider nodes
+            # Enumerate provider outputs by the output_id declared in provides
             gather_inputs, gather_input_name_mapping = _build_gather_inputs(
-                gather_labels, resolved_nodes, benchmark.model
+                gather_labels, resolved_nodes, benchmark.model, output_to_nodes
             )
 
             # One node per (module x params) in the gather stage

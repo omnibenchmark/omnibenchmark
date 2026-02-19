@@ -463,10 +463,11 @@ class Stage(DescribableEntity):
         None, description="Stage inputs (regular references or gather declarations)"
     )
     outputs: List[IOFile] = Field(..., description="Stage outputs")
-    provides: Optional[List[str]] = Field(
+    provides: Optional[Dict[str, str]] = Field(
         None,
         description="Abstract output contracts this stage satisfies. "
-        "Used by downstream gather stages to collect all outputs from providers.",
+        "Maps label -> output_id. Used by downstream gather stages to collect "
+        "the specified output from every provider node.",
     )
     resources: Optional[Resources] = Field(
         None,
@@ -1132,6 +1133,12 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         return [
             stage for stage in self.stages if stage.provides and label in stage.provides
         ]
+
+    def get_provider_output_id(self, stage: "Stage", label: str) -> Optional[str]:
+        """Get the output ID that a stage provides for the given label."""
+        if not stage.provides:
+            return None
+        return stage.provides.get(label)
 
     def is_initial(self, stage: Stage) -> bool:
         """Check if a stage is initial (has no inputs)."""

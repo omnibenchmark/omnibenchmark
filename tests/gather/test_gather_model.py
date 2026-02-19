@@ -106,16 +106,16 @@ class TestStageProvides:
         assert stage.provides is None
 
     def test_stage_with_provides(self):
-        stage = _stage(provides=["dataset"])
-        assert stage.provides == ["dataset"]
+        stage = _stage(provides={"dataset": "data.raw"})
+        assert stage.provides == {"dataset": "data.raw"}
 
     def test_stage_with_multiple_provides(self):
-        stage = _stage(provides=["dataset", "method"])
-        assert stage.provides == ["dataset", "method"]
+        stage = _stage(provides={"dataset": "data.raw", "method": "methods.result"})
+        assert stage.provides == {"dataset": "data.raw", "method": "methods.result"}
 
-    def test_provides_empty_list(self):
-        stage = _stage(provides=[])
-        assert stage.provides == []
+    def test_provides_empty_dict(self):
+        stage = _stage(provides={})
+        assert stage.provides == {}
 
 
 # ============================================================================
@@ -204,7 +204,7 @@ class TestBenchmarkGatherValidation:
         """Gather referencing a valid provides label should pass."""
         data_stage = _stage(
             id="data",
-            provides=["dataset"],
+            provides={"dataset": "data.raw"},
             outputs=[_iofile(id="data.raw", path="data.json")],
         )
         gather_stage = _stage(
@@ -232,7 +232,7 @@ class TestBenchmarkGatherValidation:
         """Gather stage with {something} in output path should fail."""
         data_stage = _stage(
             id="data",
-            provides=["dataset"],
+            provides={"dataset": "data.raw"},
             outputs=[_iofile(id="data.raw", path="data.json")],
         )
         gather_stage = _stage(
@@ -249,7 +249,7 @@ class TestBenchmarkGatherValidation:
         """Gather stage with no template variables should pass."""
         data_stage = _stage(
             id="data",
-            provides=["dataset"],
+            provides={"dataset": "data.raw"},
             outputs=[_iofile(id="data.raw", path="data.json")],
         )
         gather_stage = _stage(
@@ -265,13 +265,13 @@ class TestBenchmarkGatherValidation:
         methods1 = _stage(
             id="methods_fast",
             modules=[_module(id="M1")],
-            provides=["method"],
+            provides={"method": "methods_fast.result"},
             outputs=[_iofile(id="methods_fast.result", path="result.json")],
         )
         methods2 = _stage(
             id="methods_accurate",
             modules=[_module(id="M2")],
-            provides=["method"],
+            provides={"method": "methods_accurate.result"},
             outputs=[_iofile(id="methods_accurate.result", path="result.json")],
         )
         gather_stage = _stage(
@@ -288,7 +288,7 @@ class TestBenchmarkGatherValidation:
         """A stage can provide a label even if nothing gathers it."""
         stage = _stage(
             id="data",
-            provides=["dataset"],
+            provides={"dataset": "data.raw"},
             outputs=[_iofile(id="data.raw", path="data.json")],
         )
         benchmark = _benchmark(stages=[stage])
@@ -312,14 +312,14 @@ class TestGatherCoexistsWithRegularStages:
         """Benchmark with both regular map stages and a gather stage."""
         data_stage = _stage(
             id="data",
-            provides=["dataset"],
+            provides={"dataset": "data.raw"},
             outputs=[_iofile(id="data.raw", path="data.json")],
         )
         methods_stage = _stage(
             id="methods",
             modules=[_module(id="M1")],
             inputs=[InputCollection(entries=["data.raw"])],
-            provides=["method"],
+            provides={"method": "methods.result"},
             outputs=[_iofile(id="methods.result", path="result.json")],
         )
         gather_stage = _stage(
@@ -349,7 +349,7 @@ class TestGatherCoexistsWithRegularStages:
         """get_stage_implicit_inputs should skip GatherInput items."""
         data_stage = _stage(
             id="data",
-            provides=["dataset"],
+            provides={"dataset": "data.raw"},
             outputs=[_iofile(id="data.raw", path="data.json")],
         )
         gather_stage = _stage(
@@ -383,7 +383,7 @@ software_environments:
 stages:
   - id: data
     provides:
-      - dataset
+      dataset: data.raw
     modules:
       - id: D1
         software_environment: host
@@ -410,7 +410,7 @@ stages:
         assert len(benchmark.stages) == 2
 
         data_stage = benchmark.stages[0]
-        assert data_stage.provides == ["dataset"]
+        assert data_stage.provides == {"dataset": "data.raw"}
         assert not data_stage.is_gather_stage()
 
         summary_stage = benchmark.stages[1]
@@ -430,7 +430,7 @@ software_environments:
 stages:
   - id: data
     provides:
-      - dataset
+      dataset: data.raw
     modules:
       - id: D1
         software_environment: host
@@ -442,7 +442,7 @@ stages:
         path: data.json
 """
         benchmark = Benchmark.from_yaml(yaml_content)
-        assert benchmark.stages[0].provides == ["dataset"]
+        assert benchmark.stages[0].provides == {"dataset": "data.raw"}
         assert benchmark.get_provider_stages("dataset")[0].id == "data"
 
     def test_parse_multiple_providers_from_yaml(self):
@@ -457,7 +457,7 @@ software_environments:
 stages:
   - id: methods_fast
     provides:
-      - method
+      method: methods_fast.result
     modules:
       - id: M1
         software_environment: host
@@ -469,7 +469,7 @@ stages:
         path: fast_result.json
   - id: methods_slow
     provides:
-      - method
+      method: methods_slow.result
     modules:
       - id: M2
         software_environment: host
