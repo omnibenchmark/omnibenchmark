@@ -93,15 +93,13 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
 )
 @click.option(
     "--telemetry",
-    type=click.Choice(["json"]),
-    default=None,
-    help="Output OTLP telemetry as JSON Lines. Written to <out_dir>/telemetry.jsonl by default.",
-)
-@click.option(
-    "--telemetry-output",
-    type=click.Path(),
-    default=None,
-    help="Write telemetry to this file instead of <out_dir>/telemetry.jsonl.",
+    is_flag=True,
+    default=False,
+    help=(
+        "Emit OTLP telemetry to <out_dir>/telemetry.jsonl and stream it to the "
+        "gRPC endpoint set in [telemetry] endpoint (default: localhost:4317). "
+        "Requires the telemetry extras (pip install omnibenchmark[telemetry])."
+    ),
 )
 @click.option(
     "-m",
@@ -128,7 +126,6 @@ def run(
     dirty,
     dev,
     telemetry,
-    telemetry_output,
     module_filter,
     snakemake_args,
 ):
@@ -185,7 +182,6 @@ def run(
         dirty=dirty,
         dev=dev,
         telemetry=telemetry,
-        telemetry_output=telemetry_output,
         module_filter=module_filter,
         snakemake_args=list(snakemake_args),
     )
@@ -200,8 +196,7 @@ def _run_benchmark(
     debug,
     dirty,
     dev=False,
-    telemetry=None,
-    telemetry_output=None,
+    telemetry=False,
     module_filter=None,
     snakemake_args=None,
 ):
@@ -237,16 +232,93 @@ def _run_benchmark(
 
     # Setup telemetry emitter early so pre-snakemake phases are traced
     telemetry_emitter = None
-    if telemetry == "json":
+    telemetry_endpoint = None
+    telemetry_path = None
+    if telemetry:
+        from omnibenchmark.config import get_telemetry_endpoint
         from omnibenchmark.telemetry import TelemetryEmitter
 
-        if telemetry_output:
-            telemetry_path = Path(telemetry_output)
-            telemetry_path.parent.mkdir(parents=True, exist_ok=True)
-        else:
-            out_dir_path.mkdir(parents=True, exist_ok=True)
-            telemetry_path = out_dir_path / "telemetry.jsonl"
+        out_dir_path.mkdir(parents=True, exist_ok=True)
+        telemetry_path = out_dir_path / "telemetry.jsonl"
         telemetry_emitter = TelemetryEmitter(output=telemetry_path)
+        telemetry_endpoint = get_telemetry_endpoint()
+
+    # If an endpoint is given, stream telemetry.jsonl to it in a background thread
+    _relay_thread = None
+    _relay_stop = None
+    if telemetry_endpoint and telemetry_emitter:
+        import threading
+
+        try:
+            import importlib.util as _ilu
+
+            _relay_script = (
+                Path(__file__).parent.parent.parent / "scripts" / "telemetry-relay.py"
+            )
+            _spec = _ilu.spec_from_file_location("telemetry_relay", _relay_script)
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            TelemetryRelay = _mod.TelemetryRelay
+        except Exception as _e:
+            logger.warning(
+                f"Could not load telemetry relay (install opentelemetry-proto grpcio): {_e}"
+            )
+            TelemetryRelay = None
+
+        if TelemetryRelay is not None:
+            import json as _json
+            import socket as _socket
+
+            _host, _port_str = telemetry_endpoint.rsplit(":", 1)
+            try:
+                with _socket.create_connection((_host, int(_port_str)), timeout=2):
+                    pass
+            except OSError:
+                log_error_and_quit(
+                    logger,
+                    f"Telemetry endpoint {telemetry_endpoint} is not reachable. "
+                    "Start the dashboard first (scripts/run_dashboard.sh) or disable --telemetry.",
+                )
+                return
+
+            _relay_stop = threading.Event()
+
+            def _stream_to_endpoint(path, endpoint, stop_event):
+                relay = TelemetryRelay(endpoint=endpoint)
+                try:
+                    with open(path, "r") as fh:
+                        while not stop_event.is_set():
+                            line = fh.readline()
+                            if not line:
+                                stop_event.wait(timeout=0.1)
+                                continue
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                relay.send(_json.loads(line))
+                            except Exception:
+                                pass
+                    # Drain any remaining lines after stop
+                    for line in fh:
+                        line = line.strip()
+                        if line:
+                            try:
+                                relay.send(_json.loads(line))
+                            except Exception:
+                                pass
+                finally:
+                    relay.close()
+
+            # Wait for the file to exist (emitter creates it lazily)
+            _relay_thread = threading.Thread(
+                target=_stream_to_endpoint,
+                args=(telemetry_path, telemetry_endpoint, _relay_stop),
+                daemon=True,
+                name="telemetry-relay",
+            )
+            _relay_thread.start()
+            logger.info(f"Streaming telemetry to {telemetry_endpoint}")
 
     # Step 1: Populate git cache (fetch all repos)
     resolution_start_ns = int(time.time() * 1_000_000_000)
@@ -304,17 +376,23 @@ def _run_benchmark(
         sys.exit(0)
 
     # Step 3: Run snakemake
-    _run_snakemake(
-        out_dir=out_dir_path,
-        cores=cores,
-        continue_on_error=continue_on_error,
-        software_backend=b.get_benchmark_software_backend(),
-        debug=debug,
-        telemetry_emitter=telemetry_emitter,
-        benchmark=b,
-        resolved_nodes=resolved_nodes,
-        extra_snakemake_args=snakemake_args or [],
-    )
+    try:
+        _run_snakemake(
+            out_dir=out_dir_path,
+            cores=cores,
+            continue_on_error=continue_on_error,
+            software_backend=b.get_benchmark_software_backend(),
+            debug=debug,
+            telemetry_emitter=telemetry_emitter,
+            benchmark=b,
+            resolved_nodes=resolved_nodes,
+            extra_snakemake_args=snakemake_args or [],
+        )
+    finally:
+        if _relay_stop is not None:
+            _relay_stop.set()
+        if _relay_thread is not None:
+            _relay_thread.join(timeout=5)
 
 
 def _read_rule_log(out_dir: Path, rule_name: str) -> Optional[str]:

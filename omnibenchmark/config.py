@@ -27,7 +27,10 @@ default_cfg = {
         "datasets": f"~/{APP_NAME}/datasets",
         "git_modules": f".{APP_NAME}/git",  # Legacy: relative path
         "git_cache": os.path.join(xdg_cache_home, APP_NAME, "git"),  # New: XDG cache
-    }
+    },
+    "telemetry": {
+        "endpoint": "localhost:4317",
+    },
 }
 
 bench_dir = os.path.join(xdg_bench_home, APP_NAME)
@@ -240,6 +243,21 @@ def get_temp_prefix() -> str:
         username = str(os.getuid()) if hasattr(os, "getuid") else "unknown"
 
     return f"omnibenchmark_{username}_"
+
+
+def get_telemetry_endpoint() -> str:
+    """
+    Get the configured OTLP gRPC endpoint for telemetry streaming.
+
+    Reads [telemetry] endpoint from the config file.
+    Default: localhost:4317 (Aspire Dashboard default port).
+
+    To configure, add to ~/.config/omnibenchmark/omnibenchmark.cfg:
+
+        [telemetry]
+        endpoint = localhost:4317
+    """
+    return config.get("telemetry", "endpoint", default_cfg["telemetry"]["endpoint"])
 
 
 def get_git_cache_dir() -> Path:

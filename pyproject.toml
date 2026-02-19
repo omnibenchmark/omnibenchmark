@@ -64,6 +64,7 @@ slurm = [
     "pandas",  # Required by snakemake-executor-plugin-slurm
 ]
 export = ["pandas"]
+telemetry = ["opentelemetry-proto", "grpcio"]
 dev = ["ipython", "pre-commit", "ruff", "typing-extensions", "isort", "pyright"]
 test = [
     "pytest-cov>=4.1.0",

@@ -4952,8 +4952,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: omnibenchmark
-  version: 0.4.0.post19+g4d4bdce5c.d20260219
-  sha256: 7fe93f3cbceaa8e3bc4fb0b1ad16ab8a34a66b5dec5b1389a80aa49167858de2
+  version: 0.4.0.post23+g1ba5711af.d20260219
+  sha256: 74584030d535a66b1c636f71f2d63dd551c76f4b2b71eceb0a8d8ba3e0e9b7f9
   requires_dist:
   - click>=8.1.7
   - python-dateutil>=2.9.0.post0
@@ -4978,6 +4978,8 @@ packages:
   - snakemake-executor-plugin-slurm>=1.4.0,<2.0.0 ; extra == 'slurm'
   - pandas ; extra == 'slurm'
   - pandas ; extra == 'export'
+  - opentelemetry-proto ; extra == 'telemetry'
+  - grpcio ; extra == 'telemetry'
   - ipython ; extra == 'dev'
   - pre-commit ; extra == 'dev'
   - ruff ; extra == 'dev'
