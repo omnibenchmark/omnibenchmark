@@ -4952,8 +4952,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: omnibenchmark
-  version: 0.4.0rc2.post30+dirty
-  sha256: 21e04379f065dd82ef11f5accd9b66e414b972c1852fbda5c4794650ff4fbd2d
+  version: 0.4.0.post19+g4d4bdce5c.d20260219
+  sha256: 7fe93f3cbceaa8e3bc4fb0b1ad16ab8a34a66b5dec5b1389a80aa49167858de2
   requires_dist:
   - click>=8.1.7
   - python-dateutil>=2.9.0.post0
