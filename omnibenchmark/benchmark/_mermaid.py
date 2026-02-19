@@ -96,21 +96,11 @@ class MermaidDiagramGenerator:
                 for paramset in range(len(params)):
                     mylist = []
                     for key, vals in params[paramset].items():
-                        #print(type(vals))
                         val_str = str(vals)
                         if isinstance(vals, list):
                             val_str = ",".join(str(v) for v in vals)
-                        # if isinstance(vals, list):
-                        #     if len(vals) > 3:
-                        #         val_str = str(vals[0]) + ",..[" + str(len(vals)-2) + "]..," + str(vals[len(vals)-1])
-                        #     else:
-                        #         val_str = ",".join(str(v) for v in vals)
                         mylist.append(key + ":" + val_str)
-                        print("+++++++++++", key)
-                        print("-----------", val_str)
                     comp_str = " ".join(mylist)
-                    print("-=-=-=-=-=-=-=-=-")
-                    print(comp_str)
                     paramset_node = f"{module_id}_paramset{paramset}"
                     subgraph_lines.append(f"\t\t{paramset_node}[{comp_str}]")
 
@@ -132,14 +122,11 @@ class MermaidDiagramGenerator:
         module_id_params_dict = {}
 
         for stage_id, stage in self.model.get_stages().items():
-            #print("STAGE_ID:-------", stage_id)
             for module_id, module in self.model.get_modules_by_stage(stage).items():
                 module_parameters = self.model.get_module_parameters(module, compact_params)
-                #print("MODULE:----------", module)
                 if module_parameters:
                     module_id_params_dict[module_id] = module_parameters
 
-        #print("MODULE_ID_PARAMS_DICT:----------", module_id_params_dict)
         return module_id_params_dict
 
     def _get_nodes_by_module_id(self, module_id: str) -> List:
