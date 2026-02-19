@@ -32,6 +32,5 @@ Usage:
 
 from omnibenchmark.telemetry.emitter import TelemetryEmitter
 from omnibenchmark.telemetry.events import SpanStatus
-from omnibenchmark.telemetry.spans import SpanBuilder
 
-__all__ = ["TelemetryEmitter", "SpanBuilder", "SpanStatus"]
+__all__ = ["TelemetryEmitter", "SpanStatus"]
