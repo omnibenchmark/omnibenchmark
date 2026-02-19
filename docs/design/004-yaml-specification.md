@@ -510,13 +510,17 @@ The pipeline has two execution patterns:
 - **Map stages** (`stages`): each module runs once per input combination (cartesian product). First-class, composable.
 - **Reduce/gather stages** (`metric_collectors`): a module runs once and receives *all* outputs from referenced stages. Second-class, not composable, not chainable.
 
-Gather stages generalise the reduce pattern: any stage can gather all outputs from any set of provider stages, and gather stage outputs participate in the DAG like regular stage outputs.
+The fundamental semantic difference is this: a map stage produces one output *per upstream combination*, so Snakemake can express it as a parameterised rule. A reduce stage must wait for *all* upstream combinations to complete before it can run — it cannot be expressed as a per-combination rule, because there is no single upstream path to depend on; there is a collection of paths. The legacy `metric_collectors` mechanism handles this case but in a dead-end way: its outputs do not re-enter the DAG and cannot be chained.
+
+Gather stages generalise the reduce pattern: any stage can gather all outputs from any set of provider stages, and gather stage outputs participate in the DAG like regular stage outputs. This makes reduce composable with further map or reduce steps.
+
+**Why `provides` is needed.** A stage may declare multiple outputs (e.g. `data.raw` and `data.metadata`). When a downstream stage gathers from that stage, it must name *which* output to collect — referencing the stage ID alone is ambiguous. `provides` is the mechanism that binds a human-readable label to a specific output ID, and that label is what gather consumers reference. This also decouples the gather contract from internal output naming.
 
 ### 7.2 New YAML Keywords
 
 Two new keywords extend the stage model:
 
-- **`provides: {label: output_id, ...}`** on a stage — a map from label name to the output ID that satisfies it. Downstream stages can `gather` by label, and downstream map stages get `{label}` as a path template variable resolving to the provider's module ID.
+- **`provides: {label: output_id, ...}`** on a stage — a map from label name to the output ID that satisfies it. Downstream stages can `gather` by label, and downstream map stages get `{label}` as a path template variable resolving to the provider's module ID. A scalar string shorthand (`provides: label`) is planned for stages with exactly one output (see §7.10).
 - **`gather: label`** as an entry in a stage's `inputs` list — collects the declared output (by output_id) from every resolved node of all stages that `provides` that label.
 
 ```yaml
@@ -570,13 +574,13 @@ stages:
 
 `provides: {label: output_id}` on a stage has two roles:
 
-**Role 1: Gather contract.** Any downstream stage with `gather: label` in its inputs collects the specified output path (by `output_id`) from every resolved node of all stages providing that label. Only the named output is gathered — if a stage has multiple outputs, only the one declared in `provides` is exposed to gatherers.
+**Role 1: Gather contract.** Any downstream stage with `gather: label` in its inputs collects the specified output path (by `output_id`) from every resolved node of all stages providing that label. Only the named output is gathered — if a stage has multiple outputs, only the one declared in `provides` is exposed to gatherers. This is the mechanism that resolves the multi-output ambiguity: rather than naming a stage, gather consumers name a label, and the label is bound to a specific output ID by the provider.
 
-**Role 2: Template variable.** Any downstream map stage that transitively depends on a providing stage gets `{label}` as a template variable in its output paths. The variable resolves to the module ID of the ancestor that provided that label. For the providing stage itself, `{label}` resolves to its own module ID (self-reference).
+**Role 2: Template variable.** Any downstream map stage that transitively depends on a providing stage gets `{label}` as a template variable in its output paths. The variable resolves to the module ID of the ancestor that provided that label. For the providing stage itself, `{label}` resolves to its own module ID (self-reference). This is how meaningful, human-readable path components (e.g. `D1_M2_result.csv`) are constructed without hardcoding wildcard names: each `provides` label becomes one path dimension, and its value is always the module ID of the stage that introduced that dimension.
 
 `provides` labels live in a separate namespace from output IDs. A stage can have both `provides: {dataset: data.raw}` and `outputs: [{id: dataset.raw, ...}]` without conflict.
 
-Multiple stages can provide the same label. Map stages still reference specific output IDs via `inputs:`; the `provides` label is only used for `gather:` and template variable propagation.
+Multiple stages can provide the same label — this is the normal case when several method stages all provide `method`. Map stages still reference specific output IDs via `inputs:`; the `provides` label is only used for `gather:` and template variable propagation.
 
 ### 7.4 Semantics of `gather:`
 
@@ -589,7 +593,7 @@ Multiple stages can provide the same label. Map stages still reference specific 
 
 **Constraints:**
 - A stage with `gather:` inputs cannot also have regular `inputs:` (either map or gather, not both)
-- A gather stage's output path must not contain provides-derived template variables (it produces a single file per module × params combination)
+- A gather stage's output path must not contain provides-derived template variables (see §7.6 for the reason — gather outputs are root-relative and there is no single upstream combination to inherit a label value from)
 - A gather stage can have multiple modules and parameters; each combination produces one gather rule that receives all upstream outputs
 
 ### 7.5 Composability
@@ -649,6 +653,8 @@ rule summary_S1_default:
 ```
 
 The `benchmark:` directive is omitted for gather nodes (same as existing `metric_collectors`).
+
+**Output path rooting.** Map stage output paths are nested under the accumulated path of their upstream inputs — each stage adds its own `<stage_id>/<module_id>/<param_id>/` segment on top of the parent path. Gather stages break this nesting: their output does not belong under any single upstream combination's subtree (it is a reduction across all of them), so gather output paths are always **root-relative**, starting fresh from `<stage_id>/<module_id>/<param_id>/`. This is why gather output paths cannot contain provides-derived template variables — there is no single ancestor path to inherit a label value from, and embedding e.g. `{dataset}` in a gather output path would be undefined.
 
 ### 7.7 Output Path Templates
 
@@ -750,8 +756,30 @@ stages:
 | Real toposort | `graphlib.TopologicalSorter` for arbitrary DAG shapes | Planned |
 | `expand_output_path()` deprecation | Remove legacy path injection | Planned |
 | Partial collapse | `gather: method, over: [method]` — collapse one dim, keep others | Planned |
-| Scoped provides | `provides: [{method: output_id}]` — map label to specific output | Planned |
 | Mixed map+gather | Same stage maps one dimension, gathers another | Planned |
+| `provides`/`needs` as cartesian filter | See below | Planned |
+| `provides` scalar shorthand | `provides: label` as sugar for `provides: {label: <sole output id>}` when stage has exactly one output | Planned |
+
+**`provides` scalar shorthand.**
+
+When a stage declares exactly one output, the full map form is redundant:
+
+```yaml
+# Full form — always valid
+provides:
+  method: methods_fast.result
+
+# Planned shorthand — only valid when stage has exactly one output
+provides: method
+```
+
+The scalar is unambiguous: there is only one output ID to bind to, so the parser can resolve it automatically. This is purely syntactic sugar; the semantics are identical to the map form. A list shorthand (`provides: [method]`) is intentionally *not* planned — a list implies the binding could grow, which would require the map form anyway.
+
+**`provides`/`needs` as an alternative to full cartesian expansion.**
+
+Currently, all map stages that share a dependency chain are fully expanded into a cartesian product: every dataset × every method × every metric. The only escape hatch is `exclude:` on individual modules.
+
+`provides` labels open a path to a more explicit contract: a downstream stage could declare `needs: {method: fast}` to depend only on stages that provide the `method` label *and* match a tag. This would allow selective pairing — "metric M only applies to fast methods" — without enumerating exclusions. The `provides`/`needs` pair would replace the implicit "anything upstream that shares an output ID" wiring with an explicit, typed contract, reducing the cartesian product to only the declared combinations. This extension is a natural continuation of the label system already in place.
 
 ---
 
