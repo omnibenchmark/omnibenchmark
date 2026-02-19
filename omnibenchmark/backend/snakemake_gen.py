@@ -810,6 +810,8 @@ def write_run_manifest(
 
     Fields written:
       run_id        – UUID4 string (from telemetry trace_id when available)
+      ob_version    – omnibenchmark package version (from importlib.metadata)
+      snakemake_cmd – exact snakemake argv list (patched in by _run_snakemake)
       timestamp     – ISO-8601 UTC timestamp of when the manifest was written
       hostname      – machine hostname
       platform      – OS platform string (e.g. "linux")
@@ -917,8 +919,16 @@ def write_run_manifest(
     except Exception:
         pass
 
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        ob_version = _pkg_version("omnibenchmark")
+    except Exception:
+        ob_version = None
+
     manifest = {
         "run_id": run_id,
+        "ob_version": ob_version,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "hostname": uname.node,
         "platform": sys.platform,

@@ -1,5 +1,6 @@
 """cli commands related to benchmark/module execution and start"""
 
+import logging
 import os
 import subprocess
 import sys
@@ -48,6 +49,7 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
 
 @click.command(
     name="run",
+    context_settings=dict(allow_extra_args=True, ignore_unknown_options=True),
 )
 @click.argument("benchmark", type=click.Path(exists=True))
 @click.option(
@@ -79,7 +81,13 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
 )
 @click.option(
     "--dirty",
-    help="Allow unpinned module references (branches, local paths). Use for development only.",
+    help="Allow local path module references with uncommitted changes. Use for development only.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
+    "--dev",
+    help="Allow unpinned branch references on remote repos (resolved to HEAD at run time). Use for development only.",
     is_flag=True,
     default=False,
 )
@@ -108,6 +116,7 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
         "Not supported for gather stages."
     ),
 )
+@click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
     ctx,
@@ -117,9 +126,11 @@ def run(
     continue_on_error,
     out_dir,
     dirty,
+    dev,
     telemetry,
     telemetry_output,
     module_filter,
+    snakemake_args,
 ):
     """Run a benchmark.
 
@@ -130,31 +141,38 @@ def run(
     2. Resolves modules and generates an explicit Snakefile
     3. Runs snakemake on the generated Snakefile
 
+    Any arguments after -- are passed directly to snakemake.
+
     Examples:
 
       ob run benchmark.yaml                    # Run full benchmark
       ob run benchmark.yaml --cores 8          # Run with 8 cores
       ob run benchmark.yaml --dry              # Generate Snakefile only
-      ob run benchmark.yaml --dirty            # Allow unpinned refs (dev mode)
+      ob run benchmark.yaml --dirty            # Allow local paths with uncommitted changes
+      ob run benchmark.yaml --dev              # Allow branch refs on remote repos
       ob run benchmark.yaml -m M1              # Dev mode: run only module M1
+      ob run benchmark.yaml -- --rerun-triggers mtime  # Pass flags to snakemake
+      ob run benchmark.yaml -- --forceall      # Force re-run all rules
     """
     ctx.ensure_object(dict)
 
     # Retrieve the global debug flag from the Click context
     debug = ctx.obj.get("DEBUG", False)
 
-    # Warn if using dirty mode
+    # Warn if using dirty or dev mode
     if dirty:
         logger.warning(
-            "Running in --dirty mode: unpinned module references allowed. "
+            "Running in --dirty mode: local paths with uncommitted changes allowed. "
             "Results may not be reproducible."
+        )
+    if dev:
+        logger.warning(
+            "--dev mode: branch refs allowed, results may not be reproducible."
         )
 
     if module_filter:
         logger.warning(
-            f"Running in module mode (-m {module_filter}): only the first "
-            "upstream input × parameter expansion will be used. "
-            "Results cover a single execution path only."
+            f"-m {module_filter}: single execution path, first param expansion only."
         )
 
     _run_benchmark(
@@ -165,9 +183,11 @@ def run(
         out_dir=out_dir,
         debug=debug,
         dirty=dirty,
+        dev=dev,
         telemetry=telemetry,
         telemetry_output=telemetry_output,
         module_filter=module_filter,
+        snakemake_args=list(snakemake_args),
     )
 
 
@@ -179,9 +199,11 @@ def _run_benchmark(
     out_dir,
     debug,
     dirty,
+    dev=False,
     telemetry=None,
     telemetry_output=None,
     module_filter=None,
+    snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
     import time
@@ -241,6 +263,7 @@ def _run_benchmark(
         quiet=use_clean_ui,
         start_time=start_time,
         dirty=dirty,
+        dev=dev,
         module_filter=module_filter,
     )
 
@@ -290,6 +313,7 @@ def _run_benchmark(
         telemetry_emitter=telemetry_emitter,
         benchmark=b,
         resolved_nodes=resolved_nodes,
+        extra_snakemake_args=snakemake_args or [],
     )
 
 
@@ -313,6 +337,7 @@ def _run_snakemake(
     telemetry_emitter=None,
     benchmark: "BenchmarkExecution" = None,
     resolved_nodes: list = None,
+    extra_snakemake_args: list = None,
 ):
     """
     Run snakemake on the generated Snakefile.
@@ -375,6 +400,22 @@ def _run_snakemake(
 
     if debug:
         cmd.extend(["--verbose", "--debug"])
+
+    # Append any extra flags passed after -- on the ob run command line
+    if extra_snakemake_args:
+        cmd.extend(extra_snakemake_args)
+
+    # Patch the manifest with the exact snakemake invocation (command is now fully built)
+    manifest_path = out_dir / ".metadata" / "manifest.json"
+    if manifest_path.exists():
+        try:
+            import json as _json
+
+            _manifest = _json.loads(manifest_path.read_text())
+            _manifest["snakemake_cmd"] = cmd
+            manifest_path.write_text(_json.dumps(_manifest, indent=2) + "\n")
+        except Exception:
+            pass
 
     # Change to output directory
     original_dir = os.getcwd()
@@ -601,16 +642,20 @@ def _run_snakemake(
                     f"[green]Completed {completed_jobs} jobs successfully[/green]"
                 )
             else:
-                summary_console.print(
-                    f"[red]Failed with {len(failed_rules)} error(s)[/red]"
-                )
                 if failed_rules:
+                    summary_console.print(
+                        f"[red]Failed with {len(failed_rules)} error(s)[/red]"
+                    )
                     summary_console.print()
                     summary_console.print("[red]Failed rules:[/red]")
                     for rule in failed_rules[:5]:  # Show first 5
                         summary_console.print(f"  [red]✗[/red] {rule}")
                     if len(failed_rules) > 5:
                         summary_console.print(f"  ... and {len(failed_rules) - 5} more")
+                else:
+                    summary_console.print(
+                        "[red]Snakemake failed before any rules ran[/red]"
+                    )
                 summary_console.print()
                 summary_console.print(f"[dim]See full log: {log_file}[/dim]")
 
@@ -719,21 +764,11 @@ def _populate_git_cache(
         if not quiet:
             logger.info(f"Caching {repo_url}")
 
-        if quiet:
-            import logging
-
-            dulwich_logger = logging.getLogger("dulwich")
-            old_level = dulwich_logger.level
-            dulwich_logger.setLevel(logging.ERROR)
-
         try:
             get_or_update_cached_repo(repo_url, cache_dir)
             return (repo_url, True, None)
         except Exception as e:
             return (repo_url, False, str(e))
-        finally:
-            if quiet:
-                dulwich_logger.setLevel(old_level)
 
     with ThreadPoolExecutor(max_workers=cores) as executor:
         futures = {
@@ -967,6 +1002,7 @@ def _generate_explicit_snakefile(
     quiet: bool = False,
     start_time: float = None,
     dirty: bool = False,
+    dev: bool = False,
     module_filter: Optional[str] = None,
 ):
     """
@@ -1060,6 +1096,7 @@ def _generate_explicit_snakefile(
                     module_id=module_id,
                     software_environment_id=software_env_id,
                     dirty=dirty,
+                    dev=dev,
                 )
                 for warning in w:
                     module_warnings.append((module_id, str(warning.message)))
@@ -1288,14 +1325,27 @@ def _generate_explicit_snakefile(
                     logger.error(f"      Failed to resolve {module_id}: {e}")
                     import traceback
 
-                    if logger.level <= 10:
+                    if logger.isEnabledFor(logging.DEBUG):
                         traceback.print_exc()
 
             previous_stage_nodes = current_stage_nodes
             continue
 
         # === Regular (map) stage expansion ===
-        for module in stage.modules:
+        # In module-filter mode, determine which modules to expand for this stage:
+        #   - target stage: only the named module
+        #   - ancestor stages: only the first module (provides a single upstream path)
+        if module_filter:
+            is_target_stage = stage.id == target_stage.id
+            if is_target_stage:
+                modules_to_expand = [m for m in stage.modules if m.id == module_filter]
+            else:
+                # Keep first resolvable module only
+                modules_to_expand = stage.modules[:1]
+        else:
+            modules_to_expand = stage.modules
+
+        for module in modules_to_expand:
             module_id = module.id
 
             try:
@@ -1487,17 +1537,30 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info(f"Created {len(resolved_nodes)} nodes")
 
-    # Resolve metric collectors as regular nodes
-    collector_nodes = resolve_metric_collectors(
-        metric_collectors=benchmark.model.get_metric_collectors(),
-        resolved_nodes=resolved_nodes,
-        benchmark=benchmark.model,
-        resolver=resolver,
-        quiet=quiet,
-        dirty=dirty,
-    )
+    # Resolve metric collectors as regular nodes (skip in -m module mode)
+    if not module_filter:
+        try:
+            collector_nodes = resolve_metric_collectors(
+                metric_collectors=benchmark.model.get_metric_collectors(),
+                resolved_nodes=resolved_nodes,
+                benchmark=benchmark.model,
+                resolver=resolver,
+                quiet=quiet,
+                dirty=dirty,
+                dev=dev,
+            )
+        except RuntimeError as e:
+            if quiet:
+                progress.console.print()
+                progress.console.print(
+                    f"[bold red]Collector resolution failed:[/bold red] {e}"
+                )
+                progress.console.print()
+            else:
+                logger.error(f"Collector resolution failed: {e}")
+            sys.exit(1)
 
-    resolved_nodes.extend(collector_nodes)
+        resolved_nodes.extend(collector_nodes)
 
     # Generate Snakefile
     snakefile_path = out_dir / "Snakefile"

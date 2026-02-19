@@ -90,6 +90,7 @@ Migration:
 """
 
 import logging
+import os
 import re
 import shutil
 import threading
@@ -103,6 +104,12 @@ from dulwich.errors import NotGitRepository
 from omnibenchmark.config import get_git_cache_dir
 
 logger = logging.getLogger(__name__)
+
+# Dulwich writes clone/fetch progress directly to streams, bypassing Python
+# logging.  Redirect both stdout and stderr to /dev/null so progress lines
+# ("Enumerating objects", "copied N pack entries", etc.) don't leak to the
+# user's terminal.
+_DEVNULL = open(os.devnull, "wb")
 
 
 def is_local_path(url: str) -> bool:
@@ -313,7 +320,7 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
             logging.info(f"Updating cached repository at {repo_cache_dir}")
             # Fetch all updates from remote
             # Note: porcelain.fetch by default fetches all refs
-            porcelain.fetch(repo, repo_url)
+            porcelain.fetch(repo, repo_url, errstream=_DEVNULL, outstream=_DEVNULL)
             return repo_cache_dir
         except (NotGitRepository, Exception) as e:
             logging.warning(f"Cached repo appears corrupt: {e}. Re-cloning.")
@@ -330,6 +337,8 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
             target=str(repo_cache_dir),
             checkout=True,  # Checkout default branch to fetch all objects
             bare=False,
+            errstream=_DEVNULL,
+            outstream=_DEVNULL,
         )
         return repo_cache_dir
     except Exception as e:
@@ -583,7 +592,9 @@ def describe_cache(
             if fetch and remote_url != "unknown":
                 try:
                     logging.info(f"Fetching updates for {repo_rel_path}...")
-                    porcelain.fetch(repo, remote_url)
+                    porcelain.fetch(
+                        repo, remote_url, errstream=_DEVNULL, outstream=_DEVNULL
+                    )
 
                     # Get remote HEAD
                     client, path = get_transport_and_path(remote_url)

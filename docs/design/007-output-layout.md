@@ -115,6 +115,8 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 ```json
 {
   "run_id": "550e8400-e29b-41d4-a716-446655440000",
+  "ob_version": "0.4.0.post19+g4d4bdce5c.d20260219",
+  "snakemake_cmd": ["snakemake", "--snakefile", "Snakefile", "--cores", "8", "--use-conda"],
   "timestamp": "2026-02-19T14:30:00.123456+00:00",
   "hostname": "compute-node-07",
   "platform": "linux",
@@ -136,6 +138,8 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 | Field | Type | Description |
 |-------|------|-------------|
 | `run_id` | string (UUID4) | Unique identifier for this invocation. Matches the OTLP `trace_id` (hex, no dashes) in `telemetry.jsonl` when telemetry is active. |
+| `ob_version` | string or null | `omnibenchmark` package version from `importlib.metadata`. Includes git commit and date for development installs (e.g. `0.4.0.post19+g4d4bdce5c.d20260219`). `null` if not installed as a package. |
+| `snakemake_cmd` | array of string or null | Exact snakemake argv list as passed to the subprocess (e.g. `["snakemake", "--snakefile", "Snakefile", "--cores", "8"]`). Patched into the manifest by `_run_snakemake` after the command is fully assembled. `null` (field absent) on `--dry` runs. |
 | `timestamp` | string (ISO-8601 UTC) | Wall-clock time when the manifest was written (early in `ob run`, before Snakemake starts). |
 | `hostname` | string | Hostname of the machine running `ob run`. |
 | `platform` | string | Python `sys.platform` value (e.g. `"linux"`, `"darwin"`, `"win32"`). |

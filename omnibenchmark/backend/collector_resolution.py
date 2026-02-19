@@ -44,6 +44,7 @@ def resolve_metric_collectors(
     resolver: ModuleResolver,
     quiet: bool = False,
     dirty: bool = False,
+    dev: bool = False,
 ) -> List[ResolvedNode]:
     """
     Convert metric collectors to regular ResolvedNode instances.
@@ -57,7 +58,8 @@ def resolve_metric_collectors(
         benchmark: Benchmark model (for looking up stages/outputs)
         resolver: ModuleResolver for resolving collector repositories
         quiet: If True, suppress info logging
-        dirty: If True, allow unpinned refs (branches)
+        dirty: If True, allow local paths with uncommitted changes
+        dev: If True, allow unpinned branch refs on remote repos
 
     Returns:
         List of ResolvedNode instances representing metric collectors
@@ -85,6 +87,7 @@ def resolve_metric_collectors(
                 resolver=resolver,
                 quiet=quiet,
                 dirty=dirty,
+                dev=dev,
             )
 
             # Expand parameters (same as regular modules)
@@ -142,7 +145,6 @@ def resolve_metric_collectors(
                     parameters=params,
                     inputs=inputs_dict,
                     outputs=outputs,
-                    dataset=None,  # Collectors don't have dataset wildcards
                     input_name_mapping=input_name_mapping,
                     benchmark_name=benchmark.get_name(),
                     benchmark_version=benchmark.get_version(),
@@ -159,11 +161,13 @@ def resolve_metric_collectors(
                     )
 
         except Exception as e:
-            logger.error(f"    Failed to resolve collector {collector.id}: {e}")
             import traceback
 
-            if logger.level <= 10:  # DEBUG level
+            if logger.isEnabledFor(logging.DEBUG):
                 traceback.print_exc()
+            raise RuntimeError(
+                f"Failed to resolve collector '{collector.id}': {e}"
+            ) from e
 
     if not quiet:
         logger.info(f"Created {len(collector_nodes)} collector node(s)")
@@ -176,6 +180,7 @@ def _resolve_collector_module(
     resolver: ModuleResolver,
     quiet: bool = False,
     dirty: bool = False,
+    dev: bool = False,
 ):
     """
     Resolve a metric collector's repository/module.
@@ -238,6 +243,7 @@ def _resolve_collector_module(
                 module_id=collector.id,
                 software_environment_id=collector.software_environment,
                 dirty=dirty,
+                dev=dev,
             )
         finally:
             # Restore logging if it was suppressed

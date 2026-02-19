@@ -108,6 +108,7 @@ class ModuleResolver:
         module_id: str,
         software_environment_id: str,
         dirty: bool = False,
+        dev: bool = False,
     ) -> ResolvedModule:
         """
         Resolve a module to a ResolvedModule with concrete paths and entrypoint.
@@ -122,8 +123,11 @@ class ModuleResolver:
             module: Module from benchmark definition
             module_id: Module identifier
             software_environment_id: Software environment reference
-            dirty: If True, allow working copies without commits (development mode)
-                  If False, enforce production mode with specific commits
+            dirty: If True, allow local working copies with uncommitted changes.
+                  Ignored for remote URLs.
+            dev: If True, allow unpinned branch refs on remote repos (resolved
+                 to their current HEAD commit at clone time). Does not affect
+                 local paths.
 
         Returns:
             ResolvedModule with concrete paths and entrypoint
@@ -144,23 +148,33 @@ class ModuleResolver:
             logger.info("        Environment: host (no environment file)")
         repo = module.repository
 
-        # In production mode (dirty=False), we need a specific commit
-        if not dirty and (not repo.commit or repo.commit.strip() == ""):
-            raise RuntimeError(
-                f"Module '{module_id}' has no commit specified. "
-                "This is required in production mode (dirty=False). "
-                "Use --dirty for development with working copies."
-            )
-
         # Check if the ref is pinned (commit hash or tag) vs unpinned (branch)
-        is_pinned = self._is_pinned_ref(repo.commit)
+        is_pinned = self._is_pinned_ref(repo.commit) if repo.commit else False
+        _is_local = is_local_path(repo.url)
 
-        if not dirty and not is_pinned:
-            raise RuntimeError(
-                f"Module '{module_id}' uses unpinned reference '{repo.commit}'. "
-                "For reproducibility, use a commit hash (e.g., 'abc1234') or tag (e.g., 'v1.0.0'). "
-                "Use --dirty to allow branch references during development."
-            )
+        if _is_local:
+            # Local path: require --dirty to allow uncommitted working copies.
+            # (Pinned refs are irrelevant for local paths — HEAD is used.)
+            if not dirty:
+                raise RuntimeError(
+                    f"Module '{module_id}' uses a local path '{repo.url}'. "
+                    "Local paths may contain uncommitted changes and are not "
+                    "reproducible. Use --dirty to allow local path references."
+                )
+        else:
+            # Remote URL: commit or pinned tag required unless --dev is set.
+            if not repo.commit or repo.commit.strip() == "":
+                raise RuntimeError(
+                    f"Module '{module_id}' has no commit specified. "
+                    "Specify a commit hash or tag for reproducibility, "
+                    "or use --dev to resolve branch references at run time."
+                )
+            if not is_pinned and not dev:
+                raise RuntimeError(
+                    f"Module '{module_id}' uses unpinned reference '{repo.commit}'. "
+                    "For reproducibility, use a commit hash (e.g., 'abc1234') or "
+                    "tag (e.g., 'v1.0.0'). Use --dev to allow branch references."
+                )
 
         logger.info(f"Resolving module '{module_id}': {repo.url}@{repo.commit}")
 
@@ -297,7 +311,7 @@ class ModuleResolver:
             resolved_environment=resolved_env_path,
             has_shebang=has_shebang,
             interpreter=interpreter,
-            dirty=dirty,
+            dirty=_is_local and dirty,
         )
 
         logger.debug(
