@@ -136,16 +136,9 @@ class ModuleResolver:
             RuntimeError: If resolution fails
         """
         # Resolve software environment first (prepare files/symlinks)
-        logger.info(f"      Resolving environment '{software_environment_id}'...")
         resolved_env_path = self._resolve_environment(
             software_environment_id, module_id
         )
-        if resolved_env_path:
-            logger.info(
-                f"        Environment: {resolved_env_path.backend_type.value} -> {resolved_env_path.reference}"
-            )
-        else:
-            logger.info("        Environment: host (no environment file)")
         repo = module.repository
 
         # Check if the ref is pinned (commit hash or tag) vs unpinned (branch)
@@ -176,7 +169,7 @@ class ModuleResolver:
                     "tag (e.g., 'v1.0.0'). Use --dev to allow branch references."
                 )
 
-        logger.info(f"Resolving module '{module_id}': {repo.url}@{repo.commit}")
+        logger.debug(f"Resolving module '{module_id}': {repo.url}@{repo.commit}")
 
         # Clone/copy to work directory
         # Work dir structure: work_base_dir/{repo_name}/{commit_hash}/
@@ -506,7 +499,7 @@ class ModuleResolver:
         # Copy the file
         try:
             shutil.copy2(source_path, dest_path)
-            logger.info(f"Copied conda environment: {source_path} -> {dest_path}")
+            logger.debug(f"Copied conda environment: {source_path} -> {dest_path}")
         except Exception as e:
             logger.error(f"Failed to copy conda environment file: {e}")
             return None

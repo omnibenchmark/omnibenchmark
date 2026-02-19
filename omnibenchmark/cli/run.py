@@ -299,14 +299,14 @@ def _run_benchmark(
                                 relay.send(_json.loads(line))
                             except Exception:
                                 pass
-                    # Drain any remaining lines after stop
-                    for line in fh:
-                        line = line.strip()
-                        if line:
-                            try:
-                                relay.send(_json.loads(line))
-                            except Exception:
-                                pass
+                        # Drain any remaining lines after stop
+                        for line in fh:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    relay.send(_json.loads(line))
+                                except Exception:
+                                    pass
                 finally:
                     relay.close()
 
