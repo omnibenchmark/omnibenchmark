@@ -102,6 +102,118 @@ from dulwich.errors import NotGitRepository
 
 from omnibenchmark.config import get_git_cache_dir
 
+logger = logging.getLogger(__name__)
+
+
+def is_local_path(url: str) -> bool:
+    """
+    Check if a repository URL is a local filesystem path rather than a remote URL.
+
+    Local paths include ".", "..", absolute paths, and file:// URLs.
+    These should bypass the git cache and be copied directly.
+
+    Args:
+        url: Repository URL or path
+
+    Returns:
+        True if this is a local filesystem path
+    """
+    url = url.strip()
+    if url in (".", "..") or url.startswith("./") or url.startswith("../"):
+        return True
+    if url.startswith("/"):
+        return True
+    if url.startswith("file://"):
+        return True
+    return False
+
+
+def resolve_local_path(url: str, benchmark_dir: Optional[Path] = None) -> Path:
+    """
+    Resolve a local repository URL to an absolute filesystem path.
+
+    Args:
+        url: Local path (e.g., ".", "/home/user/repo", "file:///path/to/repo")
+        benchmark_dir: Directory containing the benchmark YAML (for relative paths).
+                      Defaults to cwd.
+
+    Returns:
+        Resolved absolute Path
+    """
+    if url.startswith("file://"):
+        url = url[len("file://") :]
+    p = Path(url)
+    if not p.is_absolute():
+        base = benchmark_dir or Path.cwd()
+        p = base / p
+    return p.resolve()
+
+
+def copy_local_to_work_dir(
+    local_path: Path,
+    work_dir: Path,
+) -> Tuple[Path, str]:
+    """
+    Copy a local repository to a work directory, resolving the current HEAD commit.
+
+    Only git-tracked files are copied. This avoids copying heavy untracked
+    directories (like .pixi/, out/, node_modules/) and prevents recursive
+    copies when the work_dir is inside the source tree.
+
+    Args:
+        local_path: Absolute path to the local repository
+        work_dir: Target work directory
+
+    Returns:
+        Tuple of (work_dir, resolved_commit_hash)
+
+    Raises:
+        RuntimeError: If the path is not a git repository or HEAD can't be resolved
+    """
+    if not local_path.is_dir():
+        raise RuntimeError(f"Local module path does not exist: {local_path}")
+
+    # Resolve HEAD commit from the local repo
+    try:
+        repo = porcelain.open_repo(str(local_path))
+        head_bytes = repo.head()
+        if len(head_bytes) == 20:
+            commit_hash = head_bytes.hex()
+        else:
+            commit_hash = head_bytes.decode("ascii")
+    except (NotGitRepository, Exception) as e:
+        raise RuntimeError(
+            f"Local path '{local_path}' is not a valid git repository: {e}"
+        )
+
+    # Get list of git-tracked files via the index (includes staged files).
+    # We copy their working-tree versions so that uncommitted edits are
+    # picked up in --dirty mode, while untracked dirs (out/, .pixi/, …)
+    # are excluded — which also prevents recursive copies when the
+    # work_dir lives inside the source tree.
+    try:
+        tracked_files = [path.decode("utf-8") for path in repo.open_index()]
+    except Exception as e:
+        raise RuntimeError(f"Failed to list tracked files in '{local_path}': {e}")
+
+    # Copy only tracked files to work directory
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(
+        f"Copying local module {local_path} ({len(tracked_files)} tracked files) to {work_dir}"
+    )
+    for rel_path in tracked_files:
+        src = local_path / rel_path
+        dst = work_dir / rel_path
+        if src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+
+    return work_dir, commit_hash
+
+
 # Global lock manager for repository checkouts
 # Each repo URL gets its own lock to prevent concurrent checkout conflicts
 _repo_locks = {}

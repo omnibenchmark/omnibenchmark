@@ -44,11 +44,16 @@ class TemplateContext:
     _MODULE_RE = re.compile(r"\{module\.([^}]+)\}")
     _PARAMS_RE = re.compile(r"\{params\.([^}]+)\}")
 
+    _UNRESOLVED_RE = re.compile(r"\{([^}]+)\}")
+
     def substitute(self, template: str, params=None) -> str:
         """Apply all template variables to *template*.
 
         Resolution order: provides → module attrs → params.
-        Unknown variables are left as-is.
+
+        Raises:
+            ValueError: If any ``{variable}`` placeholders remain unresolved
+                after all substitution passes.
         """
         if not template or "{" not in template:
             return template
@@ -77,6 +82,19 @@ class TemplateContext:
                     return match.group(0)
 
             result = self._PARAMS_RE.sub(_replace_params, result)
+
+        # Raise on any unresolved placeholders
+        unresolved = self._UNRESOLVED_RE.findall(result)
+        if unresolved:
+            available = sorted(
+                list(self.provides.keys())
+                + [f"module.{k}" for k in self.module_attrs]
+                + ([f"params.{k}" for k in params] if params else [])
+            )
+            raise ValueError(
+                f"Unresolved template variable(s) {{{', '.join(unresolved)}}} "
+                f"in '{template}'. Available: {', '.join(available)}"
+            )
 
         return result
 

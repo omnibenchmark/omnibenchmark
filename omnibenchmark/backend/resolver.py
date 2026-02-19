@@ -24,6 +24,11 @@ import configparser
 import yaml
 
 from omnibenchmark.git import clone_module_v2, get_or_update_cached_repo
+from omnibenchmark.git.cache import (
+    copy_local_to_work_dir,
+    is_local_path,
+    resolve_local_path,
+)
 from omnibenchmark.model import Module, SoftwareBackendEnum, SoftwareEnvironment
 from omnibenchmark.model.resolved import ResolvedModule, ResolvedEnvironment
 
@@ -159,55 +164,92 @@ class ModuleResolver:
 
         logger.info(f"Resolving module '{module_id}': {repo.url}@{repo.commit}")
 
-        # Clone and checkout to work directory
+        # Clone/copy to work directory
         # Work dir structure: work_base_dir/{repo_name}/{commit_hash}/
         # This allows multiple modules from the same repo at different commits
-        from omnibenchmark.git.cache import parse_repo_url
 
-        repo_path = parse_repo_url(repo.url)
-        # Extract just the repo name (last component) for shorter paths
-        # e.g., "github.com/user/repo" -> "repo"
-        repo_name = Path(repo_path).name
+        if is_local_path(repo.url):
+            # Local path: copy directly to .modules, bypassing git cache.
+            # Use 3-level structure: .modules/local/{repo_name}/{commit}
+            # to match the depth of remote modules (.modules/{repo_name}/{commit}).
+            local_path = resolve_local_path(repo.url, self.benchmark_dir)
+            repo_name = local_path.name
 
-        try:
-            # First, clone/checkout to get the resolved commit
-            # Use a temporary path based on the ref, then we'll know the actual commit
-            temp_ref = repo.commit[:12] if repo.commit else "working"
-            temp_work_dir = self.work_base_dir / repo_name / temp_ref
+            try:
+                # Resolve HEAD commit to check if we already have this version cached
+                from dulwich.repo import Repo as DulwichRepo
 
-            actual_work_dir, resolved_commit = clone_module_v2(
-                repository_url=repo.url,
-                ref=repo.commit,
-                work_dir=temp_work_dir,
-                cache_dir=self.cache_dir,
-            )
+                _local_repo = DulwichRepo(str(local_path))
+                _head = _local_repo.head()
+                resolved_commit = (
+                    _head.hex() if len(_head) == 20 else _head.decode("ascii")
+                )
+                commit_prefix = resolved_commit[:7]
+                final_work_dir = self.work_base_dir / repo_name / commit_prefix
 
-            # If the ref was a branch (dirty mode), the resolved_commit will be different
-            # Move to the correct location based on resolved commit
-            commit_prefix = resolved_commit[:7]
-            final_work_dir = self.work_base_dir / repo_name / commit_prefix
-
-            if actual_work_dir != final_work_dir and not final_work_dir.exists():
-                # Move to the correct location
-                import shutil
-
-                if actual_work_dir.exists():
-                    shutil.move(str(actual_work_dir), str(final_work_dir))
+                if final_work_dir.exists():
+                    # Already cached — skip the copy
+                    logger.info(f"  Module '{module_id}': using cached {commit_prefix}")
                     actual_work_dir = final_work_dir
-            elif final_work_dir.exists() and actual_work_dir != final_work_dir:
-                # Already exists at the correct location, remove temp
-                import shutil
+                else:
+                    temp_work_dir = self.work_base_dir / repo_name / "pending"
+                    actual_work_dir, resolved_commit = copy_local_to_work_dir(
+                        local_path=local_path,
+                        work_dir=temp_work_dir,
+                    )
 
-                if actual_work_dir.exists() and actual_work_dir != final_work_dir:
-                    shutil.rmtree(actual_work_dir, ignore_errors=True)
-                actual_work_dir = final_work_dir
-        except Exception as e:
-            logger.error(f"Failed to clone module '{module_id}': {e}")
-            # Log full traceback for debugging
-            import traceback
+                    # Rename to commit-based directory for consistency
+                    if actual_work_dir != final_work_dir:
+                        if actual_work_dir.exists():
+                            shutil.move(str(actual_work_dir), str(final_work_dir))
+                        actual_work_dir = final_work_dir
+            except Exception as e:
+                logger.error(f"Failed to copy local module '{module_id}': {e}")
+                import traceback
 
-            logger.debug(f"Full traceback:\n{traceback.format_exc()}")
-            raise RuntimeError(f"Failed to clone module '{module_id}': {e}")
+                logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+                raise RuntimeError(f"Failed to copy local module '{module_id}': {e}")
+        else:
+            # Remote URL: use two-tier git cache
+            from omnibenchmark.git.cache import parse_repo_url
+
+            repo_path = parse_repo_url(repo.url)
+            # Extract just the repo name (last component) for shorter paths
+            # e.g., "github.com/user/repo" -> "repo"
+            repo_name = Path(repo_path).name
+
+            try:
+                # First, clone/checkout to get the resolved commit
+                # Use a temporary path based on the ref, then we'll know the actual commit
+                temp_ref = repo.commit[:12] if repo.commit else "working"
+                temp_work_dir = self.work_base_dir / repo_name / temp_ref
+
+                actual_work_dir, resolved_commit = clone_module_v2(
+                    repository_url=repo.url,
+                    ref=repo.commit,
+                    work_dir=temp_work_dir,
+                    cache_dir=self.cache_dir,
+                )
+
+                # If the ref was a branch (dirty mode), the resolved_commit will be different
+                # Move to the correct location based on resolved commit
+                commit_prefix = resolved_commit[:7]
+                final_work_dir = self.work_base_dir / repo_name / commit_prefix
+
+                if actual_work_dir != final_work_dir and not final_work_dir.exists():
+                    if actual_work_dir.exists():
+                        shutil.move(str(actual_work_dir), str(final_work_dir))
+                        actual_work_dir = final_work_dir
+                elif final_work_dir.exists() and actual_work_dir != final_work_dir:
+                    if actual_work_dir.exists() and actual_work_dir != final_work_dir:
+                        shutil.rmtree(actual_work_dir, ignore_errors=True)
+                    actual_work_dir = final_work_dir
+            except Exception as e:
+                logger.error(f"Failed to clone module '{module_id}': {e}")
+                import traceback
+
+                logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+                raise RuntimeError(f"Failed to clone module '{module_id}': {e}")
 
         # Dereference entrypoint
         entrypoint_key = module.repository.entrypoint or "default"

@@ -10,6 +10,26 @@ if TYPE_CHECKING:
     from omnibenchmark.model.benchmark import Parameter
 
 
+def _resolve_param_references(param_dict: dict) -> None:
+    """Resolve intra-parameter ``{key}`` references in string values.
+
+    Modifies *param_dict* in place.  For every string value that contains
+    ``{other_key}`` where *other_key* is another key in the same dict, the
+    reference is replaced with ``str(value)`` of the referenced key.
+
+    This allows e.g. ``params_json: "params/{method}.json"`` to resolve
+    against ``method: "seurat_v5"`` in the same parameter set.
+    """
+    for key, value in param_dict.items():
+        if isinstance(value, str) and "{" in value:
+            try:
+                param_dict[key] = value.format(
+                    **{k: v for k, v in param_dict.items() if k != key}
+                )
+            except KeyError:
+                pass  # leave unresolved references as-is
+
+
 class Params:
     """
     Params is a data structure for workflow steps that provides ordered storage,
@@ -38,6 +58,10 @@ class Params:
             # Convert dict-like object to Params and compare
             return self == Params(other)
         return NotImplemented
+
+    def __contains__(self, key):
+        """Support ``key in params`` lookups."""
+        return key in self._params
 
     def __getitem__(self, key):
         """Allow dict-like access."""
@@ -129,10 +153,13 @@ class Params:
                     # Create a param dict with this combination
                     param_dict = dict(non_list_params)
                     param_dict.update(dict(zip(keys, combination)))
+                    _resolve_param_references(param_dict)
                     result.append(Params(param_dict))
             else:
                 # No lists, just use the params as-is
-                result.append(Params(non_list_params))
+                param_dict = dict(non_list_params)
+                _resolve_param_references(param_dict)
+                result.append(Params(param_dict))
 
         return result
 

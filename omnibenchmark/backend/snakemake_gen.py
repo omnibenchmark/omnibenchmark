@@ -275,7 +275,7 @@ class SnakemakeGenerator:
         f.write("        echo '=== Rule: {rule} ==='\n")
         f.write("        echo 'Started:' $(date -Iseconds)\n")
         f.write(
-            "        if [ -n \"$CONDA_PREFIX\" ]; then echo 'Conda env:' $CONDA_PREFIX; fi\n"
+            "        if [ -n \"${{CONDA_PREFIX:-}}\" ]; then echo 'Conda env:' $CONDA_PREFIX; fi\n"
         )
         f.write("        echo '---'\n")
 

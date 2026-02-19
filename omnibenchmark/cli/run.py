@@ -19,7 +19,7 @@ from omnibenchmark.benchmark.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.config import get_git_cache_dir
-from omnibenchmark.git import get_or_update_cached_repo
+from omnibenchmark.git import get_or_update_cached_repo, is_local_path
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.resolved import ResolvedNode, TemplateContext
 from omnibenchmark.model.validation import BenchmarkParseError
@@ -91,6 +91,19 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=None,
     help="Write telemetry to file instead of stdout. Allows Rich progress to remain active.",
 )
+@click.option(
+    "-m",
+    "--module",
+    "module_filter",
+    default=None,
+    type=str,
+    help=(
+        "Run only the sub-graph needed for a single module (development mode). "
+        "Prunes all stages after the target module's stage and keeps only the "
+        "first upstream input × parameter expansion for each module. "
+        "Not supported for gather stages."
+    ),
+)
 @click.pass_context
 def run(
     ctx,
@@ -102,6 +115,7 @@ def run(
     dirty,
     telemetry,
     telemetry_output,
+    module_filter,
 ):
     """Run a benchmark.
 
@@ -118,6 +132,7 @@ def run(
       ob run benchmark.yaml --cores 8          # Run with 8 cores
       ob run benchmark.yaml --dry              # Generate Snakefile only
       ob run benchmark.yaml --dirty            # Allow unpinned refs (dev mode)
+      ob run benchmark.yaml -m M1              # Dev mode: run only module M1
     """
     ctx.ensure_object(dict)
 
@@ -131,6 +146,13 @@ def run(
             "Results may not be reproducible."
         )
 
+    if module_filter:
+        logger.warning(
+            f"Running in module mode (-m {module_filter}): only the first "
+            "upstream input × parameter expansion will be used. "
+            "Results cover a single execution path only."
+        )
+
     _run_benchmark(
         benchmark_path=benchmark,
         cores=cores,
@@ -141,6 +163,7 @@ def run(
         dirty=dirty,
         telemetry=telemetry,
         telemetry_output=telemetry_output,
+        module_filter=module_filter,
     )
 
 
@@ -154,8 +177,9 @@ def _run_benchmark(
     dirty,
     telemetry=None,
     telemetry_output=None,
+    module_filter=None,
 ):
-    """Run a full benchmark."""
+    """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
     import time
 
     start_time = time.time()
@@ -221,6 +245,7 @@ def _run_benchmark(
         quiet=use_clean_ui,
         start_time=start_time,
         dirty=dirty,
+        module_filter=module_filter,
     )
 
     # Initialize telemetry with resolved nodes and emit resolution span
@@ -763,14 +788,14 @@ def _populate_git_cache(
 
     cache_dir = get_git_cache_dir()
 
-    # Extract unique repositories with their commits
+    # Extract unique repositories with their commits (skip local paths)
     repos = {}
     for stage in benchmark.model.stages:
         for module in stage.modules:
             if hasattr(module, "repository") and module.repository:
                 repo_url = module.repository.url
                 commit = module.repository.commit
-                if repo_url:
+                if repo_url and not is_local_path(repo_url):
                     repos[repo_url] = commit
 
     # Also include metric collector repositories
@@ -782,7 +807,7 @@ def _populate_git_cache(
             if hasattr(collector, "repository") and collector.repository:
                 repo_url = collector.repository.url
                 commit = collector.repository.commit
-                if repo_url:
+                if repo_url and not is_local_path(repo_url):
                     repos[repo_url] = commit
 
     if not repos:
@@ -924,12 +949,15 @@ def _build_template_context(
     stage,
     module_id: str,
     input_node=None,
+    params=None,
 ) -> TemplateContext:
     """Build a TemplateContext for a node during expansion.
 
     For entrypoints (no *input_node*): provides come from the stage's own
-    ``provides`` list.  ``dataset`` is always injected as the module's own ID
-    (entrypoints *are* the dataset).
+    ``provides`` list.  When the stage provides a label that also exists as
+    a parameter key, the parameter value is used instead of the module ID.
+    This lets ``{dataset}`` resolve to the actual parameter value (e.g.
+    ``sce_full_Zhengmix4eq``) rather than the module ID literal.
 
     For downstream map nodes: inherits the input node's provides (full
     ancestor chain) and adds the current stage's provides labels.
@@ -949,7 +977,10 @@ def _build_template_context(
         # Add own stage's provides labels
         if stage.provides:
             for label in stage.provides:
-                provides[label] = module_id
+                if params is not None and label in params:
+                    provides[label] = str(params[label])
+                else:
+                    provides[label] = module_id
 
         module_attrs["parent.id"] = input_node.module_id
         module_attrs["parent.stage"] = input_node.stage_id
@@ -957,11 +988,21 @@ def _build_template_context(
         # Entrypoint (or gather with no input_node)
         if stage.provides:
             for label in stage.provides:
-                provides[label] = module_id
+                # If the providing stage has a parameter with the same name
+                # as the label, use the parameter value. This allows
+                # path templates like "{dataset}.rds" to resolve to the
+                # actual parameter value rather than the module ID.
+                if params is not None and label in params:
+                    provides[label] = str(params[label])
+                else:
+                    provides[label] = module_id
 
         # Entrypoints define the dataset identity
         if not stage.is_gather_stage():
-            provides.setdefault("dataset", module_id)
+            if params is not None and "dataset" in params:
+                provides.setdefault("dataset", str(params["dataset"]))
+            else:
+                provides.setdefault("dataset", module_id)
 
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
@@ -1064,6 +1105,7 @@ def _generate_explicit_snakefile(
     quiet: bool = False,
     start_time: float = None,
     dirty: bool = False,
+    module_filter: Optional[str] = None,
 ):
     """
     Generate explicit Snakefile.
@@ -1081,6 +1123,9 @@ def _generate_explicit_snakefile(
         quiet: If True, use clean progress UI
         start_time: Start time for timing
         dirty: If True, allow unpinned refs (branches). If False, require pinned commits/tags.
+        module_filter: If set, prune DAG to the sub-graph needed for this single
+            module (its stage and all upstream stages). Within each stage only
+            the first input × parameter expansion is kept (see design/005).
     """
     from omnibenchmark.cli.progress import ProgressDisplay
     import time
@@ -1248,11 +1293,47 @@ def _generate_explicit_snakefile(
             logger.error(f"  {err}")
         sys.exit(1)
 
+    # --- Module-filter pruning (ob run -m <module_id>) ---
+    # Determine which stages to expand and whether to restrict to first expansion.
+    if module_filter:
+        # Find the stage that owns the target module
+        target_stage_idx = None
+        for idx, stage in enumerate(benchmark.model.stages):
+            if any(m.id == module_filter for m in stage.modules):
+                target_stage_idx = idx
+                break
+
+        if target_stage_idx is None:
+            logger.error(
+                f"Module '{module_filter}' not found in benchmark. "
+                f"Available modules: "
+                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
+            )
+            sys.exit(1)
+
+        target_stage = benchmark.model.stages[target_stage_idx]
+        if target_stage.is_gather_stage():
+            logger.error(
+                f"ob run -m is not supported for gather stages "
+                f"(stage '{target_stage.id}' is a gather stage). "
+                "See docs/design/005 for details and future work."
+            )
+            sys.exit(1)
+
+        stages_to_expand = benchmark.model.stages[: target_stage_idx + 1]
+        logger.info(
+            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
+            f"(up to and including '{target_stage.id}'), "
+            "first expansion only."
+        )
+    else:
+        stages_to_expand = benchmark.model.stages
+
     resolved_nodes = []
     output_to_nodes = {}
     previous_stage_nodes = []
 
-    for stage in benchmark.model.stages:
+    for stage in stages_to_expand:
         current_stage_nodes = []
 
         # === Gather stage expansion ===
@@ -1381,6 +1462,12 @@ def _generate_explicit_snakefile(
                 else:
                     node_combinations = [(None, params) for params in params_list]
 
+                # Module-filter mode: keep only the first input × param combination.
+                # This produces a minimal smoke-test path while preserving identical
+                # output paths to what a full run would generate for the same combo.
+                if module_filter:
+                    node_combinations = node_combinations[:1]
+
                 # Create a node for each combination
                 for input_node, params in node_combinations:
                     # Check if this combination should be excluded
@@ -1466,6 +1553,7 @@ def _generate_explicit_snakefile(
                         stage=stage,
                         module_id=module_id,
                         input_node=input_node,
+                        params=params,
                     )
 
                     # Build output paths

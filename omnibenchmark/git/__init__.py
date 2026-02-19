@@ -21,10 +21,13 @@ from .clone_legacy import clone_git_repo, clone_module
 # New cache-based system (dulwich-based with Go-style cache)
 from .cache import (
     clone_module_v2,
+    copy_local_to_work_dir,
+    is_local_path,
     parse_repo_url,
     get_or_update_cached_repo,
     checkout_to_work_dir,
     describe_cache,
+    resolve_local_path,
 )
 
 __all__ = [
@@ -33,8 +36,11 @@ __all__ = [
     "clone_module",
     # New (dulwich-based with Go-style cache) - RECOMMENDED
     "clone_module_v2",
+    "copy_local_to_work_dir",
+    "is_local_path",
     "parse_repo_url",
     "get_or_update_cached_repo",
     "checkout_to_work_dir",
     "describe_cache",
+    "resolve_local_path",
 ]
