@@ -107,6 +107,12 @@ class TelemetryEmitter:
             self._file_handle = self.output
             self._owns_handle = False
 
+    @property
+    def run_id(self) -> str:
+        """Return the run UUID (same as the OTLP trace_id, formatted as a standard UUID string)."""
+        t = self._trace_id  # 32-char hex
+        return f"{t[0:8]}-{t[8:12]}-{t[12:16]}-{t[16:20]}-{t[20:32]}"
+
     def close(self):
         """Close the output file if we own it."""
         if self._owns_handle and self._file_handle:

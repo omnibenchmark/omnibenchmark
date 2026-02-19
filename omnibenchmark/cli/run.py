@@ -13,7 +13,11 @@ from pydantic import ValidationError as PydanticValidationError
 
 from omnibenchmark.backend.collector_resolution import resolve_metric_collectors
 from omnibenchmark.backend.resolver import ModuleResolver
-from omnibenchmark.backend.snakemake_gen import SnakemakeGenerator, save_metadata
+from omnibenchmark.backend.snakemake_gen import (
+    SnakemakeGenerator,
+    save_metadata,
+    write_run_manifest,
+)
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
@@ -261,6 +265,10 @@ def _run_benchmark(
             start_time_ns=resolution_start_ns,
             end_time_ns=resolution_end_ns,
         )
+
+    # Write run manifest (run_id correlates with telemetry trace_id when enabled)
+    run_id = telemetry_emitter.run_id if telemetry_emitter else None
+    write_run_manifest(output_dir=out_dir_path, run_id=run_id)
 
     # If dry run, exit here
     if dry:
