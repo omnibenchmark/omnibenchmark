@@ -130,8 +130,6 @@ Telemetry requires the explicit Snakefile execution path. This is the only suppo
 | Span hierarchy (benchmark/stage/module/rule) | Working | Four levels, full trace_id correlation |
 | Per-rule stdout/stderr capture | Working | Via shell `tee` + log file |
 | `scripts/telemetry-relay.py` | Working | NDJSON → OTLP gRPC |
-| `SpanBuilder` class | Removed | Dead code deleted |
-| `use_telemetry_stdout` branch | Removed | Dead code deleted |
 | Automatic output location | Done | Defaults to `<out_dir>/telemetry.jsonl` |
 | Tests | Missing | No unit or integration tests |
 | YAML configuration | Missing | No benchmark-level telemetry config |

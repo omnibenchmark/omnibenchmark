@@ -30,9 +30,24 @@ Omnibenchmark uses the following standard configuration sections:
   - `MODULEPATH`: Path to module installations
   - `ROBOTPATH`: Path to easyconfigs repository
 
-- `dirs`: Contains paths for dataset storage and git module caching
+- `dirs`: Contains paths for dataset storage and git repository caching
   - `datasets`: Path to store benchmark datasets
-  - `git_modules`: Path to cache cloned git repositories (default: `.omnibenchmark/git`)
+  - `git_cache`: XDG-compliant cache directory for the two-tier git caching system (default: `~/.cache/omnibenchmark/git`). Full clones are kept here under `{host}/{org}/{repo}/`; lightweight work checkouts are placed under `.modules/{repo}/{commit}/` beside the benchmark.
+
+- `telemetry`: Controls OTLP telemetry streaming
+  - `endpoint`: gRPC endpoint of an OTLP-compatible collector (default: `localhost:4317`). Omnibenchmark streams structured traces and logs to this address during a benchmark run. Compatible receivers include the [.NET Aspire Dashboard](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/dashboard/overview), Jaeger, and any OpenTelemetry Collector.
+
+## Example Configuration
+
+```ini
+[dirs]
+# Override the XDG git cache location
+git_cache = /data/cache/omnibenchmark/git
+
+[telemetry]
+# OTLP gRPC endpoint — set to your collector's address
+endpoint = localhost:4317
+```
 
 ## Programmatic Access
 

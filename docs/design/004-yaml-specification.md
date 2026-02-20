@@ -3,10 +3,10 @@
 [![Status: Under Review](https://img.shields.io/badge/Status-Accepted-green.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 0.4](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: ben,
-**Date**: 2025-01-20
+**Authors**: ben
+**Date**: 2025-02-19
 **Status**: Under Review
-**Version**: 0.6
+**Version**: 0.4
 **Supersedes**: N/A
 **Reviewed-by**: TBD
 **Related Issues**: TBD
@@ -17,7 +17,7 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-01-20 | Initial specification for v0.4.0 | ben |
 | 0.2 | 2026-02-09 | Add named entrypoints (Section 3.5) | ben |
-| 0.3 | 2026-02-19 | Add gather stages and path templates (Section 7) | ben |
+| 0.3 | 2026-02-12 | Add gather stages and path templates (Section 7) | ben |
 | 0.4 | 2026-02-19 | Add resource allocation (Section 8) | ben |
 
 ## 1. Problem Statement
@@ -184,7 +184,7 @@ entrypoints:
 
 When a module's `repository` block in the benchmark plan omits the `entrypoint` field, the system uses the `default` key from the module's `omnibenchmark.yaml`. This preserves full backward compatibility.
 
-#### Named Entrypoints
+#### Named Entrypoints (0.5+)
 
 A benchmark plan can select a specific entrypoint by name. This allows a single repository to expose multiple scripts without requiring separate modules or multiple dispatch:
 
@@ -238,7 +238,7 @@ Modules MUST NOT declare these in their YAML configuration.
 #### Parameter Values
 
 - **String**: Passed directly (`evaluate: "1+1"` → `--evaluate 1+1`)
-- **List**: Joined with commas (`items: [a, b, c]` → `--items a,b,c`)
+- **List**: Disallowed, since lists are expanded into multiple arguments as parameter expansion.
 
 #### Wildcard-Based Resolution
 
@@ -274,7 +274,7 @@ outputs:
 ```
 
 - `id`: Used for referencing in downstream stages
-- `path`: Template with `{wildcard}` placeholders. Here, {dataset} is a special case, which is replaced with the module ID of the initial stage.
+- `path`: Template with `{wildcard}` placeholders. As of `0.4.0` {dataset} is treated as a special case, which is replaced with the module ID of the initial stage. In the future, {dataset} will be phased out in favor of more general rules.
 
 #### Input Declarations
 
@@ -498,7 +498,7 @@ Backends must support:
 
 ---
 
-## 7. Gather Stages (v0.3+)
+## 7. Gather Stages (v0.5+)
 
 > **Status:** Implemented (phases 1–6 complete as of 2026-02-08).
 > This section documents the `provides` / `gather` extension to the stage model.

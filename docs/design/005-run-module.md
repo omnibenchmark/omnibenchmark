@@ -4,7 +4,7 @@
 [![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
-**Date**: 2026-02-19
+**Date**: 2026-02-18
 **Status**: Draft
 **Version**: 0.1
 **Supersedes**: N/A
@@ -20,7 +20,7 @@
 ## 1. Problem Statement
 
 `ob run benchmark.yaml` always runs the full benchmark DAG: every stage, every
-module, every parameter expansion, every input combination. This is appropriate
+module, parameter expansion, and input combination. This is appropriate
 for production but wasteful during **module development**, where a developer
 wants to verify that a single module works correctly before the full benchmark
 is executed.
@@ -51,7 +51,7 @@ not even be possible if other modules or environments are unavailable locally.
 
 - Selecting *which* upstream data to use (see Future Work).
 - Automatically download missing upstream data from a remote source.
-- Running a module against *all* upstream combinations (use `ob run` for that).
+- Running a module against *all* upstream combinations (`ob run` should be used for that).
 - Cross-module comparison within a single invocation.
 - Gathering/aggregation stages when the target module belongs to a gather stage
   (not supported in v1 — the gather node requires all provider outputs to
@@ -69,7 +69,7 @@ ob run benchmark.yaml -m <module_id>
 
 `<module_id>` must exactly match the `id` field of a module declared in the
 benchmark YAML. The option is mutually exclusive with nothing (it can be
-combined with `--dry`, `--dirty`, `--cores`, etc.).
+combined with `--dry`, `--dirty`, `--dev`, `--cores`, etc.).
 
 ### 3.2 DAG Pruning Heuristic
 
@@ -88,7 +88,7 @@ outputs are not built.
 **Rationale**: The developer wants to verify their module, not its consumers.
 
 **Limitation**: If `S` is a gather stage (`stage.is_gather_stage() == True`)
-module-run mode is not supported and the command exits with an error. Gather
+module-run mode is not supported and the command should exit with an error. Gather
 nodes require *all* provider outputs to be present (they are the `rule all`
 target), so running a single gather module in isolation is not meaningful
 without a separate "bless a dataset" mechanism (see Future Work).
@@ -177,7 +177,7 @@ level.
   read and parse all rules. For large benchmarks this is slow. Also, rule names
   in the generated Snakefile are hashed node IDs — not user-friendly.
 - **Reason for rejection**: Compiler-level pruning is faster, more transparent,
-  and gives a smaller Snakefile for better debuggability.
+  and gives a smaller Snakefile for better debugging.
 
 ### Alternative 2: User-selected upstream combination
 
@@ -197,7 +197,7 @@ Instead of running upstream stages, synthesise placeholder inputs.
 - **Pros**: Fastest possible feedback; no upstream execution at all.
 - **Cons**: Module may behave differently with synthetic vs real inputs; harder
   to implement correctly.
-- **Reason for rejection**: Not representative enough to be useful.
+- **Reason for rejection**: Not representative enough to be useful. Additionally, this can be better supported when we land the validation feature (valid data ranges and types).
 
 ## 5. Implementation Plan
 
@@ -210,8 +210,7 @@ Instead of running upstream stages, synthesise placeholder inputs.
 ### Testing Strategy
 
 - Unit test: given a benchmark with 3 stages (data × 2, methods × 2,
-  metrics × 2), `run -m M1` produces exactly 3 nodes (data_D1, methods_M1, and
-  the single combined node).
+  metrics × 2), `run -m M1` produces exactly 2 rules (data_D1, methods_M1).
 - Integration test: generate Snakefile for module run, verify output paths match
   a full run's first combination.
 
@@ -235,9 +234,12 @@ stages:
 ```
 
 With a blessed dataset, `ob run -m` would automatically select the blessed
-upstream node rather than document-order-first. This decouples the "what to
-smoke-test against" decision from "which happens to appear first in the YAML",
-making the selection more intentional and maintainable.
+upstream node rather than document-order-first. This applies not only to initial
+stages (usually data), but also to subsequent stages (methods, metrics, etc., so
+that a blessed method can also be used for, e.g., the development of a metric
+module). This decouples the "what to smoke-test against" decision from "which
+happens to appear first in the YAML", making the selection more intentional and
+maintainable.
 
 ### 6.2 Multi-module run
 
@@ -248,7 +250,7 @@ shared upstream sub-graph once.
 
 To support `ob run -m <gather_module>`, the compiler would need to run all
 provider stages (with their first expansions) so the gather node has inputs.
-This is straightforward but was deferred to keep the initial implementation
+This is straightforward but is deferred to keep the initial implementation
 simple.
 
 ### 6.4 Cross-stage smoke test
