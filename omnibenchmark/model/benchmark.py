@@ -421,6 +421,15 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
     software_environment: str = Field(..., description="Software environment ID")
     parameters: Optional[List[Parameter]] = Field(None, description="Module parameters")
     exclude: Optional[List[str]] = Field(None, description="Paths to exclude")
+    requires: Optional[Dict[str, str]] = Field(
+        None,
+        description=(
+            "Explicit upstream plugs. Maps provides-label → module-id. "
+            "This module is wired only to the specified ancestor node for each "
+            "named label; the label resolves to the required value (not a wildcard) "
+            "in the output path template."
+        ),
+    )
     outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
     resources: Optional[Resources] = Field(
         None,

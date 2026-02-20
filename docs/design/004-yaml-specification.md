@@ -19,6 +19,7 @@
 | 0.2 | 2026-02-09 | Add named entrypoints (Section 3.5) | ben |
 | 0.3 | 2026-02-12 | Add gather stages and path templates (Section 7) | ben |
 | 0.4 | 2026-02-19 | Add resource allocation (Section 8) | ben |
+| 0.5 | 2026-02-20 | Add explicit plugs / requires (Section 9) | ben |
 
 ## 1. Problem Statement
 
@@ -935,3 +936,238 @@ metric_collectors:
       - id: plot
         path: "plot.html"
 ```
+
+---
+
+## 9. Explicit Plugs / `requires` (v0.5+)
+
+> **Status:** Planned.
+
+### 9.1 Motivation
+
+The default cartesian expansion wires every module to every upstream combination. This is the right default for most benchmarks, but some pipelines intentionally cover only a **subset** of the full product. A common case is a "one dimension varies at a time" design: a baseline all-default pipeline, plus one variant per stage where a single step is swapped out.
+
+Consider a four-stage pipeline (PCA → Harmony → Neighbors → Leiden) where each stage can run as either `scanpy` or `rapids`. The full product has 2⁴ = 16 combinations, but the benchmark only cares about 5:
+
+```
+(scanpy, scanpy, scanpy, scanpy)   ← baseline
+(rapids, scanpy, scanpy, scanpy)   ← swap PCA
+(scanpy, rapids, scanpy, scanpy)   ← swap Harmony
+(scanpy, scanpy, rapids, scanpy)   ← swap Neighbors
+(scanpy, scanpy, scanpy, rapids)   ← swap Leiden
+```
+
+The 11 remaining combinations are not meaningful and should not be executed. The existing `exclude:` mechanism can enumerate individual upstream values to skip, but it cannot express the intent — "this module is only valid when all other stages used their default" — in a concise, readable way. It also does not scale: adding a fifth stage doubles the exclusion list.
+
+`requires` solves this by letting a module declare **fixed upstream attachments**: the specific ancestor values it must be wired to. This is an *explicit plug* — the module is plugged into a concrete upstream node rather than expanded across all of them.
+
+### 9.2 Syntax
+
+`requires` is an optional field on a module. Its value is a map from `provides` label to module ID:
+
+```yaml
+modules:
+  - id: rapids
+    requires:
+      pca: scanpy          # plug into the scanpy node of the pca stage
+      harmony: scanpy      # plug into the scanpy node of the harmony stage
+```
+
+Multiple keys are ANDed: the module is only wired when all named labels resolve to the specified values.
+
+### 9.3 Semantics
+
+When a module declares `requires: {label: value}`:
+
+1. **Input wiring is fixed.** The compiler resolves the input path for the named label to the concrete output of the node where `{label} = value`. This replaces the wildcard expansion for that dimension.
+
+2. **The label dimension remains in the output path.** The `{label}` template variable in the module's output path resolves to the required value (the literal string, e.g. `"scanpy"`). The dimension is not collapsed — it stays visible in the path for provenance.
+
+3. **No expansion along required dimensions.** The module is not instantiated for other values of the required label. Only the combination where all `requires` constraints are satisfied is generated.
+
+4. **Unrequired dimensions expand normally.** Labels not mentioned in `requires` continue to produce full cartesian expansion. A module with `requires: {pca: scanpy}` in a four-stage pipeline still expands over all upstream `dataset` values.
+
+5. **Absence of `requires` means no constraint.** A module without `requires` is wired to all upstream combinations as usual. The default behavior is unchanged.
+
+### 9.4 Path Layout
+
+Required label values appear literally in the output path. This preserves full provenance and makes results directly comparable: paths differ in exactly one segment per dimension swap.
+
+Example — four-stage pipeline, `neighbors: rapids` with `requires: {pca: scanpy, harmony: scanpy}`:
+
+```
+neighbors/rapids/.hash/{dataset}_pca-scanpy_harmony-scanpy_{neighbors}_neighbors.h5ad
+```
+
+The `{pca}` and `{harmony}` variables resolve to `"scanpy"` (the required values). The `{neighbors}` variable resolves to `"rapids"` (this module's own ID). The `{dataset}` variable expands freely as usual.
+
+Compare with the all-scanpy baseline:
+
+```
+neighbors/scanpy/.hash/{dataset}_pca-scanpy_harmony-scanpy_{neighbors}_neighbors.h5ad
+```
+
+The paths are structurally identical; only the `{neighbors}` segment differs. This makes automated result comparison straightforward.
+
+### 9.5 Validation
+
+The compiler must validate:
+
+- All keys in `requires` are declared `provides` labels of ancestor stages. Unknown labels are a hard error.
+- All values in `requires` are valid module IDs in the referenced stage. Unknown values are a hard error.
+- The referenced stage must appear before the current stage in document order (same constraint as regular inputs).
+- `requires` may not reference a label introduced by the current stage itself (no self-reference).
+
+### 9.6 Relationship to `exclude:`
+
+`requires` and `exclude:` are complementary but distinct:
+
+| | `exclude:` | `requires:` |
+|---|---|---|
+| Direction | negative (skip these) | positive (only wire to these) |
+| Expressiveness | enumerates unwanted combinations | declares intended attachment |
+| Scales with stages | O(exponential) | O(stages) |
+| Recommended for | small one-off exclusions | structured partial-product designs |
+
+They may coexist on the same module. `requires` is applied first (fixing upstream attachments), then `exclude:` prunes any remaining unwanted combinations.
+
+### 9.7 Complete Example
+
+The scRNA-seq CPU-vs-GPU benchmark: four pipeline stages, each with `scanpy` (CPU) and `rapids` (GPU) implementations. Only one stage may use `rapids` per run.
+
+```yaml
+id: scrna_cpu_vs_gpu
+version: "1.0.0"
+benchmarker: "benchmark_team"
+api_version: "0.5"
+
+software_environments:
+  integration:
+    conda: "envs/integration.yaml"
+
+stages:
+
+  - id: data
+    provides:
+      dataset: data.h5ad
+    modules:
+      - id: Yao_5k
+        software_environment: integration
+        repository: { url: "code/get_input_anndata.py", commit: "local" }
+        parameters:
+          - sample_size: "5000"
+      - id: Yao_20k
+        software_environment: integration
+        repository: { url: "code/get_input_anndata.py", commit: "local" }
+        parameters:
+          - sample_size: "20000"
+    outputs:
+      - id: data.h5ad
+        path: "{dataset}.h5ad"
+
+  - id: pca
+    provides:
+      pca: pca.csv
+    inputs: [data.h5ad]
+    modules:
+      - id: scanpy
+        software_environment: integration
+        repository: { url: "code/pca.py", commit: "local" }
+      - id: rapids
+        software_environment: integration
+        repository: { url: "code/pca.py", commit: "local" }
+        resources:
+          mem_mb: 32000
+    outputs:
+      - id: pca.csv
+        path: "{dataset}_{pca}_pca.csv.gz"
+
+  - id: harmony
+    provides:
+      harmony: harmony.csv
+    inputs: [data.h5ad, pca.csv]
+    modules:
+      - id: scanpy
+        software_environment: integration
+        repository: { url: "code/harmony.py", commit: "local" }
+      - id: rapids
+        software_environment: integration
+        repository: { url: "code/harmony.py", commit: "local" }
+        requires:
+          pca: scanpy              # rapids harmony only runs on scanpy PCA output
+    outputs:
+      - id: harmony.csv
+        path: "{dataset}_{pca}_{harmony}_harmony.csv.gz"
+
+  - id: neighbors
+    provides:
+      neighbors: neighbors.h5ad
+    inputs: [harmony.csv]
+    modules:
+      - id: scanpy
+        software_environment: integration
+        repository: { url: "code/neighbors.py", commit: "local" }
+      - id: rapids
+        software_environment: integration
+        repository: { url: "code/neighbors.py", commit: "local" }
+        requires:
+          pca: scanpy
+          harmony: scanpy          # rapids neighbors only runs on all-scanpy upstream
+    outputs:
+      - id: neighbors.h5ad
+        path: "{dataset}_{pca}_{harmony}_{neighbors}_neighbors.h5ad"
+
+  - id: leiden
+    inputs: [neighbors.h5ad]
+    modules:
+      - id: scanpy
+        software_environment: integration
+        repository: { url: "code/leiden.py", commit: "local" }
+      - id: rapids
+        software_environment: integration
+        repository: { url: "code/leiden.py", commit: "local" }
+        requires:
+          pca: scanpy
+          harmony: scanpy
+          neighbors: scanpy        # rapids leiden only runs on all-scanpy upstream
+    outputs:
+      - id: leiden.csv
+        path: "{dataset}_{pca}_{harmony}_{neighbors}_{leiden}_leiden.csv.gz"
+
+  - id: umap
+    inputs: [harmony.csv, neighbors.h5ad]
+    modules:
+      - id: rapids
+        software_environment: integration
+        repository: { url: "code/run_umap.py", commit: "local" }
+        resources:
+          mem_mb: 32000
+    outputs:
+      - id: umap.csv
+        path: "{dataset}_{pca}_{harmony}_{neighbors}_umap.csv.gz"
+```
+
+The generated combinations are exactly the 5 intended pipelines × 2 dataset sizes = 10 executions per stage (minus stages with fixed upstream), rather than the 16 × 2 = 32 that full cartesian expansion would produce.
+
+### 9.8 Implementation Notes for Backends
+
+When compiling a module with `requires`:
+
+1. For each required `{label: value}` pair, resolve the concrete output path of the `value` node in the stage that `provides` that label. This path is a literal string, not a wildcard pattern.
+2. Substitute the required value for `{label}` in the module's output path template before wildcard expansion. The result is a partially-concrete path template with the required dimensions already filled.
+3. Emit one rule per combination of the remaining free wildcards (those not fixed by `requires`).
+4. Wire the fixed inputs as literal paths in the rule's `input:` block; wire free inputs as wildcard patterns as usual.
+
+Snakemake example for `neighbors: rapids` with `requires: {pca: scanpy, harmony: scanpy}` and free `{dataset}`:
+
+```python
+rule neighbors_rapids:
+    input:
+        harmony="harmony/scanpy/{hash_h}/{dataset}_pca-scanpy_harmony-scanpy_harmony.csv.gz",
+    output:
+        "neighbors/rapids/{hash_n}/{dataset}_pca-scanpy_harmony-scanpy_neighbors-rapids_neighbors.h5ad"
+    shell:
+        "python code/neighbors.py --method rapids ..."
+```
+
+The `{dataset}` wildcard expands normally; `{pca}` and `{harmony}` are literal strings in both input and output paths.

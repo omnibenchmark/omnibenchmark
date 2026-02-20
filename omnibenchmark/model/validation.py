@@ -161,6 +161,9 @@ class BenchmarkValidator:
         # 5. Validate that software environment references exist
         self._validate_software_environments(errors)
 
+        # 6. Validate requires declarations
+        self._validate_requires(errors)
+
         # Raise error if any validation failed
         if errors:
             raise ValidationError(errors)
@@ -254,6 +257,62 @@ class BenchmarkValidator:
                         f"Gather stage '{stage.id}' has template variable in output "  # type: ignore
                         f"path '{output.path}'. Gather stages must produce fixed output paths."  # type: ignore
                     )
+
+    def _validate_requires(self, errors: List[str]) -> None:
+        """Validate requires declarations on modules.
+
+        Checks:
+        1. Every key in requires is a provides-label declared by an ancestor stage
+        2. Every value in requires is a valid module ID in the providing stage
+        3. No self-reference (the label must not be provided by the current stage)
+        """
+        stages = self.stages  # type: ignore
+
+        for stage_idx, stage in enumerate(stages):
+            # Collect provides labels from all stages that appear before this one
+            ancestor_provides: dict[str, str] = {}  # label -> stage_id
+            for prev_stage in stages[:stage_idx]:
+                if prev_stage.provides:
+                    for label in prev_stage.provides:
+                        ancestor_provides[label] = prev_stage.id
+
+            # Collect provides labels of the current stage (for self-reference check)
+            own_provides = set(stage.provides.keys()) if stage.provides else set()
+
+            for module in stage.modules:
+                if not module.requires:
+                    continue
+                for label, required_value in module.requires.items():
+                    # Check self-reference
+                    if label in own_provides:
+                        errors.append(
+                            f"Module '{module.id}' in stage '{stage.id}': "
+                            f"requires label '{label}' is provided by the current stage "
+                            f"(self-reference not allowed)"
+                        )
+                        continue
+
+                    # Check label exists in an ancestor stage
+                    if label not in ancestor_provides:
+                        errors.append(
+                            f"Module '{module.id}' in stage '{stage.id}': "
+                            f"requires label '{label}' is not declared by any ancestor stage"
+                        )
+                        continue
+
+                    # Check value is a valid module ID in the providing stage
+                    providing_stage_id = ancestor_provides[label]
+                    providing_stage = next(
+                        (s for s in stages if s.id == providing_stage_id), None
+                    )
+                    if providing_stage is not None:
+                        valid_module_ids = {m.id for m in providing_stage.modules}
+                        if required_value not in valid_module_ids:
+                            errors.append(
+                                f"Module '{module.id}' in stage '{stage.id}': "
+                                f"requires '{label}: {required_value}' — "
+                                f"'{required_value}' is not a module in stage '{providing_stage_id}'"
+                            )
 
     # Note: The old validate_structure method has been split into:
     # - validate_model_structure() for pure model validation (above)

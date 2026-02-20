@@ -979,6 +979,22 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
+def _satisfies_requires(requires: dict, input_node) -> bool:
+    """Return True if the input_node's lineage satisfies all requires constraints.
+
+    For each {label: value} in requires, the ancestor TemplateContext must have
+    that label resolving to that value.  Works because _build_template_context
+    propagates the full provides chain from every ancestor into input_node.
+    """
+    if not input_node.template_context:
+        return False
+    for label, required_value in requires.items():
+        actual_value = input_node.template_context.provides.get(label)
+        if actual_value != required_value:
+            return False
+    return True
+
+
 def _build_gather_inputs(
     gather_labels: list[str],
     resolved_nodes: list,
@@ -1465,6 +1481,15 @@ def _generate_explicit_snakefile(
                         if input_node.module_id in module.exclude:
                             logger.debug(
                                 f"      Excluding combination: {input_node.module_id} → {module_id}"
+                            )
+                            continue
+
+                    # Check requires constraints (explicit plugs)
+                    if input_node and module.requires:
+                        if not _satisfies_requires(module.requires, input_node):
+                            logger.debug(
+                                f"      Skipping combination: requires not satisfied for {module_id} "
+                                f"(upstream context: {input_node.template_context.provides})"
                             )
                             continue
 
