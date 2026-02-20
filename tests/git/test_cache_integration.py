@@ -32,8 +32,7 @@ def test_dry_run_populates_cache(temp_cache_dir):
     from omnibenchmark.benchmark import BenchmarkExecution
     from omnibenchmark.cli.run import _populate_git_cache
 
-    # Use the mock benchmark file
-    benchmark_path = Path("tests/data/mock_benchmark.yaml")
+    benchmark_path = Path(__file__).parent.parent / "data" / "mock_benchmark.yaml"
     out_dir = Path("out")
 
     b = BenchmarkExecution(benchmark_path, out_dir)
@@ -60,7 +59,7 @@ def test_cache_directory_structure(temp_cache_dir):
     from omnibenchmark.benchmark import BenchmarkExecution
     from omnibenchmark.cli.run import _populate_git_cache
 
-    benchmark_path = Path("tests/data/mock_benchmark.yaml")
+    benchmark_path = Path(__file__).parent.parent / "data" / "mock_benchmark.yaml"
     out_dir = Path("out")
 
     b = BenchmarkExecution(benchmark_path, out_dir)

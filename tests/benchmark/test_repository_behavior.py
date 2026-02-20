@@ -1,10 +1,10 @@
 """Behavior-driven tests for repository utilities."""
 
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import tempfile
 
-from omnibenchmark.benchmark.repository_utils import (
+from omnibenchmark.benchmark.repository import (
     RepositoryManager,
     cleanup_temp_repositories,
     get_module_repository_info,
@@ -14,14 +14,6 @@ from omnibenchmark.benchmark.repository_utils import (
 
 class TestRepositoryManager:
     """Behavior tests for RepositoryManager."""
-
-    def test_when_created_then_initializes_with_prefix(self):
-        """When RepositoryManager is created, it should use the given prefix."""
-        manager = RepositoryManager(prefix="test_prefix")
-
-        assert manager.prefix == "test_prefix"
-        assert "omnibenchmark" in str(manager.temp_base_dir)
-        assert "tmp_repos" in str(manager.temp_base_dir)
 
     def test_when_used_as_context_manager_then_cleans_up(self):
         """When used as context manager, should clean up on exit."""
@@ -33,53 +25,40 @@ class TestRepositoryManager:
 
             mock_cleanup.assert_called_once()
 
-    def test_when_get_local_repo_path_called_then_returns_expected_path(self):
-        """When getting local repo path, should return path under .snakemake/repos."""
+    def test_when_get_local_repo_path_called_then_returns_modules_path(self):
+        """When getting local repo path, should return path under .modules/{repo}/{commit}."""
         manager = RepositoryManager()
 
-        with patch(
-            "omnibenchmark.benchmark.repository_utils.get_repo_hash"
-        ) as mock_hash:
-            mock_hash.return_value = "abc123"
+        path = manager.get_local_repo_path("https://github.com/test/repo", "abc1234567")
 
-            path = manager.get_local_repo_path(
-                "https://github.com/test/repo", "commit123"
-            )
-
-            assert ".snakemake/repos" in str(path)
-            assert "abc123" in str(path)
-            mock_hash.assert_called_once_with(
-                "https://github.com/test/repo", "commit123"
-            )
+        assert ".modules" in str(path)
+        assert "repo" in str(path)
+        assert "abc1234" in str(path)
 
     def test_when_clone_to_temp_succeeds_then_returns_path(self):
         """When clone succeeds, should return the cloned path."""
-        manager = RepositoryManager(prefix="test")
+        manager = RepositoryManager()
 
-        with patch(
-            "omnibenchmark.benchmark.repository_utils.clone_module"
-        ) as mock_clone:
+        with patch("omnibenchmark.benchmark.repository.clone_module_v2") as mock_clone:
             mock_path = Path("/tmp/test_clone")
-            mock_clone.return_value = mock_path
+            mock_clone.return_value = (mock_path, "abc1234567")
 
             result = manager.clone_to_temp(
-                "https://github.com/test/repo", "commit123", "test_module"
+                "https://github.com/test/repo", "abc1234567", "test_module"
             )
 
             assert result == mock_path
             mock_clone.assert_called_once()
 
-    def test_when_clone_fails_then_returns_none_and_cleans_up(self):
-        """When clone fails, should return None and attempt cleanup."""
-        manager = RepositoryManager(prefix="test")
+    def test_when_clone_fails_then_returns_none(self):
+        """When clone fails, should return None."""
+        manager = RepositoryManager()
 
-        with patch(
-            "omnibenchmark.benchmark.repository_utils.clone_module"
-        ) as mock_clone:
+        with patch("omnibenchmark.benchmark.repository.clone_module_v2") as mock_clone:
             mock_clone.side_effect = Exception("Clone failed")
 
             result = manager.clone_to_temp(
-                "https://github.com/test/repo", "commit123", "test_module"
+                "https://github.com/test/repo", "abc1234567", "test_module"
             )
 
             assert result is None
@@ -137,41 +116,10 @@ class TestRepositoryManager:
 class TestCleanupTempRepositories:
     """Behavior tests for cleanup function."""
 
-    def test_when_temp_dir_exists_then_removes_it(self):
-        """When temp directory exists, cleanup should remove it."""
-        mock_temp_dir = MagicMock()
-        mock_tmp_repos = MagicMock()
-        mock_tmp_repos.exists.return_value = True
-        mock_temp_dir.__truediv__.return_value = mock_tmp_repos
-
-        with patch(
-            "omnibenchmark.config.get_temp_dir",
-            return_value=mock_temp_dir,
-        ):
-            with patch(
-                "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
-            ) as mock_rmtree:
-                cleanup_temp_repositories()
-
-                mock_rmtree.assert_called_once()
-
-    def test_when_temp_dir_missing_then_does_nothing(self):
-        """When temp directory doesn't exist, should do nothing."""
-        mock_temp_dir = MagicMock()
-        mock_tmp_repos = MagicMock()
-        mock_tmp_repos.exists.return_value = False
-        mock_temp_dir.__truediv__.return_value = mock_tmp_repos
-
-        with patch(
-            "omnibenchmark.config.get_temp_dir",
-            return_value=mock_temp_dir,
-        ):
-            with patch(
-                "omnibenchmark.benchmark.repository_utils.shutil.rmtree"
-            ) as mock_rmtree:
-                cleanup_temp_repositories()
-
-                mock_rmtree.assert_not_called()
+    def test_cleanup_is_noop(self):
+        """cleanup_temp_repositories is a no-op (modules live in persistent .modules/ cache)."""
+        # Should not raise
+        cleanup_temp_repositories()
 
 
 class TestGetModuleRepositoryInfo:
@@ -253,7 +201,7 @@ class TestResolveModuleRepository:
 
         # Mock repository info
         with patch(
-            "omnibenchmark.benchmark.repository_utils.get_module_repository_info"
+            "omnibenchmark.benchmark.repository.get_module_repository_info"
         ) as mock_get_info:
             mock_get_info.return_value = ("https://github.com/test/repo", "abc123")
 
@@ -276,7 +224,7 @@ class TestResolveModuleRepository:
         mock_repo_manager = Mock()
 
         with patch(
-            "omnibenchmark.benchmark.repository_utils.get_module_repository_info"
+            "omnibenchmark.benchmark.repository.get_module_repository_info"
         ) as mock_get_info:
             mock_get_info.return_value = ("https://github.com/test/repo", "abc123")
 
@@ -303,7 +251,7 @@ class TestResolveModuleRepository:
         mock_repo_manager = Mock()
 
         with patch(
-            "omnibenchmark.benchmark.repository_utils.get_module_repository_info"
+            "omnibenchmark.benchmark.repository.get_module_repository_info"
         ) as mock_get_info:
             mock_get_info.return_value = (None, None)
 
@@ -320,7 +268,7 @@ class TestResolveModuleRepository:
         mock_repo_manager = Mock()
 
         with patch(
-            "omnibenchmark.benchmark.repository_utils.get_module_repository_info"
+            "omnibenchmark.benchmark.repository.get_module_repository_info"
         ) as mock_get_info:
             mock_get_info.return_value = ("https://github.com/test/repo", "abc123")
 

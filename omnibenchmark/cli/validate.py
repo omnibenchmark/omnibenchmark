@@ -14,7 +14,7 @@ from omnibenchmark.benchmark.metadata import (
     ValidationSeverity,
     validate_module_files,
 )
-from omnibenchmark.benchmark.repository_utils import (
+from omnibenchmark.benchmark.repository import (
     RepositoryManager,
     cleanup_temp_repositories,
 )
@@ -173,7 +173,7 @@ def validate_module(ctx, path, strict, format="summary"):
     validation_errors = []
     validation_warnings = []
 
-    with RepositoryManager(prefix="omnibenchmark_validate") as repo_manager:
+    with RepositoryManager() as repo_manager:
         # Get file contents
         file_contents = repo_manager.get_repository_files(path)
         files_present = repo_manager.get_files_present(path)

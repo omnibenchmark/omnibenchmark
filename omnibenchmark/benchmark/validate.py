@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any, List
 
 from omnibenchmark.benchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.repository_utils import (
+from omnibenchmark.benchmark.repository import (
     RepositoryManager,
     get_module_repository_info,
     resolve_module_repository,
@@ -105,7 +105,7 @@ def validate_modules(
     found_any_repos = False
     failed_modules = []
 
-    with RepositoryManager(prefix="omnibenchmark_validate") as repo_manager:
+    with RepositoryManager() as repo_manager:
         for module_id, module in modules.items():
             result = ValidationResult(module_id)
             validation_results[module_id] = result

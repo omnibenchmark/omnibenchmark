@@ -51,8 +51,7 @@ def prepare_archive_code(
             - source_path: absolute path to the file on disk
             - arcname: relative path to use inside the archive
     """
-    from omnibenchmark.git.clone_legacy import clone_module
-    from omnibenchmark.model.repo import get_repo_hash
+    from omnibenchmark.git.cache import clone_module_v2, parse_repo_url
 
     nodes = benchmark.get_nodes()
     repositories = set()
@@ -65,15 +64,21 @@ def prepare_archive_code(
     while repositories:
         repo_url, repo_commit = repositories.pop()
         try:
-            repo_path = clone_module(repo_url, repo_commit)
+            repo_name = Path(parse_repo_url(repo_url)).name
+            work_dir = (
+                Path(".modules")
+                / repo_name
+                / (repo_commit[:7] if repo_commit else "unknown")
+            )
+            repo_path, resolved_commit = clone_module_v2(
+                repo_url, repo_commit, work_dir=work_dir
+            )
             if repo_path.exists():
-                # Create a meaningful name for the repo in the archive
-                repo_name = get_repo_hash(repo_url, repo_commit)
+                commit_prefix = resolved_commit[:7]
                 for f in repo_path.rglob("*"):
                     if f.is_file():
-                        # Create arcname as modules/{repo_name}/{relative_path}
                         rel_path = f.relative_to(repo_path)
-                        arcname = f"modules/{repo_name}/{rel_path}"
+                        arcname = f"modules/{repo_name}/{commit_prefix}/{rel_path}"
                         files.append((f, arcname))
         except Exception:
             # Skip repositories that can't be cloned

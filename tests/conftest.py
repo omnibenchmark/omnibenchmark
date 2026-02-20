@@ -1,10 +1,32 @@
 import io
+import os
 
 import pytest
 import logging
 
 from pathlib import Path
 from .git_bundle import GitBundleManager
+
+
+@pytest.fixture(autouse=True)
+def isolated_tmp_cwd(tmp_path, request):
+    """Run every test in an isolated temporary working directory.
+
+    Prevents stray output files (out/, .modules/, etc.) in the project root
+    from leaking into tests that read the filesystem relative to cwd.
+
+    Tests that explicitly need the project root (e.g. e2e tests that reference
+    fixture paths) can opt out with @pytest.mark.no_tmp_cwd.
+    """
+    if request.node.get_closest_marker("no_tmp_cwd"):
+        yield
+        return
+    original = Path.cwd()
+    os.chdir(tmp_path)
+    try:
+        yield tmp_path
+    finally:
+        os.chdir(original)
 
 
 @pytest.fixture

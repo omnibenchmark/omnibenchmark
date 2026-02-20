@@ -83,37 +83,37 @@ class TestPrepareArchiveConfig:
 class TestPrepareArchiveCode:
     """Test code files preparation for archiving."""
 
-    @patch("omnibenchmark.git.clone_legacy.clone_module")
+    @patch("omnibenchmark.git.cache.clone_module_v2")
     def test_prepare_code_calls_clone_module_for_each_module(self, mock_clone):
-        """Test that code preparation calls clone_module for each module."""
+        """Test that code preparation calls clone_module_v2 for each module."""
         # Setup mock benchmark with nodes that have repositories
         mock_benchmark = Mock()
         mock_node1 = Mock()
         mock_node1.get_repository.return_value = Mock(
-            url="https://github.com/user/data.git", commit="abc123"
+            url="https://github.com/user/data.git", commit="abc1234"
         )
         mock_node2 = Mock()
         mock_node2.get_repository.return_value = Mock(
-            url="https://github.com/user/method.git", commit="def456"
+            url="https://github.com/user/method.git", commit="def4567"
         )
         mock_benchmark.get_nodes.return_value = [mock_node1, mock_node2]
 
-        # Mock clone_module to return temporary directories
+        # Mock clone_module_v2 to return (path, commit_hash) tuples
         with (
             tempfile.TemporaryDirectory() as temp_dir1,
             tempfile.TemporaryDirectory() as temp_dir2,
         ):
-            mock_clone.side_effect = [Path(temp_dir1), Path(temp_dir2)]
+            mock_clone.side_effect = [
+                (Path(temp_dir1), "abc1234"),
+                (Path(temp_dir2), "def4567"),
+            ]
 
             result = prepare_archive_code(mock_benchmark)
 
-            # Should call clone_module for each module
-            assert mock_clone.call_count == 2
-            # Should call clone_module for each unique repository
             assert mock_clone.call_count == 2
             assert isinstance(result, list)
 
-    @patch("omnibenchmark.git.clone_legacy.clone_module")
+    @patch("omnibenchmark.git.cache.clone_module_v2")
     def test_prepare_code_with_no_modules(self, mock_clone):
         """Test code preparation with benchmark having no modules."""
         mock_benchmark = Mock()
@@ -124,17 +124,17 @@ class TestPrepareArchiveCode:
         assert result == []
         mock_clone.assert_not_called()
 
-    @patch("omnibenchmark.git.clone_legacy.clone_module")
+    @patch("omnibenchmark.git.cache.clone_module_v2")
     def test_prepare_code_handles_clone_failure_gracefully(self, mock_clone):
         """Test that clone failures are handled gracefully."""
         mock_benchmark = Mock()
         mock_node = Mock()
         mock_node.get_repository.return_value = Mock(
-            url="https://github.com/user/failing.git", commit="abc123"
+            url="https://github.com/user/failing.git", commit="abc1234"
         )
         mock_benchmark.get_nodes.return_value = [mock_node]
 
-        # Mock clone_module to raise an exception
+        # Mock clone_module_v2 to raise an exception
         mock_clone.side_effect = Exception("Git clone failed")
 
         # Should handle exception gracefully and continue
@@ -298,7 +298,10 @@ class TestArchiveComponentsIntegration:
         config_result = prepare_archive_config(mock_benchmark)
         assert isinstance(config_result, list)
 
-        with patch("omnibenchmark.git.clone_legacy.clone_module"):
+        with patch(
+            "omnibenchmark.git.cache.clone_module_v2",
+            return_value=(Path("/tmp/fake"), "abc1234"),
+        ):
             code_result = prepare_archive_code(mock_benchmark)
             assert isinstance(code_result, list)
 
@@ -324,7 +327,10 @@ class TestArchiveComponentsIntegration:
         try:
             prepare_archive_config(mock_benchmark)
 
-            with patch("omnibenchmark.git.clone_legacy.clone_module"):
+            with patch(
+                "omnibenchmark.git.cache.clone_module_v2",
+                return_value=(Path("/tmp/fake"), "abc1234"),
+            ):
                 prepare_archive_code(mock_benchmark)
 
             prepare_archive_software(mock_benchmark)

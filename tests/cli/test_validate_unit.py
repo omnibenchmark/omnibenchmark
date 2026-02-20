@@ -719,7 +719,7 @@ class TestEdgeCasesAndErrorHandling:
             (module_dir / "CITATION.cff").write_text("cff-version: 1.2.0")
 
             with patch(
-                "omnibenchmark.benchmark.repository_utils.RepositoryManager"
+                "omnibenchmark.benchmark.repository.RepositoryManager"
             ) as mock_manager_class:
                 mock_manager = MagicMock()
                 mock_manager_class.return_value.__enter__.return_value = mock_manager

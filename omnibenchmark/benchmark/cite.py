@@ -5,7 +5,7 @@ import yaml
 from typing import Dict, Optional, Any, List
 
 from omnibenchmark.benchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.repository_utils import (
+from omnibenchmark.benchmark.repository import (
     RepositoryManager,
     get_module_repository_info,
     resolve_module_repository,
@@ -120,7 +120,7 @@ def extract_citation_metadata(
     found_any_repos = False
     all_issues = []
 
-    with RepositoryManager(prefix="omnibenchmark_cite") as repo_manager:
+    with RepositoryManager() as repo_manager:
         for module_id, module in modules.items():
             result = _extract_single_module_citation(
                 module_id, module, benchmark, repo_manager

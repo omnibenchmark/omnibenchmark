@@ -5,12 +5,10 @@ module repositories used by both validation and citation extraction workflows.
 """
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Optional, Dict, Tuple
 
-from omnibenchmark.git.clone_legacy import clone_module
-from omnibenchmark.model.repo import get_repo_hash
+from omnibenchmark.git.cache import clone_module_v2, parse_repo_url
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +16,9 @@ logger = logging.getLogger(__name__)
 class RepositoryManager:
     """Manages repository access and cleanup for benchmark modules."""
 
-    def __init__(self, prefix: str = "omnibenchmark"):
-        """Initialize repository manager.
-
-        Args:
-            prefix: Prefix for temporary directory names
-        """
-        from omnibenchmark.config import get_temp_dir
-
-        self.prefix = prefix
-        self.temp_base_dir = get_temp_dir() / "tmp_repos"
-        self.temp_base_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self):
+        """Initialize repository manager."""
+        pass
 
     def get_local_repo_path(self, repo_url: str, commit_hash: str) -> Path:
         """Get the expected local repository path.
@@ -40,17 +30,14 @@ class RepositoryManager:
         Returns:
             Path to local repository directory
         """
-        # TODO: Decide on a more permanent storage location, possibly ~/.local/cache
-        # should also be configurable on the omnibenchmark config.
-        # TODO: Make other code paths use this manager
-        repos_base_dir = Path(".snakemake/repos")
-        folder_name = get_repo_hash(repo_url, commit_hash)
-        return repos_base_dir / folder_name
+        repo_name = Path(parse_repo_url(repo_url)).name
+        commit_prefix = commit_hash[:7] if commit_hash else "unknown"
+        return Path(".modules") / repo_name / commit_prefix
 
     def clone_to_temp(
         self, repo_url: str, commit_hash: str, module_id: str
     ) -> Optional[Path]:
-        """Clone repository to temporary directory.
+        """Clone repository to work directory using the central cache.
 
         Args:
             repo_url: Repository URL to clone
@@ -58,32 +45,20 @@ class RepositoryManager:
             module_id: Module identifier for logging
 
         Returns:
-            Path to temporary repository directory, or None if clone failed
+            Path to repository work directory, or None if clone failed
         """
         try:
-            # Create temporary directory in our dedicated space
-            temp_dir = self.temp_base_dir / f"{self.prefix}_{module_id}"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Created temporary directory: {temp_dir}")
-
-            # Clone the repository
-            cloned_path = clone_module(repo_url, commit_hash, temp_dir)
+            repo_name = Path(parse_repo_url(repo_url)).name
+            commit_prefix = commit_hash[:7] if commit_hash else "unknown"
+            work_dir = Path(".modules") / repo_name / commit_prefix
+            cloned_path, _ = clone_module_v2(repo_url, commit_hash, work_dir=work_dir)
             logger.debug(
-                f"Successfully cloned {repo_url}@{commit_hash} to temporary location"
+                f"Successfully cloned {repo_url}@{commit_hash} to {cloned_path}"
             )
-
             return cloned_path
 
         except Exception as e:
             logger.warning(f"Failed to clone repository {repo_url}@{commit_hash}: {e}")
-            # Clean up temp directory if it was created
-            if "temp_dir" in locals() and temp_dir.exists():
-                try:
-                    shutil.rmtree(temp_dir)
-                except Exception as cleanup_error:
-                    logger.debug(
-                        f"Failed to cleanup temp directory {temp_dir}: {cleanup_error}"
-                    )
             return None
 
     def get_repository_files(self, repo_path: Path) -> Dict[str, Optional[str]]:
@@ -137,15 +112,8 @@ class RepositoryManager:
         }
 
     def cleanup_temp_directories(self):
-        """Clean up our dedicated temporary directory."""
-        if self.temp_base_dir.exists():
-            try:
-                shutil.rmtree(self.temp_base_dir)
-                logger.debug(f"Cleaned up temporary directory: {self.temp_base_dir}")
-            except Exception as e:
-                logger.warning(
-                    f"Failed to cleanup temporary directory {self.temp_base_dir}: {e}"
-                )
+        """No-op: module work directories under .modules/ are persistent cache."""
+        pass
 
     def __enter__(self):
         """Context manager entry."""
@@ -157,24 +125,8 @@ class RepositoryManager:
 
 
 def cleanup_temp_repositories():
-    """Clean up any temporary repositories created during processing.
-
-    This function removes the dedicated omnibenchmark temporary directory.
-    """
-    from omnibenchmark.config import get_temp_dir
-
-    temp_base_dir = get_temp_dir() / "tmp_repos"
-
-    if temp_base_dir.exists():
-        try:
-            shutil.rmtree(temp_base_dir)
-            logger.debug(
-                f"Cleaned up omnibenchmark temporary directory: {temp_base_dir}"
-            )
-        except Exception as e:
-            logger.warning(
-                f"Failed to cleanup omnibenchmark temporary directory {temp_base_dir}: {e}"
-            )
+    """No-op: module work directories under .modules/ are persistent cache."""
+    pass
 
 
 def get_module_repository_info(
