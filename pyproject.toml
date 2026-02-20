@@ -88,9 +88,8 @@ include = ["omnibenchmark*"]
 omnibenchmark = ["templates/**/*"]
 
 [tool.setuptools_scm]
-# Optional settings (or leave empty for default)
 version_scheme = "post-release"
-local_scheme = "dirty-tag"
+local_scheme = "node-and-date"
 
 [tool.isort]
 profile = "black"
