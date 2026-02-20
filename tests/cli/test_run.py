@@ -681,3 +681,61 @@ def test_run_module_entrypoint_without_options():
 
                             # Verify the command succeeded
                             assert result.exit_code == 0
+
+
+@pytest.mark.short
+def test_run_with_double_dash_separator(mock_benchmark_execution):
+    """
+    Test that arguments after -- are correctly passed to snakemake.
+    This verifies the standard execution path (not slurm executor).
+    """
+    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
+
+    with patch("omnibenchmark.cli.run._run_snakemake") as mock_run_snakemake:
+        mock_run_snakemake.return_value = None
+
+        # Mock the benchmark execution setup
+        mock_benchmark = MagicMock()
+        mock_benchmark.get_benchmark_software_backend.return_value = MagicMock(
+            value="conda"
+        )
+        mock_benchmark_execution.return_value = mock_benchmark
+
+        # Mock the resolver and generator
+        with patch("omnibenchmark.cli.run.ModuleResolver"):
+            with patch("omnibenchmark.cli.run.SnakemakeGenerator"):
+                with patch("omnibenchmark.cli.run.write_run_manifest"):
+                    with patch("omnibenchmark.cli.run.save_metadata"):
+                        runner = CliRunner()
+                        result = runner.invoke(
+                            run,
+                            [
+                                benchmark_path,
+                                "--cores",
+                                "4",
+                                "-k",
+                                "--",
+                                "--forceall",
+                                "--rerun-triggers",
+                                "mtime",
+                                "--verbose",
+                            ],
+                        )
+
+                        # Verify _run_snakemake was called
+                        mock_run_snakemake.assert_called_once()
+                        args, kwargs = mock_run_snakemake.call_args
+
+                        # Verify the extra snakemake args were passed correctly
+                        assert "extra_snakemake_args" in kwargs
+                        extra_args = kwargs["extra_snakemake_args"]
+                        assert "--forceall" in extra_args
+                        assert "--rerun-triggers" in extra_args
+                        assert "mtime" in extra_args
+                        assert "--verbose" in extra_args
+
+                        # Verify other parameters
+                        assert kwargs["cores"] == 4
+                        assert kwargs["continue_on_error"] is True
+
+                        assert result.exit_code == 0

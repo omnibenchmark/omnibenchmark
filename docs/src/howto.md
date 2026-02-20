@@ -445,3 +445,54 @@ stages:
       - id: data.image
         path: "{dataset}.png"
 ```
+
+## Pass custom flags to Snakemake
+
+You can pass additional flags directly to Snakemake using the `--` separator. Any arguments after `--` are forwarded to the underlying `snakemake` command.
+
+### Basic usage
+
+```bash
+ob run benchmark.yaml -- --forceall
+```
+
+This passes `--forceall` to Snakemake, forcing it to re-run all rules regardless of whether outputs exist.
+
+### Multiple flags
+
+You can pass multiple flags and their values:
+
+```bash
+ob run benchmark.yaml --cores 8 -- --rerun-triggers mtime --verbose
+```
+
+This runs the benchmark with 8 cores, and passes `--rerun-triggers mtime` and `--verbose` to Snakemake.
+
+### Common use cases
+
+**Force re-run all rules:**
+```bash
+ob run benchmark.yaml -- --forceall
+```
+
+**Use file modification time as re-run trigger:**
+```bash
+ob run benchmark.yaml -- --rerun-triggers mtime
+```
+
+**Enable verbose output and print shell commands:**
+```bash
+ob run benchmark.yaml -- --verbose --printshellcmds
+```
+
+**Combine multiple flags:**
+```bash
+ob run benchmark.yaml --cores 16 -k -- --forceall --verbose --printshellcmds
+```
+
+### Important notes
+
+- The `--` separator must come **after** all `ob run` flags (like `--cores`, `-k`, `--dry`)
+- Flags after `--` are passed directly to Snakemake without validation
+- Use `snakemake --help` to see all available Snakemake flags
+- The generated Snakefile in the output directory can also be run directly with `snakemake` if needed
