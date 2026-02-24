@@ -156,6 +156,60 @@ def resolve_local_path(url: str, benchmark_dir: Optional[Path] = None) -> Path:
     return p.resolve()
 
 
+def _build_gitignore_spec(root: Path):
+    """
+    Build a pathspec matcher from all .gitignore files in the tree.
+
+    Walks the directory tree pruning already-ignored directories so we never
+    descend into large dirs like out/ or .pixi/.  Always ignores .git/.
+    """
+    import pathspec
+
+    patterns = [".git/", ".git"]
+
+    def _read_gitignore(path: Path, rel_dir: Path):
+        try:
+            prefix = "" if str(rel_dir) == "." else f"{rel_dir}/"
+            for line in path.read_text(errors="replace").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    patterns.append(f"{prefix}{line}")
+        except Exception:
+            pass
+
+    # Seed from root .gitignore first so we can prune immediately
+    root_gi = root / ".gitignore"
+    if root_gi.is_file():
+        _read_gitignore(root_gi, Path("."))
+
+    # Walk manually, pruning dirs that already match
+    dirs_to_visit = [root]
+    while dirs_to_visit:
+        current = dirs_to_visit.pop()
+        spec_so_far = pathspec.PathSpec.from_lines("gitignore", patterns)
+        try:
+            entries = list(current.iterdir())
+        except PermissionError:
+            continue
+        for entry in entries:
+            if not entry.is_dir():
+                continue
+            if entry.name == ".git":
+                continue
+            try:
+                rel = str(entry.relative_to(root)) + "/"
+            except ValueError:
+                continue
+            if spec_so_far.match_file(rel):
+                continue  # pruned — don't descend
+            gi = entry / ".gitignore"
+            if gi.is_file():
+                _read_gitignore(gi, entry.relative_to(root))
+            dirs_to_visit.append(entry)
+
+    return pathspec.PathSpec.from_lines("gitignore", patterns)
+
+
 def copy_local_to_work_dir(
     local_path: Path,
     work_dir: Path,
@@ -163,9 +217,11 @@ def copy_local_to_work_dir(
     """
     Copy a local repository to a work directory, resolving the current HEAD commit.
 
-    Only git-tracked files are copied. This avoids copying heavy untracked
-    directories (like .pixi/, out/, node_modules/) and prevents recursive
-    copies when the work_dir is inside the source tree.
+    Copies all files that are NOT excluded by .gitignore (at any level of the
+    tree), including untracked files.  This means --dirty mode picks up new
+    scripts and edits without requiring a commit, while heavy directories like
+    out/, .pixi/, and node_modules/ (which are typically gitignored) are
+    skipped automatically.
 
     Args:
         local_path: Absolute path to the local repository
@@ -193,30 +249,31 @@ def copy_local_to_work_dir(
             f"Local path '{local_path}' is not a valid git repository: {e}"
         )
 
-    # Get list of git-tracked files via the index (includes staged files).
-    # We copy their working-tree versions so that uncommitted edits are
-    # picked up in --dirty mode, while untracked dirs (out/, .pixi/, …)
-    # are excluded — which also prevents recursive copies when the
-    # work_dir lives inside the source tree.
-    try:
-        tracked_files = [path.decode("utf-8") for path in repo.open_index()]
-    except Exception as e:
-        raise RuntimeError(f"Failed to list tracked files in '{local_path}': {e}")
+    spec = _build_gitignore_spec(local_path)
 
-    # Copy only tracked files to work directory
+    def _ignore(src_dir: str, names: list) -> set:
+        """shutil.copytree ignore callback: return names to skip."""
+        src_dir_path = Path(src_dir)
+        ignored = set()
+        for name in names:
+            abs_path = src_dir_path / name
+            try:
+                rel = str(abs_path.relative_to(local_path))
+            except ValueError:
+                rel = name
+            # Append "/" for directories so directory patterns match
+            if abs_path.is_dir():
+                rel = rel + "/"
+            if spec.match_file(rel):
+                ignored.add(name)
+        return ignored
+
     if work_dir.exists():
         shutil.rmtree(work_dir)
-    work_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(
-        f"Copying local module {local_path} ({len(tracked_files)} tracked files) to {work_dir}"
-    )
-    for rel_path in tracked_files:
-        src = local_path / rel_path
-        dst = work_dir / rel_path
-        if src.exists():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
+    shutil.copytree(str(local_path), str(work_dir), ignore=_ignore, symlinks=True)
+
+    logger.info(f"Copied local module {local_path} to {work_dir} (gitignore-filtered)")
 
     return work_dir, commit_hash
 
