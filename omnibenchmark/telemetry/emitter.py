@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Optional, Union
 
+from omnibenchmark.backend.snakemake_gen import SNAKEMAKE_BENCHMARK_FILENAME
 from omnibenchmark.telemetry.events import (
     Span,
     SpanStatus,
@@ -81,6 +82,7 @@ class TelemetryEmitter:
     _total_rules: int = 0
     _software_backend: str = ""
     _cores: int = 1
+    _run_manifest: dict = field(default_factory=dict)
 
     # Stage tracking: stage_id -> {span_id, name, start_time, modules: set, completed_modules: int, has_failures}
     _stages: dict = field(default_factory=dict)
@@ -201,11 +203,16 @@ class TelemetryEmitter:
         cores: int,
         stages: list[dict],
         resolved_nodes: list,
+        run_manifest: dict = None,
     ):
         """
-        Initialize benchmark metadata. Does NOT emit spans yet.
+        Initialize benchmark metadata and emit the root span immediately.
 
-        Spans will be emitted as rules complete, building up the hierarchy.
+        The root span is emitted right away (with end = start + 1 ns and
+        status UNSET) so that the trace is visible in the dashboard from the
+        first moment.  When the benchmark finishes, ``benchmark_completed``
+        re-emits the same span_id with the real end time and final status;
+        OTLP collectors use the last-received emission for a given span_id.
         """
         self._benchmark_name = benchmark_name
         self._benchmark_version = benchmark_version
@@ -214,6 +221,7 @@ class TelemetryEmitter:
         self._cores = cores
         self._benchmark_start_time = now_ns()
         self._total_rules = len(resolved_nodes)
+        self._run_manifest = run_manifest or {}
 
         # Group nodes by stage and module
         nodes_by_stage: dict[str, list] = {}
@@ -287,6 +295,49 @@ class TelemetryEmitter:
                 "stdout": None,
                 "stderr": None,
             }
+
+        # Emit the root span immediately so the trace is visible from the start.
+        # benchmark_completed() will re-emit it with the real end time and status.
+        self._emit_benchmark_span(
+            end_time_ns=self._benchmark_start_time + 1,
+            status=SpanStatus.UNSET,
+            message="",
+        )
+
+    def _build_benchmark_attributes(self) -> list:
+        """Build the attribute list for the benchmark root span."""
+        attrs = [
+            Attribute("benchmark.name", self._benchmark_name),
+            Attribute("benchmark.version", self._benchmark_version),
+            Attribute("benchmark.author", self._benchmark_author),
+            Attribute("benchmark.total_rules", self._total_rules),
+            Attribute("benchmark.software_backend", self._software_backend),
+            Attribute("benchmark.cores", self._cores),
+        ]
+        for key, value in self._run_manifest.items():
+            if value is None:
+                continue
+            if isinstance(value, list):
+                attrs.append(Attribute(f"manifest.{key}", str(value)))
+            else:
+                attrs.append(Attribute(f"manifest.{key}", value))
+        return attrs
+
+    def _emit_benchmark_span(self, end_time_ns: int, status: SpanStatus, message: str):
+        """Emit (or re-emit) the benchmark root span with the given end time and status."""
+        span = Span(
+            trace_id=self._trace_id,
+            span_id=self._benchmark_span_id,
+            parent_span_id=None,
+            name=f"{self._benchmark_name}-{self._benchmark_version}",
+            kind=SpanKind.SERVER,
+            start_time_ns=self._benchmark_start_time,
+            end_time_ns=end_time_ns,
+            status=status,
+            status_message=message,
+            attributes=self._build_benchmark_attributes(),
+        )
+        self._emit_span(span)
 
     # Keep emit_manifest as alias for backward compatibility
     def emit_manifest(self, **kwargs):
@@ -473,6 +524,153 @@ class TelemetryEmitter:
             self._modules[module_key]["has_failures"] = True
             self._maybe_emit_module(module_key)
 
+    # ------------------------------------------------------------------
+    # Snakemake benchmark file helpers
+    # ------------------------------------------------------------------
+
+    _BENCHMARK_COLUMNS = [
+        ("perf.wall_s", "s", "Wall-clock time in seconds"),
+        ("perf.max_rss_mb", "max_rss", "Maximum RSS in MiB"),
+        ("perf.max_vms_mb", "max_vms", "Maximum VMS in MiB"),
+        ("perf.max_uss_mb", "max_uss", "Maximum USS in MiB"),
+        ("perf.max_pss_mb", "max_pss", "Maximum PSS in MiB"),
+        ("perf.io_in_mb", "io_in", "Bytes read in MiB"),
+        ("perf.io_out_mb", "io_out", "Bytes written in MiB"),
+        ("perf.mean_load", "mean_load", "Mean CPU load (%)"),
+        ("perf.cpu_s", "cpu_time", "CPU time in seconds"),
+    ]
+
+    @staticmethod
+    def _read_snakemake_benchmark(outputs: list) -> dict:
+        """
+        Parse the Snakemake benchmark TSV for a rule.
+
+        Snakemake writes the benchmark file (``SNAKEMAKE_BENCHMARK_FILENAME``)
+        to the same directory as the primary output.  Returns a dict
+        mapping column name → float, or an empty dict if the file doesn't
+        exist or can't be parsed.
+        """
+        if not outputs:
+            return {}
+        import os
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        bench_path = os.path.join(
+            os.path.dirname(outputs[0]), SNAKEMAKE_BENCHMARK_FILENAME
+        )
+        _log.debug(f"Looking for benchmark file: {bench_path} (cwd={os.getcwd()})")
+        try:
+            with open(bench_path) as fh:
+                header = fh.readline().strip().split("\t")
+                data = fh.readline().strip().split("\t")
+            if not data or len(data) != len(header):
+                _log.debug(f"Benchmark file malformed: {bench_path}")
+                return {}
+            result = {}
+            for col, val in zip(header, data):
+                if val in ("", "-"):
+                    continue
+                try:
+                    result[col] = float(val)
+                except ValueError:
+                    pass
+            _log.debug(f"Read benchmark metrics from {bench_path}: {result}")
+            return result
+        except Exception as e:
+            _log.debug(f"Could not read benchmark file {bench_path}: {e}")
+            return {}
+
+    def _emit_perf_metrics(
+        self,
+        rule_name: str,
+        rule: dict,
+        perf: dict,
+        timestamp_ns: int,
+    ):
+        """
+        Emit Snakemake benchmark values as OTLP ``resourceMetrics`` Gauge
+        data points, one metric per column.  Each data point carries an
+        exemplar that links back to the rule's trace/span IDs so the metric
+        can be correlated with the corresponding trace in the collector.
+        """
+        if not perf:
+            return
+
+        # Label set shared by every data point for this rule
+        label_attrs = [
+            {"key": "rule", "value": {"stringValue": rule_name}},
+            {"key": "stage_id", "value": {"stringValue": rule["stage_id"]}},
+            {"key": "module_id", "value": {"stringValue": rule["module_id"]}},
+            {"key": "node_id", "value": {"stringValue": rule["node_id"]}},
+            {"key": "param_id", "value": {"stringValue": rule["param_id"]}},
+            {"key": "benchmark_name", "value": {"stringValue": self._benchmark_name}},
+        ]
+
+        exemplar = {
+            "traceId": self._trace_id,
+            "spanId": rule["span_id"],
+            "timeUnixNano": str(timestamp_ns),
+        }
+
+        metrics = []
+        for attr_key, col_name, description in self._BENCHMARK_COLUMNS:
+            value = perf.get(col_name)
+            if value is None:
+                continue
+            metrics.append(
+                {
+                    "name": f"omnibenchmark.{attr_key}",
+                    "description": description,
+                    "gauge": {
+                        "dataPoints": [
+                            {
+                                "attributes": label_attrs,
+                                "timeUnixNano": str(timestamp_ns),
+                                "asDouble": value,
+                                "exemplars": [exemplar],
+                            }
+                        ]
+                    },
+                }
+            )
+
+        if not metrics:
+            return
+
+        resource_metrics = {
+            "resourceMetrics": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {
+                                "key": "service.name",
+                                "value": {"stringValue": self.service_name},
+                            },
+                            {
+                                "key": "service.version",
+                                "value": {"stringValue": self.service_version},
+                            },
+                        ]
+                    },
+                    "scopeMetrics": [
+                        {
+                            "scope": {
+                                "name": "omnibenchmark.telemetry",
+                                "version": "1.0.0",
+                            },
+                            "metrics": metrics,
+                        }
+                    ],
+                }
+            ]
+        }
+
+        line = json.dumps(resource_metrics, separators=(",", ":"))
+        self._file_handle.write(line + "\n")
+        self._file_handle.flush()
+
     def _emit_rule_span(self, rule_name: str):
         """Emit a completed rule span."""
         rule = self._rules[rule_name]
@@ -503,6 +701,13 @@ class TelemetryEmitter:
             attributes.append(Attribute("rule.parameters", rule["parameters"]))
         if rule["error"]:
             attributes.append(Attribute("error.type", "RuleExecutionError"))
+
+        # Snakemake benchmark metrics as span attributes
+        perf = self._read_snakemake_benchmark(rule.get("outputs", []))
+        for attr_key, col_name, _ in self._BENCHMARK_COLUMNS:
+            value = perf.get(col_name)
+            if value is not None:
+                attributes.append(Attribute(attr_key, value))
 
         events = []
         if rule["stdout"]:
@@ -545,6 +750,9 @@ class TelemetryEmitter:
         )
 
         self._emit_span(span)
+
+        # Emit Snakemake benchmark values as OTLP metrics (Gauge)
+        self._emit_perf_metrics(rule_name, rule, perf, rule["end_time"])
 
         # Emit structured logs for stdout/stderr (correlated with the span)
         if rule["stdout"]:
@@ -717,28 +925,14 @@ class TelemetryEmitter:
                 self._emit_stage_span(stage_id)
                 self._emitted_stages.add(stage_id)
 
-        # Emit the benchmark root span
-        span = Span(
-            trace_id=self._trace_id,
-            span_id=self._benchmark_span_id,
-            parent_span_id=None,
-            name=f"{self._benchmark_name}-{self._benchmark_version}",
-            kind=SpanKind.SERVER,
-            start_time_ns=self._benchmark_start_time,
+        # Re-emit the benchmark root span with the real end time and final status.
+        # The initial emission (from init_benchmark) used end = start + 1 ns and
+        # status UNSET; collectors use the last-received emission for a span_id.
+        self._emit_benchmark_span(
             end_time_ns=end_time,
             status=SpanStatus.OK if success else SpanStatus.ERROR,
-            status_message=message,
-            attributes=[
-                Attribute("benchmark.name", self._benchmark_name),
-                Attribute("benchmark.version", self._benchmark_version),
-                Attribute("benchmark.author", self._benchmark_author),
-                Attribute("benchmark.total_rules", self._total_rules),
-                Attribute("benchmark.software_backend", self._software_backend),
-                Attribute("benchmark.cores", self._cores),
-            ],
+            message=message,
         )
-
-        self._emit_span(span)
 
     @property
     def trace_id(self) -> str:

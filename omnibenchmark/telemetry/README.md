@@ -56,25 +56,24 @@ docker logs aspire 2>&1 | grep "login?t="
 ### 2. Run Benchmark with Telemetry
 
 ```bash
-ob run benchmark.yaml --telemetry json --telemetry-output telemetry.jsonl
+ob run benchmark.yaml --telemetry 
 ```
 
-### 3. Stream Telemetry to Aspire
+This will output `out/telemetry.jsonl` and start streaming the JSON to aspire over gRPC.
 
-Aspire only accepts protobuf over gRPC, so use the relay script to convert JSON to protobuf:
+### 3. Use Aspire MCP Server in your workflow
 
-```bash
-# Install dependencies (if not already installed)
-pip install opentelemetry-proto grpcio
+For Claude code, you can configure `.mcp.json` like this:
 
-# Stream telemetry to Aspire (run in separate terminal)
-tail -f telemetry.jsonl | python scripts/telemetry-relay.py --endpoint localhost:4317
 ```
-
-Or send a completed telemetry file:
-
-```bash
-python scripts/telemetry-relay.py --input telemetry.jsonl --endpoint localhost:4317
+{
+  "mcpServers": {
+    "aspire": {
+      "type": "http",
+      "url": "http://localhost:18891/mcp"
+    }
+  }
+}
 ```
 
 ## Output Format

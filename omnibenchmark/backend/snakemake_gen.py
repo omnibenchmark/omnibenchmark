@@ -18,10 +18,15 @@ import platform
 import shutil
 import sys
 from pathlib import Path
+
 from typing import List, Optional, TextIO
 from datetime import datetime, timezone
 
 from omnibenchmark.model.resolved import ResolvedNode, ResolvedMetricCollector
+
+# Filename used by the Snakemake benchmark: directive for performance metrics.
+# Must stay in sync with what the emitter reads back.
+SNAKEMAKE_BENCHMARK_FILENAME = "benchmark.txt"
 
 
 class SnakemakeGenerator:
@@ -155,7 +160,7 @@ class SnakemakeGenerator:
                 benchmark_dir = (
                     os.path.dirname(first_output) if "/" in first_output else "."
                 )
-                benchmark_file = f"{benchmark_dir}/clustbench_performance.txt"
+                benchmark_file = f"{benchmark_dir}/{SNAKEMAKE_BENCHMARK_FILENAME}"
                 f.write("    benchmark:\n")
                 f.write(f'        "{benchmark_file}"\n')
 
@@ -706,6 +711,9 @@ class SnakemakeGenerator:
         if hasattr(node.resources, "runtime") and node.resources.runtime:
             f.write(f",\n        runtime={node.resources.runtime}")
 
+        if hasattr(node.resources, "gpu") and node.resources.gpu:
+            f.write(f",\n        nvidia_gpu={node.resources.gpu}")
+
         f.write("\n")
 
     def _make_human_name(self, params) -> str:
@@ -946,3 +954,5 @@ def write_run_manifest(
     with open(manifest_path, "w") as fh:
         json.dump(manifest, fh, indent=2)
         fh.write("\n")
+
+    return manifest
