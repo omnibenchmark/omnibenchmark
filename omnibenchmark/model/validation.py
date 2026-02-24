@@ -175,7 +175,13 @@ class BenchmarkValidator:
         # Check modules
         all_modules = self.get_modules()  # type: ignore
         for module in all_modules.values():  # type: ignore
-            if module.software_environment not in env_ids:  # type: ignore
+            if module.software_environment is None:  # type: ignore
+                errors.append(
+                    f"Module '{module.id}' does not declare a software_environment. "  # type: ignore
+                    f"Specify one explicitly (multiple environments are declared: "
+                    f"{', '.join(sorted(env_ids))})."
+                )
+            elif module.software_environment not in env_ids:  # type: ignore
                 errors.append(
                     f"Software environment with id '{module.software_environment}' is not declared. It should be listed as part of the stanza software_environments within the benchmarking YAML header."  # type: ignore
                 )
@@ -183,7 +189,13 @@ class BenchmarkValidator:
         # Check metric collectors
         if self.metric_collectors:  # type: ignore
             for collector in self.metric_collectors:  # type: ignore
-                if collector.software_environment not in env_ids:  # type: ignore
+                if collector.software_environment is None:  # type: ignore
+                    errors.append(
+                        f"Metric collector '{collector.id}' does not declare a software_environment. "  # type: ignore
+                        f"Specify one explicitly (multiple environments are declared: "
+                        f"{', '.join(sorted(env_ids))})."
+                    )
+                elif collector.software_environment not in env_ids:  # type: ignore
                     errors.append(
                         f"Software environment with id '{collector.software_environment}' for metric collector '{collector.id}' is not declared."  # type: ignore
                     )
@@ -265,16 +277,19 @@ class BenchmarkValidator:
         1. Every key in requires is a provides-label declared by an ancestor stage
         2. Every value in requires is a valid module ID in the providing stage
         3. No self-reference (the label must not be provided by the current stage)
+        4. The label is provided by exactly one ancestor stage (ambiguous labels are
+           an error because requires cannot resolve which stage to plug into)
         """
         stages = self.stages  # type: ignore
 
         for stage_idx, stage in enumerate(stages):
-            # Collect provides labels from all stages that appear before this one
-            ancestor_provides: dict[str, str] = {}  # label -> stage_id
+            # Collect provides labels from all stages that appear before this one.
+            # Map label -> list[stage_id] so we can detect duplicates (ambiguity).
+            ancestor_provides: dict[str, list[str]] = {}  # label -> [stage_id, ...]
             for prev_stage in stages[:stage_idx]:
                 if prev_stage.provides:
                     for label in prev_stage.provides:
-                        ancestor_provides[label] = prev_stage.id
+                        ancestor_provides.setdefault(label, []).append(prev_stage.id)
 
             # Collect provides labels of the current stage (for self-reference check)
             own_provides = set(stage.provides.keys()) if stage.provides else set()
@@ -300,8 +315,19 @@ class BenchmarkValidator:
                         )
                         continue
 
+                    # Check label is unambiguous (provided by exactly one ancestor stage)
+                    providing_stage_ids = ancestor_provides[label]
+                    if len(providing_stage_ids) > 1:
+                        errors.append(
+                            f"Module '{module.id}' in stage '{stage.id}': "
+                            f"requires label '{label}' is ambiguous — provided by multiple "
+                            f"ancestor stages: {', '.join(repr(s) for s in providing_stage_ids)}. "
+                            f"Rename the labels so each is unique across the pipeline."
+                        )
+                        continue
+
                     # Check value is a valid module ID in the providing stage
-                    providing_stage_id = ancestor_provides[label]
+                    providing_stage_id = providing_stage_ids[0]
                     providing_stage = next(
                         (s for s in stages if s.id == providing_stage_id), None
                     )

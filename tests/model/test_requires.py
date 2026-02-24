@@ -173,3 +173,140 @@ class TestRequiresValidation:
                 ]
             )
         assert "self-reference" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Unit: Ambiguous label detection (§9.5 uniqueness constraint)
+# ---------------------------------------------------------------------------
+
+
+def _ambiguous_label_benchmark(requires_label: str = "method"):
+    """Three-stage benchmark where two stages both provide the same label.
+
+    stages: methods_fast (provides 'method') → methods_accurate (provides 'method')
+            → postprocess (rapids requires 'method': 'M1')
+
+    The label 'method' is provided by two ancestor stages, so requires is
+    ambiguous and must be rejected.
+    """
+    return make_benchmark(
+        stages=[
+            {
+                "id": "methods_fast",
+                "provides": {"method": "fast.result"},
+                "modules": [{"id": "M1", "software_environment": "python_env"}],
+                "outputs": [{"id": "fast.result", "path": "fast.csv"}],
+            },
+            {
+                "id": "methods_accurate",
+                "provides": {"method": "accurate.result"},
+                "modules": [{"id": "M2", "software_environment": "python_env"}],
+                "outputs": [{"id": "accurate.result", "path": "accurate.csv"}],
+            },
+            {
+                "id": "postprocess",
+                "inputs": [["fast.result"]],
+                "modules": [
+                    {"id": "scanpy", "software_environment": "python_env"},
+                    {
+                        "id": "rapids",
+                        "software_environment": "python_env",
+                        "requires": {requires_label: "M1"},
+                    },
+                ],
+                "outputs": [{"id": "post.result", "path": "post.csv"}],
+            },
+        ]
+    )
+
+
+class TestRequiresAmbiguousLabel:
+    @pytest.mark.short
+    def test_ambiguous_label_raises(self):
+        """requires referencing a label provided by more than one ancestor is an error."""
+        with pytest.raises(ValidationError) as exc_info:
+            _ambiguous_label_benchmark(requires_label="method")
+        msg = str(exc_info.value)
+        assert "ambiguous" in msg
+        assert "method" in msg
+
+    @pytest.mark.short
+    def test_ambiguous_label_error_names_all_providers(self):
+        """The error message must list every stage that provides the conflicting label."""
+        with pytest.raises(ValidationError) as exc_info:
+            _ambiguous_label_benchmark(requires_label="method")
+        msg = str(exc_info.value)
+        assert "methods_fast" in msg
+        assert "methods_accurate" in msg
+
+    @pytest.mark.short
+    def test_ambiguous_label_error_names_affected_module(self):
+        """The error message must identify the module that declared the bad requires."""
+        with pytest.raises(ValidationError) as exc_info:
+            _ambiguous_label_benchmark(requires_label="method")
+        assert "rapids" in str(exc_info.value)
+
+    @pytest.mark.short
+    def test_unique_label_across_stages_passes(self):
+        """When each stage provides a distinct label, requires is unambiguous and valid."""
+        b = make_benchmark(
+            stages=[
+                {
+                    "id": "methods_fast",
+                    "provides": {"method_fast": "fast.result"},
+                    "modules": [{"id": "M1", "software_environment": "python_env"}],
+                    "outputs": [{"id": "fast.result", "path": "fast.csv"}],
+                },
+                {
+                    "id": "methods_accurate",
+                    "provides": {"method_accurate": "accurate.result"},
+                    "modules": [{"id": "M2", "software_environment": "python_env"}],
+                    "outputs": [{"id": "accurate.result", "path": "accurate.csv"}],
+                },
+                {
+                    "id": "postprocess",
+                    "inputs": [["fast.result"]],
+                    "modules": [
+                        {"id": "scanpy", "software_environment": "python_env"},
+                        {
+                            "id": "rapids",
+                            "software_environment": "python_env",
+                            "requires": {"method_fast": "M1"},  # unambiguous
+                        },
+                    ],
+                    "outputs": [{"id": "post.result", "path": "post.csv"}],
+                },
+            ]
+        )
+        assert b is not None
+
+    @pytest.mark.short
+    def test_gather_with_shared_label_is_unaffected(self):
+        """gather: is allowed on shared labels; the ambiguity rule applies only to requires."""
+        from omnibenchmark.model.benchmark import GatherInput
+
+        b = make_benchmark(
+            stages=[
+                {
+                    "id": "methods_fast",
+                    "provides": {"method": "fast.result"},
+                    "modules": [{"id": "M1", "software_environment": "python_env"}],
+                    "outputs": [{"id": "fast.result", "path": "fast.csv"}],
+                },
+                {
+                    "id": "methods_accurate",
+                    "provides": {"method": "accurate.result"},
+                    "modules": [{"id": "M2", "software_environment": "python_env"}],
+                    "outputs": [{"id": "accurate.result", "path": "accurate.csv"}],
+                },
+                {
+                    "id": "summary",
+                    "inputs": [GatherInput(gather="method")],
+                    "modules": [
+                        {"id": "reporter", "software_environment": "python_env"}
+                    ],
+                    "outputs": [{"id": "report", "path": "report.json"}],
+                },
+            ]
+        )
+        assert b is not None
