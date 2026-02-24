@@ -125,10 +125,11 @@ class APIVersion(str, Enum):
     V0_1_0 = "0.1.0"
     V0_2_0 = "0.2.0"
     V0_3_0 = "0.3.0"
+    V0_5_0 = "0.5.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_3_0
+        return cls.V0_5_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -399,11 +400,14 @@ class Resources(BaseModel):
     runtime: Optional[int] = Field(
         None, description="Expected runtime in minutes", gt=0
     )
+    gpu: Optional[int] = Field(
+        None, description="Number of GPUs to allocate per task", gt=0
+    )
 
     @model_validator(mode="after")
     def validate_at_least_one_resource(self) -> "Resources":
         """Ensure at least one resource is specified."""
-        if not any([self.cores, self.mem_mb, self.disk_mb, self.runtime]):
+        if not any([self.cores, self.mem_mb, self.disk_mb, self.runtime, self.gpu]):
             raise ValueError("At least one resource must be specified")
         return self
 
@@ -411,14 +415,23 @@ class Resources(BaseModel):
 class SoftwareEnvironmentReference(BaseModel):
     """Reference to a software environment."""
 
-    software_environment: str = Field(..., description="Software environment ID")
+    software_environment: Optional[str] = Field(
+        None,
+        description=(
+            "Software environment ID. May be omitted when exactly one "
+            "software_environment is declared in the benchmark header; "
+            "the sole environment is then used automatically."
+        ),
+    )
 
 
 class Module(DescribableEntity, SoftwareEnvironmentReference):
     """Module definition."""
 
     repository: Repository = Field(..., description="Module repository")
-    software_environment: str = Field(..., description="Software environment ID")
+    software_environment: Optional[str] = Field(
+        None, description="Software environment ID"
+    )
     parameters: Optional[List[Parameter]] = Field(None, description="Module parameters")
     exclude: Optional[List[str]] = Field(None, description="Paths to exclude")
     requires: Optional[Dict[str, str]] = Field(
@@ -447,7 +460,9 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
     """Metric collector definition."""
 
     repository: Repository = Field(..., description="Repository information")
-    software_environment: str = Field(..., description="Software environment ID")
+    software_environment: Optional[str] = Field(
+        None, description="Software environment ID"
+    )
     inputs: List[Union[str, IOFile]] = Field(..., description="Input files")
     outputs: List[IOFile] = Field(..., description="Output files")
     parameters: Optional[List[Parameter]] = Field(
@@ -1182,6 +1197,19 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     @model_validator(mode="after")
     def validate_model_structure_post_init(self) -> "Benchmark":
         """Validate pure model structure after initialization (no execution context)."""
+        # When exactly one software_environment is declared, fill it in for any
+        # module / metric collector that did not specify one explicitly.
+        if len(self.software_environments) == 1:
+            sole_env_id = self.software_environments[0].id
+            for stage in self.stages:
+                for module in stage.modules:
+                    if module.software_environment is None:
+                        module.software_environment = sole_env_id
+            if self.metric_collectors:
+                for collector in self.metric_collectors:
+                    if collector.software_environment is None:
+                        collector.software_environment = sole_env_id
+
         # Call the pure model validation from the validator base class
         self.validate_model_structure()
         return self
