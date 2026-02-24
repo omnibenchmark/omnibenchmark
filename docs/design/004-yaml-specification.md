@@ -147,7 +147,7 @@ Modules are concrete implementations within stages.
 ```yaml
 modules:
   - id: <string>                       # Required: unique module ID
-    software_environment: <string>     # Required: environment reference
+    software_environment: <string>     # Optional if exactly one environment declared
     repository: <object>               # Required: source location
     name: <string>                     # Optional: human-readable name
     parameters: <array>                # Optional: module parameters
@@ -156,9 +156,21 @@ modules:
 
 #### Required Fields
 
-- `id`: Unique identifier within stage (used as wildcard value)
-- `software_environment`: Reference to defined environment
+- `id`: Unique identifier within its stage (used as wildcard value). The same `id`
+  value (e.g. `rapids`) **may appear in multiple stages** — this is the normal pattern
+  when a family of implementations spans several pipeline stages. Module identity for
+  resolution purposes is always `(stage_id, module_id)`, never `module_id` alone.
+  The compiler and resolver must key resolved modules by this compound identifier;
+  deduplicating by `module_id` alone would cause a later stage's entrypoint to be
+  silently overwritten by an earlier stage's resolution result.
 - `repository`: Source code specification
+
+#### Optional Fields
+
+- `software_environment`: Reference to a declared environment. **May be omitted when
+  exactly one `software_environments` entry is declared** in the benchmark header — the
+  sole environment is then used automatically for all modules. When multiple environments
+  are declared, every module must specify one explicitly.
 
 #### Repository Specification
 
@@ -293,6 +305,18 @@ The compiler maintains an output registry:
 1. Register outputs: `data.raw → "data/{dataset}/{dataset}_data.json"`
 2. Resolve inputs by lookup
 3. Pass to modules: `--data.raw data/{dataset}/{dataset}_data.json`
+
+#### Input–Predecessor Consistency
+
+A stage's declared inputs determine which ancestor stage's nodes it expands over. The compiler resolves input nodes by looking up each declared input ID in the output registry, finding the stages that produced them, and using those nodes as the cartesian base for expansion — **not** blindly using the immediately preceding stage's nodes.
+
+The validator enforces: **for every non-initial, non-gather stage, if none of its declared input IDs are outputs of the immediately preceding stage, that stage is a "skip dependency" — it depends on an earlier ancestor and is a sibling of the preceding stage.** This is structurally valid but must be caught at validation time, because a backend that naively propagates the preceding stage's nodes would produce duplicate output paths (e.g. Snakemake `AmbiguousRuleException`).
+
+A skip dependency is valid when:
+- The declared inputs are all resolvable from earlier ancestor stages (already enforced by the input reference check).
+- The preceding stage's outputs are not consumed by this stage at all — the preceding stage is a sibling in the DAG, not a parent.
+
+The compiler must resolve the expansion base from `output_to_nodes` for the declared input IDs, not from `previous_stage_nodes`. Validation must report a clear error if none of a stage's inputs can be resolved to any ancestor stage (which would make it an unresolvable dependency).
 
 ### 3.8 Path Strategy
 
@@ -1017,6 +1041,7 @@ The compiler must validate:
 - All values in `requires` are valid module IDs in the referenced stage. Unknown values are a hard error.
 - The referenced stage must appear before the current stage in document order (same constraint as regular inputs).
 - `requires` may not reference a label introduced by the current stage itself (no self-reference).
+- A `provides` label used as a `requires` key must be provided by **exactly one** ancestor stage. If two or more ancestor stages declare the same label, `requires` cannot resolve which stage to plug into, and is therefore a hard error. To use `requires` in such a scenario, rename the labels so each is unique across the pipeline (e.g. `method_fast` and `method_accurate` instead of two stages both providing `method`). This constraint does not apply to `gather:`, which intentionally collects from all providers of a label.
 
 ### 9.6 Relationship to `exclude:`
 
@@ -1046,18 +1071,18 @@ software_environments:
     conda: "envs/integration.yaml"
 
 stages:
+  # software_environment is omitted on all modules — auto-filled from the single
+  # declared environment ("integration") at parse time.
 
   - id: data
     provides:
       dataset: data.h5ad
     modules:
       - id: Yao_5k
-        software_environment: integration
         repository: { url: "code/get_input_anndata.py", commit: "local" }
         parameters:
           - sample_size: "5000"
       - id: Yao_20k
-        software_environment: integration
         repository: { url: "code/get_input_anndata.py", commit: "local" }
         parameters:
           - sample_size: "20000"
@@ -1071,10 +1096,8 @@ stages:
     inputs: [data.h5ad]
     modules:
       - id: scanpy
-        software_environment: integration
         repository: { url: "code/pca.py", commit: "local" }
       - id: rapids
-        software_environment: integration
         repository: { url: "code/pca.py", commit: "local" }
         resources:
           mem_mb: 32000
@@ -1088,10 +1111,8 @@ stages:
     inputs: [data.h5ad, pca.csv]
     modules:
       - id: scanpy
-        software_environment: integration
         repository: { url: "code/harmony.py", commit: "local" }
       - id: rapids
-        software_environment: integration
         repository: { url: "code/harmony.py", commit: "local" }
         requires:
           pca: scanpy              # rapids harmony only runs on scanpy PCA output
@@ -1105,10 +1126,8 @@ stages:
     inputs: [harmony.csv]
     modules:
       - id: scanpy
-        software_environment: integration
         repository: { url: "code/neighbors.py", commit: "local" }
       - id: rapids
-        software_environment: integration
         repository: { url: "code/neighbors.py", commit: "local" }
         requires:
           pca: scanpy
@@ -1121,10 +1140,8 @@ stages:
     inputs: [neighbors.h5ad]
     modules:
       - id: scanpy
-        software_environment: integration
         repository: { url: "code/leiden.py", commit: "local" }
       - id: rapids
-        software_environment: integration
         repository: { url: "code/leiden.py", commit: "local" }
         requires:
           pca: scanpy
@@ -1138,7 +1155,6 @@ stages:
     inputs: [harmony.csv, neighbors.h5ad]
     modules:
       - id: rapids
-        software_environment: integration
         repository: { url: "code/run_umap.py", commit: "local" }
         resources:
           mem_mb: 32000
