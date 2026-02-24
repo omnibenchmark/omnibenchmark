@@ -15,14 +15,13 @@ from omnibenchmark.model.benchmark import (
     Parameter,
     IOFile,
     InputCollection,
+    Resources,
     SoftwareEnvironment,
     SoftwareEnvironmentReference,
     Module,
     MetricCollector,
     Stage,
     Benchmark,
-    # Exceptions (moved to validation module)
-    # ValidationError,
     # Utility functions
     expand_output_path,
     validate_non_empty_string,
@@ -30,7 +29,6 @@ from omnibenchmark.model.benchmark import (
     validate_hex_string,
 )
 
-# Converter classes removed - use Benchmark class directly instead
 from omnibenchmark.model.validation import (
     ValidationError,
     BenchmarkValidator,
@@ -38,6 +36,12 @@ from omnibenchmark.model.validation import (
 from omnibenchmark.model.module import (
     DerivedSoftware,
     ModuleMetadata,
+)
+from omnibenchmark.model.resolved import (
+    TemplateContext,
+    ResolvedModule,
+    ResolvedNode,
+    ResolvedMetricCollector,
 )
 
 __all__ = [
@@ -55,6 +59,7 @@ __all__ = [
     "Parameter",
     "IOFile",
     "InputCollection",
+    "Resources",
     "SoftwareEnvironment",
     "SoftwareEnvironmentReference",
     "Module",
@@ -68,6 +73,11 @@ __all__ = [
     # Module metadata
     "DerivedSoftware",
     "ModuleMetadata",
+    # Resolved entities
+    "TemplateContext",
+    "ResolvedModule",
+    "ResolvedNode",
+    "ResolvedMetricCollector",
     # Utility functions
     "expand_output_path",
     "validate_non_empty_string",

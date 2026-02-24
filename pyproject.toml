@@ -32,6 +32,11 @@ dependencies = [
 
     # Cloning modules
     "GitPython>=3.1.0",
+    "dulwich>=0.22.0",
+    "pathspec>=0.12.0",
+
+    # Progress display
+    "rich>=13.0.0",
 
     # Workflow
     # TODO: Pinned to <9.10 because Snakemake 9.10+ has stricter rule name validation

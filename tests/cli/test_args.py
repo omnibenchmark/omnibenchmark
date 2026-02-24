@@ -81,18 +81,21 @@ class TestParseExtraArgs:
         }
 
 
-class TestCLIUnknownOptionsError:
-    """Test that unknown options without -- separator produce clear errors."""
+class TestCLIUnknownOptionsPassthrough:
+    """Test that unknown options are passed through to snakemake."""
 
-    def test_unknown_option_without_separator_errors(self):
-        """Unknown options without -- should error, not silently pass through."""
+    def test_unknown_option_without_separator_passes_through(self):
+        """Unknown options (without --) are accepted and passed to snakemake.
+        The new CLI uses allow_extra_args=True so snakemake options like --dryrun
+        can be passed directly without requiring --.
+        """
         runner = CliRunner()
         result = runner.invoke(
             run,
-            ["bench.yaml", "--dryrun"],  # --dryrun is unknown to ob
+            ["bench.yaml", "--dryrun"],  # --dryrun is a snakemake option
         )
-        assert result.exit_code != 0
-        assert "No such option: --dryrun" in result.output
+        # Will fail because bench.yaml doesn't exist, but NOT "No such option"
+        assert "No such option: --dryrun" not in result.output
 
     def test_unknown_option_with_separator_succeeds(self, tmp_path):
         """Unknown options after -- should be accepted."""
