@@ -33,4 +33,13 @@ Usage:
 from omnibenchmark.telemetry.emitter import TelemetryEmitter
 from omnibenchmark.telemetry.events import SpanStatus
 
-__all__ = ["TelemetryEmitter", "SpanStatus"]
+__all__ = ["TelemetryEmitter", "SpanStatus", "TelemetryRelay"]
+
+
+def __getattr__(name):
+    # Lazy import so grpcio/opentelemetry-proto are only required when used
+    if name == "TelemetryRelay":
+        from omnibenchmark.telemetry.relay import TelemetryRelay
+
+        return TelemetryRelay
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

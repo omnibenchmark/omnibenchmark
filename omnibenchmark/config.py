@@ -29,7 +29,7 @@ default_cfg = {
         "git_cache": os.path.join(xdg_cache_home, APP_NAME, "git"),  # New: XDG cache
     },
     "telemetry": {
-        "endpoint": "localhost:4317",
+        "endpoint": "localhost:18889",
     },
 }
 
@@ -250,12 +250,12 @@ def get_telemetry_endpoint() -> str:
     Get the configured OTLP gRPC endpoint for telemetry streaming.
 
     Reads [telemetry] endpoint from the config file.
-    Default: localhost:4317 (Aspire Dashboard default port).
+    Default: localhost:18889 (Aspire Dashboard default OTLP gRPC port).
 
     To configure, add to ~/.config/omnibenchmark/omnibenchmark.cfg:
 
         [telemetry]
-        endpoint = localhost:4317
+        endpoint = localhost:18889
     """
     return config.get("telemetry", "endpoint", default_cfg["telemetry"]["endpoint"])
 

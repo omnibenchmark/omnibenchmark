@@ -97,7 +97,7 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=False,
     help=(
         "Emit OTLP telemetry to <out_dir>/telemetry.jsonl and stream it to the "
-        "gRPC endpoint set in [telemetry] endpoint (default: localhost:4317). "
+        "gRPC endpoint set in [telemetry] endpoint (default: localhost:18889). "
         "Requires the telemetry extras (pip install omnibenchmark[telemetry])."
     ),
 )
@@ -250,16 +250,8 @@ def _run_benchmark(
         import threading
 
         try:
-            import importlib.util as _ilu
-
-            _relay_script = (
-                Path(__file__).parent.parent.parent / "scripts" / "telemetry-relay.py"
-            )
-            _spec = _ilu.spec_from_file_location("telemetry_relay", _relay_script)
-            _mod = _ilu.module_from_spec(_spec)
-            _spec.loader.exec_module(_mod)
-            TelemetryRelay = _mod.TelemetryRelay
-        except Exception as _e:
+            from omnibenchmark.telemetry.relay import TelemetryRelay
+        except ImportError as _e:
             logger.warning(
                 f"Could not load telemetry relay (install opentelemetry-proto grpcio): {_e}"
             )
@@ -339,7 +331,11 @@ def _run_benchmark(
         module_filter=module_filter,
     )
 
-    # Initialize telemetry with resolved nodes and emit resolution span
+    # Write run manifest first so we can pass host metadata into the root trace span
+    run_id = telemetry_emitter.run_id if telemetry_emitter else None
+    run_manifest = write_run_manifest(output_dir=out_dir_path, run_id=run_id)
+
+    # Initialize telemetry with resolved nodes; emits the root span immediately
     if telemetry_emitter and resolved_nodes:
         stages = [{"id": s.id, "name": s.name or s.id} for s in b.model.stages]
         telemetry_emitter.emit_manifest(
@@ -350,6 +346,7 @@ def _run_benchmark(
             cores=cores,
             stages=stages,
             resolved_nodes=resolved_nodes,
+            run_manifest=run_manifest,
         )
         resolution_end_ns = int(time.time() * 1_000_000_000)
         telemetry_emitter.emit_phase_span(
@@ -360,10 +357,6 @@ def _run_benchmark(
             start_time_ns=resolution_start_ns,
             end_time_ns=resolution_end_ns,
         )
-
-    # Write run manifest (run_id correlates with telemetry trace_id when enabled)
-    run_id = telemetry_emitter.run_id if telemetry_emitter else None
-    write_run_manifest(output_dir=out_dir_path, run_id=run_id)
 
     # If dry run, exit here
     if dry:
@@ -442,6 +435,10 @@ def _run_snakemake(
     from omnibenchmark.cli.progress import ProgressDisplay, InteractiveProgress
     from datetime import datetime
     import re
+
+    def normalize_rule_name(name: str) -> str:
+        """Normalize a rule name captured from Snakemake output to match _sanitize_rule_name."""
+        return name.replace(".", "_")
 
     snakefile_path = out_dir / "Snakefile"
 
@@ -529,9 +526,9 @@ def _run_snakemake(
             )
 
             # Regex patterns for snakemake output
-            rule_start_pattern = re.compile(r"rule (\w+):")
-            job_error_pattern = re.compile(r"Error in rule (\w+):")
-            localrule_pattern = re.compile(r"localrule (\w+):")
+            rule_start_pattern = re.compile(r"rule ([\w.]+):")
+            job_error_pattern = re.compile(r"Error in rule ([\w.]+):")
+            localrule_pattern = re.compile(r"localrule ([\w.]+):")
 
             # Interactive progress (starts after we know total jobs)
             progress: InteractiveProgress | None = None
@@ -607,7 +604,7 @@ def _run_snakemake(
                             )
                             first_rule_seen = True
 
-                        current_rule = match.group(1)
+                        current_rule = normalize_rule_name(match.group(1))
                         rule_output_buffer.clear()
                         if progress:
                             progress.update(current_rule=current_rule)
@@ -625,7 +622,7 @@ def _run_snakemake(
                             )
                             first_rule_seen = True
 
-                        current_rule = match.group(1)
+                        current_rule = normalize_rule_name(match.group(1))
                         rule_output_buffer.clear()
                         if progress:
                             progress.update(current_rule=current_rule)
@@ -633,7 +630,11 @@ def _run_snakemake(
                             telemetry_emitter.rule_started(current_rule)
 
                     # Check for job completion
-                    if "Finished job" in line or "Nothing to be done" in line:
+                    if (
+                        "Finished job" in line
+                        or "Finished jobid" in line
+                        or "Nothing to be done" in line
+                    ):
                         if progress:
                             progress.update(advance=1)
                         if telemetry_emitter and current_rule:
@@ -652,7 +653,7 @@ def _run_snakemake(
                     # Check for errors
                     match = job_error_pattern.search(line)
                     if match:
-                        failed_rule = match.group(1)
+                        failed_rule = normalize_rule_name(match.group(1))
                         if progress:
                             progress.add_failed_rule(failed_rule)
                         capturing_error = True
@@ -668,7 +669,9 @@ def _run_snakemake(
                             # Get the failed rule from the first error line
                             err_match = job_error_pattern.search(error_lines[0])
                             if err_match:
-                                failed_rule_name = err_match.group(1)
+                                failed_rule_name = normalize_rule_name(
+                                    err_match.group(1)
+                                )
                                 # Combine snakemake output with per-rule log
                                 snakemake_output = "\n".join(rule_output_buffer)
                                 rule_log = _read_rule_log(Path("."), failed_rule_name)
@@ -979,6 +982,59 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
+def _select_input_nodes(
+    declared_input_ids: list[str],
+    output_to_nodes: dict,
+    resolved_nodes: list,
+    stage_ids_in_order: list[str],
+    previous_stage_nodes: list,
+) -> list:
+    """Return the node list to use as the cartesian expansion base for a stage.
+
+    When a stage declares explicit inputs, we look up which nodes actually
+    produced those output IDs and use the nodes from the *deepest* (latest in
+    document order) providing stage.  That stage carries the fullest accumulated
+    TemplateContext, ensuring all ``{label}`` variables are resolvable.
+
+    This also handles the skip-dependency case: if a stage's inputs are all
+    produced by an ancestor earlier than the immediately preceding stage (e.g.
+    umap depending on neighbors while leiden is the preceding stage), we return
+    the neighbors nodes rather than the leiden nodes — preventing spurious
+    wildcard expansion over leiden combinations.
+
+    Falls back to ``previous_stage_nodes`` when no declared input can be
+    resolved from the registry (e.g. the stage is effectively initial).
+    """
+    if not declared_input_ids:
+        return previous_stage_nodes
+
+    providing_stage_id_to_depth: dict[str, int] = {}
+    for input_id in declared_input_ids:
+        for node_id, _path in output_to_nodes.get(input_id, []):
+            node_obj = next(
+                (n for n in resolved_nodes if n.id == node_id),
+                None,
+            )
+            if node_obj is not None:
+                depth = (
+                    stage_ids_in_order.index(node_obj.stage_id)
+                    if node_obj.stage_id in stage_ids_in_order
+                    else -1
+                )
+                existing = providing_stage_id_to_depth.get(node_obj.stage_id, -1)
+                if depth > existing:
+                    providing_stage_id_to_depth[node_obj.stage_id] = depth
+
+    if not providing_stage_id_to_depth:
+        return previous_stage_nodes
+
+    deepest_stage_id = max(
+        providing_stage_id_to_depth,
+        key=providing_stage_id_to_depth.__getitem__,
+    )
+    return [n for n in resolved_nodes if n.stage_id == deepest_stage_id]
+
+
 def _satisfies_requires(requires: dict, input_node) -> bool:
     """Return True if the input_node's lineage satisfies all requires constraints.
 
@@ -1141,12 +1197,15 @@ def _generate_explicit_snakefile(
         benchmark_dir=benchmark_dir,
     )
 
-    # Collect all unique modules to resolve
+    # Collect all unique modules to resolve.
+    # Key is (stage_id, module_id) because the same module.id (e.g. "rapids")
+    # can appear in multiple stages with different entrypoints.
     unique_modules = {}
     for stage in benchmark.model.stages:
         for module in stage.modules:
-            if module.id not in unique_modules:
-                unique_modules[module.id] = (module, module.software_environment)
+            cache_key = (stage.id, module.id)
+            if cache_key not in unique_modules:
+                unique_modules[cache_key] = (module, module.software_environment)
 
     if not quiet:
         logger.info(f"\nResolving {len(unique_modules)} modules...")
@@ -1158,10 +1217,13 @@ def _generate_explicit_snakefile(
     resolution_lock = threading.Lock()
     captured_warnings = []
 
-    def resolve_module_task(module_id, module, software_env_id):
+    def resolve_module_task(cache_key, module, software_env_id):
         """Resolve a single module (runs in parallel)."""
         import warnings
         import logging
+
+        stage_id, module_id = cache_key
+        display_id = f"{stage_id}/{module_id}"
 
         if quiet:
             root_logger = logging.getLogger()
@@ -1187,17 +1249,17 @@ def _generate_explicit_snakefile(
             try:
                 resolved = resolver.resolve(
                     module=module,
-                    module_id=module_id,
+                    module_id=display_id,
                     software_environment_id=software_env_id,
                     dirty=dirty,
                     dev=dev,
                 )
                 for warning in w:
-                    module_warnings.append((module_id, str(warning.message)))
+                    module_warnings.append((display_id, str(warning.message)))
 
-                return (module_id, resolved, None, module_warnings)
+                return (cache_key, resolved, None, module_warnings)
             except Exception as e:
-                return (module_id, None, str(e), module_warnings)
+                return (cache_key, None, str(e), module_warnings)
             finally:
                 if quiet:
                     root_logger.handlers = old_handlers
@@ -1214,23 +1276,24 @@ def _generate_explicit_snakefile(
 
     with ThreadPoolExecutor(max_workers=cores) as executor:
         futures = {
-            executor.submit(resolve_module_task, mod_id, mod, env_id): mod_id
-            for mod_id, (mod, env_id) in unique_modules.items()
+            executor.submit(resolve_module_task, cache_key, mod, env_id): cache_key
+            for cache_key, (mod, env_id) in unique_modules.items()
         }
 
         for future in as_completed(futures):
-            module_id, resolved, error, module_warnings = future.result()
+            cache_key, resolved, error, module_warnings = future.result()
+            stage_id, module_id = cache_key
 
             with resolution_lock:
                 captured_warnings.extend(module_warnings)
 
             if error:
-                resolution_errors.append((module_id, error))
+                resolution_errors.append((f"{stage_id}/{module_id}", error))
                 if not quiet:
-                    logger.error(f"Failed to resolve {module_id}: {error}")
+                    logger.error(f"Failed to resolve {stage_id}/{module_id}: {error}")
             else:
                 with resolution_lock:
-                    resolved_modules_cache[module_id] = resolved
+                    resolved_modules_cache[cache_key] = resolved
 
             if quiet:
                 progress.update(advance=1)
@@ -1325,6 +1388,7 @@ def _generate_explicit_snakefile(
     resolved_nodes = []
     output_to_nodes = {}
     previous_stage_nodes = []
+    dag_errors: list[tuple[str, str, str]] = []  # (stage_id, module_id, message)
 
     for stage in stages_to_expand:
         current_stage_nodes = []
@@ -1341,15 +1405,16 @@ def _generate_explicit_snakefile(
             # One node per (module x params) in the gather stage
             for module in stage.modules:
                 module_id = module.id
+                cache_key = (stage.id, module_id)
 
                 try:
-                    if module_id not in resolved_modules_cache:
+                    if cache_key not in resolved_modules_cache:
                         logger.warning(
                             f"      Module {module_id} not in cache, skipping"
                         )
                         continue
 
-                    resolved_module = resolved_modules_cache[module_id]
+                    resolved_module = resolved_modules_cache[cache_key]
 
                     if module.parameters:
                         params_list = []
@@ -1441,13 +1506,14 @@ def _generate_explicit_snakefile(
 
         for module in modules_to_expand:
             module_id = module.id
+            cache_key = (stage.id, module_id)
 
             try:
-                if module_id not in resolved_modules_cache:
+                if cache_key not in resolved_modules_cache:
                     logger.warning(f"      Module {module_id} not in cache, skipping")
                     continue
 
-                resolved_module = resolved_modules_cache[module_id]
+                resolved_module = resolved_modules_cache[cache_key]
 
                 # Expand parameters
                 if module.parameters:
@@ -1457,11 +1523,40 @@ def _generate_explicit_snakefile(
                 else:
                     params_list = [None]
 
-                # Get input combinations from previous stage
+                # Get input combinations from previous stage.
+                #
+                # When a stage declares explicit inputs (e.g. [harmony.csv,
+                # neighbors.h5ad]), we resolve the input nodes by looking up
+                # which nodes actually produced those output IDs.  This
+                # prevents a stage from inheriting wildcards from a sibling
+                # stage that it doesn't depend on.
+                #
+                # Example: the umap stage declares inputs [harmony.csv,
+                # neighbors.h5ad] but NOT leiden.csv.  If we used
+                # `previous_stage_nodes` (= leiden nodes), umap would expand
+                # over every leiden combination, producing duplicate output
+                # paths and an AmbiguousRuleException in Snakemake.  Instead
+                # we find the nodes that provide the declared inputs and use
+                # those as the cartesian base.
                 if stage.inputs and previous_stage_nodes:
                     from itertools import product
 
-                    input_node_combinations = previous_stage_nodes
+                    declared_input_ids = [
+                        entry
+                        for input_col in stage.inputs
+                        if hasattr(input_col, "entries")
+                        for entry in input_col.entries
+                    ]
+
+                    stage_ids_in_order = [s.id for s in stages_to_expand]
+                    input_node_combinations = _select_input_nodes(
+                        declared_input_ids=declared_input_ids,
+                        output_to_nodes=output_to_nodes,
+                        resolved_nodes=resolved_nodes,
+                        stage_ids_in_order=stage_ids_in_order,
+                        previous_stage_nodes=previous_stage_nodes,
+                    )
+
                     node_combinations = list(
                         product(input_node_combinations, params_list)
                     )
@@ -1628,6 +1723,15 @@ def _generate_explicit_snakefile(
                         f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
                     )
 
+            except ValueError as e:
+                # ValueError from ctx.substitute() means a template variable
+                # could not be resolved — the DAG is structurally broken.
+                # Collect as a fatal error; the run will be aborted after the
+                # stage loop once all errors have been gathered.
+                msg = str(e)
+                logger.error(f"      Failed to resolve {module_id}: {msg}")
+                dag_errors.append((stage.id, module_id, msg))
+
             except Exception as e:
                 logger.error(f"      Failed to resolve {module_id}: {e}")
                 import traceback
@@ -1639,6 +1743,24 @@ def _generate_explicit_snakefile(
 
     if not quiet:
         logger.info(f"Created {len(resolved_nodes)} nodes")
+
+    # Abort if any DAG-construction errors occurred (e.g. unresolved template
+    # variables).  These indicate a structurally broken DAG and must not reach
+    # the Snakefile generation step.
+    if dag_errors:
+        if quiet:
+            progress.console.print()
+            progress.console.print("[bold red]DAG construction failed:[/bold red]")
+            for stage_id, module_id, msg in dag_errors:
+                progress.console.print(
+                    f"  [red]✗[/red] [bold]{stage_id}/{module_id}:[/bold] {msg}"
+                )
+            progress.console.print()
+        else:
+            logger.error("DAG construction failed:")
+            for stage_id, module_id, msg in dag_errors:
+                logger.error(f"  {stage_id}/{module_id}: {msg}")
+        sys.exit(1)
 
     # Resolve metric collectors as regular nodes (skip in -m module mode)
     if not module_filter:

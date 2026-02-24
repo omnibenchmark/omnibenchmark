@@ -41,12 +41,12 @@ The .NET Aspire Dashboard provides excellent trace visualization with minimal se
 ```bash
 docker run --rm -d --name aspire \
   -p 18888:18888 \
-  -p 4317:18889 \
+  -p 18889:18889 \
   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 ```
 
 - **UI**: http://localhost:18888
-- **OTLP gRPC endpoint**: localhost:4317 (mapped from container port 18889)
+- **OTLP gRPC endpoint**: localhost:18889
 
 **Get the login token:**
 ```bash

@@ -103,7 +103,7 @@ A relay script (`scripts/telemetry-relay.py`) converts NDJSON to OTLP protobuf a
 ```bash
 # Stream live telemetry to Aspire Dashboard (telemetry written to out/telemetry.jsonl by default)
 ob run benchmark.yaml --telemetry json &
-tail -f out/telemetry.jsonl | python scripts/telemetry-relay.py --endpoint localhost:4317
+tail -f out/telemetry.jsonl | python scripts/telemetry-relay.py --endpoint localhost:18889
 
 # Or via convenience script (uses default path)
 ob run benchmark.yaml --telemetry json &
