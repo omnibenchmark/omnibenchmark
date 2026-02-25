@@ -24,9 +24,15 @@ from datetime import datetime, timezone
 
 from omnibenchmark.model.resolved import ResolvedNode, ResolvedMetricCollector
 
-# Filename used by the Snakemake benchmark: directive for performance metrics.
-# Must stay in sync with what the emitter reads back.
-SNAKEMAKE_BENCHMARK_FILENAME = "benchmark.txt"
+# TODO: rename to "performance.txt" once api_version 0.4 compat is dropped.
+# The canonical name should be a simple, generic "performance.txt".
+# The legacy name "clustbench_performance.txt" exists because the old framework
+# used the data-stage module id as a prefix, and downstream metric collector
+# modules (e.g. clustering_report/04_metric_collector.Rmd) hardcode that name
+# in their list.files() calls.  Until those modules are updated, benchmarks
+# running at api_version <= 0.4 must keep the legacy name.
+SNAKEMAKE_BENCHMARK_FILENAME = "performance.txt"
+SNAKEMAKE_BENCHMARK_FILENAME_COMPAT = "clustbench_performance.txt"
 
 
 class SnakemakeGenerator:
@@ -38,7 +44,11 @@ class SnakemakeGenerator:
     """
 
     def __init__(
-        self, benchmark_name: str, benchmark_version: str, benchmark_author: str
+        self,
+        benchmark_name: str,
+        benchmark_version: str,
+        benchmark_author: str,
+        api_version: str = "",
     ):
         """
         Initialize the generator.
@@ -47,10 +57,25 @@ class SnakemakeGenerator:
             benchmark_name: Benchmark name
             benchmark_version: Benchmark version
             benchmark_author: Benchmark author
+            api_version: Benchmark API version string (e.g. "0.4.0").
+                         Versions <= 0.4 use the legacy benchmark filename for
+                         backwards compatibility with existing collector modules.
         """
         self.benchmark_name = benchmark_name
         self.benchmark_version = benchmark_version
         self.benchmark_author = benchmark_author
+        # Select benchmark filename based on api_version compat mode.
+        try:
+            from packaging.version import Version
+
+            _compat = api_version and Version(api_version) <= Version("0.4")
+        except Exception:
+            _compat = False
+        self.benchmark_filename = (
+            SNAKEMAKE_BENCHMARK_FILENAME_COMPAT
+            if _compat
+            else SNAKEMAKE_BENCHMARK_FILENAME
+        )
 
     def generate_snakefile(
         self,
@@ -160,7 +185,7 @@ class SnakemakeGenerator:
                 benchmark_dir = (
                     os.path.dirname(first_output) if "/" in first_output else "."
                 )
-                benchmark_file = f"{benchmark_dir}/{SNAKEMAKE_BENCHMARK_FILENAME}"
+                benchmark_file = f"{benchmark_dir}/{self.benchmark_filename}"
                 f.write("    benchmark:\n")
                 f.write(f'        "{benchmark_file}"\n')
 

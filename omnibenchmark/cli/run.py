@@ -1794,6 +1794,7 @@ def _generate_explicit_snakefile(
         benchmark_name=benchmark.model.get_name(),
         benchmark_version=benchmark.model.get_version(),
         benchmark_author=benchmark.model.get_author(),
+        api_version=benchmark.model.api_version.value,
     )
 
     generator.generate_snakefile(

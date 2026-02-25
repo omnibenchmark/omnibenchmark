@@ -22,7 +22,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Optional, Union
 
-from omnibenchmark.backend.snakemake_gen import SNAKEMAKE_BENCHMARK_FILENAME
+from omnibenchmark.backend.snakemake_gen import (
+    SNAKEMAKE_BENCHMARK_FILENAME,
+    SNAKEMAKE_BENCHMARK_FILENAME_COMPAT,
+)
 from omnibenchmark.telemetry.events import (
     Span,
     SpanStatus,
@@ -435,12 +438,14 @@ class TelemetryEmitter:
             )
 
     def rule_started(self, rule_name: str):
-        """Record when a rule starts (doesn't emit yet)."""
+        """Record when a rule starts and emit an immediate log so the dashboard
+        shows activity before the rule finishes."""
         if rule_name not in self._rules:
             return
 
         rule = self._rules[rule_name]
-        rule["start_time"] = now_ns()
+        start_time = now_ns()
+        rule["start_time"] = start_time
 
         stage_id = rule["stage_id"]
         module_id = rule["module_id"]
@@ -451,11 +456,35 @@ class TelemetryEmitter:
             module_key in self._modules
             and self._modules[module_key]["start_time"] is None
         ):
-            self._modules[module_key]["start_time"] = now_ns()
+            self._modules[module_key]["start_time"] = start_time
 
         # Mark stage start time if not set
         if stage_id in self._stages and self._stages[stage_id]["start_time"] is None:
-            self._stages[stage_id]["start_time"] = now_ns()
+            self._stages[stage_id]["start_time"] = start_time
+
+        # Emit a log record immediately so the dashboard can show the rule
+        # as in-progress without waiting for it to finish.
+        parent_span_id = (
+            self._modules[module_key]["span_id"]
+            if module_key in self._modules
+            else self._benchmark_span_id
+        )
+        self._emit_log(
+            LogRecord(
+                trace_id=self._trace_id,
+                span_id=parent_span_id,
+                body=f"Started: {rule_name}",
+                severity=SeverityNumber.INFO,
+                severity_text="rule",
+                timestamp_ns=start_time,
+                attributes=[
+                    Attribute("rule.name", rule_name),
+                    Attribute("rule.stage_id", stage_id),
+                    Attribute("rule.module_id", module_id),
+                    Attribute("rule.status", "started"),
+                ],
+            )
+        )
 
     def rule_completed(
         self,
@@ -557,9 +586,10 @@ class TelemetryEmitter:
 
         _log = _logging.getLogger(__name__)
 
-        bench_path = os.path.join(
-            os.path.dirname(outputs[0]), SNAKEMAKE_BENCHMARK_FILENAME
-        )
+        output_dir = os.path.dirname(outputs[0])
+        bench_path = os.path.join(output_dir, SNAKEMAKE_BENCHMARK_FILENAME)
+        if not os.path.exists(bench_path):
+            bench_path = os.path.join(output_dir, SNAKEMAKE_BENCHMARK_FILENAME_COMPAT)
         _log.debug(f"Looking for benchmark file: {bench_path} (cwd={os.getcwd()})")
         try:
             with open(bench_path) as fh:
