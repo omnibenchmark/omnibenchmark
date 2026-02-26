@@ -126,7 +126,9 @@ class KeyboardListener:
             tty.setcbreak(self._fd)
             self._enabled = True
         except (ImportError, termios.error, AttributeError, OSError):
-            pass
+            # Environment does not support termios/tty or interactive TTY mode;
+            # gracefully disable keyboard listening without failing.
+            self._enabled = False
 
     def stop(self):
         if self._old_settings is not None and self._fd is not None:
