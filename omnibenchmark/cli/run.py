@@ -264,7 +264,7 @@ def _run_snakemake(
     continue_on_error: bool,
     software_backend: SoftwareBackendEnum,
     debug: bool,
-    extra_snakemake_args: list = None,
+    extra_snakemake_args: Optional[list] = None,
 ):
     """Run snakemake on the generated Snakefile."""
     from omnibenchmark.cli.progress import ProgressDisplay, InteractiveProgress
@@ -357,6 +357,7 @@ def _run_snakemake(
             setup_status = summary_console.status("Setting up...")
             setup_status.start()
 
+            assert process.stdout is not None
             with open(log_file, "w") as f:
                 for line in process.stdout:
                     f.write(line)
@@ -372,7 +373,8 @@ def _run_snakemake(
                         if len(parts) >= 2:
                             try:
                                 total_jobs = int(parts[1])
-                                setup_status.stop()
+                                if setup_status is not None:
+                                    setup_status.stop()
                                 setup_status = None
                                 progress = InteractiveProgress(
                                     log_file=log_file, tail_lines=25
@@ -496,7 +498,7 @@ def _populate_git_cache(
         logger.info(f"Populating cache with {len(repos)} repositories...")
 
     progress = ProgressDisplay() if quiet else None
-    if quiet:
+    if progress is not None:
         progress.start_task("Fetching repositories to cache", total=len(repos))
 
     success_count = 0
@@ -522,8 +524,10 @@ def _populate_git_cache(
         ):
             try:
                 from dulwich import porcelain
+                from dulwich.repo import Repo as DulwichRepo
+                from typing import cast as _cast
 
-                repo = porcelain.open_repo(str(repo_cache_dir))
+                repo = _cast(DulwichRepo, porcelain.open_repo(str(repo_cache_dir)))
                 repo[commit.encode("ascii")]
                 skip_fetch = True
             except (KeyError, Exception):
@@ -565,10 +569,10 @@ def _populate_git_cache(
                 with lock:
                     failed.append((repo_url, str(e)))
 
-            if quiet:
+            if progress is not None:
                 progress.update(advance=1)
 
-    if quiet:
+    if progress is not None:
         progress.finish()
         progress.success(f"Cached {success_count}/{len(repos)} repositories")
     else:
@@ -695,7 +699,7 @@ def _generate_explicit_snakefile(
     debug_mode: bool = False,
     cores: int = 4,
     quiet: bool = False,
-    start_time: float = None,
+    start_time: Optional[float] = None,
     dirty: bool = False,
     unpinned: bool = False,
     module_filter: Optional[str] = None,

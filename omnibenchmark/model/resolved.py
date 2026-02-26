@@ -65,7 +65,7 @@ class TemplateContext:
             result = result.replace(f"{{{label}}}", str(value))
 
         # 2. Module attributes: {module.attr}
-        def _replace_module(match):
+        def _replace_module(match: re.Match[str]) -> str:
             attr = match.group(1)
             return self.module_attrs.get(attr, match.group(0))
 
@@ -143,7 +143,7 @@ class ResolvedEnvironment:
 
     def is_file_path(self) -> bool:
         """Check if reference is a file path."""
-        return not self.is_url() and self.reference and self.reference.strip()
+        return bool(not self.is_url() and self.reference and self.reference.strip())
 
 
 @dataclass(frozen=True)

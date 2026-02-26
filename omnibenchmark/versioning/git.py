@@ -13,7 +13,9 @@ from typing import List, Optional, Dict, Any
 
 from dulwich import porcelain
 from dulwich.errors import NotGitRepository
+from dulwich.objects import Commit
 from dulwich.repo import Repo
+from typing import cast as _cast
 
 from .manager import BenchmarkVersionManager
 
@@ -120,7 +122,7 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             commit_id = (
                 commit_hash.encode() if isinstance(commit_hash, str) else commit_hash
             )
-            commit = self.repo[commit_id]
+            commit = _cast(Commit, self.repo[commit_id])
             # Walk the tree to find the blob
             tree = self.repo[commit.tree]
             parts = str(self.relative_yaml_path).split("/")
@@ -182,7 +184,7 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             return info
 
         try:
-            head_commit = self.repo[self.repo.head()]
+            head_commit = _cast(Commit, self.repo[self.repo.head()])
             sha = head_commit.id.decode()
             info["commit"] = sha[:8]
             info["commit_full"] = sha
@@ -191,7 +193,9 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
 
             # Current branch (HEAD may be detached)
             try:
-                head_ref = self.repo.refs.get_symrefs().get(b"HEAD")
+                from dulwich.refs import Ref as _Ref
+
+                head_ref = self.repo.refs.get_symrefs().get(_Ref(b"HEAD"))
                 if head_ref and head_ref.startswith(b"refs/heads/"):
                     info["branch"] = head_ref[len(b"refs/heads/") :].decode()
             except Exception:

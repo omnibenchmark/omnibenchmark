@@ -806,16 +806,26 @@ def save_metadata(
                 f.write("\n")
 
 
+# TODO: move this to its own file, maybe module
 def write_run_manifest(
     output_dir: Path,
     run_id: Optional[str] = None,
-) -> None:
+) -> dict:
     """Write out/.metadata/manifest.json with a stable run UUID and host metadata.
 
     The *run_id* is the same UUID that the telemetry emitter uses as its
     OTLP trace_id, so every piece of provenance (telemetry.jsonl, manifest.json,
     log files) can be correlated by that single identifier.  When telemetry is
     disabled a fresh UUID is generated here.
+
+    A known limitation of this approach is that we're just documenting the main
+    executor node, but we  don't have visible access to the other executor nodes.
+    In principle, we can work around this by having each executor node log their
+    own environment data and then aggregating it at the main executor node as delta
+    updates to the base manifest.
+
+    For now we just document the limitation and assume it's the user responsibility
+    to ensure that all executor nodes belong to comparable environments.
 
     Fields written:
       run_id        – UUID4 string (from telemetry trace_id when available)

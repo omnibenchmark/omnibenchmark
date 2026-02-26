@@ -66,7 +66,7 @@ class ProgressDisplay:
         self._progress.start()
         self._task = self._progress.add_task(description, total=total)
 
-    def update(self, advance: int = 0, description: str = None):
+    def update(self, advance: int = 0, description: Optional[str] = None):
         """Update progress bar."""
         if self._progress and self._task is not None:
             if description:
@@ -305,6 +305,7 @@ class InteractiveProgress:
 
     def _render_progress_view(self) -> RenderableType:
         """Render the progress bar view."""
+        assert self._progress is not None
         # Update progress bar state
         if self._task is not None:
             rule_text = f"[dim]{self._current_rule}[/dim]" if self._current_rule else ""
@@ -517,7 +518,10 @@ class InteractiveProgress:
         return False
 
     def update(
-        self, advance: int = 0, description: str = None, current_rule: str = None
+        self,
+        advance: int = 0,
+        description: Optional[str] = None,
+        current_rule: Optional[str] = None,
     ):
         """Update progress state and refresh display."""
         if advance:
