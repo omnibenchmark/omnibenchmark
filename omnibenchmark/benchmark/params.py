@@ -43,6 +43,10 @@ class Params:
         """Allow dict-like access."""
         return self._params[key]
 
+    def __contains__(self, key):
+        """Allow 'key in params' checks."""
+        return key in self._params
+
     def __setitem__(self, key, value):
         """Allow dict-like assignment."""
         self._params[key] = value
