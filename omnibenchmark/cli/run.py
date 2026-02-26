@@ -286,7 +286,18 @@ def _run_snakemake(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = logs_dir / f"snakemake_{timestamp}.log"
 
-    cmd = ["snakemake", "--snakefile", "Snakefile", "--cores", str(cores)]
+    # Prefer snakemake co-located with the current Python executable (pixi/conda env)
+    import shutil
+    import sys as _sys
+
+    _bin_dir = Path(_sys.executable).parent
+    _snakemake_candidate = _bin_dir / "snakemake"
+    if _snakemake_candidate.exists():
+        snakemake_bin = str(_snakemake_candidate)
+    else:
+        snakemake_bin = shutil.which("snakemake") or "snakemake"
+
+    cmd = [snakemake_bin, "--snakefile", "Snakefile", "--cores", str(cores)]
 
     if software_backend == SoftwareBackendEnum.conda:
         cmd.append("--use-conda")
