@@ -19,10 +19,10 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from omnibenchmark.backend.manifest import write_run_manifest
 from omnibenchmark.backend.snakemake_gen import (
     SnakemakeGenerator,
     save_metadata,
-    write_run_manifest,
 )
 from omnibenchmark.model.resolved import (
     ResolvedNode,

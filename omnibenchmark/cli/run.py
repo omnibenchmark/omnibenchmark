@@ -13,10 +13,10 @@ from pydantic import ValidationError as PydanticValidationError
 
 from omnibenchmark.backend.collector_resolution import resolve_metric_collectors
 from omnibenchmark.backend.resolver import ModuleResolver
+from omnibenchmark.backend.manifest import write_run_manifest
 from omnibenchmark.backend.snakemake_gen import (
     SnakemakeGenerator,
     save_metadata,
-    write_run_manifest,
 )
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark.params import Params
