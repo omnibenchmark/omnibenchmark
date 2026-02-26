@@ -137,7 +137,8 @@ class KeyboardListener:
 
                 termios.tcsetattr(self._fd, termios.TCSADRAIN, self._old_settings)
             except (ImportError, termios.error, AttributeError, OSError):
-                pass
+                # Best-effort terminal restoration: if this fails, continue without raising.
+                print("Warning: could not restore terminal settings in KeyboardListener.stop()", file=sys.stderr)
         self._enabled = False
         self._old_settings = None
         self._fd = None
