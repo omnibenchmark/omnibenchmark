@@ -69,7 +69,18 @@ def _initialize_git_repo(
             capture_output=True,
         )
         subprocess.run(
-            ["git", "-C", str(target_path), "commit", "-m", commit_msg],
+            [
+                "git",
+                "-C",
+                str(target_path),
+                "-c",
+                "user.email=omnibenchmark@localhost",
+                "-c",
+                "user.name=OmniBenchmark",
+                "commit",
+                "-m",
+                commit_msg,
+            ],
             check=True,
             capture_output=True,
         )
