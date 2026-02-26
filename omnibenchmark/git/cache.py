@@ -89,8 +89,8 @@ Migration:
     See docs/GIT_CACHE_MIGRATION.md for migration plan from legacy system.
 """
 
+import io
 import logging
-import os
 import re
 import shutil
 import threading
@@ -107,13 +107,25 @@ from omnibenchmark.config import get_git_cache_dir
 
 logger = logging.getLogger(__name__)
 
+
 # Dulwich writes clone/fetch progress directly to streams, bypassing Python
 # logging.  Redirect both stdout and stderr to /dev/null so progress lines
 # ("Enumerating objects", "copied N pack entries", etc.) don't leak to the
 # user's terminal.
-# errstream expects BinaryIO; outstream expects TextIO
-_DEVNULL = open(os.devnull, "wb")
-_DEVNULL_TEXT = open(os.devnull, "w")
+# errstream expects BinaryIO; outstream expects TextIO.
+# Use in-memory null streams to avoid leaking open file handles.
+class _NullBinaryStream(io.BytesIO):
+    def write(self, b) -> int:
+        return len(b) if b else 0
+
+
+class _NullTextStream(io.StringIO):
+    def write(self, s: str) -> int:
+        return len(s)
+
+
+_DEVNULL = _NullBinaryStream()
+_DEVNULL_TEXT = _NullTextStream()
 
 
 def is_local_path(url: str) -> bool:

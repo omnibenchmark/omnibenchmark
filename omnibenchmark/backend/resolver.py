@@ -264,7 +264,7 @@ class ModuleResolver:
                         shutil.move(str(actual_work_dir), str(final_work_dir))
                         actual_work_dir = final_work_dir
                 elif final_work_dir.exists() and actual_work_dir != final_work_dir:
-                    if actual_work_dir.exists() and actual_work_dir != final_work_dir:
+                    if actual_work_dir.exists():
                         shutil.rmtree(actual_work_dir, ignore_errors=True)
                     actual_work_dir = final_work_dir
             except Exception as e:
