@@ -171,7 +171,7 @@ When telemetry is disabled, `run_id` is a fresh UUID4 generated at the start of 
 
 ## 5. Implementation
 
-### 5.1 `write_run_manifest()` — `omnibenchmark/backend/snakemake_gen.py`
+### 5.1 `write_run_manifest()` — `omnibenchmark/backend/manifest.py`
 
 ```python
 write_run_manifest(output_dir: Path, run_id: Optional[str] = None) -> None
@@ -201,7 +201,30 @@ def run_id(self) -> str:
     return f"{t[0:8]}-{t[8:12]}-{t[12:16]}-{t[16:20]}-{t[20:32]}"
 ```
 
-## 6. Alternatives Considered
+## 6. Limitations
+
+### 6.1 Single-node scope
+
+`write_run_manifest` runs on the **main executor node** — the machine where `ob run` is invoked and the Snakemake process is launched.  In a distributed execution (HPC cluster, cloud batch), Snakemake dispatches individual rules to worker nodes that may have different hardware, OS versions, or software environments.  The manifest captures none of that.
+
+**Consequence**: the `cpu_count`, `cpu_model`, `memory_total_mb`, and `gpu_devices` fields describe the orchestrator only.  A rule that actually runs on a GPU node will not have its GPU captured; a rule dispatched to a node with fewer cores than the manifest reports is equally opaque.
+
+**Current mitigation**: users are expected to ensure that all executor nodes belong to comparable environments (e.g. a homogeneous cluster partition).  The manifest documents the launch environment as a proxy for the execution environment.
+
+**Proposed future extension**: each worker node could write a supplementary `worker-<hostname>.json` into `.metadata/workers/` and the main manifest could aggregate them as delta updates after the run completes.  This would require a Snakemake rule wrapper or a post-run hook — out of scope for this iteration.
+
+### 6.2 Timestamp reflects orchestrator wall clock
+
+`timestamp` is the wall-clock time on the orchestrator at the moment `write_run_manifest` is called (before Snakemake starts).  It does not capture:
+
+- When individual rules started or finished (use telemetry spans for that).
+- Clock skew between the orchestrator and worker nodes.
+
+### 6.3 `snakemake_cmd` is patched in after assembly
+
+The `snakemake_cmd` field is `null` in the initial manifest write and is patched into the file by `_run_snakemake` once the full argv list is assembled (see §5.2).  On `--dry` runs the patch never happens, so `snakemake_cmd` remains absent from the file.
+
+## 7. Alternatives Considered
 
 ### Alternative 1: Write manifest only when telemetry is active
 
@@ -227,7 +250,7 @@ Use the `psutil` library for portable CPU/RAM collection instead of reading `/pr
 - **Cons**: Adds a dependency. The current approach covers Linux and macOS (the two primary platforms) with zero new dependencies, gracefully falling back to `null` on others.
 - **Reason not chosen**: Avoiding new dependencies is preferred for core functionality. Can be revisited if Windows support becomes a requirement.
 
-## 7. References
+## 8. References
 
 1. [Design 004: YAML Specification](004-yaml-specification.md) — parameter hash algorithm
 2. [Design 006: Telemetry](006-telemetry.md) — OTLP trace_id format and span hierarchy
