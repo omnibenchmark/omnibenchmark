@@ -7,7 +7,8 @@ from urllib.parse import urlparse
 
 import click
 import copier
-import git
+import subprocess
+
 import questionary
 import yaml
 
@@ -55,19 +56,25 @@ def _initialize_git_repo(
     try:
         # Initialize git repository if it doesn't exist
         if not git_dir.exists():
-            repo = git.Repo.init(target_path)
+            subprocess.run(
+                ["git", "init", str(target_path)], check=True, capture_output=True
+            )
             logger.info("Initialized Git repository")
-        else:
-            repo = git.Repo(target_path)
-
-        # Add all files and create initial commit
-        repo.git.add(A=True)
 
         commit_msg = f"Initial commit: Create {project_name} {project_type}\n\nGenerated with OmniBenchmark v{__version__}"
 
-        repo.index.commit(commit_msg)
+        subprocess.run(
+            ["git", "-C", str(target_path), "add", "-A"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(target_path), "commit", "-m", commit_msg],
+            check=True,
+            capture_output=True,
+        )
         logger.info("Created initial commit")
-    except git.GitCommandError as e:
+    except subprocess.CalledProcessError as e:
         logger.warning(f"Git initialization failed: {e}")
     except Exception as e:
         logger.warning(f"Git initialization failed: {e}")

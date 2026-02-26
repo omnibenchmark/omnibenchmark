@@ -31,7 +31,6 @@ dependencies = [
     "python-dotenv>=1.0.0",
 
     # Cloning modules
-    "GitPython>=3.1.0",
     "dulwich>=0.22.0",
     "pathspec>=0.12.0",
 
