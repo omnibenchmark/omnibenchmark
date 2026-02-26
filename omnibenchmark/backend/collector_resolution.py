@@ -201,7 +201,7 @@ def _resolve_collector_module(
     # The resolver expects a Module with repository and software_environment attributes
     from omnibenchmark.model.benchmark import Module
 
-    synthetic_module = Module(
+    synthetic_module = Module(  # type: ignore[call-arg]
         id=collector.id,
         name=collector.name or collector.id,
         repository=collector.repository,
@@ -243,7 +243,7 @@ def _resolve_collector_module(
             resolved_module = resolver.resolve(
                 module=synthetic_module,
                 module_id=collector.id,
-                software_environment_id=collector.software_environment,
+                software_environment_id=collector.software_environment or "",
                 dirty=dirty,
                 unpinned=unpinned,
             )
@@ -271,7 +271,7 @@ def _expand_collector_parameters(collector: MetricCollector) -> List[Optional[Pa
     Returns:
         List of Params instances (or [None] if no parameters)
     """
-    parameters_list = []
+    parameters_list: List[Optional[Params]] = []
 
     if collector.parameters:
         for param in collector.parameters:
@@ -345,7 +345,7 @@ def _gather_collector_inputs(
 def _resolve_collector_outputs(
     collector: MetricCollector,
     param_id: str,
-    inputs_by_name: dict = None,
+    inputs_by_name: Optional[dict] = None,
 ) -> List[str]:
     """
     Resolve collector output paths by handling template variables.

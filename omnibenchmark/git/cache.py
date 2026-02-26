@@ -95,11 +95,13 @@ import re
 import shutil
 import threading
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 from urllib.parse import urlparse
 from dulwich import porcelain
 from dulwich.client import get_transport_and_path
 from dulwich.errors import NotGitRepository
+from dulwich.refs import Ref
+from dulwich.repo import Repo
 
 from omnibenchmark.config import get_git_cache_dir
 
@@ -109,7 +111,9 @@ logger = logging.getLogger(__name__)
 # logging.  Redirect both stdout and stderr to /dev/null so progress lines
 # ("Enumerating objects", "copied N pack entries", etc.) don't leak to the
 # user's terminal.
+# errstream expects BinaryIO; outstream expects TextIO
 _DEVNULL = open(os.devnull, "wb")
+_DEVNULL_TEXT = open(os.devnull, "w")
 
 
 def is_local_path(url: str) -> bool:
@@ -238,7 +242,7 @@ def copy_local_to_work_dir(
 
     # Resolve HEAD commit from the local repo
     try:
-        repo = porcelain.open_repo(str(local_path))
+        repo = cast(Repo, porcelain.open_repo(str(local_path)))
         head_bytes = repo.head()
         if len(head_bytes) == 20:
             commit_hash = head_bytes.hex()
@@ -373,11 +377,11 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
     if repo_cache_dir.exists():
         # Update existing repository
         try:
-            repo = porcelain.open_repo(str(repo_cache_dir))
+            repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
             logging.info(f"Updating cached repository at {repo_cache_dir}")
             # Fetch all updates from remote
             # Note: porcelain.fetch by default fetches all refs
-            porcelain.fetch(repo, repo_url, errstream=_DEVNULL, outstream=_DEVNULL)
+            porcelain.fetch(repo, repo_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT)
             return repo_cache_dir
         except (NotGitRepository, Exception) as e:
             logging.warning(f"Cached repo appears corrupt: {e}. Re-cloning.")
@@ -432,7 +436,7 @@ def checkout_to_work_dir(
 
     with repo_lock:
         # Open cached repo
-        _cached_repo = porcelain.open_repo(str(repo_cache_dir))
+        _cached_repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
 
         # Create work directory
         work_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -442,7 +446,7 @@ def checkout_to_work_dir(
         # We'll checkout the specific ref directly in the cache, then copy files
 
         # Open the cache repo
-        work_repo = porcelain.open_repo(str(repo_cache_dir))
+        work_repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
 
         # Resolve and checkout the ref
         from dulwich.objectspec import parse_commit
@@ -457,7 +461,7 @@ def checkout_to_work_dir(
             commit_obj = None
 
             # Try remote tracking branch: refs/remotes/origin/{ref}
-            remote_ref = f"refs/remotes/origin/{ref}".encode("ascii")
+            remote_ref = Ref(f"refs/remotes/origin/{ref}".encode("ascii"))
             if remote_ref in work_repo.refs:
                 sha = work_repo.refs[remote_ref]
                 commit_obj = parse_commit(work_repo, sha)
@@ -595,7 +599,7 @@ def describe_cache(
         repo_rel_path = repo_path.relative_to(cache_dir)
 
         try:
-            repo = porcelain.open_repo(str(repo_path))
+            repo = cast(Repo, porcelain.open_repo(str(repo_path)))
 
             # Get remote URL
             config = repo.get_config()
@@ -624,7 +628,7 @@ def describe_cache(
             # Get current branch
             try:
                 refs = repo.get_refs()
-                head_ref = refs.get(b"HEAD")
+                head_ref = refs.get(Ref(b"HEAD"))
 
                 # Check if HEAD points to a branch
                 branch_name = "detached"
@@ -650,19 +654,23 @@ def describe_cache(
                 try:
                     logging.info(f"Fetching updates for {repo_rel_path}...")
                     porcelain.fetch(
-                        repo, remote_url, errstream=_DEVNULL, outstream=_DEVNULL
+                        repo, remote_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT
                     )
 
                     # Get remote HEAD
                     client, path = get_transport_and_path(remote_url)
-                    remote_refs = client.get_refs(path)
+                    path_bytes = path.encode() if isinstance(path, str) else path
+                    ls_result = client.get_refs(path_bytes)
+                    remote_refs = ls_result.refs
 
                     # Get remote HEAD for the current branch
                     if branch_name != "detached" and branch_name != "unknown":
-                        remote_ref_name = f"refs/heads/{branch_name}".encode()
+                        remote_ref_name = Ref(f"refs/heads/{branch_name}".encode())
                         if remote_ref_name in remote_refs:
-                            remote_head = remote_refs[remote_ref_name].hex()
-                            repo_info["remote_head"] = remote_head
+                            ref_sha = remote_refs[remote_ref_name]
+                            if ref_sha is not None:
+                                remote_head = ref_sha.hex()
+                                repo_info["remote_head"] = remote_head
                 except Exception as e:
                     logging.debug(
                         f"Failed to fetch remote info for {repo_rel_path}: {e}"
