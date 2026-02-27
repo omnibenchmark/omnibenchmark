@@ -241,7 +241,10 @@ def _run_benchmark(
         out_dir_path.mkdir(parents=True, exist_ok=True)
         telemetry_path = out_dir_path / "telemetry.jsonl"
         telemetry_emitter = TelemetryEmitter(output=telemetry_path)
-        telemetry_endpoint = get_telemetry_endpoint()
+        _raw_endpoint = get_telemetry_endpoint()
+        # "agent" means file-only mode: write telemetry.jsonl but skip the
+        # port check and gRPC relay entirely.
+        telemetry_endpoint = None if _raw_endpoint == "agent" else _raw_endpoint
 
     # If an endpoint is given, stream telemetry.jsonl to it in a background thread
     _relay_thread = None

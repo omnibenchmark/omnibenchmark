@@ -252,9 +252,15 @@ def get_telemetry_endpoint() -> str:
     Reads [telemetry] endpoint from the config file.
     Default: localhost:18889 (Aspire Dashboard default OTLP gRPC port).
 
+    Special value "agent": write telemetry.jsonl to the out directory only,
+    skipping the port reachability check and the gRPC relay thread entirely.
+    Use this when running in a headless/agent environment without a dashboard.
+
     To configure, add to ~/.config/omnibenchmark/omnibenchmark.cfg:
 
         [telemetry]
+        endpoint = agent          # file-only, no port check
+        # or:
         endpoint = localhost:18889
     """
     return config.get("telemetry", "endpoint", default_cfg["telemetry"]["endpoint"])
