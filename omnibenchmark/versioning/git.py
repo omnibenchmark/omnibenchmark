@@ -7,9 +7,11 @@ for reconstructing version history from git commits.
 YAML parsing is delegated to the model layer via Benchmark.from_yaml().
 """
 
+import logging
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+
 
 from dulwich import porcelain
 from dulwich.errors import NotGitRepository
@@ -18,6 +20,8 @@ from dulwich.repo import Repo
 from typing import cast as _cast
 
 from .manager import BenchmarkVersionManager
+
+logger = logging.getLogger(__name__)
 
 
 class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
