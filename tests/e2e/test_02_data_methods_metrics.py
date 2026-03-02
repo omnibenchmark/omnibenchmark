@@ -25,5 +25,4 @@ def test_data_methods_metrics_pipeline(
         tmp_path=tmp_path,
         keep_files=keep_files,
         min_expected_files=4,  # We expect 4 *_data.json files (2 datasets + 2 method results, metrics.json not counted)
-        additional_cli_args=["-y"],
     )

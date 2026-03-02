@@ -119,7 +119,6 @@ def test_archive_remote_storage_workflow(
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
-        "-y",
     ]
 
     with OmniCLISetup() as omni:
@@ -416,7 +415,6 @@ def test_archive_version_limitation(
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
-        "-y",
     ]
 
     with OmniCLISetup() as omni:
