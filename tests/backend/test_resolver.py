@@ -76,7 +76,10 @@ class TestModuleResolver:
 
         # Verify resolved module
         assert resolved.repository_url == module.repository.url
-        assert resolved.commit == module.repository.commit
+        # Resolver may expand short hash to full commit hash
+        assert resolved.commit.startswith(
+            module.repository.commit
+        ) or module.repository.commit.startswith(resolved.commit)
         assert resolved.module_dir.exists()
         assert resolved.entrypoint is not None
         assert resolved.software_environment_id == module.software_environment
@@ -124,14 +127,10 @@ class TestModuleResolver:
             dirty=False,
         )
 
-        # Work dir should be relative (or we can make it relative)
-        # The important part is that the Snakefile can reference it relatively
-        work_dir_str = str(resolved.module_dir)
-
-        # Should start with .snakemake/repos
-        assert ".snakemake/repos" in work_dir_str or resolved.module_dir.is_relative_to(
-            Path(".snakemake/repos")
-        )
+        # Work dir should be relative (not absolute) for portability
+        assert (
+            not resolved.module_dir.is_absolute()
+        ), f"module_dir should be relative for portability, got: {resolved.module_dir}"
 
     @pytest.mark.slow
     def test_resolve_conda_environment(self, temp_work_dir):

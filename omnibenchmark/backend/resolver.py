@@ -298,10 +298,16 @@ class ModuleResolver:
 
         # Create ResolvedModule
         # module_dir should be relative to the Snakefile location (which is in out_dir)
-        # Make path relative to work_base_dir to get just .modules/{commit}/
         if actual_work_dir.is_absolute():
-            # Absolute path: make relative to cwd
-            relative_module_dir = actual_work_dir.relative_to(Path.cwd())
+            # Absolute path: make relative to output_dir so the Snakefile can reference
+            # it as .modules/repo/commit (Snakemake runs from output_dir)
+            try:
+                relative_module_dir = actual_work_dir.relative_to(
+                    self.output_dir.resolve()
+                )
+            except ValueError:
+                # Path is outside output_dir (e.g., temp dir in unit tests); keep absolute
+                relative_module_dir = actual_work_dir
         else:
             # Already relative: make relative to work_base_dir to strip the out_dir prefix
             # e.g., out/.repos/abc123 -> .repos/abc123

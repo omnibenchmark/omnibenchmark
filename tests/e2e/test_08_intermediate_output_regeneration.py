@@ -71,7 +71,7 @@ def test_intermediate_output_regeneration_after_deletion(
     # Execute the full pipeline
     runner.execute_cli_command(
         config_file_in_tmp,
-        ["--continue-on-error", "-y"],
+        ["--continue-on-error"],
         debug_label="initial run",
     )
 
@@ -153,7 +153,7 @@ def test_intermediate_output_regeneration_after_deletion(
 
     runner.execute_cli_command(
         config_file_in_tmp,
-        ["--continue-on-error", "-y"],
+        ["--continue-on-error"],
         debug_label="second run (after deletion)",
     )
 

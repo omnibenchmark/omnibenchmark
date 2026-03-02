@@ -1,0 +1,44 @@
+id: ApptainerTestBenchmark
+description: Minimal benchmark for testing apptainer environment resolution
+version: "1.0"
+benchmarker: "Unit Test Suite"
+benchmark_yaml_spec: "0.3"
+software_backend: apptainer
+
+software_environments:
+  remote_image:
+    apptainer: "docker://ubuntu:22.04"
+  local_image:
+    apptainer: "containers/myimage.sif"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Test module with remote apptainer image"
+        software_environment: remote_image
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Test module with local apptainer SIF"
+        software_environment: local_image
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+100"
+            input: "data.raw"
+    inputs:
+      - data.raw
+    outputs:
+      - id: methods.result
+        path: "{dataset}_method.json"

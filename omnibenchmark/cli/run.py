@@ -970,6 +970,17 @@ def _generate_explicit_snakefile(
                             )
                             continue
 
+                    # Also check: input module may declare that it excludes this method
+                    if input_node:
+                        input_excludes = benchmark.model.get_module_excludes(
+                            input_node.module_id
+                        )
+                        if input_excludes and module_id in input_excludes:
+                            logger.debug(
+                                f"      Excluding combination: {input_node.module_id} excludes {module_id}"
+                            )
+                            continue
+
                     if input_node and module.requires:
                         if not _satisfies_requires(module.requires, input_node):
                             logger.debug(
