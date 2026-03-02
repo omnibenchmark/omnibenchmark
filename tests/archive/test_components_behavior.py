@@ -279,7 +279,9 @@ class TestPrepareArchiveResults:
             mock_benchmark = Mock()
 
             result = prepare_archive_results(
-                benchmark=mock_benchmark, results_dir="out", remote_storage=False
+                benchmark=mock_benchmark,
+                results_dir="/nonexistent/benchmark/results",
+                remote_storage=False,
             )
 
             assert result == []
