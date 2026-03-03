@@ -287,6 +287,7 @@ jobs:
             clustering_example/**/*.yml
             clustering_example/out/**/*
             clustering_example/.snakemake/log/**/*
+          include-hidden-files: true
           retention-days: 7
 
   e2e-clustering-apptainer:
