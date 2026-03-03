@@ -19,11 +19,8 @@ from pathlib import Path
 from typing import List, TextIO
 from datetime import datetime
 
+from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.model.resolved import ResolvedNode, ResolvedMetricCollector
-
-# Filename used by the Snakemake benchmark: directive for performance metrics.
-# Must stay in sync with what the emitter reads back.
-SNAKEMAKE_BENCHMARK_FILENAME = "benchmark.txt"
 
 
 class SnakemakeGenerator:
@@ -35,7 +32,11 @@ class SnakemakeGenerator:
     """
 
     def __init__(
-        self, benchmark_name: str, benchmark_version: str, benchmark_author: str
+        self,
+        benchmark_name: str,
+        benchmark_version: str,
+        benchmark_author: str,
+        api_version: APIVersion = APIVersion.V0_4_0,
     ):
         """
         Initialize the generator.
@@ -44,10 +45,12 @@ class SnakemakeGenerator:
             benchmark_name: Benchmark name
             benchmark_version: Benchmark version
             benchmark_author: Benchmark author
+            api_version: Benchmark API version (controls output conventions)
         """
         self.benchmark_name = benchmark_name
         self.benchmark_version = benchmark_version
         self.benchmark_author = benchmark_author
+        self.api_version = api_version
 
     def generate_snakefile(
         self,
@@ -148,17 +151,22 @@ class SnakemakeGenerator:
 
         # Benchmark directive (for performance tracking)
         if not is_collector and not is_gather:
-            # Generate benchmark file path in the same directory as the output
-            # All path variables (like {dataset}) should have been substituted during node resolution
             if node.outputs:
                 first_output = node.outputs[0]
                 import os
 
-                # Get the directory and add performance file
                 benchmark_dir = (
                     os.path.dirname(first_output) if "/" in first_output else "."
                 )
-                benchmark_file = f"{benchmark_dir}/{SNAKEMAKE_BENCHMARK_FILENAME}"
+                if self.api_version >= APIVersion.V0_5_0:
+                    benchmark_file = f"{benchmark_dir}/performance.txt"
+                else:
+                    # COMPAT(0.4): metric collector R scripts scan for
+                    # "{dataset}_performance.txt" (e.g., "clustbench_performance.txt").
+                    # Derive dataset_name from the first output basename.
+                    # Remove when 0.4 compat is dropped.
+                    dataset_name = os.path.basename(first_output).split(".")[0]
+                    benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
                 f.write("    benchmark:\n")
                 f.write(f'        "{benchmark_file}"\n')
 
