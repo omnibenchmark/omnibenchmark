@@ -90,6 +90,21 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=False,
 )
 @click.option(
+    "--yes",
+    "-y",
+    "yes_flag",
+    help="Deprecated: accepted for backward compatibility, has no effect.",
+    is_flag=True,
+    default=False,
+    hidden=True,
+)
+@click.option(
+    "--use-remote-storage",
+    help="Execute and store results remotely using S3 storage configured in the benchmark YAML.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
     "-m",
     "--module",
     "module_filter",
@@ -112,6 +127,8 @@ def run(
     out_dir,
     dirty,
     unpinned,
+    yes_flag,
+    use_remote_storage,
     module_filter,
     snakemake_args,
 ):
@@ -165,6 +182,7 @@ def run(
         debug=debug,
         dirty=dirty,
         unpinned=unpinned,
+        use_remote_storage=use_remote_storage,
         module_filter=module_filter,
         snakemake_args=list(snakemake_args),
     )
@@ -179,6 +197,7 @@ def _run_benchmark(
     debug,
     dirty,
     unpinned=False,
+    use_remote_storage=False,
     module_filter=None,
     snakemake_args=None,
 ):
@@ -236,6 +255,24 @@ def _run_benchmark(
         logger.info(f"  cd {out_dir} && snakemake{hint} --cores {cores}")
         sys.exit(0)
 
+    # Build extra Snakemake args, adding S3 remote storage flags if requested
+    extra_args = list(snakemake_args or [])
+    if use_remote_storage:
+        from omnibenchmark.remote.storage import (
+            get_storage_from_benchmark,
+            remote_storage_snakemake_args,
+        )
+
+        # Ensure the S3 bucket exists before running
+        get_storage_from_benchmark(b)
+        storage_opts = remote_storage_snakemake_args(b)
+        for key, value in storage_opts.items():
+            if isinstance(value, bool):
+                if value:
+                    extra_args.append(f"--{key}")
+            elif value is not None:
+                extra_args.extend([f"--{key}", str(value)])
+
     # Step 3: Run snakemake
     _run_snakemake(
         out_dir=out_dir_path,
@@ -243,7 +280,7 @@ def _run_benchmark(
         continue_on_error=continue_on_error,
         software_backend=b.get_benchmark_software_backend(),
         debug=debug,
-        extra_snakemake_args=snakemake_args or [],
+        extra_snakemake_args=extra_args,
     )
 
 
