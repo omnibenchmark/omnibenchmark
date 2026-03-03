@@ -125,6 +125,7 @@ class APIVersion(str, Enum):
     V0_1_0 = "0.1.0"
     V0_2_0 = "0.2.0"
     V0_3_0 = "0.3.0"
+    V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
 
     @classmethod
@@ -566,7 +567,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         None,
         description="Benchmark YAML specification version (deprecated, use api_version)",
     )
-    api_version: APIVersion = Field(APIVersion.V0_3_0, description="API version")
+    api_version: APIVersion = Field(APIVersion.V0_4_0, description="API version")
 
     @field_validator("api_version", mode="before")
     @classmethod
