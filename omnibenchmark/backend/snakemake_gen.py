@@ -162,10 +162,16 @@ class SnakemakeGenerator:
                     benchmark_file = f"{benchmark_dir}/performance.txt"
                 else:
                     # COMPAT(0.4): metric collector R scripts scan for
-                    # "{dataset}_performance.txt" (e.g., "clustbench_performance.txt").
-                    # Derive dataset_name from the first output basename.
+                    # "{dataset}_performance.txt" (e.g., "clustbench_performance.txt")
+                    # where {dataset} is the root ancestor's module name.
+                    # In the new explicit system, output paths encode the full lineage:
+                    # e.g. "data/clustbench/.hash/clustering/method/.hash/out.gz"
+                    # so parts[1] is always the root dataset/module name.
                     # Remove when 0.4 compat is dropped.
-                    dataset_name = os.path.basename(first_output).split(".")[0]
+                    parts = first_output.split("/")
+                    dataset_name = (
+                        parts[1] if len(parts) > 2 else parts[0].split(".")[0]
+                    )
                     benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
                 f.write("    benchmark:\n")
                 f.write(f'        "{benchmark_file}"\n')
