@@ -102,6 +102,7 @@ from dulwich.client import get_transport_and_path
 from dulwich.errors import NotGitRepository
 from dulwich.refs import Ref
 from dulwich.repo import Repo
+from filelock import FileLock
 
 from omnibenchmark.config import get_git_cache_dir
 
@@ -383,42 +384,46 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
     repo_cache_dir = cache_dir / repo_path
     repo_cache_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    # Note: Git/dulwich handles its own locking internally via .git/ lock files
-    # No need for application-level file locking
-
-    if repo_cache_dir.exists():
-        # Update existing repository
-        try:
-            repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
-            logging.info(f"Updating cached repository at {repo_cache_dir}")
-            # Fetch all updates from remote
-            # Note: porcelain.fetch by default fetches all refs
-            porcelain.fetch(repo, repo_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT)
-            return repo_cache_dir
-        except (NotGitRepository, Exception) as e:
-            logging.warning(f"Cached repo appears corrupt: {e}. Re-cloning.")
-            shutil.rmtree(repo_cache_dir, ignore_errors=True)
-
-    # Clone fresh
-    logging.info(f"Cloning {repo_url} to cache at {repo_cache_dir}")
-
-    try:
-        # Clone as a full repository (not bare, not shallow)
-        # Using checkout=True to ensure all refs and objects are fetched
-        porcelain.clone(
-            source=repo_url,
-            target=str(repo_cache_dir),
-            checkout=True,  # Checkout default branch to fetch all objects
-            bare=False,
-            errstream=_DEVNULL,
-            outstream=_DEVNULL,
-        )
-        return repo_cache_dir
-    except Exception as e:
-        logging.error(f"Failed to clone repository: {e}")
+    # Use a cross-process file lock to prevent concurrent clones of the same repo.
+    # Two pytest-xdist workers (separate processes) would otherwise both see
+    # repo_cache_dir missing and race to create it, causing [Errno 17] File exists.
+    lock_path = repo_cache_dir.parent / (repo_cache_dir.name + ".lock")
+    with FileLock(str(lock_path)):
         if repo_cache_dir.exists():
-            shutil.rmtree(repo_cache_dir, ignore_errors=True)
-        raise RuntimeError(f"Failed to clone {repo_url}: {e}")
+            # Update existing repository
+            try:
+                repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
+                logging.info(f"Updating cached repository at {repo_cache_dir}")
+                # Fetch all updates from remote
+                # Note: porcelain.fetch by default fetches all refs
+                porcelain.fetch(
+                    repo, repo_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT
+                )
+                return repo_cache_dir
+            except (NotGitRepository, Exception) as e:
+                logging.warning(f"Cached repo appears corrupt: {e}. Re-cloning.")
+                shutil.rmtree(repo_cache_dir, ignore_errors=True)
+
+        # Clone fresh
+        logging.info(f"Cloning {repo_url} to cache at {repo_cache_dir}")
+
+        try:
+            # Clone as a full repository (not bare, not shallow)
+            # Using checkout=True to ensure all refs and objects are fetched
+            porcelain.clone(
+                source=repo_url,
+                target=str(repo_cache_dir),
+                checkout=True,  # Checkout default branch to fetch all objects
+                bare=False,
+                errstream=_DEVNULL,
+                outstream=_DEVNULL,
+            )
+            return repo_cache_dir
+        except Exception as e:
+            logging.error(f"Failed to clone repository: {e}")
+            if repo_cache_dir.exists():
+                shutil.rmtree(repo_cache_dir, ignore_errors=True)
+            raise RuntimeError(f"Failed to clone {repo_url}: {e}")
 
 
 def checkout_to_work_dir(
