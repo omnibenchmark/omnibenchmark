@@ -245,6 +245,8 @@ jobs:
           # more things than needed, but:
           # clustbench hits s3 code (should investigate why)
           pixi run micromamba run -n base pip install "$WHEEL_FILE[s3]"
+          # Snakemake's persistence layer imports pandas lazily; install it in base
+          pixi run micromamba run -n base pip install pandas
 
       - name: Clone clustering example repo
         run: |
@@ -324,6 +326,8 @@ jobs:
         run: |
           WHEEL_FILE=$(ls dist/*.whl)
           pixi run micromamba run -n base pip install "$WHEEL_FILE[s3]"
+          # Snakemake's persistence layer imports pandas lazily; install it in base
+          pixi run micromamba run -n base pip install pandas
 
       - name: Clone clustering example repo
         run: |
