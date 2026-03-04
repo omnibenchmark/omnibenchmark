@@ -42,8 +42,6 @@ dependencies = [
     # that detects duplicate rule names. See
     # https://github.com/omnibenchmark/omnibenchmark/issues/269
     "snakemake>=9.0,<9.10", # Require 9.0+ for proper storage plugin support
-    "pandas",  # TODO: Remove when all modules stop depending on it (see #232)
-
     # Templating
     "copier>=9.0.0",
 
@@ -65,7 +63,7 @@ slurm = [
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
     "pandas",  # Required by snakemake-executor-plugin-slurm
 ]
-export = ["pandas"]
+export = []
 dev = ["ipython", "pre-commit", "ruff", "typing-extensions", "isort", "pyright"]
 test = [
     "pytest-cov>=4.1.0",

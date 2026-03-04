@@ -1,11 +1,11 @@
 """cli commands related to benchmark infos and stats"""
 
 import sys
+from typing import Any, List
 
 import click
 import json
 
-import pandas as pd
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
@@ -15,6 +15,27 @@ from omnibenchmark.dag import get_node_attributes
 
 from omnibenchmark.cli.utils.logging import logger
 from .debug import add_debug_option
+
+
+def _rows_to_html_table(
+    columns: List[str],
+    rows: List[List[Any]],
+    table_id: str,
+    classes: str,
+) -> str:
+    """Build an HTML table string from column names and row data."""
+    th_cells = "".join(f"<th>{col}</th>" for col in columns)
+    header = f'<tr style="text-align: right;">{th_cells}</tr>'
+    body_rows = [
+        "<tr>" + "".join(f"<td>{val}</td>" for val in row) + "</tr>" for row in rows
+    ]
+    body = "\n      ".join(body_rows)
+    return (
+        f'<table border="0" class="{classes}" id="{table_id}">\n'
+        f"  <thead>\n    {header}\n  </thead>\n"
+        f"  <tbody>\n    {body}\n  </tbody>\n"
+        f"</table>"
+    )
 
 
 @click.group(name="describe")
@@ -327,51 +348,47 @@ def status(
                     ]
                     for j, f in enumerate(filedict[st][nd]["output_files"])
                 ]
-        alldf = pd.DataFrame(
-            {
-                "file": [a[0] for a in all_files],
-                "observed": [a[1] for a in all_files],
-                "missing": [a[2] for a in all_files],
-                "dependent file newer": [a[3] for a in all_files],
-                "dependent repo newer": [a[4] for a in all_files],
-                "module": [a[5] for a in all_files],
-                "node": [a[6] for a in all_files],
-                "stage": [a[7] for a in all_files],
-                "logs": [a[8] for a in all_files],
-            }
-        )
-
-        sumdf = pd.DataFrame(
+        all_columns = [
+            "file",
+            "observed",
+            "missing",
+            "dependent file newer",
+            "dependent repo newer",
+            "module",
+            "node",
+            "stage",
+            "logs",
+        ]
+        sum_columns = ["Stage", "Completed", "Missing", "Total", "Progress %"]
+        sum_rows = [
             [
-                {
-                    "Stage": st,
-                    "Completed": status_dict["stages"][st]["n_observed"],
-                    "Missing": status_dict["stages"][st]["n_missing"],
-                    "Total": status_dict["stages"][st]["n"],
-                    "Progress %": round(
-                        status_dict["stages"][st]["n_observed"]
-                        / status_dict["stages"][st]["n"]
-                        * 100,
-                        1,
-                    ),
-                }
-                for st in stages
+                st,
+                status_dict["stages"][st]["n_observed"],
+                status_dict["stages"][st]["n_missing"],
+                status_dict["stages"][st]["n"],
+                round(
+                    status_dict["stages"][st]["n_observed"]
+                    / status_dict["stages"][st]["n"]
+                    * 100,
+                    1,
+                ),
             ]
-        )
+            for st in stages
+        ]
 
-        # Convert to HTML table
-        all_table_html = alldf.to_html(
-            index=False, classes="display", table_id="all_table", border=0
+        # Build HTML tables
+        all_table_html = _rows_to_html_table(
+            all_columns, all_files, "all_table", "display"
         )
-        sum_table_html = sumdf.to_html(
-            index=False, classes="display", table_id="status_table", border=0
+        sum_table_html = _rows_to_html_table(
+            sum_columns, sum_rows, "status_table", "display"
         )
 
         # Add tfoot for column filters to the detailed table
         all_table_html = all_table_html.replace(
             "</table>",
             "<tfoot><tr>"
-            + "".join([f"<th>{col}</th>" for col in alldf.columns])
+            + "".join([f"<th>{col}</th>" for col in all_columns])
             + "</tr></tfoot></table>",
         )
 
