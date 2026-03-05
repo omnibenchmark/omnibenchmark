@@ -815,8 +815,3 @@ def save_metadata(
                 f.write(f"  Module dir: {collector.module.module_dir}\n")
                 f.write(f"  Entrypoint: {collector.module.entrypoint}\n")
                 f.write("\n")
-
-
-# Re-exported for backwards compatibility and convenient import alongside other
-# snakemake_gen symbols.  The implementation lives in manifest.py.
-from omnibenchmark.backend.manifest import write_run_manifest as write_run_manifest  # noqa: E402,F401

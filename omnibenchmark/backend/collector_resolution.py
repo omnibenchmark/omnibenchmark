@@ -14,7 +14,6 @@ FUTURE DESIGN NOTE:
 - Ideally, collectors should be regular stages, not requiring special "metric_collectors" stanza
 - Could use a "gather" input modifier in regular stage inputs to collect all matching outputs
 - This would eliminate the need for special collector resolution logic
-- See METRIC_COLLECTOR_ISSUES.md "Migration Path" section for proposed syntax
 
 Resolution Process:
 1. Parse collector inputs to identify referenced stage outputs
