@@ -158,10 +158,10 @@ jobs:
       - name: Run integration tests
         run: |
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            pixi run pytest -m "not short and not e2e_s3" && pixi run pytest tests/software/
+            pixi run pytest -m "not short and not e2e_s3"
           else
             # macOS - skip platform-specific tests
-            pixi run pytest -m "not short and not e2e_s3" && pixi run pytest tests/software/ -k "not apptainer"
+            pixi run pytest -m "not short and not e2e_s3"
           fi
 
   test-e2e:
