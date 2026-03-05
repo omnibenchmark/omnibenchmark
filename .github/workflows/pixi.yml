@@ -235,18 +235,18 @@ jobs:
           name: omnibenchmark-wheel
           path: dist/
 
-      - name: Install micromamba
+      - name: Install miniconda
         run: |
-          pixi add micromamba
-
-      - name: Install wheel with micromamba
+          # Install miniconda for conda backend (Snakemake subprocess needs real conda)
+          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+          bash ~/miniconda.sh -b -p $HOME/miniconda
+          echo "$HOME/miniconda/bin" >> $GITHUB_PATH
+          
+      - name: Install wheel
         run: |
           WHEEL_FILE=$(ls dist/*.whl)
-          # more things than needed, but:
-          # clustbench hits s3 code (should investigate why)
-          pixi run micromamba run -n base pip install "$WHEEL_FILE[s3]"
-          # Snakemake's persistence layer imports pandas lazily; install it in base
-          pixi run micromamba run -n base pip install pandas
+          # Install using conda's pip
+          $HOME/miniconda/bin/pip install "$WHEEL_FILE[s3]"
 
       - name: Clone clustering example repo
         run: |
@@ -273,9 +273,8 @@ jobs:
         working-directory: clustering_example
         run: |
           set +e  # Don't exit on error immediately
-          # Ensure micromamba's Python is used by Snakemake subprocesses
-          eval "$(pixi run micromamba shell hook --shell bash)"
-          micromamba activate base
+          # Use conda from miniconda installation
+          export PATH="$HOME/miniconda/bin:$PATH"
           ob run Clustering_conda.yml --yes --continue-on-error --unpinned
 
       - name: Upload output artifacts
