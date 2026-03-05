@@ -135,11 +135,13 @@ def _parse_metrics(
                     parsed_value = None
                 elif isinstance(value, (int, float)):
                     parsed_value = float(value)
-                else:
+                elif value is not None:
                     try:
                         parsed_value = float(value)
                     except (ValueError, TypeError):
                         parsed_value = None
+                else:
+                    parsed_value = None
 
                 metrics.append(
                     {
