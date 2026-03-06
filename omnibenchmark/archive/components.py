@@ -300,11 +300,13 @@ def prepare_archive_results_remote(
     # because Snakemake uses paths relative to the working directory
     expected_files_normalized = []
     for f in expected_files:
+        # Convert to string if it's a Path object
+        f_str = str(f) if isinstance(f, Path) else f
         # Strip the results_dir prefix (e.g., "out/") from the path
-        if f.startswith(results_dir + "/"):
-            expected_files_normalized.append(f[len(results_dir) + 1 :])
+        if f_str.startswith(results_dir + "/"):
+            expected_files_normalized.append(f_str[len(results_dir) + 1 :])
         else:
-            expected_files_normalized.append(f)
+            expected_files_normalized.append(f_str)
 
     # Get storage connection with custom storage_options
     auth_options = remote_storage_args(benchmark.model)
