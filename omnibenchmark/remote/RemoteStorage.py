@@ -12,7 +12,19 @@ from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
 
 class StorageOptions:
     def __init__(self, out_dir: str):
-        self.tracked_directories = [out_dir, "versions", "config", "software"]
+        # Include stage-level directories (e.g., "data", "methods") to support
+        # Snakemake remote storage which uploads files without the out/ prefix
+        # (e.g., "data/D1/..." instead of "out/data/D1/...")
+        self.tracked_directories = [
+            out_dir,
+            "versions",
+            "config",
+            "software",
+            "data",  # Stage directory for datasets
+            "methods",  # Stage directory for methods
+            "metrics",  # Stage directory for metrics
+            ".logs",  # Snakemake log files
+        ]
         self.results_directories = [out_dir]
         self.extra_files_to_version_not_in_benchmark_yaml = [
             f"{out_dir}/**/parameters.json",

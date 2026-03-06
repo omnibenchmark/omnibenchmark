@@ -84,13 +84,22 @@ def download_files(
     file_id: str,
     verbose: bool = False,
     overwrite: bool = False,
+    storage_options: StorageOptions = StorageOptions(out_dir="out"),
 ):
     """Download all available files for a certain benchmark, version and stage"""
     from .storage import get_storage, remote_storage_args
     from .hash import checksum
     from .sizeof import sizeof_fmt
 
-    objectnames, etags = list_files(benchmark_path, type, stage, module, file_id)
+    objectnames, etags = list_files(
+        benchmark_path,
+        type,
+        stage,
+        module,
+        file_id,
+        remote_storage=True,
+        storage_options=storage_options,
+    )
 
     # storage path locally, TODO: maybe add as argument
     filenames = objectnames
