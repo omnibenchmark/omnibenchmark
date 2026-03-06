@@ -137,11 +137,45 @@ def test_archive_remote_storage_workflow(
     )
     print("✓ Benchmark execution completed successfully")
 
+    # ========================================
+    # Step 1b: Create benchmark version in S3
+    # ========================================
+    print("\n--- Step 1b: Creating benchmark version in S3 ---")
+
+    version_args = [
+        "remote",
+        "version",
+        "create",
+        str(config_file_in_tmp),
+    ]
+
+    with OmniCLISetup() as omni:
+        version_result = omni.call(version_args, cwd=str(tmp_path))
+
+        if keep_files:
+            print("\nVERSION CREATION DEBUG:")
+            print(f"Return code: {version_result.returncode}")
+            print(f"STDOUT:\n{version_result.stdout}")
+            print(f"STDERR:\n{version_result.stderr}")
+
+    assert version_result.returncode == 0, (
+        f"Version creation failed\n"
+        f"STDOUT: {version_result.stdout}\n"
+        f"STDERR: {version_result.stderr}"
+    )
+    print("✓ Benchmark version created successfully")
+
     # Verify S3 has files
     time.sleep(2)  # S3 consistency
     bucket_contents = s3_environment.list_bucket_contents()
     assert len(bucket_contents) > 0, "No objects found in S3 bucket"
     print(f"✓ S3 bucket contains {len(bucket_contents)} objects")
+
+    # Debug: show what's actually in the bucket
+    if keep_files:
+        print("\nDEBUG: S3 bucket contents:")
+        for obj in bucket_contents[:20]:  # Show first 20 objects
+            print(f"  - {obj.get('Key', 'N/A')}")
 
     # ========================================
     # Step 2: Test archive dry-run with remote results
