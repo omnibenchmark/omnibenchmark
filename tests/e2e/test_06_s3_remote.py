@@ -524,7 +524,6 @@ def test_s3_remote_storage_complete_workflow(
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
-        "-y",
     ]
 
     with OmniCLISetup() as omni:
@@ -926,7 +925,6 @@ def test_s3_remote_storage_complete_workflow(
         str(config_file_in_tmp),
         "--use-remote-storage",
         "--continue-on-error",
-        "-y",
     ]
 
     with OmniCLISetup() as omni:

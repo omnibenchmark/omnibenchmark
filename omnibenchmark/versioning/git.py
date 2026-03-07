@@ -7,12 +7,21 @@ for reconstructing version history from git commits.
 YAML parsing is delegated to the model layer via Benchmark.from_yaml().
 """
 
+import logging
+import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from git import Repo
-from git.exc import InvalidGitRepositoryError
+
+
+from dulwich import porcelain
+from dulwich.errors import NotGitRepository
+from dulwich.objects import Commit
+from dulwich.repo import Repo
+from typing import cast as _cast
 
 from .manager import BenchmarkVersionManager
+
+logger = logging.getLogger(__name__)
 
 
 class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
@@ -50,9 +59,9 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
         self.git_available = False
         self.repo = None
         try:
-            self.repo = Repo(self.git_repo_path)
+            self.repo = Repo(str(self.git_repo_path))
             self.git_available = True
-        except InvalidGitRepositoryError:
+        except NotGitRepository:
             # Not a git repo, that's OK
             pass
 
@@ -79,25 +88,24 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
         seen_versions = set()
 
         try:
-            # Get all commits that touched the benchmark file
-            commits = list(self.repo.iter_commits(paths=str(self.relative_yaml_path)))
+            # Walk commits that touched the benchmark file (HEAD..root)
+            rel_path_bytes = str(self.relative_yaml_path).encode()
+            commits = list(self.repo.get_walker(paths=[rel_path_bytes]))
 
             # Process commits from oldest to newest
-            for commit in reversed(commits):
+            for entry in reversed(commits):
                 try:
-                    # Get the file content at this commit
-                    yaml_content = self._get_file_content_at_commit(commit.hexsha)
+                    commit_sha = entry.commit.id.decode()
+                    yaml_content = self._get_file_content_at_commit(commit_sha)
                     if yaml_content:
                         version = self._extract_version_from_yaml(yaml_content)
                         if version and version not in seen_versions:
                             versions.append(version)
                             seen_versions.add(version)
                 except Exception:
-                    # Skip commits where we can't extract version
                     continue
 
         except Exception:
-            # If we can't get git history, return empty list
             pass
 
         return versions
@@ -115,10 +123,26 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
         if self.repo is None:
             return None
         try:
-            commit = self.repo.commit(commit_hash)
-            # Get the file content from the commit tree
-            blob = commit.tree / str(self.relative_yaml_path)
-            return blob.data_stream.read().decode("utf-8")
+            commit_id = (
+                commit_hash.encode() if isinstance(commit_hash, str) else commit_hash
+            )
+            commit = _cast(Commit, self.repo[commit_id])
+            # Walk the tree to find the blob
+            tree = self.repo[commit.tree]
+            parts = str(self.relative_yaml_path).split("/")
+            obj = tree
+            for part in parts:
+                part_bytes = part.encode()
+                # tree items: (mode, name, sha)
+                found = False
+                for item in obj.items():
+                    if item.path == part_bytes:
+                        obj = self.repo[item.sha]
+                        found = True
+                        break
+                if not found:
+                    return None
+            return obj.data.decode("utf-8")
         except Exception:
             return None
 
@@ -133,19 +157,13 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             Version string or None if not found/invalid
         """
         try:
-            # Import here to avoid circular dependency
             from omnibenchmark.model import Benchmark
-
-            # Load from string (not file)
             import yaml
 
             data = yaml.safe_load(yaml_content)
-
-            # Create Benchmark instance from data
             benchmark = Benchmark(**data)
             return benchmark.version
         except Exception:
-            # If parsing fails, return None
             return None
 
     def initialize_from_git_history(self) -> None:
@@ -164,32 +182,50 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
         Returns:
             Dictionary with git info (commit, branch, author, etc.)
         """
-        info = {}
+        info: Dict[str, Any] = {}
 
         if not self.git_available or not self.repo:
             return info
 
         try:
-            # Get current commit
-            head_commit = self.repo.head.commit
-            info["commit"] = head_commit.hexsha[:8]
-            info["commit_full"] = head_commit.hexsha
-            info["author"] = f"{head_commit.author.name} <{head_commit.author.email}>"
-            info["timestamp"] = head_commit.committed_datetime.isoformat()
+            head_commit = _cast(Commit, self.repo[self.repo.head()])
+            sha = head_commit.id.decode()
+            info["commit"] = sha[:8]
+            info["commit_full"] = sha
+            info["author"] = head_commit.author.decode()
+            info["timestamp"] = head_commit.author_time
 
-            # Get current branch
-            if not self.repo.head.is_detached:
-                info["branch"] = self.repo.active_branch.name
+            # Current branch (HEAD may be detached)
+            try:
+                from dulwich.refs import Ref as _Ref
 
-            # Check if working directory is clean
-            info["clean"] = not self.repo.is_dirty()
+                head_ref = self.repo.refs.get_symrefs().get(_Ref(b"HEAD"))
+                if head_ref and head_ref.startswith(b"refs/heads/"):
+                    info["branch"] = head_ref[len(b"refs/heads/") :].decode()
+            except Exception:
+                pass
 
-            # Get remote URL if any
-            if self.repo.remotes:
-                info["remote"] = self.repo.remotes.origin.url
+            # Dirty check via subprocess (dulwich has no simple is_dirty())
+            try:
+                result = subprocess.run(
+                    ["git", "-C", str(self.git_repo_path), "status", "--porcelain"],
+                    capture_output=True,
+                    text=True,
+                )
+                info["clean"] = result.stdout.strip() == ""
+            except Exception:
+                pass
+
+            # Remote URL
+            try:
+                config = self.repo.get_config()
+                url = config.get((b"remote", b"origin"), b"url")
+                if url:
+                    info["remote"] = url.decode()
+            except Exception:
+                pass
 
         except Exception:
-            # Return whatever info we could gather
             pass
 
         return info
@@ -209,23 +245,17 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
         Returns:
             The created version string
         """
-        # Add git info to metadata
         if metadata is None:
             metadata = {}
 
-        # Get and store git information
         git_info = self.get_current_git_info()
         if git_info:
             metadata["git"] = git_info
 
-        # Create version with base class, passing metadata through hooks
         def pre_create_hook(version_str: str):
-            # Could validate git state here if needed
             pass
 
         def post_create_hook(version_str: str):
-            # Could create git tag here if desired
-            # But based on requirements, versions come from YAML not tags
             pass
 
         created_version = self.create_version(
@@ -262,27 +292,18 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             raise VersioningError("Git repository not available for committing")
 
         try:
-            # Update the benchmark model's version
             benchmark_execution.model.version = new_version
-
-            # Serialize the updated model to YAML
             yaml_content = benchmark_execution.model.to_yaml()
 
-            # Write the updated YAML to the file
             with open(self.benchmark_path, "w") as f:
                 f.write(yaml_content)
 
-            # Stage the file for commit
-            self.repo.index.add([str(self.relative_yaml_path)])
-
-            # Create commit message
             if commit_message is None:
                 commit_message = f"Update benchmark version to {new_version}"
 
-            # Commit the change
-            commit = self.repo.index.commit(commit_message)
-
-            return commit.hexsha
+            porcelain.add(self.repo, paths=[str(self.relative_yaml_path)])
+            commit_sha = porcelain.commit(self.repo, message=commit_message.encode())
+            return commit_sha.decode() if isinstance(commit_sha, bytes) else commit_sha
 
         except Exception as e:
             raise VersioningError(f"Failed to update benchmark and commit: {e}")
@@ -295,11 +316,6 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
     ) -> str:
         """
         Create a new version, update the benchmark file, and commit to git.
-
-        This method combines version creation with file persistence:
-        1. Creates a new version using the base class create_version method
-        2. Updates the benchmark YAML file with the new version
-        3. Commits the change to git
 
         Args:
             benchmark_execution: BenchmarkExecution object with model and context
@@ -320,41 +336,31 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             raise VersioningError("Git repository not available for committing")
 
         def pre_create_hook(version_str: str):
-            """Hook called before version is created - could validate git state here."""
             pass
 
         def post_create_hook(version_str: str):
-            """Hook called after version is created - updates file and commits."""
             try:
-                # Update the benchmark model's version
                 benchmark_execution.model.version = version_str
-
-                # Serialize the updated model to YAML
                 yaml_content = benchmark_execution.model.to_yaml()
 
-                # Write the updated YAML to the file
                 with open(self.benchmark_path, "w") as f:
                     f.write(yaml_content)
 
                 if self.repo is not None:
-                    # Stage the file for commit
-                    self.repo.index.add([str(self.relative_yaml_path)])
+                    porcelain.add(self.repo, paths=[str(self.relative_yaml_path)])
 
-                # Create commit message
                 final_commit_message = (
                     commit_message or f"Update benchmark version to {version_str}"
                 )
 
-                # Commit the change
                 if self.repo is not None:
-                    _commit = self.repo.index.commit(final_commit_message)
+                    porcelain.commit(self.repo, message=final_commit_message.encode())
 
             except Exception as e:
                 raise VersioningError(
                     f"Failed to update benchmark file and commit: {e}"
                 )
 
-        # Create version with hooks for persistence
         created_version = self.create_version(
             version=version,
             pre_create_hook=pre_create_hook,
@@ -397,16 +403,17 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
         commits_with_version = []
 
         try:
-            # Get all commits that touched the benchmark file
-            commits = list(self.repo.iter_commits(paths=str(self.relative_yaml_path)))
+            rel_path_bytes = str(self.relative_yaml_path).encode()
+            commits = list(self.repo.get_walker(paths=[rel_path_bytes]))
 
-            for commit in commits:
+            for entry in commits:
                 try:
-                    yaml_content = self._get_file_content_at_commit(commit.hexsha)
+                    commit_sha = entry.commit.id.decode()
+                    yaml_content = self._get_file_content_at_commit(commit_sha)
                     if yaml_content:
                         commit_version = self._extract_version_from_yaml(yaml_content)
                         if commit_version == version:
-                            commits_with_version.append(commit.hexsha[:8])
+                            commits_with_version.append(commit_sha[:8])
                 except Exception:
                     continue
 

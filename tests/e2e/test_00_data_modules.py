@@ -31,7 +31,6 @@ def test_data_modules_pipeline(
         tmp_path=tmp_path,
         keep_files=keep_files,
         min_expected_files=2,  # We expect 2 data files (D1_data.json, D2_data.json, excluding symlinks)
-        additional_cli_args=["-y"],
     )
 
 
@@ -47,7 +46,6 @@ def test_data_modules_output_structure(
         tmp_path=tmp_path,
         keep_files=keep_files,
         min_expected_files=2,
-        additional_cli_args=["-y"],
     )
 
 
@@ -73,13 +71,13 @@ def test_data_modules_idempotent(
 
     # First run
     first_runner.execute_cli_command(
-        config_file, ["--continue-on-error", "-y"], debug_label="first run"
+        config_file, ["--continue-on-error"], debug_label="first run"
     )
     first_runner.validate_results(test_name)
 
     # Second run (same config, different output dir)
     second_runner.execute_cli_command(
-        config_file, ["--continue-on-error", "-y"], debug_label="second run"
+        config_file, ["--continue-on-error"], debug_label="second run"
     )
     second_runner.validate_results(test_name)
 
@@ -101,5 +99,4 @@ def test_data_modules_cli_validation(
         tmp_path=tmp_path,
         keep_files=keep_files,
         min_expected_files=2,
-        additional_cli_args=["-y"],
     )

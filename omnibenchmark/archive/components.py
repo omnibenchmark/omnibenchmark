@@ -259,6 +259,28 @@ def prepare_archive_results_remote(
     """
     Prepare remote results files for archiving (downloads from remote storage).
 
+    KNOWN ISSUE: This function currently has a path mismatch problem with Snakemake remote storage.
+
+    The problem:
+    - Locally, files are stored in: out/data/D1/.../file.json
+    - In S3 (via Snakemake --default-storage-prefix), files are: data/D1/.../file.json
+    - The versioning system expects files in tracked_directories=['out', 'versions', 'config', 'software']
+    - But S3 has 'data' which isn't in tracked_directories
+    - So when 'ob remote version create' runs, it only tags 'config' and 'versions', not 'data'
+    - And when archiving, we can't find the data files in the version manifest
+
+    Root cause: Snakemake strips the working directory prefix when uploading to S3.
+    If the Snakefile has outputs like "out/data/...", Snakemake uploads them as "data/..."
+
+    Proposed fix:
+    1. Update StorageOptions.tracked_directories to include stage names ('data', 'methods', etc.)
+       in addition to 'out' when using remote storage
+    2. OR: Change --default-storage-prefix to s3://bucket/out to preserve the prefix
+    3. OR: Update get_expected_benchmark_output_files to return paths relative to out_dir
+       when remote_storage=True
+
+    For now, this function includes a workaround that strips the out/ prefix for matching.
+
     Args:
         benchmark: The benchmark execution object
         results_dir: Directory containing results files
@@ -267,27 +289,62 @@ def prepare_archive_results_remote(
         List[Path]: The filenames of results downloaded from remote storage
     """
     # Import here to avoid circular imports
-    from omnibenchmark.remote.files import list_files, download_files
+    from omnibenchmark.remote.storage import get_storage, remote_storage_args
 
-    # Get list of files from remote storage
-    objectnames, etags = list_files(
-        benchmark.get_definition_file().as_posix(),
-        type="all",
-        stage="",
-        module="",
-        file_id="",
-        remote_storage=True,
-        storage_options=StorageOptions(out_dir=results_dir),
+    # Get expected files based on benchmark configuration
+    storage_options = StorageOptions(out_dir=results_dir)
+    expected_files = get_expected_benchmark_output_files(benchmark, storage_options)
+
+    # WORKAROUND: Strip out_dir prefix from expected files for S3 comparison
+    # S3 keys don't include the out/ prefix when uploaded via Snakemake remote storage
+    # because Snakemake uses paths relative to the working directory
+    expected_files_normalized = []
+    for f in expected_files:
+        # Convert to string if it's a Path object
+        f_str = str(f) if isinstance(f, Path) else f
+        # Strip the results_dir prefix (e.g., "out/") from the path
+        if f_str.startswith(results_dir + "/"):
+            expected_files_normalized.append(f_str[len(results_dir) + 1 :])
+        else:
+            expected_files_normalized.append(f_str)
+
+    # Get storage connection with custom storage_options
+    auth_options = remote_storage_args(benchmark.model)
+    storage_api = benchmark.get_storage_api()
+    bucket_name = benchmark.get_storage_bucket_name()
+
+    if storage_api is None:
+        raise ValueError("No storage API configured for benchmark")
+    if bucket_name is None:
+        raise ValueError("No storage bucket configured for benchmark")
+
+    ss = get_storage(
+        storage_api,
+        auth_options,
+        bucket_name,
+        storage_options,
     )
+    if ss is None:
+        raise ValueError("Failed to initialize storage - check credentials")
 
-    # Download files from remote storage
-    download_files(
-        benchmark.get_definition_file().as_posix(),
-        type="all",
-        stage="",
-        module="",
-        file_id="",
-        overwrite=True,
-    )
+    # Set version and get objects from the version manifest
+    # NOTE: This requires that 'ob remote version create' was run after the benchmark
+    # and that it successfully tagged the result files in S3
+    ss.set_version(benchmark.get_benchmark_version())
+    ss._get_objects()
 
-    return [Path(obj) for obj in objectnames]
+    # Filter to only expected files that exist in remote storage
+    # Use normalized paths (without out/ prefix) for matching against S3 keys
+    files_in_storage = {
+        k: v for k, v in ss.files.items() if k in expected_files_normalized
+    }
+
+    # Download each file to its proper location (with out/ prefix)
+    downloaded_files = []
+    for objectname in files_in_storage.keys():
+        # Download to the local path with out_dir prefix
+        filename = f"{results_dir}/{objectname}"
+        ss.download_object(objectname, filename)
+        downloaded_files.append(Path(filename))
+
+    return downloaded_files

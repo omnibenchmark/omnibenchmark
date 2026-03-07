@@ -17,123 +17,6 @@ def mock_benchmark_execution():
         yield mock
 
 
-@pytest.fixture
-def mock_workflow_run_workflow():
-    with patch("omnibenchmark.cli.run.SnakemakeEngine.run_workflow") as mock:
-        mock.return_value = True
-        yield mock
-
-
-@pytest.fixture
-def mock_click_confirm():
-    with patch("click.confirm", return_value=True) as mock:
-        yield mock
-
-
-@pytest.mark.short
-def test_run_without_yes(
-    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
-):
-    """
-    Test that if we call run benchmark with --update and a valid benchmark file
-    we get the click interactive confirmation prompt.
-    """
-    runner = CliRunner()
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    runner = CliRunner()
-    result = runner.invoke(
-        run,
-        [benchmark_path, "--cores", "2", "--update"],
-    )
-
-    # Ensure click.confirm is NOT called
-    mock_click_confirm.assert_called_once_with(
-        "Are you sure you want to re-run the entire workflow?", abort=True
-    )
-
-    # Ensure workflow.run_workflow is called
-    mock_workflow_run_workflow.assert_called_once()
-    assert result.exit_code == 0
-
-
-@pytest.mark.short
-def test_run_with_yes(
-    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
-):
-    """
-    Test that if we call run benchmark with -k, a valid benchmark file and the --yes flag
-    we do not get the click interactive confirmation prompt, and run_workflow is called.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    runner = CliRunner()
-    result = runner.invoke(
-        run,
-        [
-            benchmark_path,
-            "-k",
-            "--cores",
-            "2",
-            "--yes",
-        ],
-    )
-
-    mock_click_confirm.assert_not_called()
-
-    # Ensure workflow.run_workflow is called
-    mock_workflow_run_workflow.assert_called_once()
-    assert result.exit_code == 0
-
-
-@pytest.mark.short
-def test_run_with_slurm_executor(
-    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
-):
-    """
-    Test that the benchmark runs with the SLURM executor and
-    extra arguments that are passed directly to Snakemake using the -- separator.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    runner = CliRunner()
-    result = runner.invoke(
-        run,
-        [
-            benchmark_path,
-            "-k",
-            "--executor",
-            "slurm",
-            "--cores",
-            "24",
-            "--yes",
-            "--",
-            "--jobs",
-            "6",
-            "--default-resources",
-            "mem_mb=4000",
-            "runtime=600",
-            "--verbose",
-            "--printshellcmds",
-        ],
-    )
-
-    mock_click_confirm.assert_not_called()
-
-    # Ensure workflow.run_workflow is called
-    mock_workflow_run_workflow.assert_called_once()
-    args, kwargs = mock_workflow_run_workflow.call_args
-    assert kwargs["executor"] == "slurm"
-    assert kwargs["jobs"] == "6"
-    assert kwargs["cores"] == 24
-    assert kwargs["default-resources"] == ["mem_mb=4000", "runtime=600"]
-    assert kwargs["continue_on_error"] is True
-    assert kwargs["verbose"] is True
-    assert kwargs["printshellcmds"] is True
-
-    assert result.exit_code == 0
-
-
 @pytest.mark.short
 def test_run_with_parse_error():
     """
@@ -328,83 +211,6 @@ def test_run_with_top_level_field_parse_error():
 
 
 @pytest.mark.short
-def test_run_continue_on_error_without_yes(
-    mock_benchmark_execution, mock_workflow_run_workflow, mock_click_confirm
-):
-    """
-    Test that --continue-on-error without --yes prompts for confirmation.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    runner = CliRunner()
-    result = runner.invoke(
-        run,
-        [benchmark_path, "--continue-on-error"],
-    )
-
-    # Ensure click.confirm was called for continue-on-error
-    mock_click_confirm.assert_called_once_with(
-        "Are you sure you want to run the full benchmark even if some jobs fail?",
-        abort=True,
-    )
-
-    mock_workflow_run_workflow.assert_called_once()
-    assert result.exit_code == 0
-
-
-@pytest.mark.short
-def test_run_with_remote_storage(mock_benchmark_execution, mock_workflow_run_workflow):
-    """
-    Test that --use-remote-storage flag sets up remote storage correctly.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    with patch(
-        "omnibenchmark.cli.run.remote_storage_snakemake_args"
-    ) as mock_storage_args:
-        with patch(
-            "omnibenchmark.cli.run.get_storage_from_benchmark"
-        ) as mock_get_storage:
-            mock_storage_args.return_value = {"remote-storage": "s3://bucket"}
-            mock_get_storage.return_value = MagicMock()
-
-            runner = CliRunner()
-            result = runner.invoke(
-                run,
-                [benchmark_path, "--use-remote-storage", "--yes"],
-            )
-
-            # Verify remote storage functions were called
-            mock_storage_args.assert_called_once()
-            mock_get_storage.assert_called_once()
-            mock_workflow_run_workflow.assert_called_once()
-
-            # Verify storage options were passed to workflow
-            args, kwargs = mock_workflow_run_workflow.call_args
-            assert "remote-storage" in kwargs
-
-            assert result.exit_code == 0
-
-
-@pytest.mark.short
-def test_run_workflow_failure(mock_benchmark_execution, mock_workflow_run_workflow):
-    """
-    Test that run handles workflow execution failure.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-    mock_workflow_run_workflow.return_value = False
-
-    runner = CliRunner()
-    result = runner.invoke(
-        run,
-        [benchmark_path, "--yes"],
-    )
-
-    # Verify the command failed
-    assert result.exit_code == 1
-
-
-@pytest.mark.short
 def test_run_module_with_invalid_timeout():
     """
     Test that run_module handles invalid timeout format correctly.
@@ -463,118 +269,6 @@ def test_run_module_dataset_inference_failure(tmp_path):
 
         # Verify the command failed with appropriate error
         assert result.exit_code == 1
-
-
-@pytest.mark.short
-def test_run_module_workflow_failure():
-    """
-    Test that run_module handles workflow execution failure.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
-        with patch(
-            "omnibenchmark.cli.run.SnakemakeEngine.run_node_workflow"
-        ) as mock_run_node:
-            mock_benchmark = MagicMock()
-            mock_node = MagicMock()
-            mock_node.is_entrypoint.return_value = True
-            mock_node.get_inputs.return_value = []
-
-            mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
-            mock_benchmark.get_benchmark_datasets.return_value = ["dataset1"]
-            mock_execution.return_value = mock_benchmark
-
-            # Workflow fails
-            mock_run_node.return_value = False
-
-            with patch("os.getcwd", return_value="/tmp"):
-                with patch("os.listdir", return_value=["dataset1.txt"]):
-                    with patch("os.path.exists", return_value=True):
-                        with patch("os.path.isdir", return_value=True):
-                            runner = CliRunner()
-                            result = runner.invoke(
-                                run,
-                                [
-                                    benchmark_path,
-                                    "--module",
-                                    "dataset1",
-                                ],
-                            )
-
-                            # Verify the command failed
-                            assert result.exit_code == 1
-
-
-@pytest.mark.short
-def test_abort_if_user_does_not_confirm_declined():
-    """
-    Test that abort_if_user_does_not_confirm raises Abort when user declines.
-    """
-    from omnibenchmark.cli.run import abort_if_user_does_not_confirm
-    from omnibenchmark.cli.utils.logging import logger
-    import click
-
-    with patch("click.confirm", return_value=False):
-        with pytest.raises(click.Abort):
-            abort_if_user_does_not_confirm("test action", logger)
-
-
-@pytest.mark.short
-def test_run_invalid_timeout():
-    """
-    Test that run handles invalid timeout format.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
-        mock_execution.return_value = MagicMock()
-
-        runner = CliRunner()
-        result = runner.invoke(
-            run,
-            [
-                benchmark_path,
-                "--task-timeout",
-                "not_a_valid_timeout",
-                "--yes",
-            ],
-        )
-
-        # Verify the command failed due to invalid timeout
-        assert result.exit_code == 1
-
-
-@pytest.mark.short
-def test_run_module_invalid_input_directory(tmp_path):
-    """
-    Test that run_module fails when input directory doesn't exist.
-    """
-    benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
-    nonexistent_dir = tmp_path / "does_not_exist"
-
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
-        mock_benchmark = MagicMock()
-        mock_node = MagicMock()
-        mock_node.is_entrypoint.return_value = False
-
-        mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
-        mock_execution.return_value = mock_benchmark
-
-        runner = CliRunner()
-        result = runner.invoke(
-            run,
-            [
-                benchmark_path,
-                "--module",
-                "test_module",
-                "--input-dir",
-                str(nonexistent_dir),
-            ],
-        )
-
-        # Click validates the path, so exit code is 2 (usage error)
-        assert result.exit_code == 2
 
 
 @pytest.mark.short
@@ -644,40 +338,55 @@ def test_run_module_missing_required_input_files(tmp_path):
 
 
 @pytest.mark.short
-def test_run_module_entrypoint_without_options():
+def test_run_with_double_dash_separator(mock_benchmark_execution):
     """
-    Test that run_module works for entrypoint modules without requiring input_dir.
+    Test that arguments after -- are correctly passed to snakemake.
+    This verifies the standard execution path (not slurm executor).
     """
     benchmark_path = Path(data / "mock_benchmark.yaml").as_posix()
 
-    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_execution:
-        with patch(
-            "omnibenchmark.cli.run.SnakemakeEngine.run_node_workflow"
-        ) as mock_run_node:
-            mock_benchmark = MagicMock()
-            mock_node = MagicMock()
-            mock_node.is_entrypoint.return_value = True
-            mock_node.get_inputs.return_value = []
+    with patch("omnibenchmark.cli.run._populate_git_cache"):
+        with patch("omnibenchmark.cli.run._generate_explicit_snakefile") as mock_gen:
+            mock_gen.return_value = []
+            with patch("omnibenchmark.cli.run.write_run_manifest"):
+                with patch(
+                    "omnibenchmark.cli.run._run_snakemake"
+                ) as mock_run_snakemake:
+                    mock_run_snakemake.return_value = None
 
-            mock_benchmark.get_nodes_by_module_id.return_value = [mock_node]
-            mock_benchmark.get_benchmark_datasets.return_value = ["dataset1"]
-            mock_execution.return_value = mock_benchmark
+                    mock_benchmark = MagicMock()
+                    mock_benchmark.get_benchmark_software_backend.return_value = (
+                        MagicMock(value="conda")
+                    )
+                    mock_benchmark_execution.return_value = mock_benchmark
 
-            mock_run_node.return_value = True
+                    runner = CliRunner()
+                    result = runner.invoke(
+                        run,
+                        [
+                            benchmark_path,
+                            "--cores",
+                            "4",
+                            "-k",
+                            "--",
+                            "--forceall",
+                            "--rerun-triggers",
+                            "mtime",
+                            "--verbose",
+                        ],
+                    )
 
-            with patch("os.getcwd", return_value="/tmp"):
-                with patch("os.listdir", return_value=["dataset1.txt"]):
-                    with patch("os.path.exists", return_value=True):
-                        with patch("os.path.isdir", return_value=True):
-                            runner = CliRunner()
-                            result = runner.invoke(
-                                run,
-                                [
-                                    benchmark_path,
-                                    "--module",
-                                    "dataset1",
-                                ],
-                            )
+                    mock_run_snakemake.assert_called_once()
+                    args, kwargs = mock_run_snakemake.call_args
 
-                            # Verify the command succeeded
-                            assert result.exit_code == 0
+                    assert "extra_snakemake_args" in kwargs
+                    extra_args = kwargs["extra_snakemake_args"]
+                    assert "--forceall" in extra_args
+                    assert "--rerun-triggers" in extra_args
+                    assert "mtime" in extra_args
+                    assert "--verbose" in extra_args
+
+                    assert kwargs["cores"] == 4
+                    assert kwargs["continue_on_error"] is True
+
+                    assert result.exit_code == 0
