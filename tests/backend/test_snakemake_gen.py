@@ -118,12 +118,15 @@ def _make_params(d=None):
     return Params(d or {"method": "pca", "k": "10"})
 
 
-def _gen() -> SnakemakeGenerator:
-    return SnakemakeGenerator(
-        benchmark_name="test-bench",
-        benchmark_version="1.0",
-        benchmark_author="tester",
-    )
+def _gen(api_version=None) -> SnakemakeGenerator:
+    kwargs = {
+        "benchmark_name": "test-bench",
+        "benchmark_version": "1.0",
+        "benchmark_author": "tester",
+    }
+    if api_version is not None:
+        kwargs["api_version"] = api_version
+    return SnakemakeGenerator(**kwargs)
 
 
 def _debug_gen() -> DebugSnakemakeGenerator:
@@ -434,13 +437,32 @@ class TestWriteNodeRuleExec:
         assert "parameters.json" in out
 
     def test_name_arg_is_module_id(self):
-        # --name is always the current module's own ID (spec §3.5)
+        # --name is the module ID for API >= 0.5 (spec §3.5)
+        from omnibenchmark.model.benchmark import APIVersion
+
         node = _make_node(
             module_id="mymod",
             outputs=["out/stage1/mymod/default/result.csv"],
         )
-        out = _capture(_gen()._write_node_rule, node)
+        out = _capture(_gen(api_version=APIVersion.V0_5_0)._write_node_rule, node)
         assert "--name mymod" in out
+
+    def test_name_arg_backward_compat_v0_4(self):
+        # BUG WORKAROUND: For API <= 0.4, --name uses dataset name from path
+        # This maintains backward compatibility with legacy modules that use
+        # --name to construct output filenames ({name}_data.json)
+        # Path structure: {prefix}/{stage}/{dataset}/{param}/...
+        # parts[1] extracts the stage name in this case
+        from omnibenchmark.model.benchmark import APIVersion
+
+        node = _make_node(
+            module_id="mymod",
+            outputs=["out/stage1/dataset1/default/result.csv"],
+        )
+        out = _capture(_gen(api_version=APIVersion.V0_4_0)._write_node_rule, node)
+        # With API 0.4, extracts parts[1] which is "stage1" in this path
+        assert "--name stage1" in out
+        assert "--name mymod" not in out
 
     def test_tee_logging(self):
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])

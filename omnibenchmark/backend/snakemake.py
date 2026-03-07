@@ -295,7 +295,33 @@ class SnakemakeGenerator:
         else:
             interpreter = node.module.interpreter or "python3"
             cmd = [f"{interpreter} {{params.entrypoint}}"]
-        cmd += ["--output_dir $OUTPUT_DIR", f"--name {node.module_id}"]
+
+        # Determine the value for --name parameter
+        # BUG WORKAROUND (API <= 0.4): Legacy modules have a design flaw where they
+        # use the --name parameter to construct output filenames ({name}_data.json),
+        # but the benchmark spec expects outputs to be named after datasets
+        # ({dataset}_data.json). This creates a mismatch when module_id != dataset_id.
+        #
+        # For API <= 0.4 ONLY, we work around this by passing the dataset name
+        # (extracted from the output path structure) as --name instead of module_id.
+        # This maintains backward compatibility with existing modules.
+        #
+        # For API >= 0.5, modules MUST use output_dir correctly and not depend on
+        # --name for filename construction. Remove this workaround when 0.4 support ends.
+        name_param = node.module_id
+        if self.api_version <= APIVersion.V0_4_0 and node.outputs:
+            first_output = node.outputs[0]
+            parts = first_output.split("/")
+            # Output path structure: data/{dataset}/.../[methods/{module}/...]/filename
+            # We extract parts[1] which is the dataset identifier
+            # Examples:
+            #   data/D1/.94686c86/D1_data.json -> D1
+            #   data/D1/.94686c86/methods/M1/.68f00a0d/D1_data.json -> D1
+            if len(parts) > 1:
+                dataset_name = parts[1]
+                name_param = dataset_name
+
+        cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
             cmd.append(f"--{original_name} $INPUT_{key}")
