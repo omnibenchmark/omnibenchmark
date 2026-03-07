@@ -9,7 +9,10 @@ the backend package.
 from collections import defaultdict
 from typing import TextIO
 
-from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
+from omnibenchmark.backend.snakemake import (
+    SnakemakeGenerator,
+    _make_human_name,
+)
 from omnibenchmark.model.resolved import ResolvedNode
 
 
@@ -22,54 +25,53 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
 
     def _write_shell(self, f: TextIO, node: ResolvedNode):
         """Write a debug shell: block that echoes the command and touches outputs."""
-        f.write("    shell:\n")
-        f.write('        """\n')
-        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
-        f.write(f'        echo "RULE: {node.id}"\n')
-        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
-        f.write('        echo "Module: {params.module_dir}"\n')
-        f.write('        echo "Entrypoint: {params.entrypoint}"\n')
+        lines: list = [
+            'echo "=" "=" "=" "=" "=" "=" "=" "="',
+            f'echo "RULE: {node.id}"',
+            'echo "=" "=" "=" "=" "=" "=" "=" "="',
+            'echo "Module: {params.module_dir}"',
+            'echo "Entrypoint: {params.entrypoint}"',
+        ]
 
         if node.inputs:
-            f.write('        echo "Inputs:"\n')
-            for key in node.inputs.keys():
-                f.write(f'        echo "  {key}: {{input.{key}}}"\n')
+            lines.append('echo "Inputs:"')
+            for key in node.inputs:
+                lines.append(f'echo "  {key}: {{input.{key}}}"')
 
         if node.outputs:
-            f.write('        echo "Outputs:"\n')
-            for i, _ in enumerate(node.outputs):
-                f.write(f'        echo "  {{output[{i}]}}"\n')
+            lines.append('echo "Outputs:"')
+            for i in range(len(node.outputs)):
+                lines.append(f'echo "  {{output[{i}]}}"')
 
         if node.parameters:
-            f.write('        echo "Parameters: {params.cli_args}"\n')
+            lines.append('echo "Parameters: {params.cli_args}"')
 
-        f.write('        echo ""\n')
-        f.write('        echo "Would execute:"\n')
-        f.write('        echo "  cd {params.module_dir} && ./{params.entrypoint} \\"\n')
-        f.write('        echo "    --output_dir $(dirname {output[0]}) \\"\n')
-
-        f.write(f'        echo "    --name {node.module_id} \\"\n')
-
-        if node.inputs:
-            for key in node.inputs.keys():
-                original_name = node.input_name_mapping.get(key, key)
-                f.write(f'        echo "    --{original_name} {{input.{key}}} \\"\n')
-
-        f.write('        echo "    {params.cli_args}"\n')
-        f.write('        echo ""\n')
-        f.write("        mkdir -p $(dirname {output[0]})\n")
+        lines += [
+            'echo ""',
+            'echo "Would execute:"',
+            'echo "  cd {params.module_dir} && ./{params.entrypoint} \\"',
+            'echo "    --output_dir $(dirname {output[0]}) \\"',
+            f'echo "    --name {node.module_id} \\"',
+        ]
+        for key in node.inputs:
+            original_name = node.input_name_mapping.get(key, key)
+            lines.append(f'echo "    --{original_name} {{input.{key}}} \\"')
+        lines += [
+            'echo "    {params.cli_args}"',
+            'echo ""',
+            "mkdir -p $(dirname {output[0]})",
+        ]
 
         if node.parameters:
-            human_name = _make_human_name(node.parameters)
-            hash_folder = f".{node.parameters.hash_short()}"
-            f.write(
-                f"        ln -sfn {hash_folder} $(dirname {{output[0]}})/../{human_name}\n"
+            lines.append(
+                f"ln -sfn .{node.parameters.hash_short()}"
+                f" $(dirname {{output[0]}})/../{_make_human_name(node.parameters)}"
             )
 
-        for i, _ in enumerate(node.outputs):
-            f.write(f"        touch {{output[{i}]}}\n")
+        for i in range(len(node.outputs)):
+            lines.append(f"touch {{output[{i}]}}")
 
-        f.write('        """\n')
+        self._write_shell_lines(f, lines)
 
     def _write_gather_shell(self, f: TextIO, node: ResolvedNode):
         """Write a debug shell: block for gather/collector nodes."""
@@ -80,42 +82,44 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
                 inputs_by_name[original_name].append(key)
 
         node_type = "GATHER STAGE" if node.is_gather else "METRIC COLLECTOR"
-        f.write("    shell:\n")
-        f.write('        """\n')
-        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
-        f.write(f'        echo "{node_type}: {node.module_id}"\n')
-        f.write('        echo "=" "=" "=" "=" "=" "=" "=" "="\n')
-        f.write('        echo "Module: {params.module_dir}"\n')
-        f.write('        echo "Entrypoint: {params.entrypoint}"\n')
+        lines: list = [
+            'echo "=" "=" "=" "=" "=" "=" "=" "="',
+            f'echo "{node_type}: {node.module_id}"',
+            'echo "=" "=" "=" "=" "=" "=" "=" "="',
+            'echo "Module: {params.module_dir}"',
+            'echo "Entrypoint: {params.entrypoint}"',
+        ]
 
         if inputs_by_name:
-            f.write('        echo "Inputs (by name):"\n')
-            for input_name in inputs_by_name.keys():
-                f.write(f'        echo "  --{input_name}:"\n')
-                for key in inputs_by_name[input_name]:
-                    f.write(f'        echo "    {{input.{key}}}"\n')
+            lines.append('echo "Inputs (by name):"')
+            for input_name, keys in inputs_by_name.items():
+                lines.append(f'echo "  --{input_name}:"')
+                for key in keys:
+                    lines.append(f'echo "    {{input.{key}}}"')
 
-        f.write('        echo "Outputs:"\n')
-        for i, _ in enumerate(node.outputs):
-            f.write(f'        echo "  {{output[{i}]}}"\n')
-        if node.parameters:
-            f.write('        echo "Parameters: {params.cli_args}"\n')
-        f.write('        echo ""\n')
-        f.write('        echo "Would execute:"\n')
-        f.write(
-            '        echo "  cd {params.module_dir} && python3 {params.entrypoint} \\"\n'
-        )
-        f.write('        echo "    --output_dir $(dirname {output[0]}) \\"\n')
-        f.write(f'        echo "    --name {node.module_id} \\"\n')
-
-        if inputs_by_name:
-            for input_name in inputs_by_name.keys():
-                f.write(f'        echo "    --{input_name} [files...] \\"\n')
+        lines.append('echo "Outputs:"')
+        for i in range(len(node.outputs)):
+            lines.append(f'echo "  {{output[{i}]}}"')
 
         if node.parameters:
-            f.write('        echo "    {params.cli_args}"\n')
-        f.write('        echo ""\n')
-        f.write("        mkdir -p $(dirname {output[0]})\n")
-        for i, _ in enumerate(node.outputs):
-            f.write(f"        touch {{output[{i}]}}\n")
-        f.write('        """\n')
+            lines.append('echo "Parameters: {params.cli_args}"')
+
+        lines += [
+            'echo ""',
+            'echo "Would execute:"',
+            'echo "  cd {params.module_dir} && python3 {params.entrypoint} \\"',
+            'echo "    --output_dir $(dirname {output[0]}) \\"',
+            f'echo "    --name {node.module_id} \\"',
+        ]
+        for input_name in inputs_by_name:
+            lines.append(f'echo "    --{input_name} [files...] \\"')
+        if node.parameters:
+            lines.append('echo "    {params.cli_args}"')
+        lines += [
+            'echo ""',
+            "mkdir -p $(dirname {output[0]})",
+        ]
+        for i in range(len(node.outputs)):
+            lines.append(f"touch {{output[{i}]}}")
+
+        self._write_shell_lines(f, lines)
