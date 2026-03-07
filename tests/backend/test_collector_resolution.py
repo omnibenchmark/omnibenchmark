@@ -151,6 +151,7 @@ def sample_resolved_nodes():
     ]
 
 
+@pytest.mark.short
 class TestResolveMetricCollectors:
     """Test the main resolve_metric_collectors function."""
 
@@ -254,6 +255,7 @@ class TestResolveMetricCollectors:
         assert len(result[0].inputs) == 0
 
 
+@pytest.mark.short
 class TestGatherCollectorInputs:
     """Test the _gather_collector_inputs function."""
 
@@ -314,6 +316,7 @@ class TestGatherCollectorInputs:
         assert inputs == {}
 
 
+@pytest.mark.short
 class TestResolveCollectorOutputs:
     """Test the _resolve_collector_outputs function."""
 
@@ -382,6 +385,7 @@ class TestResolveCollectorOutputs:
         assert outputs[0] == "test/output.txt"
 
 
+@pytest.mark.short
 class TestExpandCollectorParameters:
     """Test the _expand_collector_parameters function."""
 
