@@ -11,7 +11,11 @@ import pytest
 from pathlib import Path
 
 from omnibenchmark.backend._metadata import save_metadata
-from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
+from omnibenchmark.backend.snakemake import (
+    SnakemakeGenerator,
+    _bash_var,
+    _make_human_name,
+)
 from omnibenchmark.model.resolved import (
     ResolvedNode,
     ResolvedModule,
@@ -91,6 +95,26 @@ class TestSanitizeRuleNameEdgeCases:
 # ---------------------------------------------------------------------------
 # Test _make_human_name edge cases
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestBashVar:
+    """Test _bash_var helper."""
+
+    def test_dot_replaced(self):
+        assert _bash_var("data.raw") == "_data_raw"
+
+    def test_hyphen_replaced(self):
+        assert _bash_var("my-input") == "_my_input"
+
+    def test_plain_name_unchanged(self):
+        assert _bash_var("counts") == "_counts"
+
+    def test_multiple_dots(self):
+        assert _bash_var("a.b.c") == "_a_b_c"
+
+    def test_mixed(self):
+        assert _bash_var("data.raw-v2") == "_data_raw_v2"
 
 
 @pytest.mark.short

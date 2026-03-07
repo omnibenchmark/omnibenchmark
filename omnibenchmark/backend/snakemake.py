@@ -28,6 +28,20 @@ from omnibenchmark.model.resolved import ResolvedModule, ResolvedNode
 
 _UNSAFE_CHARS = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", " "]
 
+# Indentation constants for generated Snakemake syntax.
+# Shell block content lives at 8 spaces (2 levels × 4 spaces).
+_RULE_INDENT = "    "
+_SHELL_INDENT = "        "
+
+
+def _bash_var(name: str) -> str:
+    """Turn an input flag name into a valid bash array variable name.
+
+    >>> _bash_var("data.raw")
+    '_data_raw'
+    """
+    return "_" + name.replace(".", "_").replace("-", "_")
+
 
 def _make_human_name(params) -> str:
     """Create a human-readable symlink name from a Params object.
@@ -79,24 +93,14 @@ class SnakemakeGenerator:
 
     def _write_header(self, f: TextIO):
         """Write Snakefile header."""
-        f.write("#!/usr/bin/env snakemake\n")
-        f.write("#" * 80 + "\n")
-        f.write("# Explicit Snakefile for OmniBenchmark\n")
-        f.write("#" * 80 + "\n")
-        f.write("#\n")
-        f.write(f"# Generated: {datetime.now()}\n")
-        f.write("#\n")
-        f.write("# Benchmark Details:\n")
-        f.write(f"#   Name: {self.benchmark_name}\n")
-        f.write(f"#   Version: {self.benchmark_version}\n")
-        f.write(f"#   Author: {self.benchmark_author}\n")
-        f.write("#\n")
-        f.write("# This Snakefile was generated from resolved benchmark nodes.\n")
-        f.write("# All modules have been cloned and entrypoints dereferenced.\n")
-        f.write("# Module checkouts are in .modules/{repo_name}/{commit}/\n")
-        f.write("#\n")
-        f.write("#" * 80 + "\n")
-        f.write("\n")
+        lines = [
+            "#!/usr/bin/env snakemake",
+            f"# OmniBenchmark: {self.benchmark_name} v{self.benchmark_version} ({self.benchmark_author})",
+            f"# Generated: {datetime.now()}",
+            "# Auto-generated — do not edit by hand.",
+            "",
+        ]
+        f.write("\n".join(lines))
 
     def _write_node_rule(self, f: TextIO, node: ResolvedNode):
         """Write a complete rule block for one resolved node."""
@@ -227,6 +231,18 @@ class SnakemakeGenerator:
     # Shell writers — override in subclasses to change generated commands
     # ------------------------------------------------------------------
 
+    def _write_shell_lines(self, f: TextIO, lines: list) -> None:
+        """Write a shell: block from a list of content lines.
+
+        Handles the directive header, triple-quote delimiters, and uniform
+        8-space indentation so callers only need to think about content.
+        """
+        f.write(f"{_RULE_INDENT}shell:\n")
+        f.write(f'{_SHELL_INDENT}"""\n')
+        for line in lines:
+            f.write(f"{_SHELL_INDENT}{line}\n")
+        f.write(f'{_SHELL_INDENT}"""\n')
+
     def _write_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a regular node (production execution).
 
@@ -234,67 +250,63 @@ class SnakemakeGenerator:
         - Writes parameters.json next to outputs
         - Uses pre-resolved shebang / interpreter info
         """
-        f.write("    shell:\n")
-        f.write('        """\n')
-        f.write("        mkdir -p $(dirname {output[0]}) $(dirname {log})\n")
-        f.write("        OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)\n")
+        lines: list = []
 
-        if node.inputs:
-            for key in node.inputs.keys():
-                f.write(
-                    f"        INPUT_{key}=$(cd $(dirname {{input.{key}}}) && pwd)/$(basename {{input.{key}}})\n"
-                )
+        # Resolve output and log directories to absolute paths before cd-ing
+        # into the module directory.
+        lines += [
+            "mkdir -p $(dirname {output[0]}) $(dirname {log})",
+            "OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)",
+        ]
+        for key in node.inputs:
+            lines.append(
+                f"INPUT_{key}=$(cd $(dirname {{input.{key}}}) && pwd)"
+                f"/$(basename {{input.{key}}})"
+            )
 
-        f.write("        LOG_FILE=$(pwd)/{log}\n")
-        f.write('        exec > >(tee "$LOG_FILE") 2>&1\n')
-        f.write("        echo '=== Rule: {rule} ==='\n")
-        f.write("        echo 'Started:' $(date -Iseconds)\n")
-        f.write(
-            "        if [ -n \"${{CONDA_PREFIX:-}}\" ]; then echo 'Conda env:' $CONDA_PREFIX; fi\n"
-        )
-        f.write("        echo '---'\n")
+        # Redirect stdout/stderr through tee so both the terminal and the log
+        # file receive all output.
+        lines += [
+            "LOG_FILE=$(pwd)/{log}",
+            'exec > >(tee "$LOG_FILE") 2>&1',
+            "echo '=== Rule: {rule} ==='",
+            "echo 'Started:' $(date -Iseconds)",
+            "echo '---'",
+        ]
 
+        # Write parameters.json and a human-readable symlink to the hash folder.
         if node.parameters:
             params_json = json.dumps(node.parameters._params)
             params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
             params_json_escaped = params_json_escaped.replace("'", "'\\''")
-            f.write(
-                f"        echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json\n"
-            )
-            human_name = _make_human_name(node.parameters)
-            hash_folder = f".{node.parameters.hash_short()}"
-            f.write(f"        ln -sfn {hash_folder} $OUTPUT_DIR/../{human_name}\n")
+            lines += [
+                f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json",
+                f"ln -sfn .{node.parameters.hash_short()}"
+                f" $OUTPUT_DIR/../{_make_human_name(node.parameters)}",
+            ]
 
-        cmd_parts = []
-        f.write("        cd {params.module_dir}\n")
+        lines.append("cd {params.module_dir}")
 
-        if node.module.has_shebang:
-            cmd_parts.append("./{params.entrypoint}")
-        else:
-            # TODO: do not assume python3, only if .py maybe?
-            interpreter = node.module.interpreter or "python3"
-            cmd_parts.append(f"{interpreter} {{params.entrypoint}}")
-
-        cmd_parts.append("--output_dir $OUTPUT_DIR")
-
+        # Build command with backslash-continuations between parts.
         # --name is always the current module's own ID (spec §3.5 Reserved Parameters)
-        cmd_parts.append(f"--name {node.module_id}")
-
-        if node.inputs:
-            for key in node.inputs.keys():
-                original_name = node.input_name_mapping.get(key, key)
-                cmd_parts.append(f"--{original_name} $INPUT_{key}")
-
+        # TODO: do not assume python3, only if .py maybe?
+        if node.module.has_shebang:
+            cmd = ["./{params.entrypoint}"]
+        else:
+            interpreter = node.module.interpreter or "python3"
+            cmd = [f"{interpreter} {{params.entrypoint}}"]
+        cmd += ["--output_dir $OUTPUT_DIR", f"--name {node.module_id}"]
+        for key in node.inputs:
+            original_name = node.input_name_mapping.get(key, key)
+            cmd.append(f"--{original_name} $INPUT_{key}")
         if node.parameters:
-            cmd_parts.append("{params.cli_args}")
+            cmd.append("{params.cli_args}")
 
-        for i, part in enumerate(cmd_parts):
-            if i < len(cmd_parts) - 1:
-                f.write(f"        {part} \\\\\n")
-            else:
-                f.write(f"        {part}\n")
+        for part in cmd[:-1]:
+            lines.append(f"{part} \\\\")
+        lines.append(cmd[-1])
 
-        f.write('        """\n')
+        self._write_shell_lines(f, lines)
 
     def _write_gather_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a gather/collector node (production execution).
@@ -308,43 +320,45 @@ class SnakemakeGenerator:
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 
-        f.write("    shell:\n")
-        f.write('        """\n')
-        f.write("        mkdir -p $(dirname {output[0]})\n")
-        f.write("        MODULE_DIR={params.module_dir}\n")
-        f.write("        OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)\n")
+        lines: list = [
+            "mkdir -p $(dirname {output[0]})",
+            "MODULE_DIR={params.module_dir}",
+            "OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)",
+        ]
 
-        if inputs_by_name:
-            input_counter = 0
-            for input_name, keys in inputs_by_name.items():
-                for key in keys:
-                    f.write(
-                        f"        INPUT_{input_counter}=$(cd $(dirname {{input.{key}}}) && pwd)/$(basename {{input.{key}}})\n"
-                    )
-                    input_counter += 1
+        # Resolve each input group to absolute paths into a bash array.
+        # One loop per distinct flag name — no matter how many files per flag.
+        for input_name, keys in inputs_by_name.items():
+            var = _bash_var(input_name)
+            refs = " ".join(f"{{input.{key}}}" for key in keys)
+            lines += [
+                f"{var}=()",
+                f"for _f in {refs}; do",
+                f'    {var}+=("$(cd $(dirname $_f) && pwd)/$(basename $_f)")',
+                "done",
+            ]
 
+        # Build the multi-line command.  Continuation args are indented 4 extra
+        # spaces relative to the entrypoint line so they visually align.
         if node.module.has_shebang:
-            f.write("        $MODULE_DIR/{params.entrypoint} \\\\\n")
+            lines.append("$MODULE_DIR/{params.entrypoint} \\\\")
         else:
             interpreter = node.module.interpreter or "python3"
-            f.write(f"        {interpreter} $MODULE_DIR/{{params.entrypoint}} \\\\\n")
+            lines.append(f"{interpreter} $MODULE_DIR/{{params.entrypoint}} \\\\")
 
-        f.write("            --output_dir $OUTPUT_DIR \\\\\n")
-        f.write(f"            --name {node.module_id}")
-
-        if inputs_by_name:
-            input_counter = 0
-            for input_name, keys in inputs_by_name.items():
-                f.write(" \\\\\n")
-                f.write(f"            --{input_name}")
-                for key in keys:
-                    f.write(f" $INPUT_{input_counter}")
-                    input_counter += 1
-
+        # Gather args: each on its own continuation line, 4 extra spaces.
+        # Array expansion: ${{var[@]}} in the Snakefile so Snakemake unescapes {{ → {
+        # and }} → } leaving bash with ${var[@]}.
+        gather_args = ["--output_dir $OUTPUT_DIR", f"--name {node.module_id}"]
+        for input_name in inputs_by_name:
+            var = _bash_var(input_name)
+            array_ref = '"${{' + var + '[@]}}"'
+            gather_args.append(f"--{input_name} {array_ref}")
         if node.parameters:
-            f.write(" \\\\\n")
-            f.write("            {params.cli_args}\n")
-        else:
-            f.write("\n")
+            gather_args.append("{params.cli_args}")
 
-        f.write('        """\n')
+        for arg in gather_args[:-1]:
+            lines.append(f"    {arg} \\\\")
+        lines.append(f"    {gather_args[-1]}")
+
+        self._write_shell_lines(f, lines)
