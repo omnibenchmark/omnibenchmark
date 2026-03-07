@@ -10,10 +10,11 @@ Design Philosophy:
 - They should be treated as regular nodes in the DAG
 - The only difference is their input gathering behavior (collect ALL outputs from a stage)
 
-FUTURE DESIGN NOTE:
-- Ideally, collectors should be regular stages, not requiring special "metric_collectors" stanza
-- Could use a "gather" input modifier in regular stage inputs to collect all matching outputs
-- This would eliminate the need for special collector resolution logic
+DESIGN NOTE:
+- Ideally, collectors should be regular stages, not requiring special "metric_collectors" stanza.
+- We can a "gather" input modifier in regular stage inputs to collect all
+matching outputs (see #291). This would eliminate the need for special collector
+resolution logic
 
 Resolution Process:
 1. Parse collector inputs to identify referenced stage outputs
@@ -149,6 +150,7 @@ def resolve_metric_collectors(
                     benchmark_version=benchmark.get_version(),
                     benchmark_author=benchmark.get_author(),
                     resources=node_resources,
+                    is_collector=True,
                 )
 
                 collector_nodes.append(node)

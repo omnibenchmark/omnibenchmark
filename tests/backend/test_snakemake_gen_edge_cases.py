@@ -10,10 +10,8 @@ All tests marked as 'short' since they only test pure logic without I/O.
 import pytest
 from pathlib import Path
 
-from omnibenchmark.backend.snakemake_gen import (
-    SnakemakeGenerator,
-    save_metadata,
-)
+from omnibenchmark.backend._metadata import save_metadata
+from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
 from omnibenchmark.model.resolved import (
     ResolvedNode,
     ResolvedModule,
@@ -101,13 +99,13 @@ class TestMakeHumanNameEdgeCases:
 
     def test_empty_dict(self, generator):
         """Test empty dict input."""
-        result = generator._make_human_name({})
+        result = _make_human_name({})
         assert result == ""
 
     def test_simple_params_dict(self, generator):
         """Test simple params dict."""
         params = {"alpha": 0.1, "beta": 0.5}
-        result = generator._make_human_name(params)
+        result = _make_human_name(params)
         # Should create key-value pairs
         assert "alpha" in result
         assert "beta" in result
@@ -115,7 +113,7 @@ class TestMakeHumanNameEdgeCases:
     def test_unsafe_characters_replaced(self, generator):
         """Test that unsafe characters are replaced."""
         params = {"key": "value/with\\unsafe:chars"}
-        result = generator._make_human_name(params)
+        result = _make_human_name(params)
         # Unsafe chars should be replaced with underscores
         assert "/" not in result
         assert "\\" not in result
@@ -137,9 +135,7 @@ class TestSnakemakeGeneratorEdgeCases:
 
         generator.generate_snakefile(
             nodes=[],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         # Should still create valid file with header
@@ -163,9 +159,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=False,
         )
 
         content = output_path.read_text()
@@ -186,9 +180,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         content = output_path.read_text()
@@ -210,9 +202,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         content = output_path.read_text()
@@ -233,9 +223,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         content = output_path.read_text()
@@ -266,9 +254,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=False,
         )
 
         content = output_path.read_text()
@@ -292,9 +278,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=nodes,
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         content = output_path.read_text()
@@ -330,9 +314,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         # Should handle gracefully
@@ -360,9 +342,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile_v0_4"
         gen_v0_4.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         content = output_path.read_text()
@@ -386,9 +366,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=False,
         )
 
         content = output_path.read_text()
@@ -409,9 +387,7 @@ class TestSnakemakeGeneratorEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=False,
         )
 
         content = output_path.read_text()
@@ -434,7 +410,7 @@ class TestSaveMetadataEdgeCases:
         benchmark_yaml = tmp_path / "benchmark.yaml"
         benchmark_yaml.write_text("name: test\nversion: 1.0\n")
 
-        save_metadata(benchmark_yaml, tmp_path, [], [])
+        save_metadata(benchmark_yaml, tmp_path, [])
 
         modules_file = tmp_path / ".metadata" / "modules.txt"
         assert modules_file.exists()
@@ -460,7 +436,7 @@ class TestSaveMetadataEdgeCases:
             for i in range(5)
         ]
 
-        save_metadata(benchmark_yaml, tmp_path, nodes, [])
+        save_metadata(benchmark_yaml, tmp_path, nodes)
 
         modules_file = tmp_path / ".metadata" / "modules.txt"
         content = modules_file.read_text()
@@ -478,7 +454,7 @@ class TestSaveMetadataEdgeCases:
         metadata_dir.mkdir()
 
         # Should not raise error
-        save_metadata(benchmark_yaml, tmp_path, [], [])
+        save_metadata(benchmark_yaml, tmp_path, [])
 
         assert metadata_dir.exists()
 
@@ -508,9 +484,7 @@ class TestResourceDirectiveEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         # Should not crash and should produce valid output
@@ -546,9 +520,7 @@ class TestComplexityEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=False,
         )
 
         # Should handle many inputs
@@ -570,9 +542,7 @@ class TestComplexityEdgeCases:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(
             nodes=[node],
-            collectors=[],
             output_path=output_path,
-            debug_mode=True,
         )
 
         content = output_path.read_text()

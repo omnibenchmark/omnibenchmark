@@ -1,5 +1,5 @@
 """
-Unit tests for SnakemakeGenerator (omnibenchmark/backend/snakemake_gen.py).
+Unit tests for SnakemakeGenerator (omnibenchmark/backend/snakemake.py).
 
 Covers:
 - _sanitize_rule_name
@@ -9,9 +9,7 @@ Covers:
 - _write_environment_directive (all backends)
 - _write_resources_directive (no resources / with resources)
 - _write_node_rule (regular, collector, gather; debug + exec modes)
-- _write_collector_rule (debug + exec modes)
 - generate_snakefile (integration: writes a parseable file)
-- save_metadata
 """
 
 import io
@@ -19,11 +17,9 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from omnibenchmark.backend.manifest import write_run_manifest
-from omnibenchmark.backend.snakemake_gen import (
-    SnakemakeGenerator,
-    save_metadata,
-)
+from omnibenchmark.backend._manifest import write_run_manifest
+from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
+from omnibenchmark.backend._snakemake_debug import DebugSnakemakeGenerator
 from omnibenchmark.model.resolved import (
     ResolvedNode,
     ResolvedModule,
@@ -74,6 +70,8 @@ def _make_node(
     template_context=None,
     input_name_mapping=None,
     module=None,
+    is_gather=False,
+    is_collector=False,
 ):
     if module is None:
         module = _make_module()
@@ -89,6 +87,8 @@ def _make_node(
         resources=resources,
         template_context=template_context,
         input_name_mapping=input_name_mapping or {},
+        is_gather=is_gather,
+        is_collector=is_collector,
     )
 
 
@@ -120,6 +120,14 @@ def _make_params(d=None):
 
 def _gen() -> SnakemakeGenerator:
     return SnakemakeGenerator(
+        benchmark_name="test-bench",
+        benchmark_version="1.0",
+        benchmark_author="tester",
+    )
+
+
+def _debug_gen() -> DebugSnakemakeGenerator:
+    return DebugSnakemakeGenerator(
         benchmark_name="test-bench",
         benchmark_version="1.0",
         benchmark_author="tester",
@@ -166,19 +174,19 @@ class TestSanitizeRuleName:
 class TestMakeHumanName:
     def test_basic(self):
         params = _make_params({"k": "10", "method": "pca"})
-        name = _gen()._make_human_name(params)
+        name = _make_human_name(params)
         assert "k-10" in name or "method-pca" in name
 
     def test_unsafe_chars_replaced(self):
         params = _make_params({"path": "a/b", "q": "x y"})
-        name = _gen()._make_human_name(params)
+        name = _make_human_name(params)
         assert "/" not in name
         assert " " not in name
 
     def test_long_name_truncated(self):
         # Build a param with a very long value
         params = _make_params({"k": "x" * 300})
-        name = _gen()._make_human_name(params)
+        name = _make_human_name(params)
         assert len(name) <= 255
 
 
@@ -209,20 +217,20 @@ class TestWriteHeader:
 class TestWriteAllRule:
     def test_rule_all_present(self):
         node = _make_node(outputs=["out/a.csv", "out/b.csv"])
-        out = _capture(_gen()._write_all_rule, [node], [])
+        out = _capture(_gen()._write_all_rule, [node])
         assert "rule all:" in out
         assert '"out/a.csv"' in out
         assert '"out/b.csv"' in out
         assert "default_target: True" in out
 
-    def test_collector_outputs_included(self):
+    def test_collector_node_outputs_included(self):
         node = _make_node(outputs=["out/result.csv"])
-        collector = _make_collector(outputs=["out/metrics.csv"])
-        out = _capture(_gen()._write_all_rule, [node], [collector])
+        collector_node = _make_node(outputs=["out/metrics.csv"], is_collector=True)
+        out = _capture(_gen()._write_all_rule, [node, collector_node])
         assert '"out/metrics.csv"' in out
 
-    def test_empty_nodes_and_collectors(self):
-        out = _capture(_gen()._write_all_rule, [], [])
+    def test_empty_nodes(self):
+        out = _capture(_gen()._write_all_rule, [])
         assert "rule all:" in out
         assert "default_target: True" in out
 
@@ -243,32 +251,32 @@ class TestWriteEnvironmentDirective:
 
     def test_no_environment(self):
         node = _make_node(module=_make_module(resolved_environment=None))
-        out = _capture(_gen()._write_environment_directive, node)
+        out = _capture(_gen()._write_environment_directive, node.module)
         assert out == ""
 
     def test_conda(self):
         node = self._node_with_env("conda", "envs/myenv.yaml")
-        out = _capture(_gen()._write_environment_directive, node)
+        out = _capture(_gen()._write_environment_directive, node.module)
         assert 'conda: "envs/myenv.yaml"' in out
 
     def test_apptainer(self):
         node = self._node_with_env("apptainer", "oras://my.registry/image:latest")
-        out = _capture(_gen()._write_environment_directive, node)
+        out = _capture(_gen()._write_environment_directive, node.module)
         assert 'container: "oras://my.registry/image:latest"' in out
 
     def test_docker(self):
         node = self._node_with_env("docker", "docker://ubuntu:22.04")
-        out = _capture(_gen()._write_environment_directive, node)
+        out = _capture(_gen()._write_environment_directive, node.module)
         assert 'container: "docker://ubuntu:22.04"' in out
 
     def test_envmodules(self):
         node = self._node_with_env("envmodules", "Python/3.10.0")
-        out = _capture(_gen()._write_environment_directive, node)
+        out = _capture(_gen()._write_environment_directive, node.module)
         assert 'envmodules: "Python/3.10.0"' in out
 
     def test_host_backend_emits_nothing(self):
         node = self._node_with_env("host", "")
-        out = _capture(_gen()._write_environment_directive, node)
+        out = _capture(_gen()._write_environment_directive, node.module)
         # host backend should produce no directive
         assert "conda:" not in out
         assert "container:" not in out
@@ -332,7 +340,7 @@ class TestWriteNodeRuleDebug:
             inputs={"data": "out/prev/data.csv"},
             outputs=["out/stage1/mod1/default/result.csv"],
         )
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert "rule stage1_mod1_default" in out
         assert "input:" in out
         assert "output:" in out
@@ -342,44 +350,39 @@ class TestWriteNodeRuleDebug:
 
     def test_benchmark_directive_present_for_regular_node(self):
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert "benchmark:" in out
 
     def test_benchmark_directive_absent_for_collector(self):
-        node = _make_node(
-            node_id="_collector_metrics-mod1-default",
-            stage_id="_collector_metrics",
-        )
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        node = _make_node(is_collector=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert "benchmark:" not in out
 
     def test_benchmark_directive_absent_for_gather(self):
-        node = _make_node(
-            node_id="gather_stage1-mod1-default",
-            stage_id="stage1",
-        )
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        node = _make_node(is_gather=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert "benchmark:" not in out
 
     def test_log_directive_present(self):
         node = _make_node()
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert ".logs/" in out
         assert ".log" in out
 
     def test_with_parameters(self):
         params = _make_params({"k": "10"})
         node = _make_node(parameters=params)
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert "cli_args=" in out
         # In debug mode a symlink line should appear
         assert "ln -sfn" in out
 
-    def test_with_template_context_dataset(self):
+    def test_with_template_context(self):
         ctx = TemplateContext(provides={"dataset": "pbmc3k"})
         node = _make_node(template_context=ctx)
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
-        assert "pbmc3k" in out
+        out = _capture(_debug_gen()._write_node_rule, node)
+        # --name is the module's own ID, not the dataset label
+        assert "--name mod1" in out
 
 
 # ---------------------------------------------------------------------------
@@ -390,35 +393,36 @@ class TestWriteNodeRuleDebug:
 class TestWriteNodeRuleExec:
     def test_no_touch_in_exec_mode(self):
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "touch" not in out
 
     def test_has_shebang_direct_exec(self):
         module = _make_module(has_shebang=True)
         node = _make_node(module=module, outputs=["out/stage1/mod1/default/result.csv"])
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "./{params.entrypoint}" in out
 
     def test_no_shebang_uses_interpreter(self):
         module = _make_module(has_shebang=False, interpreter="Rscript")
         node = _make_node(module=module, outputs=["out/stage1/mod1/default/result.csv"])
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "Rscript" in out
 
     def test_no_shebang_no_interpreter_defaults_python3(self):
         module = _make_module(has_shebang=False, interpreter=None)
         node = _make_node(module=module, outputs=["out/stage1/mod1/default/result.csv"])
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "python3" in out
 
-    def test_inputs_prefixed(self):
+    def test_inputs_resolved_to_absolute(self):
         node = _make_node(
             inputs={"data": "out/prev/data.csv"},
             outputs=["out/stage1/mod1/default/result.csv"],
             input_name_mapping={"data": "data"},
         )
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
-        assert "../../../{input.data}" in out
+        out = _capture(_gen()._write_node_rule, node)
+        assert "INPUT_data=" in out
+        assert "--data $INPUT_data" in out
 
     def test_parameters_json_written(self):
         params = _make_params({"k": "5"})
@@ -426,71 +430,26 @@ class TestWriteNodeRuleExec:
             parameters=params,
             outputs=["out/stage1/mod1/default/result.csv"],
         )
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "parameters.json" in out
 
-    def test_dataset_name_arg(self):
-        ctx = TemplateContext(provides={"dataset": "dataset1"})
+    def test_name_arg_is_module_id(self):
+        # --name is always the current module's own ID (spec §3.5)
         node = _make_node(
-            template_context=ctx,
-            outputs=["out/stage1/mod1/default/result.csv"],
+            module_id="mymod",
+            outputs=["out/stage1/mymod/default/result.csv"],
         )
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
-        assert "--name dataset1" in out
+        out = _capture(_gen()._write_node_rule, node)
+        assert "--name mymod" in out
 
     def test_tee_logging(self):
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "tee" in out
 
 
 # ---------------------------------------------------------------------------
-# _write_collector_rule (ResolvedMetricCollector)
-# ---------------------------------------------------------------------------
-
-
-class TestWriteCollectorRule:
-    def test_debug_mode_touches_outputs(self):
-        collector = _make_collector()
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=True)
-        assert "touch" in out
-
-    def test_exec_mode_no_touch(self):
-        collector = _make_collector()
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=False)
-        assert "touch" not in out
-
-    def test_exec_shebang(self):
-        module = _make_module(has_shebang=True)
-        collector = _make_collector(module=module)
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=False)
-        assert "./{params.entrypoint}" in out
-
-    def test_exec_no_shebang_uses_interpreter(self):
-        module = _make_module(has_shebang=False, interpreter="python3")
-        collector = _make_collector(module=module)
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=False)
-        assert "python3 {params.entrypoint}" in out
-
-    def test_input_patterns_in_output(self):
-        collector = _make_collector(input_patterns=["out/**/*.csv"])
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=True)
-        assert '"out/**/*.csv"' in out
-
-    def test_collector_outputs_in_rule(self):
-        collector = _make_collector(outputs=["out/metrics/result.csv"])
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=True)
-        assert '"out/metrics/result.csv"' in out
-
-    def test_with_parameters(self):
-        params = _make_params({"alpha": "0.5"})
-        collector = _make_collector(parameters=params)
-        out = _capture(_gen()._write_collector_rule, collector, debug_mode=True)
-        assert "cli_args=" in out
-
-
-# ---------------------------------------------------------------------------
-# Collector/gather nodes written via _write_node_rule (v2 path)
+# Collector/gather nodes written via _write_node_rule
 # ---------------------------------------------------------------------------
 
 
@@ -502,31 +461,32 @@ class TestWriteNodeRuleCollectorV2:
             inputs={"score_0": "out/a/score.csv", "score_1": "out/b/score.csv"},
             outputs=["out/gather/result.csv"],
             input_name_mapping={"score_0": "score", "score_1": "score"},
+            is_gather=True,
             **kwargs,
         )
 
     def test_gather_debug_uses_v2(self):
         node = self._gather_node()
-        out = _capture(_gen()._write_node_rule, node, debug_mode=True)
+        out = _capture(_debug_gen()._write_node_rule, node)
         assert "GATHER STAGE" in out
 
     def test_gather_exec_uses_v2(self):
         node = self._gather_node()
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         # v2 exec sets MODULE_DIR and OUTPUT_DIR variables
         assert "MODULE_DIR" in out
         assert "OUTPUT_DIR" in out
 
     def test_gather_exec_groups_inputs_by_name(self):
         node = self._gather_node()
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         # Both inputs share original name 'score', so --score should appear once
         assert "--score" in out
 
     def test_gather_exec_shebang(self):
         module = _make_module(has_shebang=True)
         node = self._gather_node(module=module)
-        out = _capture(_gen()._write_node_rule, node, debug_mode=False)
+        out = _capture(_gen()._write_node_rule, node)
         assert "$MODULE_DIR/{params.entrypoint}" in out
 
 
@@ -537,90 +497,43 @@ class TestWriteNodeRuleCollectorV2:
 
 class TestGenerateSnakefile:
     def test_writes_file(self, tmp_path):
-        gen = _gen()
+        gen = _debug_gen()
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
         output_file = tmp_path / "Snakefile"
-        gen.generate_snakefile([node], [], output_file, debug_mode=True)
+        gen.generate_snakefile([node], output_file)
         assert output_file.exists()
         content = output_file.read_text()
         assert "rule all:" in content
         assert "rule stage1_mod1_default:" in content
 
-    def test_with_collector(self, tmp_path):
-        gen = _gen()
+    def test_collector_node_included(self, tmp_path):
+        gen = _debug_gen()
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
-        collector = _make_collector(outputs=["out/metrics/result.csv"])
+        collector_node = _make_node(
+            node_id="_collector_metrics-mod1-default",
+            stage_id="_collector_metrics",
+            outputs=["out/metrics/result.csv"],
+            is_collector=True,
+        )
         output_file = tmp_path / "Snakefile"
-        gen.generate_snakefile([node], [collector], output_file, debug_mode=True)
+        gen.generate_snakefile([node, collector_node], output_file)
         content = output_file.read_text()
-        assert "collector_metrics" in content
+        assert "_collector_metrics" in content
 
     def test_exec_mode_no_touch(self, tmp_path):
         gen = _gen()
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
         output_file = tmp_path / "Snakefile"
-        gen.generate_snakefile([node], [], output_file, debug_mode=False)
+        gen.generate_snakefile([node], output_file)
         content = output_file.read_text()
         assert "touch" not in content
 
-    def test_empty_nodes_and_collectors(self, tmp_path):
-        gen = _gen()
+    def test_empty_nodes(self, tmp_path):
+        gen = _debug_gen()
         output_file = tmp_path / "Snakefile"
-        gen.generate_snakefile([], [], output_file, debug_mode=True)
+        gen.generate_snakefile([], output_file)
         content = output_file.read_text()
         assert "rule all:" in content
-
-
-# ---------------------------------------------------------------------------
-# save_metadata
-# ---------------------------------------------------------------------------
-
-
-class TestSaveMetadata:
-    def test_creates_metadata_dir(self, tmp_path):
-        benchmark_yaml = tmp_path / "benchmark.yaml"
-        benchmark_yaml.write_text("name: test")
-        out_dir = tmp_path / "out"
-        out_dir.mkdir()
-        node = _make_node()
-        save_metadata(benchmark_yaml, out_dir, [node], [])
-        assert (out_dir / ".metadata").is_dir()
-        assert (out_dir / ".metadata" / "benchmark.yaml").exists()
-        assert (out_dir / ".metadata" / "modules.txt").exists()
-
-    def test_modules_txt_contains_module_info(self, tmp_path):
-        benchmark_yaml = tmp_path / "benchmark.yaml"
-        benchmark_yaml.write_text("name: test")
-        out_dir = tmp_path / "out"
-        out_dir.mkdir()
-        node = _make_node()
-        save_metadata(benchmark_yaml, out_dir, [node], [])
-        modules_txt = (out_dir / ".metadata" / "modules.txt").read_text()
-        assert "https://github.com/example/repo" in modules_txt
-        assert "abc1234" in modules_txt
-
-    def test_duplicate_modules_deduplicated(self, tmp_path):
-        benchmark_yaml = tmp_path / "benchmark.yaml"
-        benchmark_yaml.write_text("name: test")
-        out_dir = tmp_path / "out"
-        out_dir.mkdir()
-        # Two nodes sharing the same repo+commit
-        node1 = _make_node(node_id="stage1-mod1-p1", param_id="p1")
-        node2 = _make_node(node_id="stage1-mod1-p2", param_id="p2")
-        save_metadata(benchmark_yaml, out_dir, [node1, node2], [])
-        modules_txt = (out_dir / ".metadata" / "modules.txt").read_text()
-        # repo URL should appear only once
-        assert modules_txt.count("https://github.com/example/repo") == 1
-
-    def test_collectors_included(self, tmp_path):
-        benchmark_yaml = tmp_path / "benchmark.yaml"
-        benchmark_yaml.write_text("name: test")
-        out_dir = tmp_path / "out"
-        out_dir.mkdir()
-        collector = _make_collector()
-        save_metadata(benchmark_yaml, out_dir, [], [collector])
-        modules_txt = (out_dir / ".metadata" / "modules.txt").read_text()
-        assert "https://github.com/example/repo" in modules_txt
 
 
 # ---------------------------------------------------------------------------

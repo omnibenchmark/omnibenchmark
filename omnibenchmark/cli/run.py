@@ -11,13 +11,11 @@ from typing import Optional
 import click
 from pydantic import ValidationError as PydanticValidationError
 
-from omnibenchmark.backend.collector_resolution import resolve_metric_collectors
+from omnibenchmark.backend._metric_collector import resolve_metric_collectors
 from omnibenchmark.backend.resolver import ModuleResolver
-from omnibenchmark.backend.manifest import write_run_manifest
-from omnibenchmark.backend.snakemake_gen import (
-    SnakemakeGenerator,
-    save_metadata,
-)
+from omnibenchmark.backend._manifest import write_run_manifest
+from omnibenchmark.backend._metadata import save_metadata
+from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
@@ -234,7 +232,6 @@ def _run_benchmark(
         benchmark=b,
         benchmark_yaml_path=benchmark_path_abs,
         out_dir=out_dir_path,
-        debug_mode=False,
         cores=cores,
         quiet=use_clean_ui,
         start_time=start_time,
@@ -744,7 +741,6 @@ def _generate_explicit_snakefile(
     benchmark_yaml_path: Path,
     out_dir: Path,
     nesting_strategy: str = "nested",
-    debug_mode: bool = False,
     cores: int = 4,
     quiet: bool = False,
     start_time: Optional[float] = None,
@@ -1221,16 +1217,13 @@ def _generate_explicit_snakefile(
 
     generator.generate_snakefile(
         nodes=resolved_nodes,
-        collectors=[],
         output_path=snakefile_path,
-        debug_mode=debug_mode,
     )
 
     save_metadata(
         benchmark_yaml_path=benchmark_yaml_path,
         output_dir=out_dir,
         nodes=resolved_nodes,
-        collectors=[],
     )
 
     if quiet:
