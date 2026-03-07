@@ -9,7 +9,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock
 
-from omnibenchmark.backend.collector_resolution import (
+from omnibenchmark.backend._metric_collector import (
     resolve_metric_collectors,
     _expand_collector_parameters,
     _gather_collector_inputs,

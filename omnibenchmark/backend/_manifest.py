@@ -11,6 +11,7 @@ limitations discussion.
 import json
 import platform
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -50,7 +51,6 @@ def write_run_manifest(
       gpu_devices      – list of NVIDIA GPU dicts {index, name, memory_total_mb}
                          from nvidia-smi; null if nvidia-smi is absent or fails
     """
-    import uuid
 
     metadata_dir = output_dir / ".metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)

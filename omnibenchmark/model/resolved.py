@@ -251,6 +251,10 @@ class ResolvedNode:
     # Template variable context (built during node expansion)
     template_context: Optional[TemplateContext] = None
 
+    # Node type flags (set at construction time; replaces string-prefix heuristics)
+    is_gather: bool = False  # True for gather-stage nodes (collect multiple inputs)
+    is_collector: bool = False  # True for metric-collector nodes (0.4 compat)
+
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
         return not self.inputs or len(self.inputs) == 0

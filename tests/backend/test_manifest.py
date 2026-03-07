@@ -18,7 +18,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from omnibenchmark.backend.manifest import write_run_manifest
+from omnibenchmark.backend._manifest import write_run_manifest
 
 
 @pytest.mark.short
@@ -557,7 +557,7 @@ class TestWriteRunManifestEdgeCases:
         mock_uname.version = "#1 SMP αβγ"
 
         with patch("platform.uname", return_value=mock_uname):
-            _result = write_run_manifest(output_dir)
+            write_run_manifest(output_dir)
 
         # Should serialize to JSON without errors
         manifest_path = output_dir / ".metadata" / "manifest.json"
@@ -571,8 +571,8 @@ class TestWriteRunManifestEdgeCases:
         output_dir = tmp_path / "output"
 
         # Write multiple manifests with different run_ids
-        _result1 = write_run_manifest(output_dir, run_id="run-1")
-        _result2 = write_run_manifest(output_dir, run_id="run-2")
+        write_run_manifest(output_dir, run_id="run-1")
+        write_run_manifest(output_dir, run_id="run-2")
 
         # Last write wins
         manifest_path = output_dir / ".metadata" / "manifest.json"
