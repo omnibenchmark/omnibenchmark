@@ -1015,7 +1015,9 @@ class TestOutputDirParam:
         output_path = tmp_path / "Snakefile"
         generator.generate_snakefile(nodes=[node], output_path=output_path)
         content = output_path.read_text()
-        assert 'output_dir="data/pbmc3k/.d41d8cd9"' in content
+        assert (
+            "output_dir=lambda wildcards, output: os.path.dirname(output[0])" in content
+        )
 
     def test_shell_uses_params_output_dir_not_dirname(
         self, tmp_path, generator, minimal_module
