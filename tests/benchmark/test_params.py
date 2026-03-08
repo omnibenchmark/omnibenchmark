@@ -134,3 +134,23 @@ def test_from_cli_args_with_flags():
     args = ["--foo", "bar", "--flag", "--num", "42"]
     p = Params.from_cli_args(args)
     assert p == Params({"foo": "bar", "flag": True, "num": "42"})
+
+
+@pytest.mark.short
+def test_to_compact_args_basic():
+    p = Params({"alpha": "1", "beta": "2"})
+    assert p.to_compact_args() == ["alpha:", "1", "beta:", "2"]
+
+
+@pytest.mark.short
+def test_to_compact_args_empty():
+    p = Params()
+    assert p.to_compact_args() == []
+
+
+@pytest.mark.short
+def test_to_compact_args_preserves_order():
+    p = Params({"z": "last", "a": "first"})
+    # Keys are sorted on construction
+    args = p.to_compact_args()
+    assert args[0] == "a:" and args[2] == "z:"
