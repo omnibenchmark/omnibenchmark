@@ -20,13 +20,7 @@ class _NullBinaryStream(io.BytesIO):
         return len(b) if b else 0
 
 
-class _NullTextStream(io.StringIO):
-    def write(self, s: str) -> int:
-        return len(s)
-
-
 _DEVNULL = _NullBinaryStream()
-_DEVNULL_TEXT = _NullTextStream()
 
 
 def is_commit_hash(ref: str) -> bool:
@@ -148,9 +142,7 @@ def update_existing_repo(
             logging.info(
                 f"Detected branch name '{commit_or_branch}', pulling latest changes"
             )
-            porcelain.fetch(
-                repo, repository_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT
-            )
+            porcelain.fetch(repo, repository_url, errstream=_DEVNULL)
             logging.info(
                 f"Updated local branch '{commit_or_branch}' with latest changes"
             )
@@ -182,7 +174,6 @@ def clone_git_repo(output_dir: Path, repository_url: str, commit_hash: str) -> P
         str(output_dir),
         checkout=False,
         errstream=_DEVNULL,
-        outstream=_DEVNULL,
     )
     repo = cast(Repo, porcelain.open_repo(str(output_dir)))
     _resolve_and_reset(repo, output_dir, commit_hash)
@@ -231,7 +222,6 @@ def clone_module(
                     repository_url,
                     str(module_dir),
                     errstream=_DEVNULL,
-                    outstream=_DEVNULL,
                 )
                 repo = cast(Repo, porcelain.open_repo(str(module_dir)))
                 _resolve_and_reset(repo, module_dir, commit_or_branch)

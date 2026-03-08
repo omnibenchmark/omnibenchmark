@@ -5,7 +5,6 @@ import pytest
 from omnibenchmark.git.clone import (
     is_commit_hash,
     _NullBinaryStream,
-    _NullTextStream,
 )
 
 
@@ -43,24 +42,11 @@ class TestIsCommitHash:
 
 
 @pytest.mark.short
-class TestNullStreams:
-    def test_null_binary_stream_write_returns_length(self):
+class TestNullBinaryStream:
+    def test_write_returns_length(self):
         s = _NullBinaryStream()
         assert s.write(b"hello") == 5
 
-    def test_null_binary_stream_write_empty(self):
+    def test_write_empty(self):
         s = _NullBinaryStream()
         assert s.write(b"") == 0
-
-    def test_null_binary_stream_write_none_like(self):
-        s = _NullBinaryStream()
-        # write(None) would be unusual but the code handles falsy values
-        assert s.write(b"") == 0
-
-    def test_null_text_stream_write_returns_length(self):
-        s = _NullTextStream()
-        assert s.write("hello world") == 11
-
-    def test_null_text_stream_write_empty(self):
-        s = _NullTextStream()
-        assert s.write("") == 0
