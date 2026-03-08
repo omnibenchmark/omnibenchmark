@@ -16,12 +16,13 @@ from omnibenchmark.backend.snakemake import (
     _bash_var,
     _make_human_name,
 )
+from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.benchmark import Resources, SoftwareBackendEnum, APIVersion
 from omnibenchmark.model.resolved import (
     ResolvedNode,
     ResolvedModule,
     ResolvedEnvironment,
 )
-from omnibenchmark.model.benchmark import SoftwareBackendEnum, APIVersion
 
 
 # ---------------------------------------------------------------------------
@@ -572,3 +573,479 @@ class TestComplexityEdgeCases:
         content = output_path.read_text()
         # Should list all outputs
         assert "rule test_node:" in content
+
+
+# ---------------------------------------------------------------------------
+# Test _make_human_name long-name truncation (line 58)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestMakeHumanNameTruncation:
+    """Test that names exceeding 255 chars are truncated with a hash suffix."""
+
+    def test_long_name_truncated_with_hash(self):
+        """Name > 255 chars falls back to [:246] + '_' + hash_short()."""
+        # key=128 chars, value=128 chars -> "k-v" = 257 chars > 255
+        long_key = "k" * 128
+        long_val = "v" * 128
+        params = Params({long_key: long_val})
+        result = _make_human_name(params)
+        assert len(result) <= 255
+        # The 8-char short hash must appear at the end after the underscore
+        assert result.endswith(params.hash_short())
+
+
+# ---------------------------------------------------------------------------
+# Test gather / collector node comments and shell dispatch (lines 112, 114, 167, 346-393)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestGatherCollectorNodes:
+    """Test is_gather / is_collector branches in _write_node_rule."""
+
+    def test_collector_node_gets_collector_comment(
+        self, tmp_path, generator, minimal_module
+    ):
+        node = ResolvedNode(
+            id="collector-node",
+            stage_id="metrics",
+            module_id="collector",
+            param_id="default",
+            module=minimal_module,
+            is_collector=True,
+            outputs=["metrics/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "# Type: Metric Collector" in content
+
+    def test_gather_node_gets_gather_comment(self, tmp_path, generator, minimal_module):
+        node = ResolvedNode(
+            id="gather-node",
+            stage_id="gather",
+            module_id="gather",
+            param_id="default",
+            module=minimal_module,
+            is_gather=True,
+            outputs=["gather/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "# Type: Gather Stage" in content
+
+    def test_gather_node_shell_uses_params_output_dir(
+        self, tmp_path, generator, minimal_module
+    ):
+        """_write_gather_shell should use {params.output_dir} not $(dirname ...)."""
+        node = ResolvedNode(
+            id="gather-node",
+            stage_id="gather",
+            module_id="gather",
+            param_id="default",
+            module=minimal_module,
+            is_gather=True,
+            outputs=["gather/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "output_dir=" in content
+        assert "{params.output_dir}" in content
+        assert "$(dirname {output[0]})" not in content
+
+    def test_gather_node_no_benchmark_directive(
+        self, tmp_path, generator, minimal_module
+    ):
+        """Gather nodes must not emit benchmark: directive."""
+        node = ResolvedNode(
+            id="gather-node",
+            stage_id="gather",
+            module_id="gather",
+            param_id="default",
+            module=minimal_module,
+            is_gather=True,
+            outputs=["gather/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "benchmark:" not in content
+
+    def test_gather_node_with_inputs_emits_bash_arrays(
+        self, tmp_path, generator, minimal_module
+    ):
+        """Gather shell with inputs should build bash arrays per input name."""
+        node = ResolvedNode(
+            id="gather-node",
+            stage_id="gather",
+            module_id="gather",
+            param_id="default",
+            module=minimal_module,
+            is_gather=True,
+            inputs={"in_0": "data/D1/out.json", "in_1": "data/D2/out.json"},
+            input_name_mapping={"in_0": "counts", "in_1": "counts"},
+            outputs=["gather/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        # bash array variable and loop must appear
+        assert "_counts=()" in content
+        assert "--counts" in content
+
+    def test_gather_node_with_shebang_uses_direct_invocation(self, tmp_path, generator):
+        """Gather shell with has_shebang=True must use $MODULE_DIR/entrypoint directly."""
+        module = ResolvedModule(
+            repository_url="https://github.com/test/repo.git",
+            commit="abc123",
+            module_dir=Path(".modules/abc123"),
+            entrypoint=Path("run.py"),
+            software_environment_id="test",
+            has_shebang=True,
+        )
+        node = ResolvedNode(
+            id="gather-node",
+            stage_id="gather",
+            module_id="gather",
+            param_id="default",
+            module=module,
+            is_gather=True,
+            outputs=["gather/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "$MODULE_DIR/{params.entrypoint}" in content
+
+    def test_gather_node_with_parameters_emits_cli_args(
+        self, tmp_path, generator, minimal_module
+    ):
+        """Gather shell with parameters should append {params.cli_args}."""
+        params = Params({"k": "v"})
+        node = ResolvedNode(
+            id="gather-node",
+            stage_id="gather",
+            module_id="gather",
+            param_id="p1",
+            module=minimal_module,
+            is_gather=True,
+            parameters=params,
+            outputs=["gather/out/.abc/result.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "{params.cli_args}" in content
+
+
+# ---------------------------------------------------------------------------
+# Test parameters branch (lines 136-137, 282-285, 332)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestNodeWithParameters:
+    """Test that nodes with parameters emit cli_args and parameters.json lines."""
+
+    def test_cli_args_emitted_in_params_section(
+        self, tmp_path, generator, minimal_module
+    ):
+        params = Params({"alpha": 0.5, "beta": 1})
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="p1",
+            module=minimal_module,
+            parameters=params,
+            outputs=["data/test/.abc/output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "cli_args=" in content
+        assert "--alpha" in content
+
+    def test_params_json_written_in_shell(self, tmp_path, generator, minimal_module):
+        params = Params({"k": "v"})
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="p1",
+            module=minimal_module,
+            parameters=params,
+            outputs=["data/test/.abc/output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "parameters.json" in content
+
+    def test_cli_args_appended_to_command(self, tmp_path, generator, minimal_module):
+        params = Params({"k": "v"})
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="p1",
+            module=minimal_module,
+            parameters=params,
+            outputs=["data/test/.abc/output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "{params.cli_args}" in content
+
+
+# ---------------------------------------------------------------------------
+# Test V0_5_0 benchmark path (line 148)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestBenchmarkDirective:
+    """Test benchmark: directive paths for different API versions."""
+
+    def test_v0_5_benchmark_uses_performance_txt(self, tmp_path, minimal_module):
+        gen = SnakemakeGenerator(
+            benchmark_name="Test",
+            benchmark_version="1.0",
+            benchmark_author="Author",
+            api_version=APIVersion.V0_5_0,
+        )
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=minimal_module,
+            outputs=["data/test/.abc/output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        gen.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "performance.txt" in content
+
+    def test_v0_4_benchmark_uses_dataset_name(self, tmp_path, minimal_module):
+        gen = SnakemakeGenerator(
+            benchmark_name="Test",
+            benchmark_version="1.0",
+            benchmark_author="Author",
+            api_version=APIVersion.V0_4_0,
+        )
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=minimal_module,
+            outputs=["data/D1/.abc/D1_output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        gen.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "D1_performance.txt" in content
+
+
+# ---------------------------------------------------------------------------
+# Test environment directives (lines 196-199)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestEnvironmentDirectives:
+    """Test that each backend type emits the correct Snakemake directive."""
+
+    def _make_module(self, backend: SoftwareBackendEnum) -> ResolvedModule:
+        env = ResolvedEnvironment(backend_type=backend, reference="envs/env.yaml")
+        return ResolvedModule(
+            repository_url="https://github.com/test/repo.git",
+            commit="abc123",
+            module_dir=Path(".modules/abc123"),
+            entrypoint=Path("run.py"),
+            software_environment_id="test",
+            resolved_environment=env,
+        )
+
+    def test_apptainer_emits_container(self, tmp_path, generator):
+        module = self._make_module(SoftwareBackendEnum.apptainer)
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=module,
+            outputs=["output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "container:" in output_path.read_text()
+
+    def test_docker_emits_container(self, tmp_path, generator):
+        module = self._make_module(SoftwareBackendEnum.docker)
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=module,
+            outputs=["output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "container:" in output_path.read_text()
+
+    def test_envmodules_emits_envmodules(self, tmp_path, generator):
+        module = self._make_module(SoftwareBackendEnum.envmodules)
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=module,
+            outputs=["output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "envmodules:" in output_path.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Test resources directive with optional fields (lines 215-222)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestResourceDirectiveFields:
+    """Test that optional resource fields are emitted when set."""
+
+    def _node_with_resources(self, minimal_module, **kwargs) -> ResolvedNode:
+        return ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=minimal_module,
+            outputs=["output.json"],
+            resources=Resources(**kwargs),
+        )
+
+    def test_mem_mb_emitted(self, tmp_path, generator, minimal_module):
+        node = self._node_with_resources(minimal_module, cores=2, mem_mb=4096)
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "mem_mb=4096" in output_path.read_text()
+
+    def test_disk_mb_emitted(self, tmp_path, generator, minimal_module):
+        node = self._node_with_resources(minimal_module, cores=2, disk_mb=8192)
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "disk_mb=8192" in output_path.read_text()
+
+    def test_runtime_emitted(self, tmp_path, generator, minimal_module):
+        node = self._node_with_resources(minimal_module, cores=2, runtime=60)
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "runtime=60" in output_path.read_text()
+
+    def test_gpu_emitted(self, tmp_path, generator, minimal_module):
+        node = self._node_with_resources(minimal_module, cores=2, gpu=1)
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        assert "nvidia_gpu=1" in output_path.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Test shebang module (line 297)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestShebangedModule:
+    """Test that has_shebang=True uses direct execution instead of interpreter."""
+
+    def test_shebang_module_uses_direct_invocation(self, tmp_path, generator):
+        module = ResolvedModule(
+            repository_url="https://github.com/test/repo.git",
+            commit="abc123",
+            module_dir=Path(".modules/abc123"),
+            entrypoint=Path("run.py"),
+            software_environment_id="test",
+            has_shebang=True,
+        )
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=module,
+            outputs=["data/test/.abc/output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "./{params.entrypoint}" in content
+        assert "python3" not in content
+
+
+# ---------------------------------------------------------------------------
+# Test output_dir param in generated Snakefile (new behaviour)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestOutputDirParam:
+    """Ensure output_dir is emitted as an explicit param and used in shell."""
+
+    def test_output_dir_in_params_section(self, tmp_path, generator, minimal_module):
+        node = ResolvedNode(
+            id="datasets-pbmc3k-default",
+            stage_id="datasets",
+            module_id="pbmc3k",
+            param_id="default",
+            module=minimal_module,
+            outputs=["data/pbmc3k/.d41d8cd9/pbmc3k.h5ad"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert 'output_dir="data/pbmc3k/.d41d8cd9"' in content
+
+    def test_shell_uses_params_output_dir_not_dirname(
+        self, tmp_path, generator, minimal_module
+    ):
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=minimal_module,
+            outputs=["data/test/.abc/output.json"],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "{params.output_dir}" in content
+        assert "$(dirname {output[0]})" not in content
+
+    def test_node_with_no_outputs_has_no_output_dir(
+        self, tmp_path, generator, minimal_module
+    ):
+        node = ResolvedNode(
+            id="test-node",
+            stage_id="test",
+            module_id="test",
+            param_id="default",
+            module=minimal_module,
+            outputs=[],
+        )
+        output_path = tmp_path / "Snakefile"
+        generator.generate_snakefile(nodes=[node], output_path=output_path)
+        content = output_path.read_text()
+        assert "output_dir=" not in content
