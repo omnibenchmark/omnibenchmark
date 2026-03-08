@@ -21,6 +21,7 @@ from pydantic import (
 from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
 
 from ._parsing import convert_pydantic_error_to_parse_error
+from .params import Params
 from .validation import BenchmarkParseError, BenchmarkValidator, ValidationError
 
 
@@ -1047,8 +1048,6 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
     def get_module_parameters(self, module: Union[str, Module]) -> Optional[List[Any]]:
         """Get module parameters by module/module_id."""
-        from omnibenchmark.benchmark.params import Params
-
         module_obj = (
             module if isinstance(module, Module) else self.get_modules().get(module)
         )

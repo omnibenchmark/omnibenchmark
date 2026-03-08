@@ -17,7 +17,7 @@ from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.config import get_git_cache_dir

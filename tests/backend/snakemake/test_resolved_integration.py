@@ -14,7 +14,7 @@ from omnibenchmark.model import (
     ResolvedNode,
     ResolvedMetricCollector,
 )
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 
 
 @pytest.fixture

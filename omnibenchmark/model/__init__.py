@@ -37,6 +37,7 @@ from omnibenchmark.model.module import (
     DerivedSoftware,
     ModuleMetadata,
 )
+from omnibenchmark.model.params import Params
 from omnibenchmark.model.resolved import (
     TemplateContext,
     ResolvedModule,
@@ -73,6 +74,8 @@ __all__ = [
     # Module metadata
     "DerivedSoftware",
     "ModuleMetadata",
+    # Core data structures
+    "Params",
     # Resolved entities
     "TemplateContext",
     "ResolvedModule",

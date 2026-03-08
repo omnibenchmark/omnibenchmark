@@ -16,7 +16,7 @@ from omnibenchmark.backend.snakemake import (
     _bash_var,
     _make_human_name,
 )
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 from omnibenchmark.model.benchmark import Resources, SoftwareBackendEnum, APIVersion
 from omnibenchmark.model.resolved import (
     ResolvedNode,

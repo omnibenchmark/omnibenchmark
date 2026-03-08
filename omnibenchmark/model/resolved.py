@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 from omnibenchmark.model.benchmark import SoftwareBackendEnum
 
 

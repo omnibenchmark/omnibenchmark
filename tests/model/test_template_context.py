@@ -4,7 +4,7 @@ import pytest
 from dataclasses import FrozenInstanceError
 
 from omnibenchmark.model.resolved import TemplateContext
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 
 
 class TestSubstituteProvides:

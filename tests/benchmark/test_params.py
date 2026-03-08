@@ -1,5 +1,5 @@
 import pytest
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 
 
 @pytest.mark.short

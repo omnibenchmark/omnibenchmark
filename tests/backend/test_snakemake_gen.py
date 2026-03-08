@@ -113,7 +113,7 @@ def _make_collector(
 
 def _make_params(d=None):
     """Make a minimal Params-like object from dict."""
-    from omnibenchmark.benchmark.params import Params
+    from omnibenchmark.model.params import Params
 
     return Params(d or {"method": "pca", "k": "10"})
 

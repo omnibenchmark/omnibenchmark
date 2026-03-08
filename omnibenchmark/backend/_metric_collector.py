@@ -29,7 +29,7 @@ import warnings
 from typing import List, Optional
 
 from omnibenchmark.backend.resolver import ModuleResolver
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 from omnibenchmark.model.benchmark import MetricCollector, Benchmark
 from omnibenchmark.model.resolved import ResolvedNode
 
