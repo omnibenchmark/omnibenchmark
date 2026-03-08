@@ -5,14 +5,20 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from pydantic import ValidationError as PydanticValidationError
 
+from click.testing import CliRunner
 from omnibenchmark.cli.run import (
     format_pydantic_errors,
     _read_rule_log,
+    _run_benchmark,
+    _run_snakemake,
+    _populate_git_cache,
     _substitute_params_in_path,
     _build_template_context,
     _select_input_nodes,
     _satisfies_requires,
+    run,
 )
+from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.resolved import TemplateContext
 from omnibenchmark.model.params import Params
 
@@ -357,3 +363,426 @@ class TestSelectInputNodes:
         prev = [_make_node("fallback", "data")]
         result = _select_input_nodes(["data.raw"], output_to_nodes, [], ["data"], prev)
         assert result is prev
+
+
+# ---------------------------------------------------------------------------
+# _run_snakemake — missing Snakefile early exit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_run_snakemake_missing_snakefile_exits(tmp_path):
+    """_run_snakemake should call sys.exit when Snakefile is absent."""
+
+    with pytest.raises(SystemExit):
+        _run_snakemake(
+            out_dir=tmp_path,  # no Snakefile here
+            cores=1,
+            continue_on_error=False,
+            software_backend=SoftwareBackendEnum.host,
+            debug=False,
+        )
+
+
+# ---------------------------------------------------------------------------
+# run command — dirty / unpinned warnings
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_run_dirty_flag_logs_warning():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(run, ["tests/data/mock_benchmark.yaml", "--dirty"])
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("dirty") is True
+
+
+@pytest.mark.short
+def test_run_unpinned_flag_logs_warning():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(run, ["tests/data/mock_benchmark.yaml", "--unpinned"])
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("unpinned") is True
+
+
+# ---------------------------------------------------------------------------
+# _run_benchmark — PydanticValidationError + dry mode + remote storage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_run_benchmark_pydantic_error_exits(tmp_path):
+    with patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_be:
+        mock_be.side_effect = PydanticValidationError.from_exception_data(
+            title="Benchmark",
+            line_errors=[],
+        )
+        with pytest.raises(SystemExit):
+            _run_benchmark(
+                benchmark_path="tests/data/mock_benchmark.yaml",
+                cores=1,
+                dry=False,
+                continue_on_error=False,
+                out_dir=str(tmp_path),
+                debug=False,
+                dirty=False,
+            )
+
+
+@pytest.mark.short
+def test_run_benchmark_dry_host_exits_zero(tmp_path):
+    with (
+        patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_be,
+        patch("omnibenchmark.cli.run._populate_git_cache"),
+        patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
+        patch("omnibenchmark.cli.run.write_run_manifest"),
+    ):
+        mock_b = MagicMock()
+        mock_b.get_benchmark_software_backend.return_value = SoftwareBackendEnum.host
+        mock_be.return_value = mock_b
+        with pytest.raises(SystemExit) as exc:
+            _run_benchmark(
+                benchmark_path="tests/data/mock_benchmark.yaml",
+                cores=1,
+                dry=True,
+                continue_on_error=False,
+                out_dir=str(tmp_path),
+                debug=False,
+                dirty=False,
+            )
+        assert exc.value.code == 0
+
+
+@pytest.mark.short
+def test_run_benchmark_dry_conda_hint(tmp_path):
+    with (
+        patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_be,
+        patch("omnibenchmark.cli.run._populate_git_cache"),
+        patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
+        patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run.logger") as mock_logger,
+    ):
+        mock_b = MagicMock()
+        mock_b.get_benchmark_software_backend.return_value = SoftwareBackendEnum.conda
+        mock_be.return_value = mock_b
+        with pytest.raises(SystemExit):
+            _run_benchmark(
+                benchmark_path="tests/data/mock_benchmark.yaml",
+                cores=1,
+                dry=True,
+                continue_on_error=False,
+                out_dir=str(tmp_path),
+                debug=False,
+                dirty=False,
+            )
+        # --use-conda hint should appear in the log
+        logged = " ".join(str(c) for c in mock_logger.info.call_args_list)
+        assert "--use-conda" in logged
+
+
+@pytest.mark.short
+def test_run_benchmark_remote_storage_builds_args(tmp_path):
+    (tmp_path / "Snakefile").write_text("rule all: input: []")
+    with (
+        patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_be,
+        patch("omnibenchmark.cli.run._populate_git_cache"),
+        patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
+        patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run._run_snakemake") as mock_snakemake,
+        patch("omnibenchmark.remote.storage.get_storage_from_benchmark"),
+        patch(
+            "omnibenchmark.remote.storage.remote_storage_snakemake_args"
+        ) as mock_storage_args,
+    ):
+        mock_b = MagicMock()
+        mock_b.get_benchmark_software_backend.return_value = SoftwareBackendEnum.host
+        mock_be.return_value = mock_b
+        mock_storage_args.return_value = {
+            "default-storage-provider": "s3",
+            "storage-s3-endpoint-url": "http://localhost:9000",
+            "shared-fs-usage": None,  # None values should be skipped
+            "use-singularity": False,  # False bool should be skipped
+        }
+        _run_benchmark(
+            benchmark_path="tests/data/mock_benchmark.yaml",
+            cores=1,
+            dry=False,
+            continue_on_error=False,
+            out_dir=str(tmp_path),
+            debug=False,
+            dirty=False,
+            use_remote_storage=True,
+        )
+        _, kwargs = mock_snakemake.call_args
+        extra = kwargs["extra_snakemake_args"]
+        assert "--default-storage-provider" in extra
+        assert "s3" in extra
+        assert "--storage-s3-endpoint-url" in extra
+        # None and False values should NOT appear
+        assert "--shared-fs-usage" not in extra
+        assert "--use-singularity" not in extra
+
+
+# ---------------------------------------------------------------------------
+# _populate_git_cache — various paths
+# ---------------------------------------------------------------------------
+
+
+def _mock_benchmark(repo_url=None, commit="abc1234", local=False):
+    """Build a minimal mock BenchmarkExecution for _populate_git_cache."""
+    mock_module = MagicMock()
+    if repo_url:
+        mock_module.repository = MagicMock()
+        mock_module.repository.url = repo_url
+        mock_module.repository.commit = commit
+    else:
+        mock_module.repository = None
+
+    mock_stage = MagicMock()
+    mock_stage.modules = [mock_module]
+
+    mock_b = MagicMock()
+    mock_b.model.stages = [mock_stage]
+    mock_b.model.metric_collectors = []
+    return mock_b
+
+
+@pytest.mark.short
+def test_populate_git_cache_no_repos_quiet(tmp_path):
+    """No repos → early return, no exception."""
+    with patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path):
+        _populate_git_cache(_mock_benchmark(), quiet=True, cores=1)
+
+
+@pytest.mark.short
+def test_populate_git_cache_no_repos_verbose(tmp_path):
+    with patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path):
+        _populate_git_cache(_mock_benchmark(), quiet=False, cores=1)
+
+
+@pytest.mark.short
+def test_populate_git_cache_local_path_skipped(tmp_path):
+    """Local path repos are skipped → treated as no remote repos."""
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=True),
+    ):
+        _populate_git_cache(
+            _mock_benchmark(repo_url="/local/path/module"), quiet=True, cores=1
+        )
+
+
+@pytest.mark.short
+def test_populate_git_cache_remote_repo_success(tmp_path):
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch("omnibenchmark.cli.run.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
+        ),
+    ):
+        _populate_git_cache(
+            _mock_benchmark(repo_url="https://github.com/org/repo.git"),
+            quiet=False,
+            cores=1,
+        )
+        mock_fetch.assert_called_once()
+
+
+@pytest.mark.short
+def test_populate_git_cache_remote_repo_failure(tmp_path):
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch(
+            "omnibenchmark.cli.run.get_or_update_cached_repo",
+            side_effect=RuntimeError("network error"),
+        ),
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
+        ),
+    ):
+        # Should not raise — failure is logged, not re-raised
+        _populate_git_cache(
+            _mock_benchmark(repo_url="https://github.com/org/repo.git"),
+            quiet=False,
+            cores=1,
+        )
+
+
+@pytest.mark.short
+def test_populate_git_cache_quiet_uses_progress_display(tmp_path):
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch("omnibenchmark.cli.run.get_or_update_cached_repo"),
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
+        ),
+        patch("omnibenchmark.cli.progress.ProgressDisplay") as mock_pd,
+    ):
+        mock_pd.return_value = MagicMock()
+        _populate_git_cache(
+            _mock_benchmark(repo_url="https://github.com/org/repo.git"),
+            quiet=True,
+            cores=1,
+        )
+        mock_pd.return_value.start_task.assert_called_once()
+        mock_pd.return_value.finish.assert_called_once()
+
+
+@pytest.mark.short
+def test_populate_git_cache_commit_in_cache_skips_fetch(tmp_path):
+    """When commit already exists in the local dulwich repo, skip fetch."""
+    full_commit = "a" * 40  # 40-char hex commit
+    repo_cache_subdir = tmp_path / "github.com" / "org" / "repo"
+    repo_cache_subdir.mkdir(parents=True)
+
+    mock_repo = MagicMock()
+    # repo[commit_bytes] succeeds → skip_fetch = True
+
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch("omnibenchmark.cli.run.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
+        ),
+        patch("dulwich.porcelain.open_repo", return_value=mock_repo),
+    ):
+        _populate_git_cache(
+            _mock_benchmark(
+                repo_url="https://github.com/org/repo.git", commit=full_commit
+            ),
+            quiet=False,
+            cores=1,
+        )
+        # Fetch should NOT have been called since commit is in cache
+        mock_fetch.assert_not_called()
+
+
+@pytest.mark.short
+def test_populate_git_cache_future_exception(tmp_path):
+    """When future.result() raises, the error is captured in failed list."""
+    from concurrent.futures import Future
+
+    failing_future = Future()
+    failing_future.set_exception(RuntimeError("unexpected failure"))
+
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch("omnibenchmark.cli.run.get_or_update_cached_repo"),
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
+        ),
+        patch(
+            "concurrent.futures.ThreadPoolExecutor.submit", return_value=failing_future
+        ),
+    ):
+        # Should not raise — failure is logged
+        _populate_git_cache(
+            _mock_benchmark(repo_url="https://github.com/org/repo.git"),
+            quiet=False,
+            cores=1,
+        )
+
+
+@pytest.mark.short
+def test_run_module_filter_flag_logs_warning():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(run, ["tests/data/mock_benchmark.yaml", "-m", "M1"])
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("module_filter") == "M1"
+
+
+@pytest.mark.short
+def test_populate_git_cache_metric_collector_repo(tmp_path):
+    """metric_collectors with a repo URL are added to the repos dict."""
+    mock_collector = MagicMock()
+    mock_collector.repository = MagicMock()
+    mock_collector.repository.url = "https://github.com/org/metrics.git"
+    mock_collector.repository.commit = "abc1234"
+
+    mock_b = _mock_benchmark()
+    mock_b.model.metric_collectors = [mock_collector]
+
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch("omnibenchmark.cli.run.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url",
+            return_value="github.com/org/metrics",
+        ),
+    ):
+        _populate_git_cache(mock_b, quiet=False, cores=1)
+        mock_fetch.assert_called_once()
+
+
+@pytest.mark.short
+def test_populate_git_cache_commit_lookup_keyerror(tmp_path):
+    """When dulwich raises KeyError for commit lookup, fall through to fetch."""
+    full_commit = "b" * 40
+    repo_cache_subdir = tmp_path / "github.com" / "org" / "repo"
+    repo_cache_subdir.mkdir(parents=True)
+
+    mock_repo = MagicMock()
+    mock_repo.__getitem__ = MagicMock(side_effect=KeyError("not found"))
+
+    with (
+        patch("omnibenchmark.cli.run.get_git_cache_dir", return_value=tmp_path),
+        patch("omnibenchmark.cli.run.is_local_path", return_value=False),
+        patch("omnibenchmark.cli.run.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
+        ),
+        patch("dulwich.porcelain.open_repo", return_value=mock_repo),
+    ):
+        _populate_git_cache(
+            _mock_benchmark(
+                repo_url="https://github.com/org/repo.git", commit=full_commit
+            ),
+            quiet=False,
+            cores=1,
+        )
+        # KeyError → skip_fetch=False → fetch is called
+        mock_fetch.assert_called_once()
+
+
+@pytest.mark.short
+def test_run_benchmark_remote_storage_true_bool_appended(tmp_path):
+    """A True boolean value in storage args should add a bare --flag."""
+    (tmp_path / "Snakefile").write_text("rule all: input: []")
+    with (
+        patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_be,
+        patch("omnibenchmark.cli.run._populate_git_cache"),
+        patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
+        patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run._run_snakemake") as mock_snakemake,
+        patch("omnibenchmark.remote.storage.get_storage_from_benchmark"),
+        patch(
+            "omnibenchmark.remote.storage.remote_storage_snakemake_args"
+        ) as mock_storage_args,
+    ):
+        mock_b = MagicMock()
+        mock_b.get_benchmark_software_backend.return_value = SoftwareBackendEnum.host
+        mock_be.return_value = mock_b
+        mock_storage_args.return_value = {"use-conda": True}
+        _run_benchmark(
+            benchmark_path="tests/data/mock_benchmark.yaml",
+            cores=1,
+            dry=False,
+            continue_on_error=False,
+            out_dir=str(tmp_path),
+            debug=False,
+            dirty=False,
+            use_remote_storage=True,
+        )
+        _, kwargs = mock_snakemake.call_args
+        extra = kwargs["extra_snakemake_args"]
+        assert "--use-conda" in extra

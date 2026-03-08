@@ -5,7 +5,9 @@ import pytest
 from omnibenchmark.cli.progress import (
     extract_rule_display_name,
     IncrementalLogReader,
+    InteractiveProgress,
     KeyboardListener,
+    ProgressDisplay,
 )
 
 
@@ -117,3 +119,80 @@ class TestKeyboardListener:
         kb.start()  # stdin is not a TTY in pytest → _enabled stays False
         assert not kb._enabled
         kb.stop()
+
+
+@pytest.mark.short
+class TestProgressDisplay:
+    def test_status_does_not_raise(self):
+        pd = ProgressDisplay()
+        pd.status("hello")  # just prints, no exception
+
+    def test_success_does_not_raise(self):
+        ProgressDisplay().success("ok")
+
+    def test_error_does_not_raise(self):
+        ProgressDisplay().error("bad")
+
+    def test_section_does_not_raise(self):
+        ProgressDisplay().section("My Section")
+
+    def test_summary_does_not_raise(self):
+        ProgressDisplay().summary({"key": "value", "count": 42})
+
+    def test_finish_when_not_started(self):
+        pd = ProgressDisplay()
+        pd.finish()  # _progress is None — should not raise
+
+    def test_update_when_not_started(self):
+        pd = ProgressDisplay()
+        pd.update(advance=1, description="test")  # no-op, no exception
+
+
+@pytest.mark.short
+class TestInteractiveProgressState:
+    """Test InteractiveProgress state methods without starting Live/threads."""
+
+    def test_add_failed_rule(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.add_failed_rule("rule_A")
+        assert "rule_A" in p.failed_rules
+
+    def test_add_failed_rule_deduplicates(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.add_failed_rule("rule_A")
+        p.add_failed_rule("rule_A")
+        assert p.failed_rules.count("rule_A") == 1
+
+    def test_failed_rules_returns_copy(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.add_failed_rule("r1")
+        copy = p.failed_rules
+        copy.append("r2")
+        assert "r2" not in p.failed_rules  # original unaffected
+
+    def test_completed_initial_zero(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        assert p.completed == 0
+
+    def test_check_keyboard_returns_false_when_no_event(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        assert p.check_keyboard() is False
+
+    def test_finish_when_not_started(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.finish()  # all guards are None — should not raise
+
+    def test_update_advances_completed(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.update(advance=3)
+        assert p.completed == 3
+
+    def test_update_sets_description(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.update(description="Running...")
+        assert p._description == "Running..."
+
+    def test_update_sets_current_rule(self, tmp_path):
+        p = InteractiveProgress(tmp_path / "x.log")
+        p.update(current_rule="data_D1_d807c924")
+        assert p._current_rule == "D1_d807c924"  # display name extracted
