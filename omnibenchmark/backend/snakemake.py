@@ -129,6 +129,9 @@ class SnakemakeGenerator:
         f.write("    params:\n")
         f.write(f'        module_dir="{node.module.module_dir}",\n')
         f.write(f'        entrypoint="{node.module.entrypoint}",\n')
+        if node.outputs:
+            output_dir = os.path.dirname(node.outputs[0])
+            f.write(f'        output_dir="{output_dir}",\n')
         if node.parameters:
             cli_args = " ".join(node.get_parameter_cli_args())
             f.write(f'        cli_args="{cli_args}",\n')
@@ -255,8 +258,8 @@ class SnakemakeGenerator:
         # Resolve output and log directories to absolute paths before cd-ing
         # into the module directory.
         lines += [
-            "mkdir -p $(dirname {output[0]}) $(dirname {log})",
-            "OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)",
+            "mkdir -p {params.output_dir} $(dirname {log})",
+            "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
         for key in node.inputs:
             lines.append(
@@ -347,9 +350,9 @@ class SnakemakeGenerator:
                 inputs_by_name[original_name].append(key)
 
         lines: list = [
-            "mkdir -p $(dirname {output[0]})",
+            "mkdir -p {params.output_dir}",
             "MODULE_DIR={params.module_dir}",
-            "OUTPUT_DIR=$(cd $(dirname {output[0]}) && pwd)",
+            "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
 
         # Resolve each input group to absolute paths into a bash array.

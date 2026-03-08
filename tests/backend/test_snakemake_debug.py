@@ -184,7 +184,7 @@ class TestWriteShellBasicNode:
         assert f'echo "    --name {basic_node.module_id} \\"' in content
 
         # Should create output directory and touch files
-        assert "mkdir -p $(dirname {output[0]})" in content
+        assert "mkdir -p {params.output_dir}" in content
         assert "touch {output[0]}" in content
 
     def test_node_with_inputs(self, node_with_inputs):

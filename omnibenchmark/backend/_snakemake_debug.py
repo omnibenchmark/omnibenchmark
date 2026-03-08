@@ -50,7 +50,7 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
             'echo ""',
             'echo "Would execute:"',
             'echo "  cd {params.module_dir} && ./{params.entrypoint} \\"',
-            'echo "    --output_dir $(dirname {output[0]}) \\"',
+            'echo "    --output_dir {params.output_dir} \\"',
             f'echo "    --name {node.module_id} \\"',
         ]
         for key in node.inputs:
@@ -59,13 +59,13 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
         lines += [
             'echo "    {params.cli_args}"',
             'echo ""',
-            "mkdir -p $(dirname {output[0]})",
+            "mkdir -p {params.output_dir}",
         ]
 
         if node.parameters:
             lines.append(
                 f"ln -sfn .{node.parameters.hash_short()}"
-                f" $(dirname {{output[0]}})/../{_make_human_name(node.parameters)}"
+                f" {{params.output_dir}}/../{_make_human_name(node.parameters)}"
             )
 
         for i in range(len(node.outputs)):
@@ -108,7 +108,7 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
             'echo ""',
             'echo "Would execute:"',
             'echo "  cd {params.module_dir} && python3 {params.entrypoint} \\"',
-            'echo "    --output_dir $(dirname {output[0]}) \\"',
+            'echo "    --output_dir {params.output_dir} \\"',
             f'echo "    --name {node.module_id} \\"',
         ]
         for input_name in inputs_by_name:
@@ -117,7 +117,7 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
             lines.append('echo "    {params.cli_args}"')
         lines += [
             'echo ""',
-            "mkdir -p $(dirname {output[0]})",
+            "mkdir -p {params.output_dir}",
         ]
         for i in range(len(node.outputs)):
             lines.append(f"touch {{output[{i}]}}")
