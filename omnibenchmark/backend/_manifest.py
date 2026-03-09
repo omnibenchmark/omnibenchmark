@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+import logging
 
 
 def write_run_manifest(
@@ -88,7 +89,7 @@ def write_run_manifest(
             if result.returncode == 0:
                 cpu_model = result.stdout.strip() or None
     except Exception:
-        pass
+        logging.debug("Failed to detect cpu_model", exc_info=True)
 
     memory_total_mb = None
     try:
