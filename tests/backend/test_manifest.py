@@ -262,7 +262,7 @@ class TestWriteRunManifest:
             json.dump(old_data, f)
 
         # Write new manifest
-        _result = write_run_manifest(output_dir, run_id="new-id")
+        write_run_manifest(output_dir, run_id="new-id")
 
         # Should have new data
         with open(manifest_path) as f:
