@@ -67,7 +67,7 @@ def write_run_manifest(
 
         cpu_count = os.cpu_count()
     except Exception:
-        pass
+        logging.debug("Failed to determine CPU count; leaving cpu_count as None", exc_info=True)
 
     cpu_model = None
     try:
