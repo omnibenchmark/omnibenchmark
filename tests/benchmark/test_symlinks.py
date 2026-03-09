@@ -3,7 +3,7 @@ import pytest
 import shutil
 from pathlib import Path
 
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 from omnibenchmark.benchmark.symlinks import SymlinkManager
 
 

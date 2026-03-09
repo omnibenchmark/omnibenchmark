@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - feat: add `--compact-params` and `--no-show-params` options to `ob describe topology` (#299)
 
+## [0.5.0]() UNRELEASED
+
+- feat: explicit Snakefile generation (#201)
+
 ## [0.4.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.4.0) (Jan 27th 2026)
 
 - feat: add create benchmark & create module command (#171)

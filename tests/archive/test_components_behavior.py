@@ -243,30 +243,37 @@ class TestPrepareArchiveResults:
             assert len(result) == 1
             assert downloaded_file in result
 
-    @patch("omnibenchmark.remote.files.download_files")
-    @patch("omnibenchmark.remote.files.list_files")
+    @patch("omnibenchmark.remote.storage.get_storage")
+    @patch("omnibenchmark.remote.storage.remote_storage_args")
     @patch("omnibenchmark.archive.components.get_expected_benchmark_output_files")
     def test_prepare_results_with_nonexistent_files(
-        self, mock_get_files, mock_list_files, mock_download_files
+        self, mock_get_files, mock_remote_args, mock_get_storage
     ):
         """Test results preparation when some expected files don't exist."""
         nonexistent_file = Path("/nonexistent/result.json")
         mock_get_files.return_value = [nonexistent_file]
 
         mock_benchmark = Mock()
-        # Mock get_definition_file to return a Path object
-        mock_definition_file = Mock()
-        mock_definition_file.as_posix.return_value = "/path/to/benchmark.yaml"
-        mock_benchmark.get_definition_file.return_value = mock_definition_file
+        mock_benchmark.get_storage_api.return_value = "S3"
+        mock_benchmark.get_storage_bucket_name.return_value = "test-bucket"
+        mock_benchmark.get_benchmark_version.return_value = "1.0"
+        mock_benchmark.model = Mock()
 
-        # Mock list_files to return empty lists
-        mock_list_files.return_value = ([], [])
+        # Mock remote storage args
+        mock_remote_args.return_value = {"endpoint": "localhost", "access_key": "test"}
+
+        # Mock storage instance
+        mock_storage = Mock()
+        mock_storage.versions = ["1.0"]
+        mock_storage.files = {}  # No files in storage
+        mock_get_storage.return_value = mock_storage
 
         result = prepare_archive_results(
             benchmark=mock_benchmark, results_dir="out", remote_storage=True
         )
 
-        # Should filter out nonexistent files
+        # Should return empty list since no files exist in storage
+        assert len(result) == 0
         assert nonexistent_file not in result
 
     def test_prepare_results_empty_file_list(self):
@@ -279,7 +286,9 @@ class TestPrepareArchiveResults:
             mock_benchmark = Mock()
 
             result = prepare_archive_results(
-                benchmark=mock_benchmark, results_dir="out", remote_storage=False
+                benchmark=mock_benchmark,
+                results_dir="/nonexistent/benchmark/results",
+                remote_storage=False,
             )
 
             assert result == []

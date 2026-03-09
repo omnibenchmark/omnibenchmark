@@ -82,9 +82,16 @@ class TestEnums:
         assert APIVersion.V0_1_0.value == "0.1.0"
         assert APIVersion.V0_2_0.value == "0.2.0"
         assert APIVersion.V0_3_0.value == "0.3.0"
+        assert APIVersion.V0_4_0.value == "0.4.0"
 
-        assert APIVersion.latest() == "0.3.0"
-        assert set(APIVersion.supported_versions()) == {"0.1.0", "0.2.0", "0.3.0"}
+        assert APIVersion.latest() == "0.5.0"
+        assert set(APIVersion.supported_versions()) == {
+            "0.1.0",
+            "0.2.0",
+            "0.3.0",
+            "0.4.0",
+            "0.5.0",
+        }
 
     def test_software_backend_enum(self):
         """Test SoftwareBackendEnum."""

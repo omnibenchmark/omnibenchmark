@@ -4,7 +4,7 @@ from typing import Dict, List
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.benchmark import Parameter
 from omnibenchmark.benchmark._graph import get_nodes_by_module_id
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 
 
 class MermaidDiagramGenerator:

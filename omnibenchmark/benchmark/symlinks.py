@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from filelock import FileLock
 
-from .params import Params
+from omnibenchmark.model.params import Params
 
 UNSAFE_CHARS = {
     "/": "_",
