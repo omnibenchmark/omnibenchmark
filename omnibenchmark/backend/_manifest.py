@@ -112,7 +112,7 @@ def write_run_manifest(
             if result.returncode == 0:
                 memory_total_mb = int(result.stdout.strip()) // (1024 * 1024)
     except Exception:
-        pass
+        logging.debug("Failed to detect memory_total_mb", exc_info=True)
 
     # GPU devices via nvidia-smi (NVIDIA); optional.
     # nvidia-smi --query-gpu=... --format=csv,noheader,nounits is supported on
