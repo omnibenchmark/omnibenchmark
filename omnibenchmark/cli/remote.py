@@ -174,6 +174,12 @@ def list_all_files(
     if type != "all":
         logger.error("--type is not implemented")
         sys.exit(1)
+    if stage is not None:
+        logger.error("--stage is not implemented")
+        sys.exit(1)
+    if module is not None:
+        logger.error("--module is not implemented")
+        sys.exit(1)
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
     if len(objectnames) > 0:
@@ -227,7 +233,13 @@ def download_all_files(
         logger.error("--file_id is not implemented")
         raise click.Abort()
     if type != "all":
-        logger.info("--type is not implemented")
+        logger.error("--type is not implemented")
+        raise click.Abort()
+    if stage is not None:
+        logger.error("--stage is not implemented")
+        raise click.Abort()
+    if module is not None:
+        logger.error("--module is not implemented")
         raise click.Abort()
 
     download_files(
