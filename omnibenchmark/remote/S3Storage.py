@@ -574,8 +574,76 @@ class S3CompatibleStorage(RemoteStorage):
     def upload_version(self, *args, **kwargs):
         raise NotImplementedError("upload_version is not yet implemented")
 
-    def delete_version(self, version):
-        raise NotImplementedError
+    def delete_version(self, version: str) -> None:
+        """Delete a benchmark version and its WORM-protected S3 object versions.
+
+        Uses boto3 with BypassGovernanceRetention=True to remove objects that
+        are protected by Governance Mode retention. Requires the caller's
+        credentials to have the s3:BypassGovernanceRetention permission.
+
+        The version manifest file (versions/{version}.csv) is deleted last so
+        that the version remains discoverable if a partial failure occurs.
+        """
+        if "access_key" not in self.auth_options:
+            raise RemoteStorageInvalidInputException(
+                "Read-only mode, cannot delete version,"
+                " set access_key and secret_key in auth_options"
+            )
+
+        self._get_versions()
+        target = Version(version)
+        if target not in self.versions:
+            raise RemoteStorageInvalidInputException(
+                f"Version {version} does not exist"
+            )
+
+        # Load the version manifest to find the exact S3 object versions to delete.
+        self.set_version(version)
+        self.load_objects()
+        objects_to_delete = dict(self.files)
+
+        s3 = self._boto3_client()
+
+        failed: list = []
+        for obj_name, meta in objects_to_delete.items():
+            version_id = meta.get("version_id")
+            try:
+                kwargs: dict = {
+                    "Bucket": self.benchmark,
+                    "Key": obj_name,
+                    "BypassGovernanceRetention": True,
+                }
+                if version_id:
+                    kwargs["VersionId"] = version_id
+                s3.delete_object(**kwargs)
+            except Exception as e:
+                logger.warning(
+                    f"Could not delete {obj_name} (version {version_id}): {e}"
+                )
+                failed.append(obj_name)
+
+        if failed:
+            raise RemoteStorageInvalidInputException(
+                f"delete_version {version} completed with errors;"
+                f" {len(failed)} object(s) could not be deleted: {failed}"
+            )
+
+        self._get_versions()
+
+    def _boto3_client(self):
+        """Return a boto3 S3 client built from current auth_options."""
+        endpoint = self.auth_options.get("endpoint", "")
+        secure = self.auth_options.get("secure", True)
+        kwargs: dict = {
+            "aws_access_key_id": self.auth_options["access_key"],
+            "aws_secret_access_key": self.auth_options["secret_key"],
+        }
+        if not self.client._base_url.is_aws_host:
+            if not endpoint.startswith(("http://", "https://")):
+                scheme = "https" if secure else "http"
+                endpoint = f"{scheme}://{endpoint}"
+            kwargs["endpoint_url"] = endpoint
+        return boto3.client("s3", **kwargs)
 
 
 RemoteStorage.register(S3CompatibleStorage)
