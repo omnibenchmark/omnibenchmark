@@ -239,17 +239,32 @@ class S3CompatibleStorage(RemoteStorage):
         self._validate_for_write()
         self._get_versions()
 
+        # Idempotency: the manifest is the commit point; if it exists the version
+        # is already complete — nothing to do.
+        if self.version in self.versions:
+            logger.info(f"Version {self.version} already exists, skipping.")
+            return
+
         version_manager = self._build_version_manager(benchmark)
+        tagged: list = []
         try:
             self._persist_version(version_manager, benchmark)
             if benchmark is not None:
                 self._upload_benchmark_config(benchmark)
-            self._tag_and_protect_objects(benchmark)
+            # _tag_and_protect_objects returns the full tagged list so we can
+            # roll back here if the subsequent manifest write fails.
+            tagged = self._tag_and_protect_objects(benchmark)
+            # Manifest write is the atomic commit point — inside the try so any
+            # failure triggers a rollback of the tags applied above.
+            self._write_version_manifest()
+        except RemoteStorageInvalidInputException:
+            raise  # already wrapped with context by the inner method
         except Exception as e:
             logger.error(f"Error creating version {self.version}, rolling back: {e}")
+            if tagged:
+                self._rollback_tags(tagged)
             raise RemoteStorageInvalidInputException(f"Failed to create version: {e}")
 
-        self._write_version_manifest()
         self._get_versions()
         if self.version not in self.versions:
             raise S3StorageBucketManipulationException("Version creation failed")
@@ -444,10 +459,14 @@ class S3CompatibleStorage(RemoteStorage):
                 Body=softstr.encode(),
             )
 
-    def _tag_and_protect_objects(self, benchmark: Optional[BenchmarkExecution]) -> None:
+    def _tag_and_protect_objects(self, benchmark: Optional[BenchmarkExecution]) -> list:
         """Tag current objects with the benchmark version and apply WORM retention.
 
-        Rolls back any tags it applied on failure before re-raising.
+        On failure rolls back any tags applied so far and re-raises.
+
+        Returns:
+            List of (name, version_id) tuples for all tagged objects, so the
+            caller can roll back if a subsequent step fails.
         """
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
         names, vids = get_objects_to_tag(objdic, storage_options=self.storage_options)
@@ -490,6 +509,8 @@ class S3CompatibleStorage(RemoteStorage):
         except Exception:
             self._rollback_tags(tagged)
             raise
+
+        return tagged
 
     def _rollback_tags(self, tagged_objects: list) -> None:
         """Best-effort removal of version tags; called on create_new_version failure."""
