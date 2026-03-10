@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from tests.remote.S3Storage_setup import MinIOSetup, TmpS3Storage as TmpMinIOStorage
+from tests.remote.S3Storage_setup import MinIOSetup, TmpMinIOStorage
 
 from .path import data
 

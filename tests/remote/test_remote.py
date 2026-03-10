@@ -1,5 +1,5 @@
-import minio
 import pytest
+from botocore.exceptions import ClientError
 
 from omnibenchmark.remote.storage import get_storage
 from omnibenchmark.remote.sizeof import sizeof_fmt
@@ -13,16 +13,17 @@ def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(minio_st
 # fmt: on
     # happy path
     storage = get_storage(
-        storage_type="minio",
+        storage_api="minio",
         auth_options=minio_storage.auth_options,
         benchmark="test",
     )
     assert isinstance(storage, RemoteStorage)
 
-    # sad path
-    with pytest.raises(minio.error.S3Error):
+    # sad path: "not_existing_benchmark" contains underscores which are invalid
+    # bucket names in S3/MinIO; boto3 raises ClientError on bucket creation
+    with pytest.raises(ClientError):
         get_storage(
-            storage_type="minio",
+            storage_api="minio",
             auth_options=minio_storage.auth_options,
             benchmark="not_existing_benchmark",
         )

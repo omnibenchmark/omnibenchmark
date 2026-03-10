@@ -38,7 +38,7 @@ class MinIOSetup:
         self.minio.stop()
 
 
-class TmpS3Storage:
+class TmpMinIOStorage:
     """Manages a temporary bucket for a single test."""
 
     def __init__(self, testcontainer: MinIOSetup) -> None:

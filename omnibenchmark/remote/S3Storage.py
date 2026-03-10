@@ -75,13 +75,14 @@ class S3CompatibleStorage(RemoteStorage):
         if "access_key" in self.auth_options.keys():
             self.client = self.connect()
             self.roclient = self.connect(readonly=True)
-            self._test_connect()
 
             if not self._bucket_exists(benchmark):
                 logger.warning(
                     f"Benchmark {benchmark} does not exist, creating new benchmark."
                 )
                 self._create_benchmark(benchmark)
+
+            self._test_connect()
 
             self._get_versions()
         else:
@@ -169,19 +170,30 @@ class S3CompatibleStorage(RemoteStorage):
         policy = bucket_readonly_policy(benchmark)
         self.client.put_bucket_policy(Bucket=benchmark, Policy=json.dumps(policy))
 
-        self.client.put_bucket_lifecycle_configuration(
-            Bucket=benchmark,
-            LifecycleConfiguration={
-                "Rules": [
-                    {
-                        "ID": "rule1",
-                        "Filter": {"Prefix": ""},
-                        "Status": "Enabled",
-                        "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
-                    }
-                ]
-            },
-        )
+        # Lifecycle configuration is best-effort: MinIO requires Content-MD5 for
+        # this operation, which recent boto3 no longer sends by default (it uses
+        # x-amz-checksum-* instead). The policy is non-essential — it only
+        # auto-expires old noncurrent object versions to save storage.
+        try:
+            self.client.put_bucket_lifecycle_configuration(
+                Bucket=benchmark,
+                LifecycleConfiguration={
+                    "Rules": [
+                        {
+                            "ID": "rule1",
+                            "Filter": {"Prefix": ""},
+                            "Status": "Enabled",
+                            "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+                        }
+                    ]
+                },
+            )
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            if code in ("MissingContentMD5", "NotImplemented"):
+                logger.debug("Lifecycle configuration not applied (%s): %s", code, e)
+            else:
+                raise
 
         if not self._bucket_exists(benchmark):
             raise S3StorageBucketManipulationException(
@@ -516,6 +528,7 @@ class S3CompatibleStorage(RemoteStorage):
                     Key=n,
                     VersionId=v,
                     Retention={"Mode": "GOVERNANCE", "RetainUntilDate": retain_until},
+                    ChecksumAlgorithm="CRC32",
                 )
         except Exception:
             self._rollback_tags(tagged)
@@ -557,6 +570,7 @@ class S3CompatibleStorage(RemoteStorage):
             Bucket=self.benchmark,
             Key=version_filename,
             Retention={"Mode": "GOVERNANCE", "RetainUntilDate": retain_until},
+            ChecksumAlgorithm="CRC32",
         )
 
 
