@@ -340,66 +340,6 @@ class S3CompatibleStorage(RemoteStorage):
     def upload_version(self, *args, **kwargs):
         raise NotImplementedError("upload_version is not yet implemented")
 
-    def delete_version(self, version: str) -> None:
-        """Delete a benchmark version and its WORM-protected S3 object versions.
-
-        Uses BypassGovernanceRetention=True to remove objects protected by
-        Governance Mode retention. Requires the s3:BypassGovernanceRetention
-        permission on the bucket.
-
-        Note: if the same S3 object version is referenced by multiple benchmark
-        versions (i.e. the object was not re-uploaded between versions), deleting
-        one benchmark version will also remove that object version from other
-        benchmark versions that share it.
-        """
-        if "access_key" not in self.auth_options:
-            raise RemoteStorageInvalidInputException(
-                "Read-only mode, cannot delete version,"
-                " set access_key and secret_key in auth_options"
-            )
-
-        self._get_versions()
-        target = Version(version)
-        if target not in self.versions:
-            raise RemoteStorageInvalidInputException(
-                f"Version {version} does not exist"
-            )
-
-        self.set_version(version)
-        self.load_objects()
-        objects_to_delete = dict(self.files)
-
-        failed: list = []
-        for obj_name, meta in tqdm.tqdm(
-            objects_to_delete.items(),
-            total=len(objects_to_delete),
-            desc="Deleting objects",
-            unit="obj",
-        ):
-            version_id = meta.get("version_id")
-            try:
-                delete_kwargs: dict = {
-                    "Bucket": self.benchmark,
-                    "Key": obj_name,
-                    "BypassGovernanceRetention": True,
-                }
-                if version_id:
-                    delete_kwargs["VersionId"] = version_id
-                self.client.delete_object(**delete_kwargs)
-            except Exception as e:
-                logger.warning(
-                    f"Could not delete {obj_name} (version {version_id}): {e}"
-                )
-                failed.append(obj_name)
-
-        if failed:
-            raise RemoteStorageInvalidInputException(
-                f"delete_version {version} completed with errors;"
-                f" {len(failed)} object(s) could not be deleted: {failed}"
-            )
-
-        self._get_versions()
-
     # ------------------------------------------------------------------
     # create_new_version helpers
     # ------------------------------------------------------------------
