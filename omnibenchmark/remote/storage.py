@@ -56,15 +56,15 @@ class StorageFactory:
 
     @staticmethod
     def create(
-        storage_type: str,
+        storage_api: str,
         auth_options: dict,
         bucket: str,
         storage_options: StorageOptions = StorageOptions(out_dir="out"),
     ) -> Optional[MinIOStorageType]:
-        """Return a RemoteStorage instance for *storage_type*, or None.
+        """Return a RemoteStorage instance for *storage_api*, or None.
 
         Args:
-            storage_type: Storage API identifier ("S3" or the deprecated "MinIO").
+            storage_api: Storage API identifier ("S3" or the deprecated "MinIO").
             auth_options: Authentication dict (endpoint, access_key, secret_key).
             bucket: S3 bucket name used as the benchmark identifier.
             storage_options: Tracked-directory configuration.
@@ -73,9 +73,9 @@ class StorageFactory:
             A RemoteStorage instance, or None when the required extras are not
             installed.
         """
-        _warn_minio_deprecated(storage_type)
+        _warn_minio_deprecated(storage_api)
 
-        if storage_type.upper() in ("MINIO", "S3"):
+        if storage_api.upper() in ("MINIO", "S3"):
             if not _check_s3_available() or MinIOStorage is None:
                 return None
             return MinIOStorage(auth_options, bucket, storage_options)
@@ -89,24 +89,24 @@ class StorageFactory:
 
 
 def get_storage(
-    storage_type: str,
+    storage_api: str,
     auth_options: dict,
     benchmark: str,
     storage_options: StorageOptions = StorageOptions(out_dir="out"),
 ) -> Optional[MinIOStorageType]:
-    """Return a RemoteStorage instance for *storage_type*.
+    """Return a RemoteStorage instance for *storage_api*.
 
     Thin wrapper around :class:`StorageFactory` kept for backward
     compatibility. Prefer calling ``StorageFactory.create()`` directly in
     new code.
 
     Args:
-        storage_type: Storage API identifier ("S3" or the deprecated "MinIO").
+        storage_api: Storage API identifier ("S3" or the deprecated "MinIO").
         auth_options: Authentication dict (endpoint, access_key, secret_key).
         benchmark: S3 bucket / benchmark name.
         storage_options: Tracked-directory configuration.
     """
-    return StorageFactory.create(storage_type, auth_options, benchmark, storage_options)
+    return StorageFactory.create(storage_api, auth_options, benchmark, storage_options)
 
 
 def get_storage_from_benchmark(
