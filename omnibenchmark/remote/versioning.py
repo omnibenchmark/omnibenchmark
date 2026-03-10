@@ -77,7 +77,7 @@ def filter_objects_to_tag(
             benchmark, storage_options
         )
 
-        rootdirs = [Path(obj).parents[-2].name for obj in object_names_to_tag]
+        rootdirs = [Path(obj).parts[0] for obj in object_names_to_tag]
         overwrite_dirs_to_keep = [
             t
             for t in storage_options.tracked_directories
