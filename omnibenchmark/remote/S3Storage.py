@@ -15,10 +15,8 @@ from typing import Dict, Optional
 
 try:
     import boto3
-    from boto3 import client as boto3_s3_client
 except ImportError:
     boto3 = None  # type: ignore
-    boto3_s3_client = None  # type: ignore
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.exception import (
@@ -563,7 +561,3 @@ class S3CompatibleStorage(RemoteStorage):
 
 
 RemoteStorage.register(S3CompatibleStorage)
-
-# Backward-compatibility alias so that existing code importing MinIOStorage
-# continues to work without changes during the deprecation period.
-MinIOStorage = S3CompatibleStorage
