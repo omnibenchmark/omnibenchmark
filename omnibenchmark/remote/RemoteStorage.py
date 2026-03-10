@@ -119,10 +119,23 @@ class RemoteStorage(metaclass=ABCMeta):
     ):
         self.version = None
         self.versions = list()
-        self.files = dict()
+        self._files: dict = {}
+        self._files_loaded: bool = False
         self._parse_benchmark(benchmark)
         self._parse_auth_options(auth_options)
         self._parse_storage_options(storage_options)
+
+    @property
+    def files(self) -> dict:
+        """File metadata dict; loaded on first access after each set_version() call."""
+        if not self._files_loaded:
+            self.load_objects()
+        return self._files
+
+    @files.setter
+    def files(self, value: dict) -> None:
+        self._files = value
+        self._files_loaded = True
 
     def _parse_benchmark(self, benchmark: str) -> None:
         if not isinstance(benchmark, str):
@@ -222,6 +235,7 @@ class RemoteStorage(metaclass=ABCMeta):
             RemoteStorageInvalidInputException: If version does not exist in the available versions.
         """
         self.version = self._parse_version(version)
+        self._files_loaded = False
 
     @abstractmethod
     def create_new_version(

@@ -15,8 +15,8 @@ class StorageService:
     Usage::
 
         service = StorageService(benchmark_model)
-        service.load_version()          # set current version and fetch object list
-        files = service.storage.files   # access the loaded object dict
+        service.load_version()          # set current version
+        files = service.storage.files   # lazily fetches object list on first access
     """
 
     def __init__(
@@ -69,11 +69,52 @@ class StorageService:
         self._benchmark_model = benchmark_model
 
     def load_version(self, version: Optional[str] = None) -> None:
-        """Set and load a version (defaults to the benchmark's configured version)."""
+        """Set a version (defaults to the benchmark's configured version).
+
+        File metadata is fetched lazily on first access of ``storage.files``.
+        """
         resolved = (
             version
             if version is not None
             else self._benchmark_model.get_benchmark_version()
         )
         self.storage.set_version(resolved)
-        self.storage.load_objects()
+
+    @classmethod
+    def from_path(
+        cls,
+        benchmark_path: str,
+        *,
+        full_model: bool = False,
+        require_credentials: bool = True,
+        storage_options: Optional[StorageOptions] = None,
+    ) -> "StorageService":
+        """Create a StorageService directly from a benchmark YAML path.
+
+        Args:
+            benchmark_path: Path to the benchmark YAML file.
+            full_model: When True load a ``BenchmarkExecution`` (full DAG);
+                when False load a lightweight ``Benchmark``.
+            require_credentials: Whether write credentials are required.
+            storage_options: Optional storage configuration override.
+
+        Returns:
+            A configured ``StorageService``.  Call ``load_version()`` on the
+            result before accessing ``storage.files``.
+        """
+        from pathlib import Path
+
+        if full_model:
+            from omnibenchmark.benchmark import BenchmarkExecution
+
+            benchmark_model = BenchmarkExecution(Path(benchmark_path))
+        else:
+            from omnibenchmark.benchmark import Benchmark
+
+            benchmark_model = Benchmark(Path(benchmark_path))
+
+        return cls(
+            benchmark_model,
+            require_credentials=require_credentials,
+            storage_options=storage_options,
+        )

@@ -26,16 +26,13 @@ def _setup_remote_storage(
     """
     from .service import StorageService
 
-    benchmark = Benchmark(Path(benchmark_path))
-    resolved_options = storage_options or StorageOptions(
-        out_dir=str(benchmark.context.out_dir)
-    )
-    expected_files = get_expected_benchmark_output_files(benchmark, resolved_options)
-
-    service = StorageService(benchmark, storage_options=resolved_options)
+    service = StorageService.from_path(benchmark_path, storage_options=storage_options)
     service.load_version()
+    expected_files = get_expected_benchmark_output_files(
+        service._benchmark_model, service.storage.storage_options
+    )
 
-    return service.storage, benchmark, expected_files
+    return service.storage, service._benchmark_model, expected_files
 
 
 def list_files(
