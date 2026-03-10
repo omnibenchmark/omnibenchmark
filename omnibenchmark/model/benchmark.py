@@ -155,6 +155,7 @@ class StorageAPIEnum(str, Enum):
     """Storage API types. Currently only S3 is supported."""
 
     s3 = "S3"
+    minio = "MinIO"  # Deprecated: MinIO is S3-compatible; use api: S3 with a custom endpoint.
 
 
 # Base models
@@ -208,6 +209,19 @@ class Storage(BaseModel):
     bucket_name: Optional[str] = Field(
         None, description="Storage bucket name (only needed if using S3)"
     )
+
+    @field_validator("api", mode="after")
+    @classmethod
+    def warn_minio_deprecated(cls, v: "StorageAPIEnum") -> "StorageAPIEnum":
+        if v == StorageAPIEnum.minio:
+            import warnings
+
+            warnings.warn(
+                "Storage api 'MinIO' is deprecated. Use api: S3 with a custom endpoint instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return v
 
 
 class Parameter(BaseModel):
