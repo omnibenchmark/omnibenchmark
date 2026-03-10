@@ -271,11 +271,18 @@ class RemoteStorage(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_version(self, version):
+    def delete_version(self, version: str) -> None:
         """
-        Deletes a specific benchmark version.
+        Deletes a specific benchmark version and its WORM-protected objects.
+
+        Requires BypassGovernanceRetention permission on the bucket.
+
+        Note: if the same S3 object version is referenced by multiple benchmark
+        versions (i.e. the object was not re-uploaded between versions), deleting
+        one benchmark version will also remove that object version from other
+        benchmark versions that share it.
 
         Args:
-            version (str): The version to delete.
+            version (str): The benchmark version string to delete (e.g. "1.0").
         """
         raise NotImplementedError
