@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 ## 0.5.0 UNRELEASED
 
 - feat: add `--compact-params` and `--no-show-params` options to `ob describe topology` (#299)
+- refactor: migrate S3 storage from `minio` client to `boto3`, rename `MinIOStorage` → `S3CompatibleStorage`, and introduce `StorageFactory` for backend-agnostic storage setup (#302)
 
 ## [0.4.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.4.0) (Jan 27th 2026)
 
