@@ -2,7 +2,10 @@
 
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
-from typing import Dict, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
+
+if TYPE_CHECKING:
+    from omnibenchmark.benchmark import BenchmarkExecution
 
 import packaging.version
 from packaging.version import Version
@@ -144,9 +147,12 @@ class RemoteStorage(metaclass=ABCMeta):
         self.storage_options = storage_options
 
     @abstractmethod
-    def connect(self):
+    def connect(self, readonly: bool = False):
         """
         Connects to the storage Service.
+
+        Args:
+            readonly: When True, connect without write credentials.
 
         Returns:
             - Storage Client / Service
@@ -162,24 +168,20 @@ class RemoteStorage(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def _create_benchmark(self, benchmark: str, update: bool = True) -> None:
+    def _create_benchmark(self, benchmark: str) -> None:
         """
         Creates a new benchmark in the remote storage.
 
         Args:
             benchmark: The name of the benchmark.
-            update: Whether to update the list of benchmarks. Defaults to True.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def _get_versions(self, update: bool = True, readonly: bool = False) -> None:
+    def _get_versions(self) -> None:
         """
-        Retrieves the benchmark versions in the remote storage.
-
-        Args:
-            update (bool, optional): Whether to update the versions. Defaults to True.
-            readonly (bool, optional): Whether to retrieve the versions in read-only mode. Defaults to False.
+        Retrieves the benchmark versions in the remote storage and
+        populates ``self.versions``.
         """
         self.versions = []
 
@@ -223,7 +225,9 @@ class RemoteStorage(metaclass=ABCMeta):
         self.version = self._parse_version(version)
 
     @abstractmethod
-    def create_new_version(self, benchmark=None) -> None:
+    def create_new_version(
+        self, benchmark: "Optional[BenchmarkExecution]" = None
+    ) -> None:
         """
         Creates a new version of the benchmark.
 
@@ -255,7 +259,7 @@ class RemoteStorage(metaclass=ABCMeta):
     @abstractmethod
     def archive_version(
         self,
-        benchmark: str,
+        benchmark: "BenchmarkExecution",
         outdir: Path = Path(),
         config: bool = True,
         code: bool = False,
@@ -266,7 +270,12 @@ class RemoteStorage(metaclass=ABCMeta):
         Archives/Freezes a specific benchmark version.
 
         Args:
-            version (str): The version to archive.
+            benchmark: The benchmark execution context.
+            outdir: Local directory for the archive output.
+            config: Include config files.
+            code: Include code files.
+            software: Include software environment files.
+            results: Include result files.
         """
         raise NotImplementedError
 
