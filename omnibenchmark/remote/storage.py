@@ -7,18 +7,18 @@ from omnibenchmark.benchmark import BenchmarkExecution
 from .RemoteStorage import StorageOptions
 
 if TYPE_CHECKING:
-    from .MinIOStorage import MinIOStorage as MinIOStorageType
+    from .S3Storage import S3CompatibleStorage as S3CompatibleStorageType
 else:
-    MinIOStorageType = Any
+    S3CompatibleStorageType = Any
 
 try:
-    from .MinIOStorage import MinIOStorage
+    from .S3Storage import S3CompatibleStorage
     from .S3config import S3_access_config_from_env
 
     S3_AVAILABLE = True
 except ImportError:
     S3_AVAILABLE = False
-    MinIOStorage = None  # type: ignore
+    S3CompatibleStorage = None  # type: ignore
     S3_access_config_from_env = None
 
 
@@ -60,7 +60,7 @@ class StorageFactory:
         auth_options: dict,
         bucket: str,
         storage_options: Optional[StorageOptions] = None,
-    ) -> Optional[MinIOStorageType]:
+    ) -> Optional[S3CompatibleStorageType]:
         """Return a RemoteStorage instance for *storage_api*, or None.
 
         Args:
@@ -77,9 +77,9 @@ class StorageFactory:
         resolved_options = storage_options or StorageOptions(out_dir="out")
 
         if storage_api.upper() in ("MINIO", "S3"):
-            if not _check_s3_available() or MinIOStorage is None:
+            if not _check_s3_available() or S3CompatibleStorage is None:
                 return None
-            return MinIOStorage(auth_options, bucket, resolved_options)
+            return S3CompatibleStorage(auth_options, bucket, resolved_options)
 
         return None
 
@@ -94,7 +94,7 @@ def get_storage(
     auth_options: dict,
     benchmark: str,
     storage_options: Optional[StorageOptions] = None,
-) -> Optional[MinIOStorageType]:
+) -> Optional[S3CompatibleStorageType]:
     """Return a RemoteStorage instance for *storage_api*.
 
     Thin wrapper around :class:`StorageFactory` kept for backward
@@ -112,7 +112,7 @@ def get_storage(
 
 def get_storage_from_benchmark(
     benchmark: BenchmarkExecution,
-) -> Optional[MinIOStorageType]:
+) -> Optional[S3CompatibleStorageType]:
     """Return a RemoteStorage instance configured from *benchmark*.
 
     Args:
