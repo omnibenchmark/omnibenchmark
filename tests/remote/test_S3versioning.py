@@ -7,7 +7,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from omnibenchmark.remote.S3versioning import get_s3_object_versions_and_tags
-from omnibenchmark.remote.exception import MinIOStorageBucketManipulationException
+from omnibenchmark.remote.exception import S3StorageBucketManipulationException
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ class TestGetS3ObjectVersionsAndTags:
         mock_client = Mock()
         mock_client.head_bucket.side_effect = _client_error("404")
 
-        with pytest.raises(MinIOStorageBucketManipulationException) as exc_info:
+        with pytest.raises(S3StorageBucketManipulationException) as exc_info:
             get_s3_object_versions_and_tags(mock_client, "nonexistent_benchmark")
 
         assert "nonexistent_benchmark does not exist" in str(exc_info.value)

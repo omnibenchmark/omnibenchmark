@@ -5,7 +5,7 @@ import glob
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.exception import MinIOStorageVersioningCorruptionException
+from omnibenchmark.remote.exception import S3StorageVersioningCorruptionException
 
 
 def get_objects_to_tag(
@@ -116,7 +116,7 @@ def get_single_remoteversion_from_bmversion(
         )
     )
     if len(version_ls) > 1:
-        raise MinIOStorageVersioningCorruptionException(
+        raise S3StorageVersioningCorruptionException(
             f"Multiple versions found for object {object_name}"
         )
     return version_ls[0] if version_ls else None
