@@ -5,7 +5,6 @@ import zipfile
 from pathlib import Path
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.cli.remote import StorageAuth
 from omnibenchmark.archive import archive_benchmark
 from omnibenchmark.constants import COMPRESSION_GZIP, DEFAULT_COMPRESSION
 from omnibenchmark.remote.tree import tree_string_from_list
@@ -148,14 +147,7 @@ def archive(
                 f"Valid combinations: {' | '.join(all_combinations)}"
             )
 
-    # Load benchmark differently based on whether we need storage authentication
-    if use_remote_storage:
-        # For remote storage, we need full storage authentication
-        storage_auth = StorageAuth(benchmark)
-        benchmark_obj = storage_auth.benchmark
-    else:
-        # For local-only archiving, we can load benchmark without storage requirements
-        benchmark_obj = BenchmarkExecution(Path(benchmark))
+    benchmark_obj = BenchmarkExecution(Path(benchmark))
 
     # Convert compression string to constant
     # For gzip, we use a string marker since it uses tarfile instead of zipfile

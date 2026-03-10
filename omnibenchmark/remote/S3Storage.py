@@ -15,8 +15,10 @@ from typing import Dict, Optional
 
 try:
     import boto3
+    from boto3 import client as boto3_s3_client
 except ImportError:
     boto3 = None  # type: ignore
+    boto3_s3_client = None  # type: ignore
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.exception import (
@@ -132,7 +134,7 @@ class S3CompatibleStorage(RemoteStorage):
             kwargs["aws_access_key_id"] = self.auth_options["access_key"]
             kwargs["aws_secret_access_key"] = self.auth_options["secret_key"]
 
-        return boto3.client("s3", **kwargs)
+        return boto3.client("s3", **kwargs)  # type: ignore[union-attr]
 
     def _bucket_exists(self, bucket_name: str) -> bool:
         """Return True if the bucket exists and is accessible."""
