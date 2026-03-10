@@ -12,7 +12,7 @@ from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
-from omnibenchmark.remote.MinIOStorage import MinIOStorage
+from omnibenchmark.remote.S3Storage import S3CompatibleStorage as MinIOStorage
 
 from ..fixtures import minio_storage, _minio_container  # noqa: F401
 

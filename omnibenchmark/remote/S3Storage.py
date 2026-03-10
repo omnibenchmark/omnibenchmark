@@ -1,4 +1,4 @@
-"""MinIO class for remote storage."""
+"""S3-compatible storage implementation."""
 # pyright: reportCallIssue=false
 # TODO: Fix boto3/minio API call type errors
 # TODO: Migrate from minio library to boto3-only
@@ -79,7 +79,7 @@ def set_bucket_lifecycle_config(
     client.set_bucket_lifecycle(bucket_name, lifecycle_config)
 
 
-class MinIOStorage(RemoteStorage):
+class S3CompatibleStorage(RemoteStorage):
     """
     MinIO/S3-compatible storage implementation with versioning and object protection.
 
@@ -592,4 +592,8 @@ class MinIOStorage(RemoteStorage):
         raise NotImplementedError
 
 
-RemoteStorage.register(MinIOStorage)
+RemoteStorage.register(S3CompatibleStorage)
+
+# Backward-compatibility alias so that existing code importing MinIOStorage
+# continues to work without changes during the deprecation period.
+MinIOStorage = S3CompatibleStorage

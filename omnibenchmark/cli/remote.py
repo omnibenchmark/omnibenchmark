@@ -20,7 +20,7 @@ from difflib import unified_diff
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from omnibenchmark.remote.MinIOStorage import MinIOStorage
+    from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
 from .debug import add_debug_option
 
@@ -47,7 +47,7 @@ class StorageAuth:
             logger.error(click.style("[ERROR]", fg="red", bold=True) + f" {e}")
             sys.exit(1)
 
-    def get_storage_instance(self) -> "MinIOStorage":
+    def get_storage_instance(self) -> "S3CompatibleStorage":
         """Get validated storage instance."""
         return self._service.storage
 
