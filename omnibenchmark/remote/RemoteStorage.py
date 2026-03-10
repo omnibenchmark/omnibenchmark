@@ -109,7 +109,6 @@ class RemoteStorage(metaclass=ABCMeta):
     - _create_new_version(): Creates a new version of the benchmark.
     - _get_objects(readonly): Retrieves the objects in the storage for the current benchmark.
     - archive_version(version): Archives a specific benchmark version.
-    - delete_version(version): Deletes a specific benchmark version.
     """
 
     def __init__(
@@ -276,22 +275,5 @@ class RemoteStorage(metaclass=ABCMeta):
             code: Include code files.
             software: Include software environment files.
             results: Include result files.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def delete_version(self, version: str) -> None:
-        """
-        Deletes a specific benchmark version and its WORM-protected objects.
-
-        Requires BypassGovernanceRetention permission on the bucket.
-
-        Note: if the same S3 object version is referenced by multiple benchmark
-        versions (i.e. the object was not re-uploaded between versions), deleting
-        one benchmark version will also remove that object version from other
-        benchmark versions that share it.
-
-        Args:
-            version (str): The benchmark version string to delete (e.g. "1.0").
         """
         raise NotImplementedError
