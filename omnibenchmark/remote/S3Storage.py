@@ -299,190 +299,189 @@ class S3CompatibleStorage(RemoteStorage):
     def create_new_version(
         self, benchmark: Optional[BenchmarkExecution] = None
     ) -> None:
+        self._validate_for_write()
+        self._get_versions()
+
+        version_manager = self._build_version_manager(benchmark)
+        try:
+            self._persist_version(version_manager, benchmark)
+            if benchmark is not None:
+                self._upload_benchmark_config(benchmark)
+            self._tag_and_protect_objects(benchmark)
+        except Exception as e:
+            logger.error(f"Error creating version {self.version}, rolling back: {e}")
+            raise RemoteStorageInvalidInputException(f"Failed to create version: {e}")
+
+        self._write_version_manifest()
+        self._get_versions()
+        if self.version not in self.versions:
+            raise MinIOStorageBucketManipulationException("Version creation failed")
+
+    # ------------------------------------------------------------------
+    # create_new_version helpers
+    # ------------------------------------------------------------------
+
+    def _validate_for_write(self) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
                 "No version provided, set version first with method 'set_version'"
             )
-
-        if "access_key" not in self.auth_options.keys():
+        if "access_key" not in self.auth_options:
             raise RemoteStorageInvalidInputException(
-                "Read-only mode, cannot create new version, set access_key and secret_key in auth_options"
+                "Read-only mode, cannot create new version,"
+                " set access_key and secret_key in auth_options"
             )
 
-        # Refresh versions from storage
-        self._get_versions()
-
-        # Build a version manager local to this call (no persistent instance state).
+    def _build_version_manager(self, benchmark: Optional[BenchmarkExecution]):
+        """Return a version manager scoped to this call (not stored on self)."""
         from omnibenchmark.config import get_temp_dir
 
         temp_dir = get_temp_dir()
+        known = [str(v) for v in self.versions]
 
         if benchmark is not None:
-            # Try git-aware version manager first, fall back to basic if git not available
             try:
-                version_manager = GitAwareBenchmarkVersionManager(
+                vm = GitAwareBenchmarkVersionManager(
                     benchmark_path=benchmark.get_definition_file(),
                     git_repo_path=benchmark.context.directory,
                     lock_dir=temp_dir / "locks",
                     lock_timeout=30.0,
                 )
-                version_manager.set_known_versions([str(v) for v in self.versions])
+                vm.set_known_versions(known)
+                return vm
             except Exception:
-                # Fall back to basic version manager if git not available
+                pass  # fall through to basic version manager
+
+            from omnibenchmark.versioning import BenchmarkVersionManager
+
+            vm = BenchmarkVersionManager(
+                benchmark_path=benchmark.get_definition_file(),
+                lock_dir=temp_dir / "locks",
+                lock_timeout=30.0,
+            )
+        else:
+            from omnibenchmark.versioning import BenchmarkVersionManager
+
+            vm = BenchmarkVersionManager(
+                benchmark_path=temp_dir / f"{self.benchmark}.yaml",
+                lock_dir=temp_dir / "locks",
+                lock_timeout=30.0,
+            )
+
+        vm.set_known_versions(known)
+        return vm
+
+    def _persist_version(
+        self, version_manager, benchmark: Optional[BenchmarkExecution]
+    ) -> None:
+        """Record the new version via the version manager (git-aware or basic)."""
+        if benchmark is not None and hasattr(
+            version_manager, "create_version_with_persistence"
+        ):
+            try:
+                version_manager.create_version_with_persistence(  # type: ignore
+                    benchmark,
+                    str(self.version),
+                    f"Create benchmark version {self.version}",
+                )
+                return
+            except Exception:
+                # git-based persistence failed; fall back to in-memory tracking
+                from omnibenchmark.config import get_temp_dir
                 from omnibenchmark.versioning import BenchmarkVersionManager
 
+                temp_dir = get_temp_dir()
                 version_manager = BenchmarkVersionManager(
                     benchmark_path=benchmark.get_definition_file(),
                     lock_dir=temp_dir / "locks",
                     lock_timeout=30.0,
                 )
                 version_manager.set_known_versions([str(v) for v in self.versions])
-        else:
-            # Use basic version manager for validation only (testing scenarios)
-            from omnibenchmark.versioning import BenchmarkVersionManager
 
-            version_manager = BenchmarkVersionManager(
-                benchmark_path=temp_dir / f"{self.benchmark}.yaml",
-                lock_dir=temp_dir / "locks",
-                lock_timeout=30.0,
+        version_manager.set_known_versions(
+            version_manager.get_versions() + [str(self.version)]
+        )
+
+    def _upload_benchmark_config(self, benchmark: BenchmarkExecution) -> None:
+        """Upload the benchmark YAML and its software environment files."""
+        bmfile = Path(benchmark.get_definition_file())
+        with open(bmfile, "r") as fh:
+            bmstr = fh.read()
+        self.client.put_object(
+            self.benchmark,
+            "config/benchmark.yaml",
+            io.BytesIO(bmstr.encode()),
+            len(bmstr),
+        )
+        for software_file in prepare_archive_software(benchmark):
+            with open(software_file, "r") as fh:
+                softstr = fh.read()
+            self.client.put_object(
+                self.benchmark,
+                f"software/{software_file.name}",
+                io.BytesIO(softstr.encode()),
+                len(softstr),
             )
-            version_manager.set_known_versions([str(v) for v in self.versions])
 
-        # Track uploaded objects for rollback on failure
-        uploaded_objects = []
-        tagged_objects = []
+    def _tag_and_protect_objects(self, benchmark: Optional[BenchmarkExecution]) -> None:
+        """Tag current objects with the benchmark version and apply WORM retention.
 
+        Rolls back any tags it applied on failure before re-raising.
+        """
+        objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
+        names, vids = get_objects_to_tag(objdic, storage_options=self.storage_options)
+        names, vids = filter_objects_to_tag(
+            names, vids, self.storage_options, benchmark
+        )
+
+        tags = Tags.new_object_tags()
+        tags[str(self.version)] = "1"
+        tagged: list = []
         try:
-            # First: Create version with persistence (VersionManager updates YAML and commits to git)
-            if benchmark is not None and hasattr(
-                version_manager, "create_version_with_persistence"
-            ):
-                try:
-                    _created_version = version_manager.create_version_with_persistence(  # type: ignore
-                        benchmark,
-                        str(self.version),
-                        f"Create benchmark version {self.version}",
-                    )
-                except Exception:
-                    # If git-based version creation fails, fall back to basic version manager
-                    from omnibenchmark.versioning import BenchmarkVersionManager
-
-                    version_manager = BenchmarkVersionManager(
-                        benchmark_path=benchmark.get_definition_file(),
-                        lock_dir=temp_dir / "locks",
-                        lock_timeout=30.0,
-                    )
-                    version_manager.set_known_versions([str(v) for v in self.versions])
-                    version_manager.set_known_versions(
-                        version_manager.get_versions() + [str(self.version)]
-                    )
-            else:
-                # Basic version tracking for testing scenarios
-                version_manager.set_known_versions(
-                    version_manager.get_versions() + [str(self.version)]
-                )
-
-            # Then: upload the UPDATED benchmark definition file and software files
-            if benchmark is not None:
-                bmfile = Path(benchmark.get_definition_file())
-                with open(bmfile, "r") as fh:
-                    bmstr = fh.read()
-
-                # upload updated file (now contains the new version)
-                _ = self.client.put_object(
-                    self.benchmark,
-                    "config/benchmark.yaml",
-                    io.BytesIO(bmstr.encode()),
-                    len(bmstr),
-                )
-                uploaded_objects.append("config/benchmark.yaml")
-
-                # read software files
-                software_files = prepare_archive_software(benchmark)
-
-                # upload software files
-                for software_file in software_files:
-                    with open(software_file, "r") as fh:
-                        softstr = fh.read()
-
-                    obj_name = f"software/{software_file.name}"
-                    _ = self.client.put_object(
-                        self.benchmark,
-                        obj_name,
-                        io.BytesIO(softstr.encode()),
-                        len(softstr),
-                    )
-                    uploaded_objects.append(obj_name)
-
-            # get all objects
-            objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
-
-            # get objects to tag
-            object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
-                objdic, storage_options=self.storage_options
-            )
-
-            # filter objects based on workflow
-            object_names_to_tag, versionid_of_objects_to_tag = filter_objects_to_tag(
-                object_names_to_tag,
-                versionid_of_objects_to_tag,
-                self.storage_options,
-                benchmark,
-            )
-
-            # Tag all objects with current version
-            tags = Tags.new_object_tags()
-            tags[str(self.version)] = "1"
-            for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
+            for n, v in zip(names, vids):
                 self.client.set_object_tags(self.benchmark, n, tags, version_id=v)
-                tagged_objects.append((n, v))
-
-            # set retention policy of objects
+                tagged.append((n, v))
             retention_config = minio.retention.Retention(
                 minio.commonconfig.GOVERNANCE,
                 datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
             )
-            for n, v in zip(object_names_to_tag, versionid_of_objects_to_tag):
+            for n, v in zip(names, vids):
                 self.client.set_object_retention(
                     self.benchmark, n, config=retention_config, version_id=v
                 )
+        except Exception:
+            self._rollback_tags(tagged)
+            raise
 
-        except Exception as e:
-            # Rollback: remove tags from tagged objects
-            logger.error(f"Error creating version {self.version}, rolling back: {e}")
-            for obj_name, version_id in tagged_objects:
-                try:
-                    # Remove the version tag we just added
-                    self.client.delete_object_tags(
-                        self.benchmark, obj_name, version_id=version_id
-                    )
-                except Exception:
-                    pass  # Best effort rollback
+    def _rollback_tags(self, tagged_objects: list) -> None:
+        """Best-effort removal of version tags; called on create_new_version failure."""
+        for obj_name, version_id in tagged_objects:
+            try:
+                self.client.delete_object_tags(
+                    self.benchmark, obj_name, version_id=version_id
+                )
+            except Exception:
+                pass
 
-            # Re-raise the original exception
-            raise RemoteStorageInvalidInputException(f"Failed to create version: {e}")
-
-        # refresh object list
+    def _write_version_manifest(self) -> None:
+        """Write versions/{version}.csv and protect it with a tag and WORM retention."""
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
-
-        # write versions/{{version}}.csv
         vv_ls = get_remoteversion_from_bmversion(objdic, str(self.version))
         vv_str = prepare_csv_remoteversion_from_bmversion(vv_ls)
         version_filename = f"versions/{self.version}.csv"
-        _ = self.client.put_object(
+        self.client.put_object(
             self.benchmark, version_filename, io.BytesIO(vv_str.encode()), len(vv_str)
         )
-
-        # tag and set retention policy of version file
+        tags = Tags.new_object_tags()
+        tags[str(self.version)] = "1"
+        retention_config = minio.retention.Retention(
+            minio.commonconfig.GOVERNANCE,
+            datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
+        )
         self.client.set_object_tags(self.benchmark, version_filename, tags)
         self.client.set_object_retention(
             self.benchmark, version_filename, config=retention_config
         )
-
-        # check if version exists
-        self._get_versions()
-        if self.version not in self.versions:
-            raise MinIOStorageBucketManipulationException("Version creation failed")
 
     def load_objects(self) -> None:
         if self.version is None:
