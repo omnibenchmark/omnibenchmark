@@ -128,8 +128,11 @@ def get_storage_from_benchmark(
     if storage_api is None or bucket_name is None:
         return None
 
+    from pathlib import Path
+
+    out_dir = getattr(getattr(benchmark, "context", None), "out_dir", Path("out"))
     return StorageFactory.create(
-        storage_api, auth_options, bucket_name, StorageOptions(out_dir="out")
+        storage_api, auth_options, bucket_name, StorageOptions(out_dir=str(out_dir))
     )
 
 

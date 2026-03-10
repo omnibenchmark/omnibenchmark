@@ -40,10 +40,25 @@ class StorageService:
                 " Set 'storage.bucket_name' in your benchmark YAML."
             )
 
+        # Derive out_dir from the benchmark's execution context when available,
+        # falling back to "out" for lightweight model objects that have no context.
+        if storage_options is None:
+            from pathlib import Path
+
+            out_dir = getattr(
+                getattr(benchmark_model, "context", None), "out_dir", Path("out")
+            )
+            storage_options = StorageOptions(out_dir=str(out_dir))
+
         auth_options = remote_storage_args(
             benchmark_model, required=require_credentials
         )
-        storage = StorageFactory.create(api, auth_options, bucket, storage_options)
+        try:
+            storage = StorageFactory.create(api, auth_options, bucket, storage_options)
+        except Exception as e:
+            # Re-raise S3/storage-level exceptions as ValueError so callers only
+            # need to handle one exception type at the service boundary.
+            raise ValueError(str(e)) from e
 
         if storage is None:
             raise ValueError(

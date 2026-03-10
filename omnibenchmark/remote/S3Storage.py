@@ -271,32 +271,19 @@ class S3CompatibleStorage(RemoteStorage):
                 )
             )
         except Exception as e:
-            # Catch S3 errors to provide clearer error messages
-            import click
-            import sys
-
-            # Check if debug mode is enabled (logger level is DEBUG)
-            debug_mode = logger.isEnabledFor(logging.DEBUG)
-
-            if hasattr(e, "code") and getattr(e, "code") == "AccessDenied":
-                logger.error(
-                    click.style("[ERROR]", fg="red", bold=True)
-                    + f" Access denied to S3 bucket '{self.benchmark}'. Check your credentials have the correct permissions."
-                )
-                if debug_mode:
-                    logger.exception("Full traceback:")
-                sys.exit(1)
-            elif hasattr(e, "code") and getattr(e, "code") == "NoSuchBucket":
-                logger.error(
-                    click.style("[ERROR]", fg="red", bold=True)
-                    + f" S3 bucket '{self.benchmark}' does not exist."
-                )
-                if debug_mode:
-                    logger.exception("Full traceback:")
-                sys.exit(1)
-            else:
-                # Re-raise other exceptions
-                raise
+            code = getattr(e, "code", None)
+            if code == "AccessDenied":
+                logger.debug("S3 access denied", exc_info=True)
+                raise MinIOStorageConnectionException(
+                    f"Access denied to S3 bucket '{self.benchmark}'."
+                    " Check your credentials have the correct permissions."
+                ) from e
+            if code == "NoSuchBucket":
+                logger.debug("S3 bucket not found", exc_info=True)
+                raise MinIOStorageConnectionException(
+                    f"S3 bucket '{self.benchmark}' does not exist."
+                ) from e
+            raise
 
         allversions = [
             os.path.basename(v.object_name).replace(".csv", "")
