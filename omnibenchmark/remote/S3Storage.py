@@ -21,8 +21,8 @@ except ImportError:
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.exception import (
     RemoteStorageInvalidInputException,
-    MinIOStorageConnectionException,
-    MinIOStorageBucketManipulationException,
+    S3StorageConnectionException,
+    S3StorageBucketManipulationException,
 )
 from omnibenchmark.archive.components import prepare_archive_software
 from omnibenchmark.remote.RemoteStorage import RemoteStorage, StorageOptions
@@ -58,8 +58,8 @@ class S3CompatibleStorage(RemoteStorage):
         storage_options (StorageOptions): Configuration for tracked directories.
 
     Raises:
-        MinIOStorageConnectionException: When connection to S3 fails.
-        MinIOStorageBucketManipulationException: When bucket operations fail.
+        S3StorageConnectionException: When connection to S3 fails.
+        S3StorageBucketManipulationException: When bucket operations fail.
         RemoteStorageInvalidInputException: When version operations fail.
     """
 
@@ -150,11 +150,11 @@ class S3CompatibleStorage(RemoteStorage):
         try:
             self.client.list_objects_v2(Bucket=self.benchmark, MaxKeys=1)
         except ClientError as e:
-            raise MinIOStorageConnectionException(str(e)) from e
+            raise S3StorageConnectionException(str(e)) from e
 
     def _create_benchmark(self, benchmark: str) -> None:
         if self._bucket_exists(benchmark):
-            raise MinIOStorageBucketManipulationException(
+            raise S3StorageBucketManipulationException(
                 f"Benchmark {benchmark} already exists."
             )
 
@@ -184,7 +184,7 @@ class S3CompatibleStorage(RemoteStorage):
         )
 
         if not self._bucket_exists(benchmark):
-            raise MinIOStorageBucketManipulationException(
+            raise S3StorageBucketManipulationException(
                 f"Bucket creation for benchmark {benchmark} failed"
             )
 
@@ -199,13 +199,13 @@ class S3CompatibleStorage(RemoteStorage):
             code = e.response["Error"]["Code"]
             if code in ("AccessDenied", "403"):
                 logger.debug("S3 access denied", exc_info=True)
-                raise MinIOStorageConnectionException(
+                raise S3StorageConnectionException(
                     f"Access denied to S3 bucket '{self.benchmark}'."
                     " Check your credentials have the correct permissions."
                 ) from e
             if code in ("NoSuchBucket", "404"):
                 logger.debug("S3 bucket not found", exc_info=True)
-                raise MinIOStorageConnectionException(
+                raise S3StorageConnectionException(
                     f"S3 bucket '{self.benchmark}' does not exist."
                 ) from e
             raise
@@ -238,7 +238,7 @@ class S3CompatibleStorage(RemoteStorage):
         self._write_version_manifest()
         self._get_versions()
         if self.version not in self.versions:
-            raise MinIOStorageBucketManipulationException("Version creation failed")
+            raise S3StorageBucketManipulationException("Version creation failed")
 
     def load_objects(self) -> None:
         if self.version is None:

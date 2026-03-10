@@ -10,7 +10,7 @@ from omnibenchmark.remote.versioning import (
     get_remoteversion_from_bmversion,
     prepare_csv_remoteversion_from_bmversion,
 )
-from omnibenchmark.remote.exception import MinIOStorageVersioningCorruptionException
+from omnibenchmark.remote.exception import S3StorageVersioningCorruptionException
 
 
 class FakeStorageOptions:
@@ -293,7 +293,7 @@ class TestGetSingleRemoteversionFromBmversion:
             }
         }
 
-        with pytest.raises(MinIOStorageVersioningCorruptionException) as exc_info:
+        with pytest.raises(S3StorageVersioningCorruptionException) as exc_info:
             get_single_remoteversion_from_bmversion(objdic, "file.txt", "0.1")
 
         assert "Multiple versions found" in str(exc_info.value)

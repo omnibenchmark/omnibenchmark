@@ -9,7 +9,7 @@ try:
 except ImportError:
     ClientError = Exception  # type: ignore[assignment,misc]
 
-from omnibenchmark.remote.exception import MinIOStorageBucketManipulationException
+from omnibenchmark.remote.exception import S3StorageBucketManipulationException
 from omnibenchmark.remote.RemoteStorage import is_valid_version
 
 
@@ -31,7 +31,7 @@ def get_s3_object_versions_and_tags(
     try:
         client.head_bucket(Bucket=benchmark)
     except ClientError:
-        raise MinIOStorageBucketManipulationException(
+        raise S3StorageBucketManipulationException(
             f"Benchmark {benchmark} does not exist."
         )
 
@@ -85,7 +85,7 @@ def get_s3_object_versions_and_tags(
     except ClientError as e:
         code = getattr(e, "response", {}).get("Error", {}).get("Code", "")
         if code in ("NoSuchBucket", "404"):
-            raise MinIOStorageBucketManipulationException(
+            raise S3StorageBucketManipulationException(
                 f"Benchmark {benchmark} does not exist."
             )
         raise
