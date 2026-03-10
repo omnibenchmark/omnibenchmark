@@ -32,18 +32,19 @@ def _make_storage(
     from omnibenchmark.remote.service import StorageService
 
     try:
-        bm = BenchmarkExecution(Path(benchmark_path))
+        service = StorageService.from_path(
+            benchmark_path,
+            full_model=True,
+            require_credentials=require_credentials,
+        )
     except BenchmarkParseError as e:
         logger.error(f"Failed to load benchmark:\n{pretty_print_parse_error(e)}")
         sys.exit(1)
-
-    try:
-        service = StorageService(bm, require_credentials=require_credentials)
     except ValueError as e:
         logger.error(click.style("[ERROR]", fg="red", bold=True) + f" {e}")
         sys.exit(1)
 
-    return bm, service.storage
+    return service._benchmark_model, service.storage
 
 
 @click.group(name="remote")
@@ -123,6 +124,9 @@ def create_benchmark_version(benchmark: str):
 )
 @click.option("-s", "--stage", help="Stage to list files for.", type=str, default=None)
 @click.option(
+    "-m", "--module", help="Module to list files for.", type=str, default=None
+)
+@click.option(
     "-i", "--id", "file_id", help="File id/type to list.", type=str, default=None
 )
 def list_all_files(
@@ -138,16 +142,16 @@ def list_all_files(
     """
     if file_id is not None:
         logger.error("--file_id is not implemented")
-        sys.exit(1)
+        raise click.Abort()
     if type != "all":
         logger.error("--type is not implemented")
-        sys.exit(1)
+        raise click.Abort()
     if stage is not None:
         logger.error("--stage is not implemented")
-        sys.exit(1)
+        raise click.Abort()
     if module is not None:
         logger.error("--module is not implemented")
-        sys.exit(1)
+        raise click.Abort()
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
     if len(objectnames) > 0:
