@@ -233,9 +233,6 @@ class RemoteStorage(metaclass=ABCMeta):
     def _get_objects(self):
         """
         Retrieves the objects in the storage for the current benchmark version.
-
-        Args:
-            readonly (bool, optional): Whether to retrieve the objects in read-only mode. Defaults to False.
         """
         raise NotImplementedError
 
