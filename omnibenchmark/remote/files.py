@@ -96,7 +96,12 @@ def download_files(
     logger.debug("Checking if files are already downloaded... ")
     do_download_file = []
     for filename, etag in tqdm.tqdm(
-        zip(filenames, etags), delay=5, disable=not verbose
+        zip(filenames, etags),
+        total=len(filenames),
+        desc="Checking local files",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
         if Path(filename).is_file():
             if etag.replace('"', "") == checksum(filename):
@@ -121,18 +126,30 @@ def download_files(
             f"Downloading {sum(do_download_file)} files with a total size of {sizeof_fmt(size)} ... ",
         )
 
-    for objectname, filename, do_download in tqdm.tqdm(
-        zip(objectnames, filenames, do_download_file), delay=5, disable=not verbose
+    pairs_to_download = [
+        (obj, fn) for obj, fn, do in zip(objectnames, filenames, do_download_file) if do
+    ]
+    for objectname, filename in tqdm.tqdm(
+        pairs_to_download,
+        total=len(pairs_to_download),
+        desc="Downloading",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
-        if do_download:
-            ss.download_object(objectname, filename)
+        ss.download_object(objectname, filename)
     if verbose:
         logger.debug("Done")
 
     if verbose:
         logger.debug("Checking MD5 checksums... ")
     for etag, filename in tqdm.tqdm(
-        zip(etags, filenames), delay=5, disable=not verbose
+        zip(etags, filenames),
+        total=len(filenames),
+        desc="Verifying checksums",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
         md5sum_val = checksum(filename)
         if not etag.replace('"', "") == md5sum_val:
@@ -160,7 +177,12 @@ def checksum_files(
 
     failed_checksums = []
     for etag, filename in tqdm.tqdm(
-        zip(etags, filenames), delay=5, disable=not verbose
+        zip(etags, filenames),
+        total=len(filenames),
+        desc="Verifying checksums",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
         md5sum_val = checksum(filename)
         if not etag.replace('"', "") == md5sum_val:

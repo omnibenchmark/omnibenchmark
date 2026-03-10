@@ -6,6 +6,8 @@ import logging
 import os
 import re
 
+import tqdm
+
 from botocore import UNSIGNED
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -368,7 +370,12 @@ class S3CompatibleStorage(RemoteStorage):
         objects_to_delete = dict(self.files)
 
         failed: list = []
-        for obj_name, meta in objects_to_delete.items():
+        for obj_name, meta in tqdm.tqdm(
+            objects_to_delete.items(),
+            total=len(objects_to_delete),
+            desc="Deleting objects",
+            unit="obj",
+        ):
             version_id = meta.get("version_id")
             try:
                 delete_kwargs: dict = {
@@ -511,7 +518,12 @@ class S3CompatibleStorage(RemoteStorage):
         tag_set = [{"Key": str(self.version), "Value": "1"}]
         tagged: list = []
         try:
-            for n, v in zip(names, vids):
+            for n, v in tqdm.tqdm(
+                zip(names, vids),
+                total=len(names),
+                desc="Tagging objects",
+                unit="obj",
+            ):
                 self.client.put_object_tagging(
                     Bucket=self.benchmark,
                     Key=n,
@@ -522,7 +534,12 @@ class S3CompatibleStorage(RemoteStorage):
             retain_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
                 weeks=1000
             )
-            for n, v in zip(names, vids):
+            for n, v in tqdm.tqdm(
+                zip(names, vids),
+                total=len(names),
+                desc="Locking objects",
+                unit="obj",
+            ):
                 self.client.put_object_retention(
                     Bucket=self.benchmark,
                     Key=n,
