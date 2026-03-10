@@ -1,36 +1,22 @@
 """S3-compatible storage implementation."""
-# pyright: reportCallIssue=false
-# TODO: Fix boto3/minio API call type errors
-# TODO: Migrate from minio library to boto3-only
-#       The minio Python library is not actively maintained as of late 2025.
-#       Since MinIO servers are S3-compatible, we should migrate to use boto3
-#       exclusively, which is actively maintained by AWS and is the industry
-#       standard. All current minio library operations (bucket management,
-#       versioning, policies, lifecycle) can be done with boto3.
 
 import datetime
-import io
 import json
 import logging
 import os
 import re
 
+from botocore import UNSIGNED
+from botocore.config import Config
+from botocore.exceptions import ClientError
 from packaging.version import Version
 from pathlib import Path
 from typing import Dict, Optional
-from urllib.parse import urlparse
 
 try:
     import boto3
-    import minio
-    import minio.commonconfig
-    import minio.retention
-    from minio.lifecycleconfig import LifecycleConfig, Rule, NoncurrentVersionExpiration
-    from minio.commonconfig import Filter, Tags
 except ImportError:
-    # perhaps should be handled at a higher level, and advice the user to install the required packages
-    # via pip install minio boto3 or extras['s3'].
-    pass
+    boto3 = None  # type: ignore
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.exception import (
@@ -50,120 +36,31 @@ from omnibenchmark.remote.versioning import (
 )
 from omnibenchmark.versioning.git import GitAwareBenchmarkVersionManager
 
-# TODO: set if we have the DEBUG flag set
 logging.getLogger("requests").setLevel(logging.DEBUG)
-logging.getLogger("minio").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
-def set_bucket_public_readonly(client: "minio.Minio", bucket_name: str):
-    policy = bucket_readonly_policy(bucket_name)
-    client.set_bucket_policy(bucket_name, json.dumps(policy))
-
-
-def set_bucket_lifecycle_config(
-    client: "minio.Minio", bucket_name: str, noncurrent_days: int = 1
-):
-    lifecycle_config = LifecycleConfig(
-        [
-            Rule(
-                minio.commonconfig.ENABLED,
-                rule_filter=Filter(prefix="*"),
-                rule_id="rule1",
-                noncurrent_version_expiration=NoncurrentVersionExpiration(
-                    noncurrent_days=noncurrent_days
-                ),
-            ),
-        ],
-    )
-    client.set_bucket_lifecycle(bucket_name, lifecycle_config)
 
 
 class S3CompatibleStorage(RemoteStorage):
     """
-    MinIO/S3-compatible storage implementation with versioning and object protection.
+    S3-compatible storage implementation with versioning and object protection.
 
-    This class provides concrete implementation of RemoteStorage for MinIO and AWS S3,
-    with automatic versioning, object locking, and retention policies for benchmark
-    result reproducibility.
+    Provides a concrete implementation of RemoteStorage for MinIO and AWS S3,
+    with automatic versioning, object locking, and retention policies for
+    benchmark result reproducibility.
 
-    ## S3 Object Lock and Versioning Implementation
-
-    MinIOStorage automatically enables S3 Object Lock on buckets during creation:
-    - **Bucket Creation**: `object_lock=True` enables versioning and object lock
-    - **Version Tagging**: Objects are tagged with benchmark versions during `create_new_version()`
-    - **Governance Retention**: Tagged objects receive automatic retention policies
-    - **WORM Protection**: Objects become immutable once versioned
-
-    ## Version Creation Workflow
-
-    When `create_new_version()` is called:
-    1. **Object Discovery**: Scans tracked directories (`out/`, `config/`, `versions/`, `software/`)
-    2. **Version Tagging**: Tags current object versions with benchmark version
-    3. **Retention Policy**: Applies S3 Object Lock Governance Mode protection
-    4. **Manifest Creation**: Stores version manifest at `versions/{version}.csv`
-    5. **Git Integration**: Commits version changes to Git repository if available
-
-    ## Object Protection Details
-
-    Protected objects exhibit the following behaviors:
-    - **Immutability**: Cannot be overwritten or deleted without bypass permissions
-    - **Version Preservation**: All historical versions remain accessible
-    - **Error Messages**: Deletion attempts return "Object is WORM protected" errors
-    - **Bypass Required**: Only `BypassGovernanceRetention=True` can override protection
-
-    ## Cleanup Considerations for Tests
-
-    Test environments require special cleanup procedures:
-    ```python
-    # This will fail for versioned objects
-    s3_client.delete_object(Bucket=bucket, Key=key)
-
-    # Required approach for cleanup
-    versions = s3_client.list_object_versions(Bucket=bucket)
-    for version in versions.get('Versions', []):
-        s3_client.delete_object(
-            Bucket=bucket,
-            Key=version['Key'],
-            VersionId=version['VersionId'],
-            BypassGovernanceRetention=True
-        )
-    ```
-
-    ## MinIO vs AWS S3 Differences
-
-    - **MinIO**: Object lock cannot be disabled once enabled (`only 'Enabled' value is allowed`)
-    - **AWS S3**: Supports more granular object lock configuration changes
-    - **Both**: Support governance retention bypass with appropriate permissions
-    - **Both**: Maintain version history and support object tagging
-
-    ## Security and Access Control
-
-    Generated IAM policies automatically exclude dangerous permissions:
-    - ❌ `s3:BypassGovernanceRetention` - Reserved for administrative operations
-    - ❌ `s3:DeleteObjectVersion` - Prevents version history tampering
-    - ❌ `s3:DeleteBucket` - Prevents accidental benchmark deletion
-    - ✅ Standard read/write operations on current object versions
+    Uses boto3 exclusively for all S3 operations, which works with both
+    AWS S3 and S3-compatible services like MinIO (same wire protocol).
 
     Args:
-        auth_options (Dict): Authentication configuration with 'endpoint', 'access_key', 'secret_key'
-        benchmark (str): Benchmark name/identifier used as S3 bucket name
-        storage_options (StorageOptions): Configuration for tracked directories and file patterns
+        auth_options (Dict): Authentication configuration with 'endpoint',
+            and optionally 'access_key', 'secret_key', 'secure'.
+        benchmark (str): Benchmark name/identifier used as S3 bucket name.
+        storage_options (StorageOptions): Configuration for tracked directories.
 
     Raises:
-        MinIOStorageConnectionException: When connection to MinIO/S3 fails
-        MinIOStorageBucketManipulationException: When bucket operations fail
-        RemoteStorageInvalidInputException: When version operations fail due to validation errors
-
-    Example:
-        >>> storage = MinIOStorage(
-        ...     auth_options={'endpoint': 'https://s3.amazonaws.com', 'access_key': 'key', 'secret_key': 'secret'},
-        ...     benchmark='my-benchmark',
-        ...     storage_options=StorageOptions(out_dir='out')
-        ... )
-        >>> storage.set_version('1.0')
-        >>> storage.create_new_version()  # Creates WORM-protected version 1.0
-        >>> storage.versions  # ['1.0']
+        MinIOStorageConnectionException: When connection to S3 fails.
+        MinIOStorageBucketManipulationException: When bucket operations fail.
+        RemoteStorageInvalidInputException: When version operations fail.
     """
 
     def __init__(
@@ -180,7 +77,7 @@ class S3CompatibleStorage(RemoteStorage):
             self.roclient = self.connect(readonly=True)
             self._test_connect()
 
-            if not self.client.bucket_exists(benchmark):
+            if not self._bucket_exists(benchmark):
                 logger.warning(
                     f"Benchmark {benchmark} does not exist, creating new benchmark."
                 )
@@ -191,94 +88,122 @@ class S3CompatibleStorage(RemoteStorage):
             self.roclient = self.connect(readonly=True)
             self._get_versions()
 
-    def connect(self, readonly=False) -> "minio.Minio":
+    # ------------------------------------------------------------------
+    # Connection helpers
+    # ------------------------------------------------------------------
+
+    def _endpoint_url(self) -> str:
+        """Return the endpoint as a full URL (with scheme)."""
+        endpoint = self.auth_options.get("endpoint", "")
+        if endpoint.startswith(("http://", "https://")):
+            return endpoint
+        secure = self.auth_options.get("secure", True)
+        scheme = "https" if secure else "http"
+        return f"{scheme}://{endpoint}"
+
+    @property
+    def _is_aws(self) -> bool:
+        """True when the endpoint is AWS S3 (no custom endpoint_url needed)."""
+        return "amazonaws.com" in self.auth_options.get("endpoint", "")
+
+    def connect(self, readonly: bool = False):
         """
-        Connects to the MinIO storage.
+        Connects to the S3-compatible storage using boto3.
+
+        Args:
+            readonly: When True, connect anonymously (no credentials).
 
         Returns:
-        - A MinIO client object.
+            A boto3 S3 client.
         """
-        if readonly:
-            assert "endpoint" in self.auth_options.keys()
-            tmp_auth_options = self.auth_options.copy()
-            if "access_key" in tmp_auth_options.keys():
-                del tmp_auth_options["access_key"]
-            if "secret_key" in tmp_auth_options.keys():
-                del tmp_auth_options["secret_key"]
+        assert "endpoint" in self.auth_options
+
+        kwargs: dict = {}
+        if not self._is_aws:
+            kwargs["endpoint_url"] = self._endpoint_url()
+            kwargs["region_name"] = "us-east-1"
+
+        if readonly or "access_key" not in self.auth_options:
+            kwargs["config"] = Config(signature_version=UNSIGNED)
         else:
             assert (
-                "endpoint" in self.auth_options.keys()
-                and "access_key" in self.auth_options.keys()
-                and "secret_key" in self.auth_options.keys()
+                "access_key" in self.auth_options and "secret_key" in self.auth_options
             )
-            tmp_auth_options = self.auth_options.copy()
-        try:
-            return minio.Minio(
-                endpoint=tmp_auth_options["endpoint"],
-                **{k: v for k, v in tmp_auth_options.items() if k != "endpoint"},
-            )
-        except NameError:
-            import click
-            import sys
+            kwargs["aws_access_key_id"] = self.auth_options["access_key"]
+            kwargs["aws_secret_access_key"] = self.auth_options["secret_key"]
 
-            logger.error(
-                click.style("[ERROR]", fg="red", bold=True)
-                + " S3/MinIO storage libraries not installed. Install with: pip install omnibenchmark[s3]"
-            )
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.exception("Full traceback:")
-            sys.exit(1)
-        except Exception:
-            url = urlparse(tmp_auth_options["endpoint"])
-            tmp_auth_options["endpoint"] = url.netloc
-            return minio.Minio(
-                endpoint=tmp_auth_options["endpoint"],
-                **{k: v for k, v in tmp_auth_options.items() if k != "endpoint"},
-            )
+        return boto3.client("s3", **kwargs)
+
+    def _bucket_exists(self, bucket_name: str) -> bool:
+        """Return True if the bucket exists and is accessible."""
+        try:
+            self.client.head_bucket(Bucket=bucket_name)
+            return True
+        except ClientError:
+            return False
+
+    # ------------------------------------------------------------------
+    # Abstract method implementations
+    # ------------------------------------------------------------------
 
     def _test_connect(self) -> None:
         try:
-            _ = self.client.list_objects(self.benchmark)
-        except MinIOStorageConnectionException as e:
-            raise e
+            self.client.list_objects_v2(Bucket=self.benchmark, MaxKeys=1)
+        except ClientError as e:
+            raise MinIOStorageConnectionException(str(e)) from e
 
     def _create_benchmark(self, benchmark: str) -> None:
-        if self.client.bucket_exists(benchmark):
+        if self._bucket_exists(benchmark):
             raise MinIOStorageBucketManipulationException(
                 f"Benchmark {benchmark} already exists."
             )
-        # create new version
-        self.client.make_bucket(bucket_name=benchmark, object_lock=True)
-        if self.client._base_url.is_aws_host:
-            s3 = boto3.client(
-                "s3",
-                aws_access_key_id=self.auth_options["access_key"],
-                aws_secret_access_key=self.auth_options["secret_key"],
-            )
-            s3.delete_public_access_block(Bucket=benchmark)
-        set_bucket_public_readonly(self.client, benchmark)
-        set_bucket_lifecycle_config(self.client, benchmark, noncurrent_days=1)
-        if not self.client.bucket_exists(benchmark):
+
+        self.client.create_bucket(
+            Bucket=benchmark,
+            ObjectLockEnabledForBucket=True,
+        )
+
+        if self._is_aws:
+            self.client.delete_public_access_block(Bucket=benchmark)
+
+        policy = bucket_readonly_policy(benchmark)
+        self.client.put_bucket_policy(Bucket=benchmark, Policy=json.dumps(policy))
+
+        self.client.put_bucket_lifecycle_configuration(
+            Bucket=benchmark,
+            LifecycleConfiguration={
+                "Rules": [
+                    {
+                        "ID": "rule1",
+                        "Filter": {"Prefix": ""},
+                        "Status": "Enabled",
+                        "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+                    }
+                ]
+            },
+        )
+
+        if not self._bucket_exists(benchmark):
             raise MinIOStorageBucketManipulationException(
                 f"Bucket creation for benchmark {benchmark} failed"
             )
 
     def _get_versions(self) -> None:
         try:
-            versionobjects = list(
-                self.roclient.list_objects(
-                    self.benchmark, prefix="versions", recursive=True
-                )
-            )
-        except Exception as e:
-            code = getattr(e, "code", None)
-            if code == "AccessDenied":
+            paginator = self.roclient.get_paginator("list_objects_v2")
+            pages = paginator.paginate(Bucket=self.benchmark, Prefix="versions/")
+            versionobjects = []
+            for page in pages:
+                versionobjects.extend(page.get("Contents", []))
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            if code in ("AccessDenied", "403"):
                 logger.debug("S3 access denied", exc_info=True)
                 raise MinIOStorageConnectionException(
                     f"Access denied to S3 bucket '{self.benchmark}'."
                     " Check your credentials have the correct permissions."
                 ) from e
-            if code == "NoSuchBucket":
+            if code in ("NoSuchBucket", "404"):
                 logger.debug("S3 bucket not found", exc_info=True)
                 raise MinIOStorageConnectionException(
                     f"S3 bucket '{self.benchmark}' does not exist."
@@ -286,13 +211,11 @@ class S3CompatibleStorage(RemoteStorage):
             raise
 
         allversions = [
-            os.path.basename(v.object_name).replace(".csv", "")
-            for v in versionobjects
-            if v.object_name is not None
+            os.path.basename(v["Key"]).replace(".csv", "") for v in versionobjects
         ]
-        versions = list()
+        versions = []
         for version in allversions:
-            if re.match("(\\d+).(\\d+)", version):
+            if re.match(r"(\d+)\.(\d+)", version):
                 versions.append(Version(version))
         self.versions = versions
 
@@ -316,6 +239,147 @@ class S3CompatibleStorage(RemoteStorage):
         self._get_versions()
         if self.version not in self.versions:
             raise MinIOStorageBucketManipulationException("Version creation failed")
+
+    def load_objects(self) -> None:
+        if self.version is None:
+            raise RemoteStorageInvalidInputException(
+                "No version provided, set version first with method 'set_version'"
+            )
+
+        if self.version in self.versions:
+            response = self.roclient.get_object(
+                Bucket=self.benchmark, Key=f"versions/{self.version}.csv"
+            )
+            body = response["Body"].read().decode("utf-8")
+            objls = [line for line in body.split("\n") if line]
+            objdict: dict = {}
+            header = objls[0].split(",")
+            assert header[0] == "name"
+            for obj in objls[1:]:
+                tmpsplit = obj.split(",")
+                objdict[tmpsplit[0]] = {}
+                for i, head in enumerate(header[1:]):
+                    objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
+
+            objdict[f"versions/{self.version}.csv"] = {
+                "version_id": response.get("VersionId"),
+                "last_modified": response["LastModified"],
+                "size": str(response["ContentLength"]),
+                "etag": response["ETag"].strip('"'),
+            }
+        else:
+            objdic = get_s3_object_versions_and_tags(
+                self.roclient, self.benchmark, readonly=True
+            )
+
+            object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
+                objdic, storage_options=self.storage_options
+            )
+            objdict = {}
+            for obj, vt in zip(object_names_to_tag, versionid_of_objects_to_tag):
+                objdict[obj] = {}
+                objdict[obj]["version_id"] = vt
+                objdict[obj]["etag"] = objdic[obj][vt]["etag"]
+                objdict[obj]["size"] = objdic[obj][vt]["size"]
+                objdict[obj]["last_modified"] = objdic[obj][vt]["last_modified"]
+
+        self.files = objdict
+
+    def download_object(self, object_name: str, local_path: str) -> None:
+        if self.version is None:
+            raise RemoteStorageInvalidInputException(
+                "No version provided. Set version first with method 'set_version'"
+            )
+        if self.files is None:
+            self.load_objects()
+        if self.files is None:
+            raise RemoteStorageInvalidInputException("No objects found")
+        if object_name not in self.files.keys():
+            raise RemoteStorageInvalidInputException(f"Object {object_name} not found")
+
+        version_id = self.files[object_name].get("version_id")
+        extra_args = {"VersionId": version_id} if version_id else {}
+
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+        self.roclient.download_file(
+            Bucket=self.benchmark,
+            Key=object_name,
+            Filename=local_path,
+            ExtraArgs=extra_args or None,
+        )
+
+    def archive_version(
+        self,
+        benchmark: BenchmarkExecution,
+        outdir: Path = Path(),
+        config: bool = True,
+        code: bool = False,
+        software: bool = False,
+        results: bool = False,
+    ):
+        from omnibenchmark.remote.archive import archive_version
+
+        # TODO: outdir is in benchmarkExecution
+        # TODO: upload the zip archive
+        _ = archive_version(benchmark, outdir, config, code, software, results)
+
+    def upload_version(self, *args, **kwargs):
+        raise NotImplementedError("upload_version is not yet implemented")
+
+    def delete_version(self, version: str) -> None:
+        """Delete a benchmark version and its WORM-protected S3 object versions.
+
+        Uses BypassGovernanceRetention=True to remove objects protected by
+        Governance Mode retention. Requires the s3:BypassGovernanceRetention
+        permission on the bucket.
+
+        Note: if the same S3 object version is referenced by multiple benchmark
+        versions (i.e. the object was not re-uploaded between versions), deleting
+        one benchmark version will also remove that object version from other
+        benchmark versions that share it.
+        """
+        if "access_key" not in self.auth_options:
+            raise RemoteStorageInvalidInputException(
+                "Read-only mode, cannot delete version,"
+                " set access_key and secret_key in auth_options"
+            )
+
+        self._get_versions()
+        target = Version(version)
+        if target not in self.versions:
+            raise RemoteStorageInvalidInputException(
+                f"Version {version} does not exist"
+            )
+
+        self.set_version(version)
+        self.load_objects()
+        objects_to_delete = dict(self.files)
+
+        failed: list = []
+        for obj_name, meta in objects_to_delete.items():
+            version_id = meta.get("version_id")
+            try:
+                delete_kwargs: dict = {
+                    "Bucket": self.benchmark,
+                    "Key": obj_name,
+                    "BypassGovernanceRetention": True,
+                }
+                if version_id:
+                    delete_kwargs["VersionId"] = version_id
+                self.client.delete_object(**delete_kwargs)
+            except Exception as e:
+                logger.warning(
+                    f"Could not delete {obj_name} (version {version_id}): {e}"
+                )
+                failed.append(obj_name)
+
+        if failed:
+            raise RemoteStorageInvalidInputException(
+                f"delete_version {version} completed with errors;"
+                f" {len(failed)} object(s) could not be deleted: {failed}"
+            )
+
+        self._get_versions()
 
     # ------------------------------------------------------------------
     # create_new_version helpers
@@ -408,19 +472,17 @@ class S3CompatibleStorage(RemoteStorage):
         with open(bmfile, "r") as fh:
             bmstr = fh.read()
         self.client.put_object(
-            self.benchmark,
-            "config/benchmark.yaml",
-            io.BytesIO(bmstr.encode()),
-            len(bmstr),
+            Bucket=self.benchmark,
+            Key="config/benchmark.yaml",
+            Body=bmstr.encode(),
         )
         for software_file in prepare_archive_software(benchmark):
             with open(software_file, "r") as fh:
                 softstr = fh.read()
             self.client.put_object(
-                self.benchmark,
-                f"software/{software_file.name}",
-                io.BytesIO(softstr.encode()),
-                len(softstr),
+                Bucket=self.benchmark,
+                Key=f"software/{software_file.name}",
+                Body=softstr.encode(),
             )
 
     def _tag_and_protect_objects(self, benchmark: Optional[BenchmarkExecution]) -> None:
@@ -434,20 +496,26 @@ class S3CompatibleStorage(RemoteStorage):
             names, vids, self.storage_options, benchmark
         )
 
-        tags = Tags.new_object_tags()
-        tags[str(self.version)] = "1"
+        tag_set = [{"Key": str(self.version), "Value": "1"}]
         tagged: list = []
         try:
             for n, v in zip(names, vids):
-                self.client.set_object_tags(self.benchmark, n, tags, version_id=v)
+                self.client.put_object_tagging(
+                    Bucket=self.benchmark,
+                    Key=n,
+                    VersionId=v,
+                    Tagging={"TagSet": tag_set},
+                )
                 tagged.append((n, v))
-            retention_config = minio.retention.Retention(
-                minio.commonconfig.GOVERNANCE,
-                datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
+            retain_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
+                weeks=1000
             )
             for n, v in zip(names, vids):
-                self.client.set_object_retention(
-                    self.benchmark, n, config=retention_config, version_id=v
+                self.client.put_object_retention(
+                    Bucket=self.benchmark,
+                    Key=n,
+                    VersionId=v,
+                    Retention={"Mode": "GOVERNANCE", "RetainUntilDate": retain_until},
                 )
         except Exception:
             self._rollback_tags(tagged)
@@ -457,8 +525,10 @@ class S3CompatibleStorage(RemoteStorage):
         """Best-effort removal of version tags; called on create_new_version failure."""
         for obj_name, version_id in tagged_objects:
             try:
-                self.client.delete_object_tags(
-                    self.benchmark, obj_name, version_id=version_id
+                self.client.delete_object_tagging(
+                    Bucket=self.benchmark,
+                    Key=obj_name,
+                    VersionId=version_id,
                 )
             except Exception:
                 pass
@@ -470,180 +540,24 @@ class S3CompatibleStorage(RemoteStorage):
         vv_str = prepare_csv_remoteversion_from_bmversion(vv_ls)
         version_filename = f"versions/{self.version}.csv"
         self.client.put_object(
-            self.benchmark, version_filename, io.BytesIO(vv_str.encode()), len(vv_str)
+            Bucket=self.benchmark,
+            Key=version_filename,
+            Body=vv_str.encode(),
         )
-        tags = Tags.new_object_tags()
-        tags[str(self.version)] = "1"
-        retention_config = minio.retention.Retention(
-            minio.commonconfig.GOVERNANCE,
-            datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1000),
+        tag_set = [{"Key": str(self.version), "Value": "1"}]
+        retain_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
+            weeks=1000
         )
-        self.client.set_object_tags(self.benchmark, version_filename, tags)
-        self.client.set_object_retention(
-            self.benchmark, version_filename, config=retention_config
+        self.client.put_object_tagging(
+            Bucket=self.benchmark,
+            Key=version_filename,
+            Tagging={"TagSet": tag_set},
         )
-
-    def load_objects(self) -> None:
-        if self.version is None:
-            raise RemoteStorageInvalidInputException(
-                "No version provided, set version first with method 'set_version'"
-            )
-
-        if self.version in self.versions:
-            # read overview file
-            response = self.roclient.get_object(
-                self.benchmark, f"versions/{self.version}.csv"
-            )
-            objls = response.data.decode("utf-8")
-            objls = objls.split("\n")
-            objls = [obj for obj in objls if obj]
-            objdict = {}
-            header = objls[0].split(",")
-            assert header[0] == "name"
-            for obj in objls[1:]:
-                tmpsplit = obj.split(",")
-                objdict[tmpsplit[0]] = {}
-                for i, head in enumerate(header[1:]):
-                    objdict[tmpsplit[0]][head] = tmpsplit[i + 1]
-
-            # add overview file to files
-            response_headers = response.headers
-            objdict[f"versions/{self.version}.csv"] = {
-                "version_id": response_headers.get("x-amz-version-id"),
-                # some parsing of date to get to consistent format
-                "last_modified": datetime.datetime.strptime(
-                    response_headers.get("last-modified") or "",
-                    "%a, %d %b %Y %H:%M:%S GMT",
-                ).strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),
-                "size": response_headers.get("content-length"),
-                "etag": (response_headers.get("etag") or "").replace('"', ""),
-            }
-        else:
-            # get all objects
-            objdic = get_s3_object_versions_and_tags(
-                self.roclient, self.benchmark, readonly=True
-            )
-
-            # get objects to tag
-            object_names_to_tag, versionid_of_objects_to_tag = get_objects_to_tag(
-                objdic, storage_options=self.storage_options
-            )
-            objdict = {}
-            for obj, vt in zip(object_names_to_tag, versionid_of_objects_to_tag):
-                objdict[obj] = {}
-                objdict[obj]["version_id"] = vt
-                objdict[obj]["etag"] = objdic[obj][vt]["etag"]
-                objdict[obj]["size"] = objdic[obj][vt]["size"]
-                objdict[obj]["last_modified"] = objdic[obj][vt]["last_modified"]
-
-        self.files = objdict
-
-    def download_object(self, object_name: str, local_path: str) -> None:
-        if self.version is None:
-            raise RemoteStorageInvalidInputException(
-                "No version provided. Set version first with method 'set_version'"
-            )
-        if self.files is None:
-            self.load_objects()
-        if self.files is None:
-            raise RemoteStorageInvalidInputException("No objects found")
-        if object_name not in self.files.keys():
-            raise RemoteStorageInvalidInputException(f"Object {object_name} not found")
-        _ = self.roclient.fget_object(
-            self.benchmark,
-            object_name,
-            local_path,
-            version_id=self.files[object_name]["version_id"],
+        self.client.put_object_retention(
+            Bucket=self.benchmark,
+            Key=version_filename,
+            Retention={"Mode": "GOVERNANCE", "RetainUntilDate": retain_until},
         )
-
-    def archive_version(
-        self,
-        benchmark: BenchmarkExecution,
-        outdir: Path = Path(),
-        config: bool = True,
-        code: bool = False,
-        software: bool = False,
-        results: bool = False,
-    ):
-        from omnibenchmark.remote.archive import archive_version
-
-        # TODO: outdir is in benchmarkExecution
-        # TODO: upload the zip archive
-        _ = archive_version(benchmark, outdir, config, code, software, results)
-
-    def upload_version(self, *args, **kwargs):
-        raise NotImplementedError("upload_version is not yet implemented")
-
-    def delete_version(self, version: str) -> None:
-        """Delete a benchmark version and its WORM-protected S3 object versions.
-
-        Uses boto3 with BypassGovernanceRetention=True to remove objects that
-        are protected by Governance Mode retention. Requires the caller's
-        credentials to have the s3:BypassGovernanceRetention permission.
-
-        The version manifest file (versions/{version}.csv) is deleted last so
-        that the version remains discoverable if a partial failure occurs.
-        """
-        if "access_key" not in self.auth_options:
-            raise RemoteStorageInvalidInputException(
-                "Read-only mode, cannot delete version,"
-                " set access_key and secret_key in auth_options"
-            )
-
-        self._get_versions()
-        target = Version(version)
-        if target not in self.versions:
-            raise RemoteStorageInvalidInputException(
-                f"Version {version} does not exist"
-            )
-
-        # Load the version manifest to find the exact S3 object versions to delete.
-        self.set_version(version)
-        self.load_objects()
-        objects_to_delete = dict(self.files)
-
-        s3 = self._boto3_client()
-
-        failed: list = []
-        for obj_name, meta in objects_to_delete.items():
-            version_id = meta.get("version_id")
-            try:
-                kwargs: dict = {
-                    "Bucket": self.benchmark,
-                    "Key": obj_name,
-                    "BypassGovernanceRetention": True,
-                }
-                if version_id:
-                    kwargs["VersionId"] = version_id
-                s3.delete_object(**kwargs)
-            except Exception as e:
-                logger.warning(
-                    f"Could not delete {obj_name} (version {version_id}): {e}"
-                )
-                failed.append(obj_name)
-
-        if failed:
-            raise RemoteStorageInvalidInputException(
-                f"delete_version {version} completed with errors;"
-                f" {len(failed)} object(s) could not be deleted: {failed}"
-            )
-
-        self._get_versions()
-
-    def _boto3_client(self):
-        """Return a boto3 S3 client built from current auth_options."""
-        endpoint = self.auth_options.get("endpoint", "")
-        secure = self.auth_options.get("secure", True)
-        kwargs: dict = {
-            "aws_access_key_id": self.auth_options["access_key"],
-            "aws_secret_access_key": self.auth_options["secret_key"],
-        }
-        if not self.client._base_url.is_aws_host:
-            if not endpoint.startswith(("http://", "https://")):
-                scheme = "https" if secure else "http"
-                endpoint = f"{scheme}://{endpoint}"
-            kwargs["endpoint_url"] = endpoint
-        return boto3.client("s3", **kwargs)
 
 
 RemoteStorage.register(S3CompatibleStorage)

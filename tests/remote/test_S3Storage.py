@@ -1,5 +1,4 @@
 import datetime
-import io
 import tempfile
 import shutil
 from packaging.version import Version
@@ -47,8 +46,8 @@ class TestS3CompatibleStorage:
         # XXX should not test private methods
         client._create_benchmark(f"{minio_storage.bucket_name}2")
 
-        assert client.client.bucket_exists(f"{minio_storage.bucket_name}")
-        assert client.client.bucket_exists(f"{minio_storage.bucket_name}2")
+        assert client._bucket_exists(f"{minio_storage.bucket_name}")
+        assert client._bucket_exists(f"{minio_storage.bucket_name}2")
 
     # fmt: off
     def test__get_versions_success_get_version(self, minio_storage):  # noqa: F811
@@ -91,8 +90,8 @@ class TestS3CompatibleStorage:
     def test_load_objects(self, minio_storage):  # noqa: F811
     # fmt: on
         client = minio_storage.get_storage_client()
-        client.client.put_object(client.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
-        client.client.put_object(client.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
+        client.client.put_object(Bucket=client.benchmark, Key="out/file1.txt", Body=b"")
+        client.client.put_object(Bucket=client.benchmark, Key="out/file2.txt", Body=b"")
         client.set_version()
         client.load_objects()
         assert all(
@@ -130,8 +129,8 @@ class TestS3CompatibleStorage:
     def test_load_objects_public(self, minio_storage):  # noqa: F811
     # fmt: on
         client = minio_storage.get_storage_client()
-        client.client.put_object(client.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
-        client.client.put_object(client.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
+        client.client.put_object(Bucket=client.benchmark, Key="out/file1.txt", Body=b"")
+        client.client.put_object(Bucket=client.benchmark, Key="out/file2.txt", Body=b"")
         client.set_version()
         client.load_objects()
         assert all(
@@ -169,10 +168,10 @@ class TestS3CompatibleStorage:
     # fmt: on
         client = minio_storage.get_storage_client()
         _ = client.client.put_object(
-            client.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file1.txt", Body=b""
         )
         _ = client.client.put_object(
-            client.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file2.txt", Body=b""
         )
         client.set_version("0.2")
         client.create_new_version()
@@ -198,10 +197,10 @@ class TestS3CompatibleStorage:
     # fmt: on
         client = minio_storage.get_storage_client()
         _ = client.client.put_object(
-            client.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file1.txt", Body=b""
         )
         _ = client.client.put_object(
-            client.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file2.txt", Body=b""
         )
         client.set_version("0.2")
         client.create_new_version()

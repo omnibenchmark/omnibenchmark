@@ -56,7 +56,7 @@ Homepage = "https://omnibenchmark.org"
 Repository = "https://github.com/omnibenchmark/omnibenchmark"
 
 [project.optional-dependencies]
-s3 = ["minio==7.2.18", "boto3>=1.34.102", "snakemake-storage-plugin-s3>=0.2.12"]  # Pin to 7.2.18, 7.2.19 has breaking API changes
+s3 = ["boto3>=1.34.102", "snakemake-storage-plugin-s3>=0.2.12"]
 slurm = [
     "snakemake-executor-plugin-slurm (>=1.4.0,<2.0.0)",
     "pandas",  # Required by snakemake-executor-plugin-slurm
