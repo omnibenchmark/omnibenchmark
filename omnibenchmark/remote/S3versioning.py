@@ -7,7 +7,7 @@ from typing import Dict
 try:
     from botocore.exceptions import ClientError
 except ImportError:
-    ClientError = Exception  # type: ignore
+    ClientError = Exception  # type: ignore[assignment,misc]
 
 from omnibenchmark.remote.exception import MinIOStorageBucketManipulationException
 from omnibenchmark.remote.RemoteStorage import is_valid_version
@@ -82,7 +82,7 @@ def get_s3_object_versions_and_tags(
                 }
 
     except ClientError as e:
-        code = e.response["Error"]["Code"]
+        code = getattr(e, "response", {}).get("Error", {}).get("Code", "")
         if code in ("NoSuchBucket", "404"):
             raise MinIOStorageBucketManipulationException(
                 f"Benchmark {benchmark} does not exist."
