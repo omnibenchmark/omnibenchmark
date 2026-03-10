@@ -4,7 +4,7 @@ import pytest
 
 from pathlib import Path
 
-from tests.remote.MinIOStorage_setup import MinIOSetup, TmpMinIOStorage
+from tests.remote.S3Storage_setup import MinIOSetup, TmpS3Storage as TmpMinIOStorage
 
 
 def get_benchmark_data_path() -> Path:

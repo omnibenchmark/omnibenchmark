@@ -321,7 +321,7 @@ def _minio_container_e2e():
             allow_module_level=True,
         )
 
-    from tests.remote.MinIOStorage_setup import MinIOSetup
+    from tests.remote.S3Storage_setup import MinIOSetup
 
     # Initialize a MinIO test container with a lifetime of this test session
     minio = MinIOSetup()
