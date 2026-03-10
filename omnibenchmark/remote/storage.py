@@ -62,6 +62,14 @@ def get_storage(
     Returns:
     - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
     """
+    if storage_type.upper() == "MINIO":
+        import warnings
+
+        warnings.warn(
+            "Storage type 'MinIO' is deprecated. Use 'S3' with a custom endpoint instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
         if not _check_s3_available() or MinIOStorage is None:
             return None
@@ -104,6 +112,14 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
         dict: Authentication options for remote storage
     """
     storage_api = benchmark.get_storage_api()
+    if storage_api and storage_api.upper() == "MINIO":
+        import warnings
+
+        warnings.warn(
+            "Storage type 'MinIO' is deprecated. Use 'S3' with a custom endpoint instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
         if not _check_s3_available() or S3_access_config_from_env is None:
             return {}
@@ -131,6 +147,14 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
 
 def remote_storage_snakemake_args(benchmark) -> dict:
     storage_api = benchmark.get_storage_api()
+    if storage_api and storage_api.upper() == "MINIO":
+        import warnings
+
+        warnings.warn(
+            "Storage type 'MinIO' is deprecated. Use 'S3' with a custom endpoint instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
         if not _check_s3_available() or S3_access_config_from_env is None:
             return {}

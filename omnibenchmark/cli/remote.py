@@ -105,10 +105,10 @@ def version(ctx):
 remote.add_command(version)
 
 
-@click.group(name="policy")
+@click.group(name="policy", deprecated=True)
 @click.pass_context
 def policy(ctx):
-    """Manage storage policies."""
+    """Manage storage policies. DEPRECATED: use your cloud provider's IAM tooling directly."""
     ctx.ensure_object(dict)
 
 
@@ -394,7 +394,7 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
     b = BenchmarkExecution(Path(benchmark))
-    auth_options = remote_storage_args(benchmark)
+    auth_options = remote_storage_args(b)
 
     api = b.get_storage_api()
     bucket = b.get_storage_bucket_name()
