@@ -612,19 +612,8 @@ class MinIOStorage(RemoteStorage):
         # TODO: upload the zip archive
         _ = archive_version(benchmark, outdir, config, code, software, results)
 
-    def upload_version(
-        self,
-        benchmark: BenchmarkExecution,
-        outdir: Path = Path(),
-        config: bool = True,
-        code: bool = False,
-        software: bool = False,
-        results: bool = False,
-    ):
-        from omnibenchmark.remote.archive import archive_version
-
-        # TODO: upload the zip archive, we're not doing anything with the result!
-        _ = archive_version(benchmark, outdir, config, code, software, results)
+    def upload_version(self, *args, **kwargs):
+        raise NotImplementedError("upload_version is not yet implemented")
 
     def delete_version(self, version):
         raise NotImplementedError

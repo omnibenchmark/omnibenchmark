@@ -43,8 +43,6 @@ class StorageAuth:
         )
 
         # Validate required storage components
-        import click
-
         api = self.benchmark.get_storage_api()
         bucket = self.benchmark.get_storage_bucket_name()
 
@@ -306,7 +304,6 @@ def create_policy(benchmark: str, bucket_name: str):
     - Provide the bucket name directly (--bucket)
     """
     from omnibenchmark.remote.S3config import benchmarker_access_token_policy
-    import click
 
     # Get bucket name from either parameter or benchmark YAML
     if bucket_name:

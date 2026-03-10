@@ -58,8 +58,6 @@ def get_expected_benchmark_output_files(
             glob_expression
         ) in storage_options.extra_files_to_version_not_in_benchmark_yaml:
             found_files = glob.glob(glob_expression, recursive=True)
-            if isinstance(found_files, str):
-                found_files = [found_files]
             for found_file in found_files:
                 object_names_to_keep.add(found_file)
     return list(object_names_to_keep)
