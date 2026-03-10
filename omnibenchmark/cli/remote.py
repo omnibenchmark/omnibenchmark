@@ -405,7 +405,7 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
 
     # get objects for first version
     ss.set_version(version1)
-    ss._get_objects()
+    ss.load_objects()
     files_v1 = [
         f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
         for f in ss.files.items()
@@ -418,7 +418,7 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
 
     # get objects for second version
     ss.set_version(version2)
-    ss._get_objects()
+    ss.load_objects()
     files_v2 = [
         f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
         for f in ss.files.items()

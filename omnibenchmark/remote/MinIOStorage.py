@@ -175,25 +175,6 @@ class MinIOStorage(RemoteStorage):
         super().__init__(auth_options, benchmark, storage_options)
         assert "endpoint" in self.auth_options.keys()
 
-        # ARCHITECTURAL NOTE: Version Manager Coupling
-        # Storage directly instantiates version managers, creating tight coupling.
-        # During the LinkML → Pydantic migration, this pattern emerged to handle
-        # version validation within storage operations.
-        #
-        # Future consideration: Inject version manager as a dependency rather
-        # than creating it here. This would improve testability and separation of concerns,
-        # and allow for more flexibility in managing versions (monotonic, etc)
-        from omnibenchmark.versioning import BenchmarkVersionManager
-
-        from omnibenchmark.config import get_temp_dir
-
-        temp_dir = get_temp_dir()
-        self.version_manager = BenchmarkVersionManager(
-            benchmark_path=temp_dir / f"{benchmark}.yaml",
-            lock_dir=temp_dir / "locks",
-            lock_timeout=30.0,
-        )
-
         if "access_key" in self.auth_options.keys():
             self.client = self.connect()
             self.roclient = self.connect(readonly=True)
@@ -327,8 +308,6 @@ class MinIOStorage(RemoteStorage):
             if re.match("(\\d+).(\\d+)", version):
                 versions.append(Version(version))
         self.versions = versions
-        # Sync with version manager (in-memory tracking only)
-        self.version_manager.set_known_versions([str(v) for v in versions])
 
     def create_new_version(
         self, benchmark: Optional[BenchmarkExecution] = None
@@ -346,7 +325,7 @@ class MinIOStorage(RemoteStorage):
         # Refresh versions from storage
         self._get_versions()
 
-        # Initialize version manager based on whether benchmark is provided
+        # Build a version manager local to this call (no persistent instance state).
         from omnibenchmark.config import get_temp_dir
 
         temp_dir = get_temp_dir()
@@ -354,34 +333,33 @@ class MinIOStorage(RemoteStorage):
         if benchmark is not None:
             # Try git-aware version manager first, fall back to basic if git not available
             try:
-                self.version_manager = GitAwareBenchmarkVersionManager(
+                version_manager = GitAwareBenchmarkVersionManager(
                     benchmark_path=benchmark.get_definition_file(),
                     git_repo_path=benchmark.context.directory,
                     lock_dir=temp_dir / "locks",
                     lock_timeout=30.0,
                 )
-                # Sync known versions from storage
-                self.version_manager.set_known_versions([str(v) for v in self.versions])
+                version_manager.set_known_versions([str(v) for v in self.versions])
             except Exception:
                 # Fall back to basic version manager if git not available
                 from omnibenchmark.versioning import BenchmarkVersionManager
 
-                self.version_manager = BenchmarkVersionManager(
+                version_manager = BenchmarkVersionManager(
                     benchmark_path=benchmark.get_definition_file(),
                     lock_dir=temp_dir / "locks",
                     lock_timeout=30.0,
                 )
-                self.version_manager.set_known_versions([str(v) for v in self.versions])
+                version_manager.set_known_versions([str(v) for v in self.versions])
         else:
             # Use basic version manager for validation only (testing scenarios)
             from omnibenchmark.versioning import BenchmarkVersionManager
 
-            self.version_manager = BenchmarkVersionManager(
+            version_manager = BenchmarkVersionManager(
                 benchmark_path=temp_dir / f"{self.benchmark}.yaml",
                 lock_dir=temp_dir / "locks",
                 lock_timeout=30.0,
             )
-            self.version_manager.set_known_versions([str(v) for v in self.versions])
+            version_manager.set_known_versions([str(v) for v in self.versions])
 
         # Track uploaded objects for rollback on failure
         uploaded_objects = []
@@ -390,35 +368,31 @@ class MinIOStorage(RemoteStorage):
         try:
             # First: Create version with persistence (VersionManager updates YAML and commits to git)
             if benchmark is not None and hasattr(
-                self.version_manager, "create_version_with_persistence"
+                version_manager, "create_version_with_persistence"
             ):
                 try:
-                    _created_version = (
-                        self.version_manager.create_version_with_persistence(  # type: ignore
-                            benchmark,
-                            str(self.version),
-                            f"Create benchmark version {self.version}",
-                        )
+                    _created_version = version_manager.create_version_with_persistence(  # type: ignore
+                        benchmark,
+                        str(self.version),
+                        f"Create benchmark version {self.version}",
                     )
                 except Exception:
                     # If git-based version creation fails, fall back to basic version manager
                     from omnibenchmark.versioning import BenchmarkVersionManager
 
-                    self.version_manager = BenchmarkVersionManager(
+                    version_manager = BenchmarkVersionManager(
                         benchmark_path=benchmark.get_definition_file(),
                         lock_dir=temp_dir / "locks",
                         lock_timeout=30.0,
                     )
-                    self.version_manager.set_known_versions(
-                        [str(v) for v in self.versions]
-                    )
-                    self.version_manager.set_known_versions(
-                        self.version_manager.get_versions() + [str(self.version)]
+                    version_manager.set_known_versions([str(v) for v in self.versions])
+                    version_manager.set_known_versions(
+                        version_manager.get_versions() + [str(self.version)]
                     )
             else:
                 # Basic version tracking for testing scenarios
-                self.version_manager.set_known_versions(
-                    self.version_manager.get_versions() + [str(self.version)]
+                version_manager.set_known_versions(
+                    version_manager.get_versions() + [str(self.version)]
                 )
 
             # Then: upload the UPDATED benchmark definition file and software files
@@ -523,8 +497,7 @@ class MinIOStorage(RemoteStorage):
         if self.version not in self.versions:
             raise MinIOStorageBucketManipulationException("Version creation failed")
 
-    # TODO(ben): review if we want to make this method public, it's used in tests
-    def _get_objects(self) -> None:
+    def load_objects(self) -> None:
         if self.version is None:
             raise RemoteStorageInvalidInputException(
                 "No version provided, set version first with method 'set_version'"
@@ -585,7 +558,7 @@ class MinIOStorage(RemoteStorage):
                 "No version provided. Set version first with method 'set_version'"
             )
         if self.files is None:
-            self._get_objects()
+            self.load_objects()
         if self.files is None:
             raise RemoteStorageInvalidInputException("No objects found")
         if object_name not in self.files.keys():

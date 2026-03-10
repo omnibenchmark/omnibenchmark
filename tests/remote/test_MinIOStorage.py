@@ -88,13 +88,13 @@ class TestMinIOStorage:
         assert Version("0.2") in client.versions
 
     # fmt: off
-    def test__get_objects(self, minio_storage):  # noqa: F811
+    def test_load_objects(self, minio_storage):  # noqa: F811
     # fmt: on
         client = minio_storage.get_storage_client()
         client.client.put_object(client.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
         client.client.put_object(client.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
         client.set_version()
-        client._get_objects()
+        client.load_objects()
         assert all(
             [f in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
         )
@@ -127,13 +127,13 @@ class TestMinIOStorage:
         )
 
     # fmt: off
-    def test__get_objects_public(self, minio_storage):  # noqa: F811
+    def test_load_objects_public(self, minio_storage):  # noqa: F811
     # fmt: on
         client = minio_storage.get_storage_client()
         client.client.put_object(client.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
         client.client.put_object(client.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
         client.set_version()
-        client._get_objects()
+        client.load_objects()
         assert all(
             [f in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
         )
@@ -176,7 +176,7 @@ class TestMinIOStorage:
         )
         client.set_version("0.2")
         client.create_new_version()
-        client._get_objects()
+        client.load_objects()
         assert all(
             [f in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
         )
@@ -205,7 +205,7 @@ class TestMinIOStorage:
         )
         client.set_version("0.2")
         client.create_new_version()
-        client._get_objects()
+        client.load_objects()
         client.files
 
         # Set up a temporary git repository for testing version persistence
@@ -230,7 +230,7 @@ class TestMinIOStorage:
 
             client.set_version("0.3")
             client.create_new_version(benchmark)
-            client._get_objects()
+            client.load_objects()
             assert all(
                 [f not in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
             )
@@ -272,7 +272,7 @@ class TestMinIOStorage:
 
             client.set_version("0.3")
             client.create_new_version(benchmark)
-            client._get_objects()
+            client.load_objects()
             client.files.keys()
             assert all(
                 [

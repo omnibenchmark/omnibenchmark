@@ -2,6 +2,7 @@
 
 import warnings
 from pathlib import Path
+from typing import Optional
 
 import tqdm
 
@@ -13,7 +14,7 @@ from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
 
 def _setup_remote_storage(
     benchmark_path: str,
-    storage_options: StorageOptions = StorageOptions(out_dir="out"),
+    storage_options: Optional[StorageOptions] = None,
 ):
     """Set up remote storage for a benchmark.
 
@@ -25,8 +26,9 @@ def _setup_remote_storage(
     """
     from .storage import get_storage, remote_storage_args
 
+    resolved_options = storage_options or StorageOptions(out_dir="out")
     benchmark = Benchmark(Path(benchmark_path))
-    expected_files = get_expected_benchmark_output_files(benchmark, storage_options)
+    expected_files = get_expected_benchmark_output_files(benchmark, resolved_options)
 
     storage_api = benchmark.get_storage_api()
     bucket_name = benchmark.get_storage_bucket_name()
@@ -39,13 +41,13 @@ def _setup_remote_storage(
         raise ValueError("No storage bucket found")
 
     auth_options = remote_storage_args(benchmark)
-    ss = get_storage(storage_api, auth_options, bucket_name, storage_options)
+    ss = get_storage(storage_api, auth_options, bucket_name, resolved_options)
     if ss is None:
         logger.error("Error: No storage found.")
         raise ValueError("No storage found")
 
     ss.set_version(benchmark.get_benchmark_version())
-    ss._get_objects()
+    ss.load_objects()
 
     return ss, benchmark, expected_files
 
@@ -57,17 +59,20 @@ def list_files(
     module: str,
     file_id: str,
     remote_storage: bool = True,
-    storage_options: StorageOptions = StorageOptions(out_dir="out"),
+    storage_options: Optional[StorageOptions] = None,
 ):
     """List all available files for a certain benchmark, version and stage"""
+    resolved_options = storage_options or StorageOptions(out_dir="out")
     if remote_storage:
-        ss, _, expected_files = _setup_remote_storage(benchmark_path, storage_options)
+        ss, _, expected_files = _setup_remote_storage(benchmark_path, resolved_options)
         files = {k: v for k, v in ss.files.items() if k in expected_files}
         objectnames = list(files.keys())
         etags = [files[objectname]["etag"] for objectname in objectnames]
     else:
         benchmark = Benchmark(Path(benchmark_path))
-        expected_files = get_expected_benchmark_output_files(benchmark, storage_options)
+        expected_files = get_expected_benchmark_output_files(
+            benchmark, resolved_options
+        )
         file_local_is_local = [Path(f).is_file() for f in expected_files]
         if not all(file_local_is_local):
             logger.warning("Not all expected files are available locally")
