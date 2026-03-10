@@ -49,7 +49,7 @@ def test_create_version(minio_storage):  # noqa: F811
 
         store = minio_storage.get_storage_client()
         store.set_version("1.0")
-        store._get_objects()
+        store.load_objects()
 
         assert "versions/1.0.csv" in store.files.keys()
 
@@ -188,7 +188,7 @@ def test_download_files(minio_storage):  # noqa: F811
         # Verify downloaded files exist by comparing with remote files
         store = minio_storage.get_storage_client()
         store.set_version("1.0")
-        store._get_objects()
+        store.load_objects()
 
         # Get remote files (focusing on out directory files)
         remote_files = [f for f in store.files.keys() if Path(f).parts[0] == "out"]

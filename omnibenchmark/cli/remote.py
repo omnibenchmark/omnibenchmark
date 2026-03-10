@@ -20,62 +20,31 @@ from difflib import unified_diff
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from omnibenchmark.remote.MinIOStorage import MinIOStorage
+    from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
 from .debug import add_debug_option
 
 
-class StorageAuth:
-    """Convenience class for handling storage authentication and validation."""
+def _make_storage(
+    benchmark_path: str, require_credentials: bool = True
+) -> "tuple[BenchmarkExecution, S3CompatibleStorage]":
+    """Load a benchmark and return (benchmark, storage), exiting on any error."""
+    from omnibenchmark.remote.service import StorageService
 
-    def __init__(self, benchmark_path: str, require_credentials: bool = True):
-        from omnibenchmark.remote.storage import remote_storage_args
-
-        self.benchmark_path = benchmark_path
-        try:
-            self.benchmark = BenchmarkExecution(Path(benchmark_path))
-        except BenchmarkParseError as e:
-            formatted_error = pretty_print_parse_error(e)
-            logger.error(f"Failed to load benchmark:\n{formatted_error}")
-            sys.exit(1)
-        self.auth_options = remote_storage_args(
-            self.benchmark, required=require_credentials
+    try:
+        service = StorageService.from_path(
+            benchmark_path,
+            full_model=True,
+            require_credentials=require_credentials,
         )
+    except BenchmarkParseError as e:
+        logger.error(f"Failed to load benchmark:\n{pretty_print_parse_error(e)}")
+        sys.exit(1)
+    except ValueError as e:
+        logger.error(click.style("[ERROR]", fg="red", bold=True) + f" {e}")
+        sys.exit(1)
 
-        # Validate required storage components
-        import click
-
-        api = self.benchmark.get_storage_api()
-        bucket = self.benchmark.get_storage_bucket_name()
-
-        if api is None:
-            logger.error(
-                click.style("[ERROR]", fg="red", bold=True)
-                + " No storage API configured. Set 'storage.api' in your benchmark YAML."
-            )
-            sys.exit(1)
-        if bucket is None:
-            logger.error(
-                click.style("[ERROR]", fg="red", bold=True)
-                + " No storage bucket configured. Set 'storage.bucket_name' in your benchmark YAML."
-            )
-            sys.exit(1)
-
-        # Store validated non-null values
-        self.api: str = api
-        self.bucket: str = bucket
-
-    def get_storage_instance(self) -> "MinIOStorage":
-        """Get validated storage instance."""
-        from omnibenchmark.remote.storage import get_storage
-
-        ss = get_storage(self.api, self.auth_options, self.bucket)
-        if ss is None:
-            logger.error("Error: No storage found.")
-            sys.exit(1)
-        # Type assertion since we know ss is not None after the exit check
-        assert ss is not None
-        return ss
+    return service._benchmark_model, service.storage
 
 
 @click.group(name="remote")
@@ -105,10 +74,10 @@ def version(ctx):
 remote.add_command(version)
 
 
-@click.group(name="policy")
+@click.group(name="policy", deprecated=True)
 @click.pass_context
 def policy(ctx):
-    """Manage storage policies."""
+    """Manage storage policies. DEPRECATED: use your cloud provider's IAM tooling directly."""
     ctx.ensure_object(dict)
 
 
@@ -128,10 +97,8 @@ def create_benchmark_version(benchmark: str):
     """
     assert benchmark is not None
 
-    storage_auth = StorageAuth(benchmark)
-    ss = storage_auth.get_storage_instance()
-
-    ss.set_version(storage_auth.benchmark.get_benchmark_version())
+    bm, ss = _make_storage(benchmark)
+    ss.set_version(bm.get_benchmark_version())
 
     if ss.version in ss.versions:
         logger.error(
@@ -139,7 +106,7 @@ def create_benchmark_version(benchmark: str):
         )
         sys.exit(1)
     logger.info("Create a new benchmark version")
-    ss.create_new_version(storage_auth.benchmark)
+    ss.create_new_version(bm)
 
 
 @add_debug_option
@@ -157,6 +124,9 @@ def create_benchmark_version(benchmark: str):
 )
 @click.option("-s", "--stage", help="Stage to list files for.", type=str, default=None)
 @click.option(
+    "-m", "--module", help="Module to list files for.", type=str, default=None
+)
+@click.option(
     "-i", "--id", "file_id", help="File id/type to list.", type=str, default=None
 )
 def list_all_files(
@@ -172,10 +142,16 @@ def list_all_files(
     """
     if file_id is not None:
         logger.error("--file_id is not implemented")
-        sys.exit(1)
+        raise click.Abort()
     if type != "all":
         logger.error("--type is not implemented")
-        sys.exit(1)
+        raise click.Abort()
+    if stage is not None:
+        logger.error("--stage is not implemented")
+        raise click.Abort()
+    if module is not None:
+        logger.error("--module is not implemented")
+        raise click.Abort()
 
     objectnames, etags = list_files(benchmark, type, stage, module, file_id)
     if len(objectnames) > 0:
@@ -229,7 +205,13 @@ def download_all_files(
         logger.error("--file_id is not implemented")
         raise click.Abort()
     if type != "all":
-        logger.info("--type is not implemented")
+        logger.error("--type is not implemented")
+        raise click.Abort()
+    if stage is not None:
+        logger.error("--stage is not implemented")
+        raise click.Abort()
+    if module is not None:
+        logger.error("--module is not implemented")
         raise click.Abort()
 
     download_files(
@@ -306,7 +288,6 @@ def create_policy(benchmark: str, bucket_name: str):
     - Provide the bucket name directly (--bucket)
     """
     from omnibenchmark.remote.S3config import benchmarker_access_token_policy
-    import click
 
     # Get bucket name from either parameter or benchmark YAML
     if bucket_name:
@@ -388,52 +369,37 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
 
     BENCHMARK: Path to benchmark YAML file.
     """
-    from omnibenchmark.remote.storage import get_storage, remote_storage_args
-
     logger.info(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
-    b = BenchmarkExecution(Path(benchmark))
-    auth_options = remote_storage_args(benchmark)
+    _, ss = _make_storage(benchmark, require_credentials=False)
 
-    api = b.get_storage_api()
-    bucket = b.get_storage_bucket_name()
-    if api is None or bucket is None:
-        raise (ValueError)
-    # setup storage
-    #
-    # TODO: use walrus
-    ss = get_storage(api, auth_options, bucket)
-    if ss is not None:
-        # get objects for first version
-        ss.set_version(version1)
-        ss._get_objects()
-        files_v1 = [
-            f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
-            for f in ss.files.items()
-        ]
-        if f"versions/{version1}.csv" in ss.files.keys():
-            creation_time_v1 = datetime.fromisoformat(
-                ss.files[f"versions/{version1}.csv"]["last_modified"]
-            ).strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            creation_time_v1 = ""
+    # get objects for first version
+    ss.set_version(version1)
+    ss.load_objects()
+    files_v1 = [
+        f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        for f in ss.files.items()
+    ]
+    creation_time_v1 = ""
+    if f"versions/{version1}.csv" in ss.files.keys():
+        creation_time_v1 = datetime.fromisoformat(
+            ss.files[f"versions/{version1}.csv"]["last_modified"]
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
-        # get objects for second version
-        ss.set_version(version2)
-        ss._get_objects()
-        files_v2 = [
-            f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
-            for f in ss.files.items()
-        ]
-        if f"versions/{version2}.csv" in ss.files.keys():
-            creation_time_v2 = datetime.fromisoformat(
-                ss.files[f"versions/{version2}.csv"]["last_modified"]
-            ).strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            creation_time_v2 = ""
+    # get objects for second version
+    ss.set_version(version2)
+    ss.load_objects()
+    files_v2 = [
+        f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        for f in ss.files.items()
+    ]
+    creation_time_v2 = ""
+    if f"versions/{version2}.csv" in ss.files.keys():
+        creation_time_v2 = datetime.fromisoformat(
+            ss.files[f"versions/{version2}.csv"]["last_modified"]
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
-    # diff the two versions
     click.echo(
         "".join(
             list(
@@ -462,24 +428,9 @@ def list_versions(ctx, benchmark: str):
 
     BENCHMARK: Path to benchmark YAML file.
     """
-    from omnibenchmark.remote.storage import get_storage, remote_storage_args
-
     logger.info(f"Available versions of {benchmark}:")
 
-    b = BenchmarkExecution(Path(benchmark))
-    auth_options = remote_storage_args(b)
-    api = b.get_storage_api()
-    bucket = b.get_storage_bucket_name()
-
-    if api is None:
-        raise ValueError("No storage API found")
-    if bucket is None:
-        raise ValueError("No storage bucket found")
-
-    # setup storage
-    ss = get_storage(api, auth_options, bucket)
-    if ss is None:
-        raise ValueError("No storage found")
+    _, ss = _make_storage(benchmark, require_credentials=False)
 
     if len(ss.versions) > 0:
         if len(ss.versions) > 1:

@@ -1,5 +1,4 @@
 import datetime
-import io
 import tempfile
 import shutil
 from packaging.version import Version
@@ -12,7 +11,7 @@ from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
-from omnibenchmark.remote.MinIOStorage import MinIOStorage
+from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
 from ..fixtures import minio_storage, _minio_container  # noqa: F401
 
@@ -21,10 +20,10 @@ def get_benchmark_data_path() -> Path:
     return Path(__file__).resolve().parent.parent / "data"
 
 
-class TestMinIOStorage:
+class TestS3CompatibleStorage:
     def test_init_fail(self):
         with pytest.raises(AssertionError):
-            MinIOStorage(
+            S3CompatibleStorage(
                 auth_options={},
                 benchmark="test",
                 storage_options=StorageOptions(out_dir="out"),
@@ -47,8 +46,8 @@ class TestMinIOStorage:
         # XXX should not test private methods
         client._create_benchmark(f"{minio_storage.bucket_name}2")
 
-        assert client.client.bucket_exists(f"{minio_storage.bucket_name}")
-        assert client.client.bucket_exists(f"{minio_storage.bucket_name}2")
+        assert client._bucket_exists(f"{minio_storage.bucket_name}")
+        assert client._bucket_exists(f"{minio_storage.bucket_name}2")
 
     # fmt: off
     def test__get_versions_success_get_version(self, minio_storage):  # noqa: F811
@@ -88,13 +87,13 @@ class TestMinIOStorage:
         assert Version("0.2") in client.versions
 
     # fmt: off
-    def test__get_objects(self, minio_storage):  # noqa: F811
+    def test_load_objects(self, minio_storage):  # noqa: F811
     # fmt: on
         client = minio_storage.get_storage_client()
-        client.client.put_object(client.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
-        client.client.put_object(client.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
+        client.client.put_object(Bucket=client.benchmark, Key="out/file1.txt", Body=b"")
+        client.client.put_object(Bucket=client.benchmark, Key="out/file2.txt", Body=b"")
         client.set_version()
-        client._get_objects()
+        client.load_objects()
         assert all(
             [f in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
         )
@@ -127,13 +126,13 @@ class TestMinIOStorage:
         )
 
     # fmt: off
-    def test__get_objects_public(self, minio_storage):  # noqa: F811
+    def test_load_objects_public(self, minio_storage):  # noqa: F811
     # fmt: on
         client = minio_storage.get_storage_client()
-        client.client.put_object(client.benchmark, "out/file1.txt", io.BytesIO(b""), 0)
-        client.client.put_object(client.benchmark, "out/file2.txt", io.BytesIO(b""), 0)
+        client.client.put_object(Bucket=client.benchmark, Key="out/file1.txt", Body=b"")
+        client.client.put_object(Bucket=client.benchmark, Key="out/file2.txt", Body=b"")
         client.set_version()
-        client._get_objects()
+        client.load_objects()
         assert all(
             [f in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
         )
@@ -169,14 +168,14 @@ class TestMinIOStorage:
     # fmt: on
         client = minio_storage.get_storage_client()
         _ = client.client.put_object(
-            client.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file1.txt", Body=b""
         )
         _ = client.client.put_object(
-            client.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file2.txt", Body=b""
         )
         client.set_version("0.2")
         client.create_new_version()
-        client._get_objects()
+        client.load_objects()
         assert all(
             [f in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
         )
@@ -198,14 +197,14 @@ class TestMinIOStorage:
     # fmt: on
         client = minio_storage.get_storage_client()
         _ = client.client.put_object(
-            client.benchmark, "out/file1.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file1.txt", Body=b""
         )
         _ = client.client.put_object(
-            client.benchmark, "out/file2.txt", io.BytesIO(b""), 0
+            Bucket=client.benchmark, Key="out/file2.txt", Body=b""
         )
         client.set_version("0.2")
         client.create_new_version()
-        client._get_objects()
+        client.load_objects()
         client.files
 
         # Set up a temporary git repository for testing version persistence
@@ -230,7 +229,7 @@ class TestMinIOStorage:
 
             client.set_version("0.3")
             client.create_new_version(benchmark)
-            client._get_objects()
+            client.load_objects()
             assert all(
                 [f not in client.files.keys() for f in ["out/file1.txt", "out/file2.txt"]]
             )
@@ -272,7 +271,7 @@ class TestMinIOStorage:
 
             client.set_version("0.3")
             client.create_new_version(benchmark)
-            client._get_objects()
+            client.load_objects()
             client.files.keys()
             assert all(
                 [

@@ -2,14 +2,37 @@
 
 import warnings
 from pathlib import Path
+from typing import Optional
 
 import tqdm
-import yaml
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
+
+
+def _setup_remote_storage(
+    benchmark_path: str,
+    storage_options: Optional[StorageOptions] = None,
+):
+    """Set up remote storage for a benchmark.
+
+    Returns:
+        (storage, benchmark, expected_files) tuple.
+
+    Raises:
+        ValueError if storage cannot be configured.
+    """
+    from .service import StorageService
+
+    service = StorageService.from_path(benchmark_path, storage_options=storage_options)
+    service.load_version()
+    expected_files = get_expected_benchmark_output_files(
+        service._benchmark_model, service.storage.storage_options
+    )
+
+    return service.storage, service._benchmark_model, expected_files
 
 
 def list_files(
@@ -19,49 +42,20 @@ def list_files(
     module: str,
     file_id: str,
     remote_storage: bool = True,
-    storage_options: StorageOptions = StorageOptions(out_dir="out"),
+    storage_options: Optional[StorageOptions] = None,
 ):
     """List all available files for a certain benchmark, version and stage"""
-    from .storage import get_storage, remote_storage_args
-
-    with open(benchmark_path, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark_path))
-
-    expected_files = get_expected_benchmark_output_files(benchmark, storage_options)
-
+    resolved_options = storage_options or StorageOptions(out_dir="out")
     if remote_storage:
-        auth_options = remote_storage_args(benchmark)
-
-        storage_api = benchmark.get_storage_api()
-        bucket_name = benchmark.get_storage_bucket_name()
-
-        if storage_api is None:
-            logger.error("Error: No storage API found.")
-            raise ValueError("No storage API found")
-        if bucket_name is None:
-            logger.error("Error: No storage bucket found.")
-            raise ValueError("No storage bucket found")
-
-        ss = get_storage(
-            storage_api,
-            auth_options,
-            bucket_name,
-            storage_options,
-        )
-        if ss is None:
-            logger.error("Error: No storage found.")
-            raise ValueError("No storage found")
-
-        ss.set_version(benchmark.get_benchmark_version())
-        ss._get_objects()
+        ss, _, expected_files = _setup_remote_storage(benchmark_path, resolved_options)
         files = {k: v for k, v in ss.files.items() if k in expected_files}
-
-        # get urls
         objectnames = list(files.keys())
         etags = [files[objectname]["etag"] for objectname in objectnames]
-
     else:
+        benchmark = Benchmark(Path(benchmark_path))
+        expected_files = get_expected_benchmark_output_files(
+            benchmark, resolved_options
+        )
         file_local_is_local = [Path(f).is_file() for f in expected_files]
         if not all(file_local_is_local):
             logger.warning("Not all expected files are available locally")
@@ -86,47 +80,25 @@ def download_files(
     overwrite: bool = False,
 ):
     """Download all available files for a certain benchmark, version and stage"""
-    from .storage import get_storage, remote_storage_args
     from .hash import checksum
     from .sizeof import sizeof_fmt
 
-    objectnames, etags = list_files(benchmark_path, type, stage, module, file_id)
+    ss, _, expected_files = _setup_remote_storage(benchmark_path)
 
-    # storage path locally, TODO: maybe add as argument
+    files = {k: v for k, v in ss.files.items() if k in expected_files}
+    objectnames = list(files.keys())
+    etags = [files[objectname]["etag"] for objectname in objectnames]
     filenames = objectnames
-
-    with open(benchmark_path, "r") as fh:
-        yaml.safe_load(fh)
-        benchmark = Benchmark(Path(benchmark_path))
-
-    auth_options = remote_storage_args(benchmark)
-
-    storage_api = benchmark.get_storage_api()
-    bucket_name = benchmark.get_storage_bucket_name()
-
-    if storage_api is None:
-        logger.error("Error: No storage API found.")
-        raise ValueError("No storage API found")
-    if bucket_name is None:
-        logger.error("Error: No storage bucket found.")
-        raise ValueError("No storage bucket found")
-
-    ss = get_storage(
-        storage_api,
-        auth_options,
-        bucket_name,
-    )
-    if ss is None:
-        logger.error("Error: No storage found.")
-        raise ValueError("No storage found")
-
-    ss.set_version(benchmark.get_benchmark_version())
-    ss._get_objects()
 
     logger.debug("Checking if files are already downloaded... ")
     do_download_file = []
     for filename, etag in tqdm.tqdm(
-        zip(filenames, etags), delay=5, disable=not verbose
+        zip(filenames, etags),
+        total=len(filenames),
+        desc="Checking local files",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
         if Path(filename).is_file():
             if etag.replace('"', "") == checksum(filename):
@@ -142,8 +114,8 @@ def download_files(
     if verbose:
         size = sum(
             [
-                int(ss.files[objectname]["size"])
-                for objectname, do_download in zip(ss.files.keys(), do_download_file)
+                int(files[objectname]["size"])
+                for objectname, do_download in zip(objectnames, do_download_file)
                 if do_download
             ]
         )
@@ -151,18 +123,30 @@ def download_files(
             f"Downloading {sum(do_download_file)} files with a total size of {sizeof_fmt(size)} ... ",
         )
 
-    for objectname, filename, do_download in tqdm.tqdm(
-        zip(objectnames, filenames, do_download_file), delay=5, disable=not verbose
+    pairs_to_download = [
+        (obj, fn) for obj, fn, do in zip(objectnames, filenames, do_download_file) if do
+    ]
+    for objectname, filename in tqdm.tqdm(
+        pairs_to_download,
+        total=len(pairs_to_download),
+        desc="Downloading",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
-        if do_download:
-            ss.download_object(objectname, filename)
+        ss.download_object(objectname, filename)
     if verbose:
         logger.debug("Done")
 
     if verbose:
         logger.debug("Checking MD5 checksums... ")
     for etag, filename in tqdm.tqdm(
-        zip(etags, filenames), delay=5, disable=not verbose
+        zip(etags, filenames),
+        total=len(filenames),
+        desc="Verifying checksums",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
         md5sum_val = checksum(filename)
         if not etag.replace('"', "") == md5sum_val:
@@ -190,7 +174,12 @@ def checksum_files(
 
     failed_checksums = []
     for etag, filename in tqdm.tqdm(
-        zip(etags, filenames), delay=5, disable=not verbose
+        zip(etags, filenames),
+        total=len(filenames),
+        desc="Verifying checksums",
+        unit="file",
+        delay=1,
+        disable=not verbose,
     ):
         md5sum_val = checksum(filename)
         if not etag.replace('"', "") == md5sum_val:
