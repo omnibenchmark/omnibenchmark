@@ -12,7 +12,7 @@ from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
-from omnibenchmark.remote.S3Storage import S3CompatibleStorage as MinIOStorage
+from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
 from ..fixtures import minio_storage, _minio_container  # noqa: F401
 
@@ -21,10 +21,10 @@ def get_benchmark_data_path() -> Path:
     return Path(__file__).resolve().parent.parent / "data"
 
 
-class TestMinIOStorage:
+class TestS3CompatibleStorage:
     def test_init_fail(self):
         with pytest.raises(AssertionError):
-            MinIOStorage(
+            S3CompatibleStorage(
                 auth_options={},
                 benchmark="test",
                 storage_options=StorageOptions(out_dir="out"),
