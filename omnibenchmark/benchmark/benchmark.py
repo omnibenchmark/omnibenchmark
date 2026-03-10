@@ -116,7 +116,7 @@ class BenchmarkExecution:
     def get_benchmark_name(self):
         return self.model.get_name()
 
-    def get_benchmark_version(self):
+    def get_benchmark_version(self) -> str:
         return self.model.get_version()
 
     def get_benchmark_author(self):
@@ -247,7 +247,9 @@ class BenchmarkExecution:
 
         return environment_path
 
-    def export_to_mermaid(self, show_params: bool = True, compact_params: bool = False) -> str:
+    def export_to_mermaid(
+        self, show_params: bool = True, compact_params: bool = False
+    ) -> str:
         """Export the benchmark workflow as a Mermaid diagram.
 
         Args:

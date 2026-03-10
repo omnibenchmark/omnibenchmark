@@ -223,9 +223,14 @@ class RemoteStorage(metaclass=ABCMeta):
         self.version = self._parse_version(version)
 
     @abstractmethod
-    def create_new_version(self):
+    def create_new_version(self, benchmark=None) -> None:
         """
         Creates a new version of the benchmark.
+
+        Args:
+            benchmark: Optional BenchmarkExecution object. When provided,
+                uploads the benchmark YAML and software files and uses
+                git-aware version tracking.
         """
         raise NotImplementedError
 
