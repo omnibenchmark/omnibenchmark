@@ -29,8 +29,6 @@ class StorageAuth:
     """Convenience class for handling storage authentication and validation."""
 
     def __init__(self, benchmark_path: str, require_credentials: bool = True):
-        from omnibenchmark.remote.storage import remote_storage_args
-
         self.benchmark_path = benchmark_path
         try:
             self.benchmark = BenchmarkExecution(Path(benchmark_path))
@@ -38,42 +36,20 @@ class StorageAuth:
             formatted_error = pretty_print_parse_error(e)
             logger.error(f"Failed to load benchmark:\n{formatted_error}")
             sys.exit(1)
-        self.auth_options = remote_storage_args(
-            self.benchmark, required=require_credentials
-        )
 
-        # Validate required storage components
-        api = self.benchmark.get_storage_api()
-        bucket = self.benchmark.get_storage_bucket_name()
+        try:
+            from omnibenchmark.remote.service import StorageService
 
-        if api is None:
-            logger.error(
-                click.style("[ERROR]", fg="red", bold=True)
-                + " No storage API configured. Set 'storage.api' in your benchmark YAML."
+            self._service = StorageService(
+                self.benchmark, require_credentials=require_credentials
             )
+        except ValueError as e:
+            logger.error(click.style("[ERROR]", fg="red", bold=True) + f" {e}")
             sys.exit(1)
-        if bucket is None:
-            logger.error(
-                click.style("[ERROR]", fg="red", bold=True)
-                + " No storage bucket configured. Set 'storage.bucket_name' in your benchmark YAML."
-            )
-            sys.exit(1)
-
-        # Store validated non-null values
-        self.api: str = api
-        self.bucket: str = bucket
 
     def get_storage_instance(self) -> "MinIOStorage":
         """Get validated storage instance."""
-        from omnibenchmark.remote.storage import get_storage
-
-        ss = get_storage(self.api, self.auth_options, self.bucket)
-        if ss is None:
-            logger.error("Error: No storage found.")
-            sys.exit(1)
-        # Type assertion since we know ss is not None after the exit check
-        assert ss is not None
-        return ss
+        return self._service.storage
 
 
 @click.group(name="remote")

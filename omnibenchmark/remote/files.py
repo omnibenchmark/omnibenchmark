@@ -24,32 +24,16 @@ def _setup_remote_storage(
     Raises:
         ValueError if storage cannot be configured.
     """
-    from .storage import get_storage, remote_storage_args
+    from .service import StorageService
 
     resolved_options = storage_options or StorageOptions(out_dir="out")
     benchmark = Benchmark(Path(benchmark_path))
     expected_files = get_expected_benchmark_output_files(benchmark, resolved_options)
 
-    storage_api = benchmark.get_storage_api()
-    bucket_name = benchmark.get_storage_bucket_name()
+    service = StorageService(benchmark, storage_options=resolved_options)
+    service.load_version()
 
-    if storage_api is None:
-        logger.error("Error: No storage API found.")
-        raise ValueError("No storage API found")
-    if bucket_name is None:
-        logger.error("Error: No storage bucket found.")
-        raise ValueError("No storage bucket found")
-
-    auth_options = remote_storage_args(benchmark)
-    ss = get_storage(storage_api, auth_options, bucket_name, resolved_options)
-    if ss is None:
-        logger.error("Error: No storage found.")
-        raise ValueError("No storage found")
-
-    ss.set_version(benchmark.get_benchmark_version())
-    ss.load_objects()
-
-    return ss, benchmark, expected_files
+    return service.storage, benchmark, expected_files
 
 
 def list_files(
