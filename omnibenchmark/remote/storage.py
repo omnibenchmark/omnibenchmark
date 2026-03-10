@@ -59,7 +59,7 @@ class StorageFactory:
         storage_api: str,
         auth_options: dict,
         bucket: str,
-        storage_options: StorageOptions = StorageOptions(out_dir="out"),
+        storage_options: Optional[StorageOptions] = None,
     ) -> Optional[MinIOStorageType]:
         """Return a RemoteStorage instance for *storage_api*, or None.
 
@@ -74,11 +74,12 @@ class StorageFactory:
             installed.
         """
         _warn_minio_deprecated(storage_api)
+        resolved_options = storage_options or StorageOptions(out_dir="out")
 
         if storage_api.upper() in ("MINIO", "S3"):
             if not _check_s3_available() or MinIOStorage is None:
                 return None
-            return MinIOStorage(auth_options, bucket, storage_options)
+            return MinIOStorage(auth_options, bucket, resolved_options)
 
         return None
 
@@ -92,7 +93,7 @@ def get_storage(
     storage_api: str,
     auth_options: dict,
     benchmark: str,
-    storage_options: StorageOptions = StorageOptions(out_dir="out"),
+    storage_options: Optional[StorageOptions] = None,
 ) -> Optional[MinIOStorageType]:
     """Return a RemoteStorage instance for *storage_api*.
 

@@ -42,7 +42,7 @@ class RemoteStorage(metaclass=ABCMeta):
     A class representing a remote storage with version-controlled S3 buckets.
 
     This class provides an abstract interface for managing benchmark results in S3-compatible
-    storage (MinIO, AWS S3) with immutable versioning and retention policies for reproducibility.
+    storage (AWS S3, MinIO) with immutable versioning and retention policies for reproducibility.
 
     ## S3 Versioning and Object Protection
 
@@ -235,7 +235,7 @@ class RemoteStorage(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def _get_objects(self):
+    def load_objects(self):
         """
         Retrieves the objects in the storage for the current benchmark version.
         """
