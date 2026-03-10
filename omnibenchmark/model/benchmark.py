@@ -155,7 +155,7 @@ class StorageAPIEnum(str, Enum):
     """Storage API types. Currently only S3 is supported."""
 
     s3 = "S3"
-    minio = "MinIO"  # Deprecated: MinIO is S3-compatible; use api: S3 with a custom endpoint.
+    minio = "MINIO"  # Deprecated: MinIO is S3-compatible; use api: S3 with a custom endpoint.
 
 
 # Base models
