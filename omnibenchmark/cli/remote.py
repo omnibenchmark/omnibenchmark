@@ -25,31 +25,25 @@ if TYPE_CHECKING:
 from .debug import add_debug_option
 
 
-class StorageAuth:
-    """Convenience class for handling storage authentication and validation."""
+def _make_storage(
+    benchmark_path: str, require_credentials: bool = True
+) -> "tuple[BenchmarkExecution, S3CompatibleStorage]":
+    """Load a benchmark and return (benchmark, storage), exiting on any error."""
+    from omnibenchmark.remote.service import StorageService
 
-    def __init__(self, benchmark_path: str, require_credentials: bool = True):
-        self.benchmark_path = benchmark_path
-        try:
-            self.benchmark = BenchmarkExecution(Path(benchmark_path))
-        except BenchmarkParseError as e:
-            formatted_error = pretty_print_parse_error(e)
-            logger.error(f"Failed to load benchmark:\n{formatted_error}")
-            sys.exit(1)
+    try:
+        bm = BenchmarkExecution(Path(benchmark_path))
+    except BenchmarkParseError as e:
+        logger.error(f"Failed to load benchmark:\n{pretty_print_parse_error(e)}")
+        sys.exit(1)
 
-        try:
-            from omnibenchmark.remote.service import StorageService
+    try:
+        service = StorageService(bm, require_credentials=require_credentials)
+    except ValueError as e:
+        logger.error(click.style("[ERROR]", fg="red", bold=True) + f" {e}")
+        sys.exit(1)
 
-            self._service = StorageService(
-                self.benchmark, require_credentials=require_credentials
-            )
-        except ValueError as e:
-            logger.error(click.style("[ERROR]", fg="red", bold=True) + f" {e}")
-            sys.exit(1)
-
-    def get_storage_instance(self) -> "S3CompatibleStorage":
-        """Get validated storage instance."""
-        return self._service.storage
+    return bm, service.storage
 
 
 @click.group(name="remote")
@@ -102,10 +96,8 @@ def create_benchmark_version(benchmark: str):
     """
     assert benchmark is not None
 
-    storage_auth = StorageAuth(benchmark)
-    ss = storage_auth.get_storage_instance()
-
-    ss.set_version(storage_auth.benchmark.get_benchmark_version())
+    bm, ss = _make_storage(benchmark)
+    ss.set_version(bm.get_benchmark_version())
 
     if ss.version in ss.versions:
         logger.error(
@@ -113,7 +105,7 @@ def create_benchmark_version(benchmark: str):
         )
         sys.exit(1)
     logger.info("Create a new benchmark version")
-    ss.create_new_version(storage_auth.benchmark)
+    ss.create_new_version(bm)
 
 
 @add_debug_option
@@ -376,8 +368,7 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
     logger.info(
         f"Found the following differences in {benchmark} for {version1} and {version2}."
     )
-    storage_auth = StorageAuth(benchmark, require_credentials=False)
-    ss = storage_auth.get_storage_instance()
+    _, ss = _make_storage(benchmark, require_credentials=False)
 
     # get objects for first version
     ss.set_version(version1)
@@ -435,8 +426,7 @@ def list_versions(ctx, benchmark: str):
     """
     logger.info(f"Available versions of {benchmark}:")
 
-    storage_auth = StorageAuth(benchmark, require_credentials=False)
-    ss = storage_auth.get_storage_instance()
+    _, ss = _make_storage(benchmark, require_credentials=False)
 
     if len(ss.versions) > 0:
         if len(ss.versions) > 1:
