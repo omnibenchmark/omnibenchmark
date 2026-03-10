@@ -12,7 +12,7 @@ from omnibenchmark.model import Benchmark
 from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 
-MINIO_IMAGE = "minio/minio:RELEASE.2024-06-13T22-53-53Z"
+MINIO_IMAGE = "minio/minio:RELEASE.2025-09-07T16-13-09Z"
 
 # How many buckets to pre-seed
 BUCKETS_NUMBER = 100
