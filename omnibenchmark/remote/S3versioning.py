@@ -58,7 +58,8 @@ def get_s3_object_versions_and_tags(
                             if is_valid_version(t["Key"])
                         }
                     except ClientError:
-                        pass
+                        # Tag retrieval failures are non-fatal; keep tags empty and continue.
+                        tags_filt = {}
 
                 di[key][vid] = {
                     "tags": tags_filt,
