@@ -458,6 +458,7 @@ def s3_workflow(s3_environment, s3_config_path, tmp_path_factory):
 
 
 @pytest.mark.e2e_s3
+@pytest.mark.timeout(300)
 def test_s3_pipeline_execution(s3_workflow, s3_environment):
     """Pipeline runs successfully and the S3 bucket is created."""
     assert (
@@ -473,6 +474,7 @@ def test_s3_pipeline_execution(s3_workflow, s3_environment):
 
 
 @pytest.mark.e2e_s3
+@pytest.mark.timeout(60)
 def test_s3_bucket_structure(s3_workflow, s3_environment):
     """Bucket contains the expected cartesian product (3 data + 5 method files)."""
     contents = _wait_for_bucket_objects(s3_environment, min_count=8)
@@ -494,6 +496,7 @@ def test_s3_bucket_structure(s3_workflow, s3_environment):
 
 
 @pytest.mark.e2e_s3
+@pytest.mark.timeout(120)
 def test_s3_file_content_and_checksums(s3_workflow, s3_environment):
     """All files download with the expected content values and valid MD5 checksums."""
     contents = _wait_for_bucket_objects(s3_environment, min_count=8)
@@ -542,6 +545,7 @@ def test_s3_file_content_and_checksums(s3_workflow, s3_environment):
 
 
 @pytest.mark.e2e_s3
+@pytest.mark.timeout(60)
 def test_s3_version_create_and_list(s3_workflow):
     """Version 1.0 is created and appears in the version list."""
     with OmniCLISetup() as omni:
@@ -572,6 +576,7 @@ def test_s3_version_create_and_list(s3_workflow):
 
 
 @pytest.mark.e2e_s3
+@pytest.mark.timeout(300)
 def test_s3_benchmark_modification_and_version_2(s3_workflow):
     """Adding method M3, re-running, and creating version 2.0 all succeed."""
     import yaml
