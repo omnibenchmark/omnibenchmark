@@ -315,14 +315,6 @@ def s3_config_path():
 @pytest.fixture(scope="session")
 def _rustfs_container_e2e():
     """Fixture to set up and tear down the RustFS test container for E2E tests."""
-    import sys
-
-    if sys.platform != "linux":
-        pytest.skip(
-            "RustFS container tests only work on Linux (GitHub Actions limitation)",
-            allow_module_level=True,
-        )
-
     from tests.remote.S3Storage_setup import RustFSSetup
 
     # Initialize a RustFS test container with a lifetime of this test session

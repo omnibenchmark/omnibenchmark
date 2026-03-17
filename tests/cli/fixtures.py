@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from tests.remote.S3Storage_setup import RustFSSetup, TmpRustFSStorage
@@ -21,12 +19,6 @@ def rustfs_storage(_rustfs_container, tmp_path):
 @pytest.fixture(scope="session")
 def _rustfs_container():
     """Fixture to set up and tear down the RustFS test container for each test."""
-    if sys.platform != "linux":
-        pytest.skip(
-            "for GHA, only works on linux (https://docs.github.com/en/actions/using-containerized-services/about-service-containers#about-service-containers)",
-            allow_module_level=True,
-        )
-
     # Initialize a RustFS test container with a lifetime of this test session
     rustfs = RustFSSetup()
 
