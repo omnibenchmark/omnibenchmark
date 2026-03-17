@@ -315,6 +315,13 @@ def s3_config_path():
 @pytest.fixture(scope="session")
 def _rustfs_container_e2e():
     """Fixture to set up and tear down the RustFS test container for E2E tests."""
+    try:
+        import docker
+
+        docker.from_env()
+    except Exception as e:
+        pytest.skip(f"Docker daemon not available: {e}")
+
     from tests.remote.S3Storage_setup import RustFSSetup
 
     # Initialize a RustFS test container with a lifetime of this test session

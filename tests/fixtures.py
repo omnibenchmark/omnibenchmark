@@ -26,6 +26,13 @@ def rustfs_storage(_rustfs_container, tmp_path):
 @pytest.fixture(scope="session")
 def _rustfs_container():
     """Fixture to set up and tear down the RustFS test container for each test."""
+    try:
+        import docker
+
+        docker.from_env()
+    except Exception as e:
+        pytest.skip(f"Docker daemon not available: {e}")
+
     # Initialize a RustFS test container with a lifetime of this test session
     rustfs = RustFSSetup()
 
