@@ -71,14 +71,15 @@ class RustFSContainer:
 class RustFSSetup:
     """Manages a RustFS container and pre-seeds buckets for testing."""
 
-    def __init__(self) -> None:
+    def __init__(self, buckets_number: int = BUCKETS_NUMBER) -> None:
+        self.buckets_number = buckets_number
         self.container = RustFSContainer()
         self.container.start()
 
         # Pre-seed buckets
         self.bucket_names = [
             "b" + "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
-            for _ in range(BUCKETS_NUMBER)
+            for _ in range(self.buckets_number)
         ]
 
     def __enter__(self):
