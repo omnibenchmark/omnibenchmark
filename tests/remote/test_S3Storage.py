@@ -13,7 +13,7 @@ from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
 from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
-from ..fixtures import minio_storage, _minio_container  # noqa: F401
+from ..fixtures import rustfs_storage, _rustfs_container  # noqa: F401
 
 
 def get_benchmark_data_path() -> Path:
@@ -29,56 +29,56 @@ class TestS3CompatibleStorage:
                 storage_options=StorageOptions(out_dir="out"),
             )
 
-    def test_init_success(self, minio_storage):  # noqa: F811
-        client = minio_storage.get_storage_client()
-        assert client.benchmark == minio_storage.bucket_name
+    def test_init_success(self, rustfs_storage):  # noqa: F811
+        client = rustfs_storage.get_storage_client()
+        assert client.benchmark == rustfs_storage.bucket_name
 
     # fmt: off
-    def test__test_connect_success_with_valid_endpoint(self, minio_storage):  # noqa: F811
+    def test__test_connect_success_with_valid_endpoint(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         client._test_connect()
 
     # fmt: off
-    def test__create_benchmark_success_create_benchmark(self, minio_storage):  # noqa: F811
+    def test__create_benchmark_success_create_benchmark(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         # XXX should not test private methods
-        client._create_benchmark(f"{minio_storage.bucket_name}2")
+        client._create_benchmark(f"{rustfs_storage.bucket_name}2")
 
-        assert client._bucket_exists(f"{minio_storage.bucket_name}")
-        assert client._bucket_exists(f"{minio_storage.bucket_name}2")
+        assert client._bucket_exists(f"{rustfs_storage.bucket_name}")
+        assert client._bucket_exists(f"{rustfs_storage.bucket_name}2")
 
     # fmt: off
-    def test__get_versions_success_get_version(self, minio_storage):  # noqa: F811
+    def test__get_versions_success_get_version(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         client.set_version("0.1")
         client.create_new_version()
-        client2 = minio_storage.get_storage_client()
+        client2 = rustfs_storage.get_storage_client()
         assert client2.versions == [Version("0.1")]
 
     # fmt: off
-    def test__get_versions_public_success_get_version(self, minio_storage):  # noqa: F811
+    def test__get_versions_public_success_get_version(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         client.set_version("0.1")
         client.create_new_version()
 
-        client2 = minio_storage.get_storage_client()
+        client2 = rustfs_storage.get_storage_client()
         assert client2.versions == [Version("0.1")]
 
     # fmt: off
-    def test__create_new_version_fail_if_no_version_provided(self, minio_storage):  # noqa: F811
+    def test__create_new_version_fail_if_no_version_provided(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         with pytest.raises(RemoteStorageInvalidInputException):
             client.create_new_version()
 
     # fmt: off
-    def test__create_new_version_success_if_version_provided(self, minio_storage):  # noqa: F811
+    def test__create_new_version_success_if_version_provided(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         client.set_version("0.1")
         client.create_new_version()
         client.set_version()
@@ -87,9 +87,9 @@ class TestS3CompatibleStorage:
         assert Version("0.2") in client.versions
 
     # fmt: off
-    def test_load_objects(self, minio_storage):  # noqa: F811
+    def test_load_objects(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         client.client.put_object(Bucket=client.benchmark, Key="out/file1.txt", Body=b"")
         client.client.put_object(Bucket=client.benchmark, Key="out/file2.txt", Body=b"")
         client.set_version()
@@ -126,9 +126,9 @@ class TestS3CompatibleStorage:
         )
 
     # fmt: off
-    def test_load_objects_public(self, minio_storage):  # noqa: F811
+    def test_load_objects_public(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         client.client.put_object(Bucket=client.benchmark, Key="out/file1.txt", Body=b"")
         client.client.put_object(Bucket=client.benchmark, Key="out/file2.txt", Body=b"")
         client.set_version()
@@ -164,9 +164,9 @@ class TestS3CompatibleStorage:
         )
 
     # fmt: off
-    def test_create_new_version(self, minio_storage):  # noqa: F811
+    def test_create_new_version(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         _ = client.client.put_object(
             Bucket=client.benchmark, Key="out/file1.txt", Body=b""
         )
@@ -193,9 +193,9 @@ class TestS3CompatibleStorage:
         }
 
     # fmt: off
-    def test_filter_with_benchmark(self, minio_storage):  # noqa: F811
+    def test_filter_with_benchmark(self, rustfs_storage):  # noqa: F811
     # fmt: on
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
         _ = client.client.put_object(
             Bucket=client.benchmark, Key="out/file1.txt", Body=b""
         )
@@ -235,10 +235,10 @@ class TestS3CompatibleStorage:
             )
 
     # fmt: off
-    def test_store_software_and_config_with_benchmark(self, minio_storage):  # noqa: F811
+    def test_store_software_and_config_with_benchmark(self, rustfs_storage):  # noqa: F811
     # fmt: on
 
-        client = minio_storage.get_storage_client()
+        client = rustfs_storage.get_storage_client()
 
         # Set up a temporary git repository for testing version persistence
         with tempfile.TemporaryDirectory() as temp_dir:

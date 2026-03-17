@@ -7,11 +7,11 @@ from .asserts import assert_in_output
 from .path import data
 
 # TODO: deprecate fixtures in this module
-from ..fixtures import minio_storage, _minio_container, bundled_repos  # noqa: F401
+from ..fixtures import rustfs_storage, _rustfs_container, bundled_repos  # noqa: F401
 
 
 # TODO: mark as integration
-def test_remote(minio_storage):  # noqa: F811
+def test_remote(rustfs_storage):  # noqa: F811
     # TODO(ben): the technique of expecting YAML validation in the output is a bit brittle, we could
     # check e.g. that output has been produced.
     # But we should be changing the testing strategy in a gradual way
@@ -22,7 +22,7 @@ def test_remote(minio_storage):  # noqa: F811
         result = omni.call(
             [
                 "run",
-                str(minio_storage.benchmark_file),
+                str(rustfs_storage.benchmark_file),
             ]
         )
 

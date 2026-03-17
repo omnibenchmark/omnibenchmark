@@ -51,7 +51,7 @@ class S3TestEnvironment:
             return f"{prefix}-{timestamp}"
 
     def setup_local_environment(self) -> bool:
-        """Set up local MinIO environment."""
+        """Set up local RustFS environment."""
         try:
             import socket
 
@@ -60,18 +60,20 @@ class S3TestEnvironment:
             sock.close()
 
             if result == 0:
-                print("✓ Found existing MinIO on port 9000")
+                print("✓ Found existing RustFS on port 9000")
                 self.endpoint = "http://localhost:9000"
-                self.region = "us-east-1"  # MinIO default
+                self.region = "us-east-1"
 
                 # Priority order: env vars > credentials file > defaults
                 self.access_key = os.getenv("OB_STORAGE_S3_ACCESS_KEY")
                 self.secret_key = os.getenv("OB_STORAGE_S3_SECRET_KEY")
 
                 if not self.access_key or not self.secret_key:
-                    print("  Trying to read credentials from /tmp/minio-credentials...")
+                    print(
+                        "  Trying to read credentials from /tmp/rustfs-credentials..."
+                    )
                     try:
-                        with open("/tmp/minio-credentials", "r") as f:
+                        with open("/tmp/rustfs-credentials", "r") as f:
                             for line in f:
                                 if (
                                     line.startswith("OB_STORAGE_S3_ACCESS_KEY=")
@@ -87,20 +89,20 @@ class S3TestEnvironment:
                     except FileNotFoundError:
                         print("  No credentials file found, using defaults")
 
-                # Fallback to default MinIO root credentials
+                # Fallback to default RustFS credentials
                 if not self.access_key:
-                    self.access_key = "minioadmin"
+                    self.access_key = "rustfsadmin"
                 if not self.secret_key:
-                    self.secret_key = "minioadmin123"
+                    self.secret_key = "rustfsadmin"
 
                 print(f"  Using access key: {self.access_key}")
                 return True
             else:
-                print("No MinIO found on port 9000")
+                print("No RustFS found on port 9000")
                 return False
 
         except Exception as e:
-            print(f"Failed to setup local MinIO: {e}")
+            print(f"Failed to setup local RustFS: {e}")
             return False
 
     def setup_remote_environment(self) -> bool:
@@ -201,7 +203,7 @@ class S3TestEnvironment:
                     aws_access_key_id=self.access_key,
                     aws_secret_access_key=self.secret_key,
                     region_name=self.region,
-                    # Force path style for MinIO compatibility
+                    # Force path style for S3-compatible server
                     config=boto3.session.Config(s3={"addressing_style": "path"})
                     if "localhost" in self.endpoint
                     else None,
@@ -403,7 +405,7 @@ def s3_environment():
         if use_remote:
             pytest.skip("Remote S3 credentials not available")
         else:
-            pytest.skip("Local MinIO setup failed - docker may not be available")
+            pytest.skip("Local RustFS setup failed - docker may not be available")
 
     env.set_environment_variables()
 

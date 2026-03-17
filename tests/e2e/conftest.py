@@ -74,7 +74,7 @@ class S3TestEnvironment:
             return f"{prefix}-{timestamp}"
 
     def setup_local_environment(self) -> bool:
-        """Set up local MinIO environment."""
+        """Set up local RustFS environment."""
         try:
             import socket
 
@@ -83,7 +83,7 @@ class S3TestEnvironment:
             sock.close()
 
             if result == 0:
-                print("✓ Found existing MinIO on port 9000")
+                print("✓ Found existing RustFS on port 9000")
                 self.endpoint = "http://localhost:9000"
                 self.region = "us-east-1"
 
@@ -91,9 +91,11 @@ class S3TestEnvironment:
                 self.secret_key = os.getenv("OB_STORAGE_S3_SECRET_KEY")
 
                 if not self.access_key or not self.secret_key:
-                    print("  Trying to read credentials from /tmp/minio-credentials...")
+                    print(
+                        "  Trying to read credentials from /tmp/rustfs-credentials..."
+                    )
                     try:
-                        with open("/tmp/minio-credentials", "r") as f:
+                        with open("/tmp/rustfs-credentials", "r") as f:
                             for line in f:
                                 if (
                                     line.startswith("OB_STORAGE_S3_ACCESS_KEY=")
@@ -110,17 +112,17 @@ class S3TestEnvironment:
                         print("  No credentials file found, using defaults")
 
                 if not self.access_key:
-                    self.access_key = "minioadmin"
+                    self.access_key = "rustfsadmin"
                 if not self.secret_key:
-                    self.secret_key = "minioadmin123"
+                    self.secret_key = "rustfsadmin"
 
                 print(f"  Using access key: {self.access_key}")
                 return True
             else:
-                print("No MinIO found on port 9000")
+                print("No RustFS found on port 9000")
                 return False
         except Exception as e:
-            print(f"Failed to setup local MinIO: {e}")
+            print(f"Failed to setup local RustFS: {e}")
             return False
 
     def setup_remote_environment(self) -> bool:
@@ -311,32 +313,32 @@ def s3_config_path():
 
 
 @pytest.fixture(scope="session")
-def _minio_container_e2e():
-    """Fixture to set up and tear down the MinIO test container for E2E tests."""
+def _rustfs_container_e2e():
+    """Fixture to set up and tear down the RustFS test container for E2E tests."""
     import sys
 
     if sys.platform != "linux":
         pytest.skip(
-            "MinIO container tests only work on Linux (GitHub Actions limitation)",
+            "RustFS container tests only work on Linux (GitHub Actions limitation)",
             allow_module_level=True,
         )
 
-    from tests.remote.S3Storage_setup import MinIOSetup
+    from tests.remote.S3Storage_setup import RustFSSetup
 
-    # Initialize a MinIO test container with a lifetime of this test session
-    minio = MinIOSetup()
+    # Initialize a RustFS test container with a lifetime of this test session
+    rustfs = RustFSSetup()
 
     # Yield the container for use in tests
-    yield minio
+    yield rustfs
 
-    # Cleanup is handled by MinIOSetup context manager
+    # Cleanup is handled by RustFSSetup context manager
 
 
 @pytest.fixture
-def s3_environment(_minio_container_e2e):
+def s3_environment(_rustfs_container_e2e):
     """Set up S3 test environment based on configuration."""
     # Only use remote S3 if explicitly requested via OB_E2E_USE_REMOTE_S3
-    # Otherwise use local MinIO via testcontainers
+    # Otherwise use local RustFS via testcontainers
     use_remote = os.getenv("OB_E2E_USE_REMOTE_S3", "false").lower() == "true"
 
     if use_remote:
@@ -344,14 +346,14 @@ def s3_environment(_minio_container_e2e):
         if not env.setup():
             pytest.skip("Remote S3 credentials not available")
     else:
-        # Use local MinIO from testcontainers
+        # Use local RustFS from testcontainers
         env = S3TestEnvironment(use_remote=False)
-        # Set up connection to the MinIO container
-        env.endpoint = _minio_container_e2e.minio.get_config()["endpoint"].replace(
+        # Set up connection to the RustFS container
+        env.endpoint = _rustfs_container_e2e.container.get_config()["endpoint"].replace(
             "localhost", "http://localhost"
         )
-        env.access_key = _minio_container_e2e.minio.access_key
-        env.secret_key = _minio_container_e2e.minio.secret_key
+        env.access_key = _rustfs_container_e2e.container.access_key
+        env.secret_key = _rustfs_container_e2e.container.secret_key
         env.region = "us-east-1"
         env.bucket_name = env._generate_bucket_name()
 

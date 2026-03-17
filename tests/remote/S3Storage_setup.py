@@ -2,9 +2,12 @@ import os
 import random
 import shutil
 import string
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
-from testcontainers.minio import MinioContainer
+from testcontainers.core.container import DockerContainer
 
 import yaml
 
@@ -12,18 +15,65 @@ from omnibenchmark.model import Benchmark
 from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 
-MINIO_IMAGE = "minio/minio:RELEASE.2025-09-07T16-13-09Z"
+RUSTFS_IMAGE = "rustfs/rustfs:1.0.0-alpha.85"
+RUSTFS_ACCESS_KEY = "rustfsadmin"
+RUSTFS_SECRET_KEY = "rustfsadmin"
 
 # How many buckets to pre-seed
 BUCKETS_NUMBER = 100
 
 
-class MinIOSetup:
-    """Manages a MinIO container and pre-seeds buckets for testing."""
+class RustFSContainer:
+    def __init__(
+        self,
+        image: str = RUSTFS_IMAGE,
+        access_key: str = RUSTFS_ACCESS_KEY,
+        secret_key: str = RUSTFS_SECRET_KEY,
+    ) -> None:
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self._container = (
+            DockerContainer(image)
+            .with_exposed_ports(9000)
+            .with_env("RUSTFS_ACCESS_KEY", self.access_key)
+            .with_env("RUSTFS_SECRET_KEY", self.secret_key)
+            .with_env("RUSTFS_VOLUMES", "/data")
+        )
+
+    def start(self):
+        self._container.start()
+        self._wait_for_ready()
+        return self
+
+    def stop(self):
+        self._container.stop()
+
+    def _wait_for_ready(self, timeout: int = 60):
+        port = self._container.get_exposed_port(9000)
+        url = f"http://localhost:{port}"
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                urllib.request.urlopen(url, timeout=2)
+                return
+            except urllib.error.HTTPError:
+                # Server is up but returned an HTTP error (e.g. 403) — that's fine
+                return
+            except Exception:
+                time.sleep(1)
+        raise TimeoutError(f"RustFS did not become ready within {timeout}s")
+
+    def get_config(self):
+        port = self._container.get_exposed_port(9000)
+        return {"endpoint": f"localhost:{port}"}
+
+
+class RustFSSetup:
+    """Manages a RustFS container and pre-seeds buckets for testing."""
 
     def __init__(self) -> None:
-        self.minio = MinioContainer(image=MINIO_IMAGE)
-        self.minio.start()
+        self.container = RustFSContainer()
+        self.container.start()
 
         # Pre-seed buckets
         self.bucket_names = [
@@ -35,22 +85,22 @@ class MinIOSetup:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.minio.stop()
+        self.container.stop()
 
 
-class TmpMinIOStorage:
+class TmpRustFSStorage:
     """Manages a temporary bucket for a single test."""
 
-    def __init__(self, testcontainer: MinIOSetup) -> None:
-        self.minio = testcontainer.minio
-        self.endpoint = self.minio.get_config()["endpoint"].replace(
+    def __init__(self, rustfs: RustFSSetup) -> None:
+        self.container = rustfs.container
+        self.endpoint = self.container.get_config()["endpoint"].replace(
             "localhost", "http://localhost"
         )
-        self.access_key = self.minio.access_key
-        self.secret_key = self.minio.secret_key
+        self.access_key = self.container.access_key
+        self.secret_key = self.container.secret_key
 
         # Use one of the pre-seeded buckets
-        self.bucket_name = testcontainer.bucket_names.pop()
+        self.bucket_name = rustfs.bucket_names.pop()
         self.out_dir = ""
 
         # Set environment variables

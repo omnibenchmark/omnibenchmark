@@ -11,21 +11,21 @@ The S3 e2e tests validate:
 
 ## Architecture
 
-### Local Development (MinIO)
-- Uses Docker Compose to run MinIO locally
+### Local Development (RustFS)
+- Uses Docker Compose to run RustFS locally
 - Replaces testcontainers for better control and reliability
-- Automatic setup of test users and credentials
+- Automatic setup of test credentials
 - Runs on `http://localhost:9000`
 
 ### CI/Production (Remote S3)
 - Uses real S3 or S3-compatible services
 - Timestamp-based bucket names to avoid conflicts
 - Configured via environment variables
-- Supports AWS S3, MinIO, and other S3-compatible services
+- Supports AWS S3, RustFS, MinIO, and other S3-compatible services
 
 ## Quick Start
 
-### Local Testing with MinIO
+### Local Testing with RustFS
 
 The easiest way to run S3 tests locally:
 
@@ -42,41 +42,41 @@ cd tests/e2e/s3
 ```
 
 This will:
-1. Check if MinIO is already running on port 9000
-2. If not found, start MinIO containers with Docker Compose
-3. Set up test users and credentials automatically
+1. Check if RustFS is already running on port 9000
+2. If not found, start RustFS containers with Docker Compose
+3. Set up credentials automatically
 4. Run the S3 e2e tests
-5. Clean up only containers it started (preserves existing MinIO)
+5. Clean up only containers it started (preserves existing RustFS)
 
-#### Using Existing MinIO Container
+#### Using Existing RustFS Container
 
-If you already have MinIO running (e.g., from `../minio-data/run-minio.sh`):
+If you already have RustFS running:
 
 ```bash
 # Set credentials if needed
 export OB_STORAGE_S3_ACCESS_KEY=your-access-key
 export OB_STORAGE_S3_SECRET_KEY=your-secret-key
 
-# Run tests against existing MinIO
+# Run tests against existing RustFS
 pixi run test-e2e-s3
 ```
 
-The test script will detect your running MinIO and use it without starting new containers.
+The test script will detect your running RustFS and use it without starting new containers.
 
 ### Manual Setup
 
-If you prefer to manage MinIO manually:
+If you prefer to manage RustFS manually:
 
 ```bash
-# Start MinIO
+# Start RustFS
 cd tests/e2e/s3
 docker-compose up -d
 
-# Wait for setup to complete
-sleep 15
+# Wait for startup
+sleep 20
 
 # Source credentials
-source /tmp/minio-credentials
+source /tmp/rustfs-credentials
 
 # Run tests
 cd ../../../..  # back to project root
@@ -113,8 +113,8 @@ For testing against real S3 or other remote services:
 - `test_06_s3_minimal.py` - Main test file with S3 e2e tests
 
 ### Docker Setup (Local Development)
-- `docker-compose.yml` - MinIO container configuration
-- `setup-minio.sh` - MinIO initialization script
+- `docker-compose.yml` - RustFS container configuration
+- `setup-rustfs.sh` - RustFS credentials setup script
 - `run-local-s3-test.sh` - Convenience script for local testing
 
 ### Configuration
@@ -144,14 +144,14 @@ All tests are marked with `@pytest.mark.e2e_s3` for separate execution from othe
 ## Environment Variables
 
 ### Test Control
-- `OB_E2E_USE_REMOTE_S3` - Set to `true` to use remote S3 instead of local MinIO
+- `OB_E2E_USE_REMOTE_S3` - Set to `true` to use remote S3 instead of local RustFS
 - `OB_E2E_KEEP_FILES` - Set to `true` to keep test files for debugging
 - `OB_E2E_BUCKET_PREFIX` - Prefix for CI bucket names (default: `obdata-ci`)
 - `CI` - Set to `true` to automatically use remote S3 (for CI environments)
 
 ### S3 Configuration
 - `OB_STORAGE_S3_ACCESS_KEY` - S3 access key
-- `OB_STORAGE_S3_SECRET_KEY` - S3 secret key  
+- `OB_STORAGE_S3_SECRET_KEY` - S3 secret key
 - `OB_STORAGE_S3_ENDPOINT_URL` - S3 endpoint URL (defaults to `eu-central-1` region)
 - `AWS_DEFAULT_REGION` - AWS region (defaults to `eu-central-1`)
 
@@ -160,7 +160,7 @@ All tests are marked with `@pytest.mark.e2e_s3` for separate execution from othe
 - `CI_MERGE_REQUEST_IID` - GitLab MR number (alternative to GitHub PR)
 
 ### Timeouts
-- `OB_E2E_MINIO_STARTUP_TIMEOUT` - MinIO startup timeout in seconds (default: 120)
+- `OB_E2E_RUSTFS_STARTUP_TIMEOUT` - RustFS startup timeout in seconds (default: 60)
 - `OB_E2E_TEST_TIMEOUT` - Test timeout in seconds (default: 300)
 
 ## CI Integration
@@ -178,7 +178,7 @@ The project includes a complete GitHub Actions workflow at `.github/workflows/s3
 Configure these secrets in your GitHub repository settings:
 
 - `OB_STORAGE_S3_ACCESS_KEY` - S3 access key
-- `OB_STORAGE_S3_SECRET_KEY` - S3 secret key  
+- `OB_STORAGE_S3_SECRET_KEY` - S3 secret key
 - `OB_STORAGE_S3_ENDPOINT_URL` - S3 endpoint (optional, defaults to EU region)
 
 #### Manual Workflow Trigger
@@ -193,7 +193,7 @@ You can also trigger the workflow manually with custom settings:
 ### Bucket Management in CI
 
 The tests automatically create unique bucket names:
-- Format: `obdata-ci-prXX-YYYYMMDD-HHMMSS-sss` 
+- Format: `obdata-ci-prXX-YYYYMMDD-HHMMSS-sss`
 - Example: `obdata-ci-pr123-20241214-143022-456`
 
 Features:
@@ -213,10 +213,10 @@ Features:
 - Easier to debug and maintain
 - More reliable container lifecycle management
 - Explicit credential handling
-- **Existing container support**: Works with already-running MinIO instances
+- **Existing container support**: Works with already-running RustFS instances
 
 ### Environment Flexibility
-- Same test code works for local MinIO and remote S3
+- Same test code works for local RustFS and remote S3
 - Configuration via environment variables
 - Graceful fallbacks and clear error messages
 
@@ -228,7 +228,7 @@ Features:
 
 ## Troubleshooting
 
-### MinIO Won't Start
+### RustFS Won't Start
 ```bash
 # Check if port 9000 is already in use
 lsof -i :9000
@@ -240,16 +240,16 @@ docker-compose down -v --remove-orphans
 ### Credentials Not Working
 ```bash
 # Check if credentials file was created
-cat /tmp/minio-credentials
+cat /tmp/rustfs-credentials
 
-# Manually check MinIO is responding
-curl http://localhost:9000/minio/health/live
+# Manually check RustFS is responding
+curl http://localhost:9000
 ```
 
 ### Tests Fail with Timeout
 ```bash
 # Increase timeouts in .env
-OB_E2E_MINIO_STARTUP_TIMEOUT=180
+OB_E2E_RUSTFS_STARTUP_TIMEOUT=120
 OB_E2E_TEST_TIMEOUT=600
 ```
 
@@ -269,10 +269,10 @@ The project provides several pixi tasks for different testing scenarios:
 # Run only S3 e2e tests
 pixi run test-e2e-s3
 
-# Run S3 tests with local MinIO setup
+# Run S3 tests with local RustFS setup
 pixi run test-e2e-s3-local
 
-# Run all e2e tests EXCEPT S3 tests  
+# Run all e2e tests EXCEPT S3 tests
 pixi run test-e2e
 
 # Run ALL e2e tests including S3
