@@ -318,7 +318,7 @@ def _rustfs_container_e2e():
     try:
         import docker
 
-        docker.from_env()
+        docker.from_env().ping()
     except Exception as e:
         pytest.skip(f"Docker daemon not available: {e}")
 
