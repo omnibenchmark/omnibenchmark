@@ -320,7 +320,7 @@ class S3TestEnvironment:
 # ---------------------------------------------------------------------------
 
 
-def _update_config(
+def update_config_with_s3_settings(
     config_path: Path, tmp_path: Path, s3_env: S3TestEnvironment
 ) -> Path:
     """Write a copy of the config with the test bucket name and endpoint injected."""
@@ -337,6 +337,14 @@ def _update_config(
     with open(out, "w") as f:
         yaml.dump(config, f)
     return out
+
+
+def setup_test_environment(config_path: Path, tmp_path: Path) -> Path:
+    """Copy config into tmp_path and return the new path."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    dest = tmp_path / "06_s3_remote.yaml"
+    shutil.copy2(config_path, dest)
+    return dest
 
 
 def _checksum(content: bytes) -> str:
@@ -426,7 +434,9 @@ def s3_workflow(s3_environment, s3_config_path, tmp_path_factory):
             "Ensure the IAM user/role has s3:CreateBucket permission."
         )
 
-    config_path = _update_config(s3_config_path, tmp_path, s3_environment)
+    config_path = update_config_with_s3_settings(
+        s3_config_path, tmp_path, s3_environment
+    )
     # Copy to the working directory so relative paths resolve correctly
     config_in_cwd = tmp_path / "06_s3_remote.yaml"
     shutil.copy2(config_path, config_in_cwd)
