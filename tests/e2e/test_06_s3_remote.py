@@ -343,6 +343,26 @@ def _checksum(content: bytes) -> str:
     return hashlib.md5(content).hexdigest()
 
 
+def _wait_for_bucket_objects(
+    env: S3TestEnvironment, min_count: int = 1, timeout: int = 30
+) -> List[Dict[str, Any]]:
+    """Poll until at least *min_count* objects appear in the bucket, then return them.
+
+    Replaces bare time.sleep() calls with a condition-driven wait so tests
+    fail fast on quick systems and stay reliable on slow ones.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        contents = env.list_bucket_contents()
+        if len(contents) >= min_count:
+            return contents
+        time.sleep(1)
+    contents = env.list_bucket_contents()
+    raise TimeoutError(
+        f"Expected ≥{min_count} objects in bucket after {timeout}s, got {len(contents)}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Module-scoped fixtures
 # ---------------------------------------------------------------------------
@@ -455,9 +475,7 @@ def test_s3_pipeline_execution(s3_workflow, s3_environment):
 @pytest.mark.e2e_s3
 def test_s3_bucket_structure(s3_workflow, s3_environment):
     """Bucket contains the expected cartesian product (3 data + 5 method files)."""
-    contents = s3_environment.list_bucket_contents()
-    assert len(contents) > 0, "No objects found in S3 bucket after pipeline run"
-
+    contents = _wait_for_bucket_objects(s3_environment, min_count=8)
     keys = [obj["Key"] for obj in contents]
 
     # 3 data files
@@ -478,8 +496,7 @@ def test_s3_bucket_structure(s3_workflow, s3_environment):
 @pytest.mark.e2e_s3
 def test_s3_file_content_and_checksums(s3_workflow, s3_environment):
     """All files download with the expected content values and valid MD5 checksums."""
-    contents = s3_environment.list_bucket_contents()
-    assert len(contents) > 0, "No objects in bucket"
+    contents = _wait_for_bucket_objects(s3_environment, min_count=8)
 
     downloaded: Dict[str, bytes] = {}
     for obj in contents:
