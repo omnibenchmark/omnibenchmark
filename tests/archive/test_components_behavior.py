@@ -269,7 +269,7 @@ class TestPrepareArchiveResults:
         # Should filter out nonexistent files
         assert nonexistent_file not in result
 
-    def test_prepare_results_empty_file_list(self):
+    def test_prepare_results_empty_file_list(self, tmp_path):
         """Test results preparation when no result files are found."""
         with patch(
             "omnibenchmark.archive.components.get_expected_benchmark_output_files"
@@ -279,7 +279,9 @@ class TestPrepareArchiveResults:
             mock_benchmark = Mock()
 
             result = prepare_archive_results(
-                benchmark=mock_benchmark, results_dir="out", remote_storage=False
+                benchmark=mock_benchmark,
+                results_dir=str(tmp_path / "out"),
+                remote_storage=False,
             )
 
             assert result == []

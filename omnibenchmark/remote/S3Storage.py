@@ -407,6 +407,18 @@ class S3CompatibleStorage(RemoteStorage):
                     "be added to an existing bucket. Please recreate the bucket with "
                     "Object Lock enabled."
                 ) from e
+            # Some S3-compatible servers (e.g. older RustFS) don't implement the
+            # GetObjectLockConfiguration API.  Treat this as a non-fatal warning so
+            # that version creation can still proceed.
+            if code in ("NotImplemented", "MethodNotAllowed", "UnsupportedOperation"):
+                logger.warning(
+                    "Bucket '%s': GetObjectLockConfiguration returned '%s'. "
+                    "Skipping Object Lock check — ensure the bucket supports "
+                    "object versioning for reliable version tagging.",
+                    self.benchmark,
+                    code,
+                )
+                return
             raise
 
     def _build_version_manager(self, benchmark: Optional[BenchmarkExecution]):

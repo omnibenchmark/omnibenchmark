@@ -152,13 +152,15 @@ class S3TestEnvironment:
         if not s3_client:
             return False
         try:
-            if self.region == "us-east-1":
-                s3_client.create_bucket(Bucket=self.bucket_name)
-            else:
-                s3_client.create_bucket(
-                    Bucket=self.bucket_name,
-                    CreateBucketConfiguration={"LocationConstraint": self.region},
-                )
+            kwargs: dict = {
+                "Bucket": self.bucket_name,
+                "ObjectLockEnabledForBucket": True,
+            }
+            if self.region != "us-east-1":
+                kwargs["CreateBucketConfiguration"] = {
+                    "LocationConstraint": self.region
+                }
+            s3_client.create_bucket(**kwargs)
             return True
         except Exception as e:
             print(f"❌ Failed to create bucket: {e}")
@@ -572,7 +574,7 @@ def test_s3_version_create_and_list(s3_workflow):
     assert (
         result.returncode == 0
     ), f"version create failed\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
-    assert "Create a new benchmark version" in result.stdout
+    assert "Creating benchmark version" in result.stdout
 
     with OmniCLISetup() as omni:
         result = omni.call(

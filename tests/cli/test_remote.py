@@ -281,7 +281,7 @@ def test_S3_storage_credentials_from_file(rustfs_storage):  # noqa: F811
 
             # Verify success and message
             assert run.returncode == 0
-            expected_output = "Create a new benchmark version"
+            expected_output = "Creating benchmark version"
             assert_startswith(run.stdout, expected_output)
 
         finally:
