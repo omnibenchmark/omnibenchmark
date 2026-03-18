@@ -3,9 +3,9 @@ description: Clustering benchmark on Iris and Penguins Dataset.
 version: "1.0"
 benchmarker: "OmniBenchmark Team at Robinsons Lab"
 api_version: "0.3.0"
-storage: https://rgw.science-it.uzh.ch/
+storage: https://s3.eu-north-1.amazonaws.com
 storage_api: S3
-storage_bucket_name: omnibenchmark-remote-testing
+storage_bucket_name: omnibenchmark
 software_backend: conda
 software_environments:
   R:

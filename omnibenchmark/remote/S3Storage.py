@@ -114,7 +114,9 @@ class S3CompatibleStorage(RemoteStorage):
         Connects to the S3-compatible storage using boto3.
 
         Args:
-            readonly: When True, connect anonymously (no credentials).
+            readonly: When True, this client is used only for read operations.
+                Credentials are still used when available; anonymous access is
+                only used when no credentials are present (public buckets).
 
         Returns:
             A boto3 S3 client.
@@ -126,7 +128,7 @@ class S3CompatibleStorage(RemoteStorage):
             kwargs["endpoint_url"] = self._endpoint_url()
             kwargs["region_name"] = "us-east-1"
 
-        if readonly or "access_key" not in self.auth_options:
+        if "access_key" not in self.auth_options:
             kwargs["config"] = Config(signature_version=UNSIGNED)
         else:
             assert (
