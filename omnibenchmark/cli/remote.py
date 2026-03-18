@@ -25,6 +25,13 @@ if TYPE_CHECKING:
 from .debug import add_debug_option
 
 
+def _fmt_dt(value) -> str:
+    """Format a datetime or ISO string as 'YYYY-MM-DD HH:MM:SS'."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def _make_storage(
     benchmark_path: str, require_credentials: bool = True
 ) -> "tuple[BenchmarkExecution, S3CompatibleStorage]":
@@ -102,11 +109,12 @@ def create_benchmark_version(benchmark: str):
 
     if ss.version in ss.versions:
         logger.error(
-            "Error: version already exists. Cannot overwrite.",
+            f"Version {ss.version} already exists. Cannot overwrite.",
         )
         sys.exit(1)
-    logger.info("Create a new benchmark version")
+    logger.info(f"Creating benchmark version {ss.version} for bucket '{ss.benchmark}'")
     ss.create_new_version(bm)
+    logger.info(f"Version {ss.version} created successfully.")
 
 
 @add_debug_option
@@ -369,37 +377,46 @@ def diff_benchmark(ctx, benchmark: str, version1, version2):
 
     BENCHMARK: Path to benchmark YAML file.
     """
-    logger.info(
-        f"Found the following differences in {benchmark} for {version1} and {version2}."
-    )
     _, ss = _make_storage(benchmark, require_credentials=False)
+
+    available = [str(v) for v in ss.versions]
+    missing = [v for v in (version1, version2) if v not in available]
+    if missing:
+        versions_list = ", ".join(available) if available else "(none)"
+        logger.error(
+            click.style("[ERROR]", fg="red", bold=True)
+            + f" Version(s) not found: {', '.join(missing)}. "
+            f"Available versions: {versions_list}"
+        )
+        sys.exit(1)
 
     # get objects for first version
     ss.set_version(version1)
     ss.load_objects()
     files_v1 = [
-        f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"{f[0]}   {f[1]['size']}   {_fmt_dt(f[1]['last_modified'])}\n"
         for f in ss.files.items()
     ]
     creation_time_v1 = ""
     if f"versions/{version1}.csv" in ss.files.keys():
-        creation_time_v1 = datetime.fromisoformat(
+        creation_time_v1 = _fmt_dt(
             ss.files[f"versions/{version1}.csv"]["last_modified"]
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        )
 
     # get objects for second version
     ss.set_version(version2)
     ss.load_objects()
     files_v2 = [
-        f"{f[0]}   {f[1]['size']}   {datetime.fromisoformat(f[1]['last_modified']).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"{f[0]}   {f[1]['size']}   {_fmt_dt(f[1]['last_modified'])}\n"
         for f in ss.files.items()
     ]
     creation_time_v2 = ""
     if f"versions/{version2}.csv" in ss.files.keys():
-        creation_time_v2 = datetime.fromisoformat(
+        creation_time_v2 = _fmt_dt(
             ss.files[f"versions/{version2}.csv"]["last_modified"]
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        )
 
+    logger.info(f"Differences in {benchmark} between {version1} and {version2}:")
     click.echo(
         "".join(
             list(

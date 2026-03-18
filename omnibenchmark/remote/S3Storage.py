@@ -244,8 +244,16 @@ class S3CompatibleStorage(RemoteStorage):
         # Idempotency: the manifest is the commit point; if it exists the version
         # is already complete — nothing to do.
         if self.version in self.versions:
-            logger.info(f"Version {self.version} already exists, skipping.")
+            logger.info(
+                f"Version {self.version} already exists in bucket '{self.benchmark}', skipping."
+            )
             return
+
+        known = [str(v) for v in self.versions]
+        logger.info(
+            f"Creating version {self.version} in bucket '{self.benchmark}' "
+            f"(known versions: {', '.join(known) if known else 'none'})"
+        )
 
         version_manager = self._build_version_manager(benchmark)
         tagged: list = []
@@ -256,13 +264,19 @@ class S3CompatibleStorage(RemoteStorage):
             # _tag_and_protect_objects returns the full tagged list so we can
             # roll back here if the subsequent manifest write fails.
             tagged = self._tag_and_protect_objects(benchmark)
+            logger.info(
+                f"Tagged and locked {len(tagged)} objects with version {self.version}"
+            )
             # Manifest write is the atomic commit point — inside the try so any
             # failure triggers a rollback of the tags applied above.
             self._write_version_manifest()
         except RemoteStorageInvalidInputException:
             raise  # already wrapped with context by the inner method
         except Exception as e:
-            logger.error(f"Error creating version {self.version}, rolling back: {e}")
+            logger.error(
+                f"Error creating version {self.version} in bucket '{self.benchmark}', "
+                f"rolling back {len(tagged)} tagged objects: {e}"
+            )
             if tagged:
                 self._rollback_tags(tagged)
             raise RemoteStorageInvalidInputException(f"Failed to create version: {e}")
@@ -371,6 +385,29 @@ class S3CompatibleStorage(RemoteStorage):
                 "Read-only mode, cannot create new version,"
                 " set access_key and secret_key in auth_options"
             )
+        self._check_object_lock_enabled()
+
+    def _check_object_lock_enabled(self) -> None:
+        """Raise a clear error when the bucket was created without Object Lock.
+
+        Object Lock must be enabled at bucket creation time and cannot be
+        added later.  Catching this before any write avoids a partial rollback.
+        """
+        try:
+            self.client.get_object_lock_configuration(Bucket=self.benchmark)
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            if code in (
+                "ObjectLockConfigurationNotFoundError",
+                "NoSuchObjectLockConfiguration",
+            ):
+                raise RemoteStorageInvalidInputException(
+                    f"Bucket '{self.benchmark}' does not have Object Lock enabled. "
+                    "Object Lock must be enabled at bucket creation time and cannot "
+                    "be added to an existing bucket. Please recreate the bucket with "
+                    "Object Lock enabled."
+                ) from e
+            raise
 
     def _build_version_manager(self, benchmark: Optional[BenchmarkExecution]):
         """Return a version manager scoped to this call (not stored on self)."""
@@ -471,6 +508,31 @@ class S3CompatibleStorage(RemoteStorage):
             caller can roll back if a subsequent step fails.
         """
         objdic = get_s3_object_versions_and_tags(self.client, self.benchmark)
+
+        # Remove stale version tags left by a previous failed attempt so that
+        # retrying create_new_version is safe and idempotent.
+        tag_key = str(self.version)
+        for obj_name, obj_versions in objdic.items():
+            for vid, metadata in obj_versions.items():
+                if tag_key in metadata.get("tags", {}):
+                    logger.debug(
+                        "Removing stale tag '%s' from %s@%s before re-tagging",
+                        tag_key,
+                        obj_name,
+                        vid,
+                    )
+                    try:
+                        self.client.delete_object_tagging(
+                            Bucket=self.benchmark, Key=obj_name, VersionId=vid
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "Could not remove stale tag from %s@%s: %s",
+                            obj_name,
+                            vid,
+                            e,
+                        )
+
         names, vids = get_objects_to_tag(objdic, storage_options=self.storage_options)
         names, vids = filter_objects_to_tag(
             names, vids, self.storage_options, benchmark

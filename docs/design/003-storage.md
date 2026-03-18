@@ -115,7 +115,164 @@ Furthermore, so far handling the remote objects during execution has been done b
 ### Testing Strategy
 TBD
 
-## 6. References
+## 6. Current Implementation
+
+This section documents how storage actually works in the current codebase (`omnibenchmark/remote/`).
+
+### 6.1 Architecture Overview
+
+Remote storage is backed by any S3-compatible object store (AWS S3, RustFS, etc.). The implementation
+uses **S3 bucket versioning** combined with **S3 Object Lock** to achieve immutable, reproducible
+benchmark snapshots. The core classes are:
+
+| Class                 | File               | Role                                              |
+|-----------------------|--------------------|---------------------------------------------------|
+| `S3CompatibleStorage` | `S3Storage.py`     | Main implementation: connect, version, tag, lock  |
+| `RemoteStorage`       | `RemoteStorage.py` | Abstract base class                               |
+| `StorageOptions`      | `RemoteStorage.py` | Configures tracked directories and glob patterns  |
+| `StorageService`      | `service.py`       | Thin facade used by CLI commands                  |
+
+### 6.2 Prerequisites
+
+A bucket **must** be created with **Object Lock enabled**. This cannot be changed after creation.
+Object Lock implicitly enables S3 bucket versioning.
+
+AWS CLI:
+```bash
+aws s3api create-bucket \
+  --bucket <bucket-name> \
+  --region <region> \
+  --create-bucket-configuration LocationConstraint=<region> \
+  --object-lock-enabled-for-bucket
+```
+
+AWS Console: Create bucket → Advanced settings → Object Lock ✓
+
+If the bucket lacks Object Lock, `ob remote version create` will fail immediately with a clear error
+before any objects are modified.
+
+### 6.3 Bucket Layout
+
+```
+<bucket>/
+├── config/
+│   └── benchmark.yaml          # benchmark YAML uploaded on each version create
+├── software/
+│   └── *.yaml / *.eb / *.lua   # software environment files
+├── out/                        # benchmark output files (configurable via out_dir)
+│   └── <module>/<params>/...
+└── versions/
+    ├── 1.0.csv                 # version manifest: object keys + S3 version IDs
+    └── 2.0.csv
+```
+
+The **tracked directories** (`config/`, `software/`, `versions/`, and `out/`) are the only
+directories whose objects are included when a version snapshot is created.
+`out/` is the only results directory; the others are metadata directories versioned in full on
+every snapshot.
+
+### 6.4 Credentials
+
+Credentials are read from environment variables or a `.env` file:
+
+| Variable                    | Description                                |
+|-----------------------------|--------------------------------------------|
+| `OB_STORAGE_S3_ACCESS_KEY`  | AWS/S3 access key ID                       |
+| `OB_STORAGE_S3_SECRET_KEY`  | AWS/S3 secret access key                   |
+| `OB_STORAGE_S3_ENDPOINT_URL`| Custom endpoint (omit for AWS S3)          |
+| `AWS_DEFAULT_REGION`        | AWS region (default: `eu-central-1`)       |
+
+The `.env` file is found by walking up from the current working directory — the first file found
+wins. Variables already set in the environment are never overridden (`override=False`).
+
+When credentials are present, **both** read and write clients use signed requests. When no
+credentials are provided, an unsigned (anonymous) client is used — this only works for
+publicly-readable buckets.
+
+### 6.5 YAML Configuration
+
+Storage is configured in the benchmark YAML. Two formats are accepted (but not mixed):
+
+**New format (preferred):**
+```yaml
+storage:
+  api: S3
+  endpoint: https://s3.eu-north-1.amazonaws.com
+  bucket_name: my-benchmark-bucket
+```
+
+**Legacy flat format (still supported):**
+```yaml
+storage: https://s3.eu-north-1.amazonaws.com
+storage_api: S3
+storage_bucket_name: my-benchmark-bucket
+```
+
+If step 6 fails, step 5's tags are rolled back. The locked objects remain in the bucket (they
+cannot be deleted) but without their version tags, so they are not included in any version manifest.
+
+### 6.7 S3 Versioning Semantics
+
+Because S3 bucket versioning is enabled, every `PUT` to the same key creates a **new S3 object
+version** without overwriting the old one. This means:
+
+- Re-running `ob run` and uploading new outputs creates new S3 versions alongside the old ones.
+- Tagged + locked versions from a previous `version create` are **permanently preserved**, even
+  if the same key is later overwritten by a new run.
+- `ob remote files download -v 1.0` always retrieves the exact object versions recorded in
+  `versions/1.0.csv`, regardless of what was uploaded afterwards.
+
+Object Lock **GOVERNANCE mode** prevents deletion and overwriting of a specific object version for
+the retention period (1000 weeks ≈ 19 years). Bypassing it requires the
+`s3:BypassGovernanceRetention` IAM permission.
+
+### 6.8 Version Manifest (CSV)
+
+`versions/<version>.csv` lists every object that belongs to the version:
+
+```
+name,version_id,last_modified,size,etag
+out/iris/data/iris.features.csv,abc123,2026-01-01T10:00:00+00:00,1234,d41d...
+config/benchmark.yaml,def456,2026-01-01T10:00:00+00:00,4567,e3b0...
+...
+```
+
+The `version_id` column is the S3 object version ID — a stable pointer to the exact bytes,
+independent of future uploads to the same key.
+
+### 6.9 CLI Commands
+
+- `ob remote version list YAML` — list available versions in the bucket
+- `ob remote version create YAML` — create a new version snapshot
+- `ob remote version diff YAML -v1 X -v2 Y` — unified diff of file lists between two versions
+- `ob remote files list YAML` — list files in the configured version
+- `ob remote files download YAML` — download files for the configured version
+
+### 6.10 Known Limitations and Edge Cases
+
+**Unchanged files get re-versioned.** If a file exists in version 1.0 but the new benchmark run
+does not produce it (e.g. a module was removed), the 1.0-locked object version is still the
+"newest" for that key. The pre-flight cleanup will remove its `1.0` tag, and it will be tagged as
+the new version. This means files that did not change between runs are silently included in the
+new version under the new version tag, which may not reflect actual benchmark execution.
+
+**Retry safety.** If `version create` fails after locking objects but before writing the manifest,
+the next retry removes stale version tags (pre-flight cleanup in step 5 above) before re-tagging,
+making retries safe. The previously locked objects remain in the bucket but are untagged until the
+retry completes.
+
+**Bucket recreation.** Object Lock cannot be enabled on an existing bucket. If a bucket was
+created without it, it must be deleted and recreated. Empty buckets are safe to delete; locked
+buckets require `BypassGovernanceRetention` on each object version before deletion is possible.
+
+**Public read access.** When a bucket is created by `_create_benchmark()`, a public read policy is
+applied (`s3:GetObject` for `*`). This means anyone who knows the bucket name and object key can
+download objects anonymously — including locked version artifacts. Restrict the bucket policy if
+this is not desired.
+
+## 7. References
 
 1. [Current implementation](https://github.com/omnibenchmark/omnibenchmark/blob/main/omnibenchmark/io/README.md)
 2. [snakemake S3 storage plugin](https://github.com/snakemake/snakemake-storage-plugin-s3)
+3. [AWS S3 Object Lock documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)
+4. [RustFS](https://github.com/RustFS/RustFS) — S3-compatible storage used in tests
