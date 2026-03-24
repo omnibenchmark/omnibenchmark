@@ -136,6 +136,11 @@ class S3CompatibleStorage(RemoteStorage):
             )
             kwargs["aws_access_key_id"] = self.auth_options["access_key"]
             kwargs["aws_secret_access_key"] = self.auth_options["secret_key"]
+            if not self._is_aws:
+                kwargs["config"] = Config(
+                    request_checksum_calculation="when_required",
+                    response_checksum_validation="when_required",
+                )
 
         return boto3.client("s3", **kwargs)  # type: ignore[union-attr]
 
