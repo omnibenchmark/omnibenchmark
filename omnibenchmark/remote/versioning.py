@@ -5,7 +5,6 @@ import glob
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.exception import S3StorageVersioningCorruptionException
 
 
 def get_objects_to_tag(
@@ -116,9 +115,25 @@ def get_single_remoteversion_from_bmversion(
         )
     )
     if len(version_ls) > 1:
-        raise S3StorageVersioningCorruptionException(
-            f"Multiple versions found for object {object_name}"
+        # Corruption state: more than one S3 version of this object carries the
+        # same benchmark version tag (e.g. left by a partially rolled-back run).
+        # Log a warning and pick the most recently modified one rather than
+        # hard-failing the whole version create.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Multiple S3 versions of '%s' are tagged with benchmark version '%s'. "
+            "This indicates a previous partially-failed version create. "
+            "Using the most recently modified version.",
+            object_name,
+            query_version,
         )
+        version_ls = [
+            max(
+                version_ls,
+                key=lambda v: di[object_name][v]["last_modified"],
+            )
+        ]
     return version_ls[0] if version_ls else None
 
 

@@ -59,7 +59,6 @@ GitPython = ">=3.1.0"
 tqdm = ">=4.66.4"
 
 # S3 and storage dependencies
-minio = "==7.2.18"  # Pin to 7.2.18, 7.2.19 has breaking API changes
 boto3 = ">=1.34.102"
 snakemake-storage-plugin-s3 = ">=0.2.12"
 s3fs = ">=2023.12.0"
@@ -80,7 +79,7 @@ test = { cmd = "pytest -m 'short and not e2e'", description = "Run short tests o
 # End-to-end test tasks
 test-e2e = { cmd = "pytest -m 'e2e and not e2e_s3' -v -n auto", description = "Run end-to-end tests (excluding S3 tests)" }
 test-e2e-s3 = { cmd = "pytest tests/e2e/test_06_s3_remote.py -v -s", description = "Run S3 e2e tests (requires S3 setup)" }
-test-e2e-s3-local = { cmd = "tests/e2e/s3/run-local-s3-test.sh", description = "Run S3 e2e tests with local MinIO" }
+test-e2e-s3-local = { cmd = "tests/e2e/s3/run-local-s3-test.sh", description = "Run S3 e2e tests with local RustFS" }
 test-e2e-all = { cmd = "pytest -m e2e -v -n auto", description = "Run ALL end-to-end tests including S3" }
 test-all = { cmd = "pytest", description = "Run all tests including e2e" }
 
@@ -138,8 +137,6 @@ git = "*"
 [feature.py313.pypi-dependencies]
 # Install local package in development mode
 omnibenchmark = { path = ".", editable = true }
-# Add minio for S3 storage tests
-minio = "==7.2.18"  # Pin to 7.2.18, 7.2.19 has breaking API changes
 
 [feature.py313.tasks]
 # Test task for Python 3.13 environment

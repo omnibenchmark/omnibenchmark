@@ -10,7 +10,6 @@ from omnibenchmark.remote.versioning import (
     get_remoteversion_from_bmversion,
     prepare_csv_remoteversion_from_bmversion,
 )
-from omnibenchmark.remote.exception import S3StorageVersioningCorruptionException
 
 
 class FakeStorageOptions:
@@ -284,20 +283,18 @@ class TestGetSingleRemoteversionFromBmversion:
 
         assert result is None
 
-    def test_raises_exception_when_multiple_versions_have_same_tag(self):
-        """Should raise exception when multiple versions have the same tag (corruption)."""
+    def test_returns_most_recent_version_when_multiple_versions_have_same_tag(self):
+        """Should return most recently modified version when multiple versions have the same tag (corruption recovery)."""
         objdic = {
             "file.txt": {
-                "v1": {"tags": {"0.1": "valid"}},
-                "v2": {"tags": {"0.1": "valid"}},
+                "v1": {"tags": {"0.1": "valid"}, "last_modified": datetime(2025, 1, 1)},
+                "v2": {"tags": {"0.1": "valid"}, "last_modified": datetime(2025, 1, 2)},
             }
         }
 
-        with pytest.raises(S3StorageVersioningCorruptionException) as exc_info:
-            get_single_remoteversion_from_bmversion(objdic, "file.txt", "0.1")
+        result = get_single_remoteversion_from_bmversion(objdic, "file.txt", "0.1")
 
-        assert "Multiple versions found" in str(exc_info.value)
-        assert "file.txt" in str(exc_info.value)
+        assert result == "v2"
 
 
 @pytest.mark.short

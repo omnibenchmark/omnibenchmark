@@ -70,7 +70,6 @@ test = [
     "testcontainers>=4.5.1",
     "pytest-timeout==2.3.1",
     "s3fs>=2023.12.0",
-    "minio==7.2.18",  # Pin to 7.2.18, 7.2.19 has breaking API changes
 ]
 
 [project.scripts]

@@ -5,16 +5,16 @@ from omnibenchmark.remote.storage import get_storage
 from omnibenchmark.remote.sizeof import sizeof_fmt
 from omnibenchmark.remote.RemoteStorage import RemoteStorage
 
-from ..fixtures import minio_storage, _minio_container  # noqa: F401
+from ..fixtures import rustfs_storage, _rustfs_container  # noqa: F401
 
 
 # fmt: off
-def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(minio_storage):  # noqa: F811
+def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(rustfs_storage):  # noqa: F811
 # fmt: on
     # happy path
     storage = get_storage(
         storage_api="minio",
-        auth_options=minio_storage.auth_options,
+        auth_options=rustfs_storage.auth_options,
         benchmark="test",
     )
     assert isinstance(storage, RemoteStorage)
@@ -24,7 +24,7 @@ def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(minio_st
     with pytest.raises(ClientError):
         get_storage(
             storage_api="minio",
-            auth_options=minio_storage.auth_options,
+            auth_options=rustfs_storage.auth_options,
             benchmark="not_existing_benchmark",
         )
 

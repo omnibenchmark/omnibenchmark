@@ -2,7 +2,7 @@
 S3 configuration validation tests that don't require actual S3 setup.
 
 These tests validate the S3 configuration files and basic CLI behavior
-without needing MinIO or remote S3 credentials.
+without needing RustFS or remote S3 credentials.
 """
 
 import pytest
@@ -143,7 +143,7 @@ def test_s3_config_endpoint_format(s3_config_path):
 
     # For local testing, should use localhost
     if "localhost" in endpoint:
-        assert ":9000" in endpoint, "Local endpoint should use port 9000 for MinIO"
+        assert ":9000" in endpoint, "Local endpoint should use port 9000 for RustFS"
 
 
 @pytest.mark.skip(reason="Expected results file not used for S3 tests")
@@ -182,10 +182,10 @@ def test_docker_compose_file_exists():
         docker_compose_path.exists()
     ), f"Docker compose file not found: {docker_compose_path}"
 
-    setup_script_path = s3_dir / "setup-minio.sh"
+    setup_script_path = s3_dir / "setup-rustfs.sh"
     assert (
         setup_script_path.exists()
-    ), f"MinIO setup script not found: {setup_script_path}"
+    ), f"RustFS setup script not found: {setup_script_path}"
 
     run_script_path = s3_dir / "run-local-s3-test.sh"
     assert (
@@ -206,7 +206,7 @@ def test_readme_documentation_exists():
 
     required_sections = [
         "Quick Start",
-        "Local Testing with MinIO",
+        "Local Testing with RustFS",
         "Remote S3 Testing",
         "Environment Variables",
         "Troubleshooting",

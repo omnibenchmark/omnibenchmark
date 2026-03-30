@@ -2,7 +2,7 @@ from typing import Optional
 
 from .asserts import assert_startswith, clean, assert_in_output
 from .cli_setup import OmniCLISetup
-from .fixtures import minio_storage, _minio_container  # noqa: F401
+from .fixtures import rustfs_storage, _rustfs_container  # noqa: F401
 from .path import get_benchmark_data_path
 
 

@@ -2,16 +2,16 @@
 
 This guide shows you how to run the S3 end-to-end tests in different scenarios.
 
-## 🚀 Quick Start
+## Quick Start
 
-### Option 1: Auto Setup with Local MinIO (Recommended)
+### Option 1: Auto Setup with Local RustFS (Recommended)
 ```bash
 pixi run test-e2e-s3-local
 ```
-This handles everything automatically - starts MinIO if needed, runs tests, cleans up.
+This handles everything automatically - starts RustFS if needed, runs tests, cleans up.
 
-### Option 2: Use Existing MinIO Container
-If you already have MinIO running (e.g., from `../minio-data/run-minio.sh`):
+### Option 2: Use Existing RustFS Container
+If you already have RustFS running on port 9000:
 ```bash
 pixi run test-e2e-s3
 ```
@@ -25,7 +25,7 @@ export OB_STORAGE_S3_ENDPOINT_URL=https://s3.eu-central-1.amazonaws.com
 pixi run test-e2e-s3
 ```
 
-## 🎯 What These Tests Do
+## What These Tests Do
 
 The S3 e2e tests are **minimal and fast** - they focus on CLI signatures rather than comprehensive pipeline testing:
 
@@ -36,17 +36,17 @@ The S3 e2e tests are **minimal and fast** - they focus on CLI signatures rather 
 **Expected runtime**: < 2 minutes
 **Expected outputs**: 2+ JSON files demonstrating S3 upload/download worked
 
-## 📋 Prerequisites
+## Prerequisites
 
-### For Local MinIO
+### For Local RustFS
 - Docker and Docker Compose
-- Port 9000 available (or existing MinIO on that port)
+- Port 9000 available (or existing RustFS on that port)
 
 ### For Remote S3
 - S3 credentials (access key + secret key)
 - S3 endpoint URL (defaults to EU region)
 
-## 🛠️ Advanced Usage
+## Advanced Usage
 
 ### Run with Different Test Configurations
 
@@ -57,8 +57,8 @@ OB_E2E_KEEP_FILES=true pixi run test-e2e-s3
 # Use custom bucket prefix
 OB_E2E_BUCKET_PREFIX=my-test pixi run test-e2e-s3
 
-# Specify different MinIO startup timeout
-OB_E2E_MINIO_STARTUP_TIMEOUT=180 pixi run test-e2e-s3-local
+# Specify different RustFS startup timeout
+OB_E2E_RUSTFS_STARTUP_TIMEOUT=120 pixi run test-e2e-s3-local
 ```
 
 ### Run Individual Test Functions
@@ -87,9 +87,9 @@ pytest -m 'e2e and not e2e_s3' -v
 pytest tests/e2e/test_s3_config_validation.py -v
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
-### MinIO Won't Start
+### RustFS Won't Start
 ```bash
 # Check port usage
 lsof -i :9000
@@ -101,11 +101,11 @@ docker-compose down -v --remove-orphans
 
 ### Credentials Issues
 ```bash
-# Check MinIO credentials file
-cat /tmp/minio-credentials
+# Check RustFS credentials file
+cat /tmp/rustfs-credentials
 
-# Test MinIO connection manually
-curl http://localhost:9000/minio/health/live
+# Test RustFS connection manually
+curl http://localhost:9000
 ```
 
 ### Test Failures
@@ -114,10 +114,10 @@ curl http://localhost:9000/minio/health/live
 OB_E2E_KEEP_FILES=true pixi run test-e2e-s3 -s -v
 
 # Check container logs
-docker-compose logs minio
+docker-compose logs rustfs
 ```
 
-## 🏗️ CI/CD Integration
+## CI/CD Integration
 
 ### GitHub Actions
 The project includes `.github/workflows/s3-tests.yml` that:
@@ -131,26 +131,25 @@ The project includes `.github/workflows/s3-tests.yml` that:
 - `OB_STORAGE_S3_SECRET_KEY`
 - `OB_STORAGE_S3_ENDPOINT_URL` (optional)
 
-## 📁 File Structure
+## File Structure
 
 ```
 tests/e2e/s3/
-├── docker-compose.yml     # MinIO container setup
-├── setup-minio.sh         # MinIO initialization script
+├── docker-compose.yml     # RustFS container setup
 ├── run-local-s3-test.sh   # Convenience script for local testing
 ├── .env.example           # Environment configuration template
 ├── README.md              # Detailed documentation
 └── USAGE.md               # This file
 
 tests/e2e/
-├── test_06_s3_minimal.py       # Main S3 e2e tests
+├── test_06_s3_minimal.py        # Main S3 e2e tests
 ├── test_s3_config_validation.py # Config validation (no S3 required)
 └── configs/
     ├── 06_s3_minimal.yaml          # Minimal S3 test configuration
     └── 06_s3_minimal.expected.json # Expected test results
 ```
 
-## 🔍 What Gets Tested
+## What Gets Tested
 
 ### Command Line Interface
 ```bash
@@ -170,16 +169,15 @@ ob run 06_s3_minimal.yaml --use-remote-storage
 - Software environment setup
 - Expected output file patterns
 
-## 💡 Tips
+## Tips
 
-1. **Fast Iteration**: Use `pixi run test-e2e-s3` against existing MinIO for fastest development
+1. **Fast Iteration**: Use `pixi run test-e2e-s3` against existing RustFS for fastest development
 2. **Debug Mode**: Always use `OB_E2E_KEEP_FILES=true` when investigating failures
 3. **CI Testing**: The workflow automatically handles bucket cleanup and provides clear summaries
-4. **Existing Containers**: The scripts detect and work with existing MinIO instances
+4. **Existing Containers**: The scripts detect and work with existing RustFS instances
 5. **European Region**: Default S3 endpoint uses `eu-central-1` region
 
-## 📚 Further Reading
+## Further Reading
 
 - `README.md` - Complete documentation with architecture details
-- `../../../06_s3_remote.py` - Original S3 configuration this is based on
 - `.github/workflows/s3-tests.yml` - CI workflow configuration

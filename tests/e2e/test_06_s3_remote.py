@@ -1,27 +1,34 @@
 """
-Comprehensive end-to-end test for S3 remote storage.
+S3 remote storage e2e tests.
 
-This test validates the complete S3 workflow in sequence:
-1. Run pipeline with --use-remote-storage
-2. List files with boto3
-3. Check remote files list
-4. Check remote files download
-5. Check remote files checksum
+Tests share a single pipeline run via a module-scoped fixture so the expensive
+pipeline only executes once. Each test validates a distinct concern:
 
-Uses the 06_s3_remote.yaml config (cartesian product: 3 datasets × 2 methods with D2 excluding M2)
+1. test_s3_pipeline_execution         - pipeline runs and bucket is created
+2. test_s3_bucket_structure           - cartesian product of files is correct
+3. test_s3_file_content_and_checksums - files download with correct content
+4. test_s3_version_create_and_list    - version 1.0 is created and listed
+5. test_s3_benchmark_modification_and_version_2 - v2 workflow end-to-end
 """
 
-import os
 import hashlib
 import json
-import time
+import os
 import shutil
+import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import pytest
 
 from tests.cli.cli_setup import OmniCLISetup
+
+
+# ---------------------------------------------------------------------------
+# S3 environment helper (local fixture copy, kept self-contained)
+# ---------------------------------------------------------------------------
 
 
 class S3TestEnvironment:
@@ -37,21 +44,15 @@ class S3TestEnvironment:
         self._s3_client = None
 
     def _generate_bucket_name(self) -> str:
-        """Generate unique bucket name with timestamp."""
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
-
-        # Use custom prefix if provided (useful for CI)
         prefix = os.getenv("OB_E2E_BUCKET_PREFIX", "obdata-e2e")
-
-        # Add PR number if available (GitHub Actions)
         pr_number = os.getenv("GITHUB_PR_NUMBER") or os.getenv("CI_MERGE_REQUEST_IID")
         if pr_number:
             return f"{prefix}-pr{pr_number}-{timestamp}"
-        else:
-            return f"{prefix}-{timestamp}"
+        return f"{prefix}-{timestamp}"
 
     def setup_local_environment(self) -> bool:
-        """Set up local MinIO environment."""
+        """Set up local RustFS environment."""
         try:
             import socket
 
@@ -60,18 +61,19 @@ class S3TestEnvironment:
             sock.close()
 
             if result == 0:
-                print("✓ Found existing MinIO on port 9000")
+                print("✓ Found existing RustFS on port 9000")
                 self.endpoint = "http://localhost:9000"
-                self.region = "us-east-1"  # MinIO default
+                self.region = "us-east-1"
 
-                # Priority order: env vars > credentials file > defaults
                 self.access_key = os.getenv("OB_STORAGE_S3_ACCESS_KEY")
                 self.secret_key = os.getenv("OB_STORAGE_S3_SECRET_KEY")
 
                 if not self.access_key or not self.secret_key:
-                    print("  Trying to read credentials from /tmp/minio-credentials...")
+                    print(
+                        "  Trying to read credentials from /tmp/rustfs-credentials..."
+                    )
                     try:
-                        with open("/tmp/minio-credentials", "r") as f:
+                        with open("/tmp/rustfs-credentials", "r") as f:
                             for line in f:
                                 if (
                                     line.startswith("OB_STORAGE_S3_ACCESS_KEY=")
@@ -87,20 +89,19 @@ class S3TestEnvironment:
                     except FileNotFoundError:
                         print("  No credentials file found, using defaults")
 
-                # Fallback to default MinIO root credentials
                 if not self.access_key:
-                    self.access_key = "minioadmin"
+                    self.access_key = "rustfsadmin"
                 if not self.secret_key:
-                    self.secret_key = "minioadmin123"
+                    self.secret_key = "rustfsadmin"
 
                 print(f"  Using access key: {self.access_key}")
                 return True
-            else:
-                print("No MinIO found on port 9000")
-                return False
+
+            print("No RustFS found on port 9000")
+            return False
 
         except Exception as e:
-            print(f"Failed to setup local MinIO: {e}")
+            print(f"Failed to setup local RustFS: {e}")
             return False
 
     def setup_remote_environment(self) -> bool:
@@ -113,27 +114,22 @@ class S3TestEnvironment:
         if not self.access_key or not self.secret_key:
             return False
 
-        # Use default S3 endpoint if not specified (EU region)
         if not self.endpoint:
             self.endpoint = "https://s3.eu-central-1.amazonaws.com"
 
-        print("Remote S3 configuration:")
-        print(f"  Access Key: {self.access_key[:8]}...")
-        print(f"  Endpoint: {self.endpoint}")
-        print(f"  Region: {self.region}")
-        print(f"  Bucket: {self.bucket_name}")
-
+        print(
+            f"Remote S3: endpoint={self.endpoint} region={self.region} bucket={self.bucket_name}"
+        )
         return True
 
     def setup(self) -> bool:
-        """Setup the appropriate environment based on configuration."""
-        if self.use_remote:
-            return self.setup_remote_environment()
-        else:
-            return self.setup_local_environment()
+        return (
+            self.setup_remote_environment()
+            if self.use_remote
+            else self.setup_local_environment()
+        )
 
     def set_environment_variables(self):
-        """Set environment variables for the test."""
         if self.access_key and self.secret_key:
             os.environ["OB_STORAGE_S3_ACCESS_KEY"] = self.access_key
             os.environ["OB_STORAGE_S3_SECRET_KEY"] = self.secret_key
@@ -143,54 +139,34 @@ class S3TestEnvironment:
             os.environ["AWS_DEFAULT_REGION"] = self.region
 
     def cleanup_environment_variables(self):
-        """Clean up environment variables after test."""
         for var in [
             "OB_STORAGE_S3_ACCESS_KEY",
             "OB_STORAGE_S3_SECRET_KEY",
             "OB_STORAGE_S3_ENDPOINT_URL",
             "AWS_DEFAULT_REGION",
         ]:
-            if var in os.environ:
-                del os.environ[var]
+            os.environ.pop(var, None)
 
     def test_bucket_creation_permissions(self) -> bool:
-        """Test if credentials have permission to create buckets."""
         s3_client = self.get_s3_client()
         if not s3_client:
-            print("❌ Cannot test permissions: S3 client not available")
             return False
-
-        print("\n--- Testing S3 Bucket Creation Permissions ---")
-
         try:
-            # Try to create the bucket
-            print(f"Attempting to create bucket: {self.bucket_name}")
-            if self.region == "us-east-1":
-                s3_client.create_bucket(Bucket=self.bucket_name)
-            else:
-                s3_client.create_bucket(
-                    Bucket=self.bucket_name,
-                    CreateBucketConfiguration={"LocationConstraint": self.region},
-                )
-            print(f"✓ Successfully created bucket: {self.bucket_name}")
+            kwargs: dict = {
+                "Bucket": self.bucket_name,
+                "ObjectLockEnabledForBucket": True,
+            }
+            if self.region != "us-east-1":
+                kwargs["CreateBucketConfiguration"] = {
+                    "LocationConstraint": self.region
+                }
+            s3_client.create_bucket(**kwargs)
             return True
-        except s3_client.exceptions.BucketAlreadyOwnedByYou:
-            print(f"✓ Bucket {self.bucket_name} already exists and is owned by you")
-            return True
-        except s3_client.exceptions.BucketAlreadyExists:
-            print(
-                f"⚠️ Bucket {self.bucket_name} already exists but is owned by someone else"
-            )
-            return False
         except Exception as e:
             print(f"❌ Failed to create bucket: {e}")
-            print(f"   Error type: {type(e).__name__}")
-            if hasattr(e, "response"):
-                print(f"   Response: {e.response}")
             return False
 
     def get_s3_client(self):
-        """Get boto3 S3 client for bucket operations."""
         if self._s3_client is None:
             try:
                 import boto3
@@ -201,23 +177,19 @@ class S3TestEnvironment:
                     aws_access_key_id=self.access_key,
                     aws_secret_access_key=self.secret_key,
                     region_name=self.region,
-                    # Force path style for MinIO compatibility
                     config=boto3.session.Config(s3={"addressing_style": "path"})
                     if "localhost" in self.endpoint
                     else None,
                 )
             except ImportError:
-                print("boto3 not available - cannot validate S3 operations")
+                print("boto3 not available")
                 return None
-
         return self._s3_client
 
     def list_bucket_contents(self) -> List[Dict[str, Any]]:
-        """List all objects in the test bucket."""
         s3_client = self.get_s3_client()
         if not s3_client:
             return []
-
         try:
             response = s3_client.list_objects_v2(Bucket=self.bucket_name)
             return response.get("Contents", [])
@@ -226,800 +198,457 @@ class S3TestEnvironment:
             return []
 
     def download_object(self, key: str) -> Optional[bytes]:
-        """Download an object from S3 and return its content."""
         s3_client = self.get_s3_client()
         if not s3_client:
             return None
-
         try:
             response = s3_client.get_object(Bucket=self.bucket_name, Key=key)
             return response["Body"].read()
         except Exception as e:
-            print(f"Failed to download object {key}: {e}")
+            print(f"Failed to download {key}: {e}")
             return None
 
     def cleanup_bucket(self) -> bool:
-        """Clean up the test bucket and all its contents, including WORM-protected objects."""
         s3_client = self.get_s3_client()
         if not s3_client:
-            print("No S3 client available for cleanup")
             return False
 
         try:
-            deleted_objects = 0
+            deleted = 0
 
-            # Step 1: Disable object lock on bucket if enabled
             try:
-                # Try to disable object lock configuration to allow deletion
                 s3_client.put_object_lock_configuration(
                     Bucket=self.bucket_name, ObjectLockConfiguration={}
                 )
-                print("  ✓ Disabled object lock on bucket")
-            except Exception as e:
-                # Object lock may not be enabled, continue
-                print(f"  Note: Could not disable object lock: {e}")
+            except Exception:
+                pass
 
-            # Step 2: Delete all object versions and delete markers with bypass
             try:
-                versions_response = s3_client.list_object_versions(
-                    Bucket=self.bucket_name
-                )
+                versions_resp = s3_client.list_object_versions(Bucket=self.bucket_name)
 
-                # Delete all current versions with bypass retention
-                for version in versions_response.get("Versions", []):
+                for ver in versions_resp.get("Versions", []):
                     try:
-                        # Try with bypass retention first
                         try:
                             s3_client.delete_object(
                                 Bucket=self.bucket_name,
-                                Key=version["Key"],
-                                VersionId=version["VersionId"],
+                                Key=ver["Key"],
+                                VersionId=ver["VersionId"],
                                 BypassGovernanceRetention=True,
                             )
                         except Exception:
-                            # Fallback to regular delete
                             s3_client.delete_object(
                                 Bucket=self.bucket_name,
-                                Key=version["Key"],
-                                VersionId=version["VersionId"],
+                                Key=ver["Key"],
+                                VersionId=ver["VersionId"],
                             )
-                        deleted_objects += 1
+                        deleted += 1
                     except Exception:
-                        # For WORM protected objects, try to remove legal hold first
                         try:
                             s3_client.put_object_legal_hold(
                                 Bucket=self.bucket_name,
-                                Key=version["Key"],
-                                VersionId=version["VersionId"],
+                                Key=ver["Key"],
+                                VersionId=ver["VersionId"],
                                 LegalHold={"Status": "OFF"},
                             )
-                            # Retry deletion after removing legal hold
                             s3_client.delete_object(
                                 Bucket=self.bucket_name,
-                                Key=version["Key"],
-                                VersionId=version["VersionId"],
+                                Key=ver["Key"],
+                                VersionId=ver["VersionId"],
                                 BypassGovernanceRetention=True,
                             )
-                            deleted_objects += 1
+                            deleted += 1
                         except Exception as e2:
-                            print(f"  Failed to delete version {version['Key']}: {e2}")
+                            print(f"  Failed to delete {ver['Key']}: {e2}")
 
-                # Delete all delete markers
-                for delete_marker in versions_response.get("DeleteMarkers", []):
+                for marker in versions_resp.get("DeleteMarkers", []):
                     try:
                         s3_client.delete_object(
                             Bucket=self.bucket_name,
-                            Key=delete_marker["Key"],
-                            VersionId=delete_marker["VersionId"],
+                            Key=marker["Key"],
+                            VersionId=marker["VersionId"],
                             BypassGovernanceRetention=True,
                         )
-                        deleted_objects += 1
+                        deleted += 1
                     except Exception as e:
-                        print(f"  Failed to delete marker {delete_marker['Key']}: {e}")
+                        print(f"  Failed to delete marker {marker['Key']}: {e}")
 
             except Exception:
-                # If versioning API fails, fall back to regular object listing
-                response = s3_client.list_objects_v2(Bucket=self.bucket_name)
-                if "Contents" in response:
-                    for obj in response["Contents"]:
-                        try:
-                            s3_client.delete_object(
-                                Bucket=self.bucket_name,
-                                Key=obj["Key"],
-                                BypassGovernanceRetention=True,
-                            )
-                            deleted_objects += 1
-                        except Exception as e:
-                            print(f"  Failed to delete {obj['Key']}: {e}")
+                resp = s3_client.list_objects_v2(Bucket=self.bucket_name)
+                for obj in resp.get("Contents", []):
+                    try:
+                        s3_client.delete_object(
+                            Bucket=self.bucket_name,
+                            Key=obj["Key"],
+                            BypassGovernanceRetention=True,
+                        )
+                        deleted += 1
+                    except Exception as e:
+                        print(f"  Failed to delete {obj['Key']}: {e}")
 
-            # Step 3: Clean up any incomplete multipart uploads
             try:
-                multipart_response = s3_client.list_multipart_uploads(
-                    Bucket=self.bucket_name
-                )
-                for upload in multipart_response.get("Uploads", []):
+                mp_resp = s3_client.list_multipart_uploads(Bucket=self.bucket_name)
+                for upload in mp_resp.get("Uploads", []):
                     try:
                         s3_client.abort_multipart_upload(
                             Bucket=self.bucket_name,
                             Key=upload["Key"],
                             UploadId=upload["UploadId"],
                         )
-                        print(f"  ✓ Aborted multipart upload for {upload['Key']}")
-                    except Exception as e:
-                        print(
-                            f"  Failed to abort multipart upload {upload['Key']}: {e}"
-                        )
+                    except Exception:
+                        pass
             except Exception:
-                # Multipart operations may not be supported, continue
                 pass
 
-            print(f"  ✓ Deleted {deleted_objects} objects/versions")
+            print(f"  ✓ Deleted {deleted} objects/versions")
 
-            # Step 4: Force delete bucket with retry
-            max_retries = 3
-            for attempt in range(max_retries):
+            for attempt in range(3):
                 try:
                     s3_client.delete_bucket(Bucket=self.bucket_name)
-                    print(f"✓ Successfully cleaned up bucket: {self.bucket_name}")
+                    print(f"✓ Cleaned up bucket: {self.bucket_name}")
                     return True
-                except Exception as bucket_err:
-                    if attempt == max_retries - 1:
-                        print(
-                            f"Failed to delete bucket {self.bucket_name} after {max_retries} attempts: {bucket_err}"
-                        )
+                except Exception as e:
+                    if attempt == 2:
+                        print(f"Failed to delete bucket: {e}")
                         return False
-                    else:
-                        print(
-                            f"  Retry {attempt + 1}/{max_retries} for bucket deletion..."
-                        )
-                        # Wait a moment for eventual consistency
-                        import time
-
-                        time.sleep(2)
+                    time.sleep(2)
 
         except Exception as e:
             print(f"Failed to cleanup bucket {self.bucket_name}: {e}")
             return False
 
 
-@pytest.fixture
-def s3_config_path():
-    """Get the path to the S3 remote config."""
-    return Path(__file__).parent / "configs" / "06_s3_remote.yaml"
-
-
-@pytest.fixture
-def s3_environment():
-    """Set up S3 test environment based on configuration."""
-    # Determine if we should use remote S3 (also check for CI environment)
-    use_remote = (
-        os.getenv("OB_E2E_USE_REMOTE_S3", "false").lower() == "true"
-        or os.getenv("CI", "false").lower() == "true"
-    )
-
-    env = S3TestEnvironment(use_remote=use_remote)
-
-    if not env.setup():
-        if use_remote:
-            pytest.skip("Remote S3 credentials not available")
-        else:
-            pytest.skip("Local MinIO setup failed - docker may not be available")
-
-    env.set_environment_variables()
-
-    try:
-        yield env
-    finally:
-        # Always attempt bucket cleanup after tests
-        print("\n=== S3 Cleanup ===")
-        if env.cleanup_bucket():
-            print("✓ S3 bucket cleanup successful")
-        else:
-            print("⚠ S3 bucket cleanup failed or skipped")
-
-        env.cleanup_environment_variables()
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
 
 
 def update_config_with_s3_settings(
     config_path: Path, tmp_path: Path, s3_env: S3TestEnvironment
 ) -> Path:
-    """Update the S3 config with dynamic bucket name and endpoint."""
+    """Write a copy of the config with the test bucket name and endpoint injected."""
     import yaml
 
-    # Read original config
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         config = yaml.safe_load(f)
 
-    # Update storage settings
     config["storage"]["bucket_name"] = s3_env.bucket_name
     if s3_env.endpoint:
         config["storage"]["endpoint"] = s3_env.endpoint
 
-    # Write updated config to tmp_path
-    updated_config_path = tmp_path / "06_s3_remote_updated.yaml"
-    with open(updated_config_path, "w") as f:
+    out = tmp_path / "06_s3_remote_updated.yaml"
+    with open(out, "w") as f:
         yaml.dump(config, f)
-
-    return updated_config_path
-
-
-def calculate_checksum(content: bytes) -> str:
-    """Calculate MD5 checksum of content."""
-    return hashlib.md5(content).hexdigest()
+    return out
 
 
 def setup_test_environment(config_path: Path, tmp_path: Path) -> Path:
-    """Set up test environment with config file and dummy conda environment."""
-    # Ensure tmp_path directory exists
+    """Copy config into tmp_path and return the new path."""
     tmp_path.mkdir(parents=True, exist_ok=True)
+    dest = tmp_path / "06_s3_remote.yaml"
+    shutil.copy2(config_path, dest)
+    return dest
 
-    # Copy config to tmp_path
-    config_file_in_tmp = tmp_path / "06_s3_remote.yaml"
-    shutil.copy2(config_path, config_file_in_tmp)
 
-    return config_file_in_tmp
+def _checksum(content: bytes) -> str:
+    return hashlib.md5(content).hexdigest()
+
+
+def _wait_for_bucket_objects(
+    env: S3TestEnvironment, min_count: int = 1, timeout: int = 30
+) -> List[Dict[str, Any]]:
+    """Poll until at least *min_count* objects appear in the bucket, then return them.
+
+    Replaces bare time.sleep() calls with a condition-driven wait so tests
+    fail fast on quick systems and stay reliable on slow ones.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        contents = env.list_bucket_contents()
+        if len(contents) >= min_count:
+            return contents
+        time.sleep(1)
+    contents = env.list_bucket_contents()
+    raise TimeoutError(
+        f"Expected ≥{min_count} objects in bucket after {timeout}s, got {len(contents)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Module-scoped fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def s3_config_path():
+    return Path(__file__).parent / "configs" / "06_s3_remote.yaml"
+
+
+@pytest.fixture(scope="module")
+def s3_environment(s3_config_path):
+    """Single bucket that persists across all tests in this module."""
+    use_remote = (
+        os.getenv("OB_E2E_USE_REMOTE_S3", "false").lower() == "true"
+        or os.getenv("CI", "false").lower() == "true"
+    )
+    env = S3TestEnvironment(use_remote=use_remote)
+    if not env.setup():
+        pytest.skip(
+            "Remote S3 credentials not available"
+            if use_remote
+            else "Local RustFS setup failed - docker may not be available"
+        )
+    env.set_environment_variables()
+
+    yield env
+
+    print("\n=== S3 Cleanup ===")
+    if env.cleanup_bucket():
+        print("✓ S3 bucket cleanup successful")
+    else:
+        print("⚠ S3 bucket cleanup failed or skipped")
+    env.cleanup_environment_variables()
+
+
+@dataclass
+class S3WorkflowState:
+    config_path: Path
+    tmp_path: Path
+    pipeline_returncode: int
+    pipeline_stdout: str
+    pipeline_stderr: str
+
+
+@pytest.fixture(scope="module")
+def s3_workflow(s3_environment, s3_config_path, tmp_path_factory):
+    """Run the S3 pipeline once; all tests in this module share the result."""
+    tmp_path = tmp_path_factory.mktemp("s3_workflow")
+
+    # Replicate the bundled_repos fixture at module scope
+    bundles_src = Path(__file__).resolve().parents[1] / "data" / "bundles"
+    (tmp_path / "bundles").symlink_to(bundles_src, target_is_directory=True)
+
+    if (
+        s3_environment.use_remote
+        and not s3_environment.test_bucket_creation_permissions()
+    ):
+        pytest.fail(
+            "S3 credentials do not have permission to create buckets. "
+            "Ensure the IAM user/role has s3:CreateBucket permission."
+        )
+
+    config_path = update_config_with_s3_settings(
+        s3_config_path, tmp_path, s3_environment
+    )
+    # Copy to the working directory so relative paths resolve correctly
+    config_in_cwd = tmp_path / "06_s3_remote.yaml"
+    shutil.copy2(config_path, config_in_cwd)
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                str(config_in_cwd),
+                "--use-remote-storage",
+                "--continue-on-error",
+                "-y",
+            ],
+            cwd=str(tmp_path),
+        )
+
+    yield S3WorkflowState(
+        config_path=config_in_cwd,
+        tmp_path=tmp_path,
+        pipeline_returncode=result.returncode,
+        pipeline_stdout=result.stdout,
+        pipeline_stderr=result.stderr,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.e2e_s3
-def test_s3_remote_storage_complete_workflow(
-    s3_config_path, s3_environment, tmp_path, bundled_repos, keep_files
-):
-    """
-    Test complete S3 remote storage workflow in sequence:
-
-    1. Run pipeline with --use-remote-storage
-    2. List files with boto3
-    3. Check remote files list matches expected cartesian product
-    4. Download files from S3
-    5. Verify file checksums and content
-
-    Expected cartesian product:
-    - 3 datasets (D1, D2, D3)
-    - 2 methods (M1, M2)
-    - D2 excludes M2
-    - Results: 3 data files + 5 method files = 8 files total
-    """
-    print("\n=== S3 Complete Workflow Test ===")
-    print(f"Bucket: {s3_environment.bucket_name}")
-    print(f"Endpoint: {s3_environment.endpoint}")
-
-    # Test bucket creation permissions (important for CI)
-    if s3_environment.use_remote:
-        print("\nTesting bucket creation permissions for remote S3...")
-        can_create = s3_environment.test_bucket_creation_permissions()
-        if not can_create:
-            pytest.fail(
-                "S3 credentials do not have permission to create buckets. "
-                "Please ensure the IAM user/role has s3:CreateBucket permission."
-            )
-
-    # Update config with dynamic S3 settings
-    updated_config = update_config_with_s3_settings(
-        s3_config_path, tmp_path, s3_environment
-    )
-
-    # Setup test environment
-    config_file_in_tmp = setup_test_environment(updated_config, tmp_path)
-
-    # ========================================
-    # Step 1: Run pipeline with --use-remote-storage
-    # ========================================
-    print("\n--- Step 1: Running pipeline with --use-remote-storage ---")
-
-    # Print environment variables that will be used
-    print("\nEnvironment variables for S3:")
-    print(
-        f"  OB_STORAGE_S3_ACCESS_KEY: {os.getenv('OB_STORAGE_S3_ACCESS_KEY', 'NOT SET')[:8]}..."
-    )
-    print(
-        f"  OB_STORAGE_S3_SECRET_KEY: {'SET' if os.getenv('OB_STORAGE_S3_SECRET_KEY') else 'NOT SET'}"
-    )
-    print(
-        f"  OB_STORAGE_S3_ENDPOINT_URL: {os.getenv('OB_STORAGE_S3_ENDPOINT_URL', 'NOT SET')}"
-    )
-    print(f"  AWS_DEFAULT_REGION: {os.getenv('AWS_DEFAULT_REGION', 'NOT SET')}")
-
-    base_args = [
-        "run",
-        str(config_file_in_tmp),
-        "--use-remote-storage",
-        "--continue-on-error",
-        "-y",
-    ]
-
-    with OmniCLISetup() as omni:
-        result = omni.call(base_args, cwd=str(tmp_path))
-
-        # Always print execution details for CI debugging
-        print("\nCLI EXECUTION DEBUG:")
-        print(f"Return code: {result.returncode}")
-        print(f"STDOUT:\n{result.stdout}")
-        print(f"STDERR:\n{result.stderr}")
-
-    # Verify CLI execution succeeded
-    assert result.returncode == 0, (
-        f"S3 pipeline execution failed\n"
-        f"STDOUT: {result.stdout}\n"
-        f"STDERR: {result.stderr}"
-    )
-    print("✓ Pipeline execution completed successfully")
-
-    # ========================================
-    # Step 1.5: Verify bucket was created
-    # ========================================
-    print("\n--- Step 1.5: Verifying S3 bucket was created ---")
+@pytest.mark.timeout(300)
+def test_s3_pipeline_execution(s3_workflow, s3_environment):
+    """Pipeline runs successfully and the S3 bucket is created."""
+    assert (
+        s3_workflow.pipeline_returncode == 0
+    ), f"S3 pipeline failed\nSTDOUT: {s3_workflow.pipeline_stdout}\nSTDERR: {s3_workflow.pipeline_stderr}"
 
     s3_client = s3_environment.get_s3_client()
     if s3_client:
         try:
-            # Try to head the bucket to verify it exists
             s3_client.head_bucket(Bucket=s3_environment.bucket_name)
-            print(f"✓ Bucket {s3_environment.bucket_name} exists")
         except Exception as e:
-            print(f"❌ Bucket {s3_environment.bucket_name} does NOT exist: {e}")
-            print("\nThis likely means:")
-            print("1. The S3 credentials don't have CreateBucket permissions, OR")
-            print("2. The bucket creation failed during pipeline execution, OR")
-            print("3. The --use-remote-storage flag isn't working as expected")
+            raise AssertionError(f"S3 bucket was not created: {e}") from e
 
-            # Check if any local output files were generated
-            print("\n--- Checking for local output files ---")
-            output_files = list(tmp_path.rglob("*.json"))
-            if output_files:
-                print(f"Found {len(output_files)} local JSON files:")
-                for f in output_files[:10]:  # Print first 10
-                    print(f"  {f.relative_to(tmp_path)}")
-                print("\n⚠️ Files were generated locally but not uploaded to S3")
-            else:
-                print("No local JSON output files found")
 
-            raise AssertionError(f"S3 bucket was not created: {e}")
+@pytest.mark.e2e_s3
+@pytest.mark.timeout(60)
+def test_s3_bucket_structure(s3_workflow, s3_environment):
+    """Bucket contains the expected cartesian product (3 data + 5 method files)."""
+    contents = _wait_for_bucket_objects(s3_environment, min_count=8)
+    keys = [obj["Key"] for obj in contents]
 
-    # ========================================
-    # Step 2: List files with boto3
-    # ========================================
-    print("\n--- Step 2: Listing S3 bucket contents with boto3 ---")
+    # 3 data files
+    data_files = [k for k in keys if k.endswith("_data.json")]
+    for name in ["D1_data.json", "D2_data.json", "D3_data.json"]:
+        assert any(name in k for k in data_files), f"Missing data file: {name}"
+    assert len(data_files) == 3, f"Expected 3 data files, got {len(data_files)}"
 
-    # Wait a moment for S3 consistency
-    time.sleep(2)
-
-    bucket_contents = s3_environment.list_bucket_contents()
-
-    # Enhanced error message if no objects found
-    if len(bucket_contents) == 0:
-        print("❌ No objects found in S3 bucket")
-        print("\nDebugging information:")
-        print(f"Bucket name: {s3_environment.bucket_name}")
-        print(f"Endpoint: {s3_environment.endpoint}")
-        print(f"Region: {s3_environment.region}")
-
-        # Check for local output files
-        print("\n--- Checking for local output files ---")
-        output_files = list(tmp_path.rglob("*.json"))
-        if output_files:
-            print(
-                f"Found {len(output_files)} local JSON files that should have been uploaded:"
-            )
-            for f in output_files[:20]:
-                print(f"  {f.relative_to(tmp_path)} ({f.stat().st_size} bytes)")
-            print("\n⚠️ Files were generated locally but not uploaded to S3")
-            print(
-                "This suggests the remote storage upload step is not working correctly"
-            )
-        else:
-            print("No local JSON output files found")
-
-        # Check Snakemake logs
-        print("\n--- Checking for Snakemake logs ---")
-        snakemake_logs = list(tmp_path.rglob(".snakemake/log/*.log"))
-        if snakemake_logs:
-            print(f"Found {len(snakemake_logs)} Snakemake log files:")
-            for log in snakemake_logs[:5]:
-                print(f"\n  === {log.name} ===")
-                try:
-                    with open(log, "r") as f:
-                        content = f.read()
-                        # Print last 100 lines or full content if smaller
-                        lines = content.splitlines()
-                        print("\n".join(lines[-100:]))
-                except Exception as e:
-                    print(f"  Could not read log: {e}")
-
-    assert len(bucket_contents) > 0, "No objects found in S3 bucket"
-
-    object_keys = [obj["Key"] for obj in bucket_contents]
-    print(f"✓ Found {len(bucket_contents)} objects in S3:")
-    for obj in sorted(bucket_contents, key=lambda x: x["Key"]):
-        print(f"  {obj['Key']} ({obj['Size']} bytes)")
-
-    # ========================================
-    # Step 3: Check remote files list matches expected structure
-    # ========================================
-    print("\n--- Step 3: Validating cartesian product structure ---")
-
-    # Expected data files (3 datasets)
-    expected_data_files = ["D1_data.json", "D2_data.json", "D3_data.json"]
-    found_data_files = [key for key in object_keys if key.endswith("_data.json")]
-
-    for data_file in expected_data_files:
-        matching_files = [key for key in found_data_files if data_file in key]
-        assert len(matching_files) >= 1, f"Missing data file pattern: {data_file}"
-
-    print(f"✓ Found {len(found_data_files)} data files (expected 3)")
-
-    # Expected method files (5 combinations: D1-M1, D1-M2, D2-M1, D3-M1, D3-M2)
-    # Note: D2-M2 should be excluded
-    found_method_files = [key for key in object_keys if "_method.json" in key]
-
-    assert len(found_method_files) == 5, (
-        f"Expected 5 method files (D2 excludes M2), found {len(found_method_files)}: "
-        f"{found_method_files}"
-    )
-
-    # Verify D2-M2 combination is excluded
-    d2_method_files = [key for key in found_method_files if "D2" in key]
+    # 5 method files — D2 excludes M2
+    method_files = [k for k in keys if "_method.json" in k]
     assert (
-        len(d2_method_files) == 1
-    ), f"D2 should only have 1 method file (M1), found: {d2_method_files}"
+        len(method_files) == 5
+    ), f"Expected 5 method files (D2 excludes M2), got {len(method_files)}: {method_files}"
+    d2_methods = [k for k in method_files if "D2" in k]
+    assert len(d2_methods) == 1, f"D2 should only have M1, got: {d2_methods}"
 
-    print(f"✓ Found {len(found_method_files)} method files (expected 5)")
-    print("✓ D2-M2 exclusion rule properly applied")
 
-    # ========================================
-    # Step 4: Download files from S3
-    # ========================================
-    print("\n--- Step 4: Downloading and validating files from S3 ---")
+@pytest.mark.e2e_s3
+@pytest.mark.timeout(120)
+def test_s3_file_content_and_checksums(s3_workflow, s3_environment):
+    """All files download with the expected content values and valid MD5 checksums."""
+    contents = _wait_for_bucket_objects(s3_environment, min_count=8)
 
-    downloaded_files = {}
-    file_checksums = {}
-
-    for obj in bucket_contents:
+    downloaded: Dict[str, bytes] = {}
+    for obj in contents:
         key = obj["Key"]
-        print(f"  Downloading {key}...")
+        data = s3_environment.download_object(key)
+        assert data is not None, f"Failed to download {key}"
+        downloaded[key] = data
 
-        content = s3_environment.download_object(key)
-        assert content is not None, f"Failed to download {key}"
-
-        # Allow empty files (like performances.tsv) but validate non-empty JSON files
-        downloaded_files[key] = content
-        file_checksums[key] = calculate_checksum(content)
-
-        # Validate JSON structure for key files (skip empty files)
-        if key.endswith(".json") and len(content) > 0:
-            try:
-                json_content = json.loads(content.decode("utf-8"))
-                assert isinstance(
-                    json_content, dict
-                ), f"File {key} should contain JSON object"
-
-                if "result" in json_content:
-                    assert isinstance(
-                        json_content["result"], (int, float)
-                    ), f"File {key} result should be numeric, got {type(json_content['result'])}"
-                    print(f"    {key}: result = {json_content['result']}")
-
-            except json.JSONDecodeError as e:
-                pytest.fail(f"File {key} contains invalid JSON: {e}")
-
-    print(f"✓ Successfully downloaded {len(downloaded_files)} files")
-
-    # ========================================
-    # Step 5: Verify file checksums and content patterns
-    # ========================================
-    print("\n--- Step 5: Verifying checksums and content patterns ---")
-
-    # Validate expected content patterns based on cartesian product
-    expected_patterns = {
-        "data_files": {
-            "D1": 100,  # evaluate: "100"
-            "D2": 200,  # evaluate: "200"
-            "D3": 300,  # evaluate: "300"
-        },
-        "method_files": {
-            "D1_M1": 1100,  # 100 + 1000
-            "D1_M2": 2100,  # 100 + 2000
-            "D2_M1": 1200,  # 200 + 1000 (M2 excluded)
-            "D3_M1": 1300,  # 300 + 1000
-            "D3_M2": 2300,  # 300 + 2000
-        },
+    # Expected values from the benchmark config
+    expected_data = {"D1": 100, "D2": 200, "D3": 300}
+    expected_methods = {
+        "D1_M1": 1100,
+        "D1_M2": 2100,
+        "D2_M1": 1200,
+        "D3_M1": 1300,
+        "D3_M2": 2300,
     }
 
-    # Check data file patterns
-    for dataset, expected_value in expected_patterns["data_files"].items():
-        matching_keys = [
-            k for k in downloaded_files.keys() if f"{dataset}_data.json" in k
+    for dataset, value in expected_data.items():
+        key = next(k for k in downloaded if f"{dataset}_data.json" in k)
+        actual = json.loads(downloaded[key])["result"]
+        assert actual == value, f"{dataset}: expected {value}, got {actual}"
+
+    validated = 0
+    for combo, value in expected_methods.items():
+        ds, method = combo.split("_")
+        matches = [
+            k for k in downloaded if ds in k and method in k and "_method.json" in k
         ]
-        assert len(matching_keys) >= 1, f"Missing data file for {dataset}"
+        if matches:
+            actual = json.loads(downloaded[matches[0]])["result"]
+            assert actual == value, f"{combo}: expected {value}, got {actual}"
+            validated += 1
+    assert validated == 5, f"Expected 5 method validations, got {validated}"
 
-        key = matching_keys[0]
-        content = json.loads(downloaded_files[key].decode("utf-8"))
-        assert (
-            content.get("result") == expected_value
-        ), f"Dataset {dataset}: expected result {expected_value}, got {content.get('result')}"
+    # Checksums must be valid, non-empty MD5 hashes
+    empty_md5 = "d41d8cd98f00b204e9800998ecf8427e"
+    for key, content in downloaded.items():
+        if key.endswith(".json"):
+            cs = _checksum(content)
+            assert len(cs) == 32 and all(c in "0123456789abcdef" for c in cs)
+            assert cs != empty_md5, f"Empty file detected: {key}"
 
-    # Check method file patterns with correct S3 path structure
-    validated_methods = 0
-    for method_combo, expected_value in expected_patterns["method_files"].items():
-        # Parse dataset and method from combo (e.g., "D1_M1" -> "D1", "M1")
-        dataset, method = method_combo.split("_")
 
-        # Find matching method files with correct dataset and method in path
-        matching_keys = [
-            k
-            for k in downloaded_files.keys()
-            if f"{dataset}" in k and f"{method}" in k and "_method.json" in k
-        ]
-
-        if len(matching_keys) >= 1:
-            key = matching_keys[0]
-            content = json.loads(downloaded_files[key].decode("utf-8"))
-            actual_result = content.get("result")
-            assert (
-                actual_result == expected_value
-            ), f"Method {method_combo}: expected result {expected_value}, got {actual_result}"
-            print(f"    ✓ {method_combo}: {actual_result} (expected {expected_value})")
-            validated_methods += 1
-        else:
-            print(
-                f"    ⚠ No matching files for {method_combo} (pattern: {dataset}.*{method}.*_method.json)"
-            )
-
+@pytest.mark.e2e_s3
+@pytest.mark.timeout(60)
+def test_s3_version_create_and_list(s3_workflow):
+    """Version 1.0 is created and appears in the version list."""
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "remote",
+                "version",
+                "create",
+                "--benchmark",
+                str(s3_workflow.config_path),
+            ],
+            cwd=str(s3_workflow.tmp_path),
+        )
     assert (
-        validated_methods == 5
-    ), f"Expected to validate 5 method combinations, got {validated_methods}"
-
-    print("✓ All content patterns validated")
-    print(f"✓ All checksums calculated for {len(file_checksums)} files")
-
-    # ========================================
-    # Step 6: Validate checksum properties
-    # ========================================
-    print("\n--- Step 6: Validating checksum properties ---")
-
-    # Validate that all JSON files have valid checksums
-    json_files_with_checksums = [
-        k for k in file_checksums.keys() if k.endswith(".json")
-    ]
-
-    for json_file in json_files_with_checksums:
-        checksum = file_checksums[json_file]
-
-        # Validate checksum format (MD5 is 32 hex characters)
-        assert (
-            len(checksum) == 32
-        ), f"Invalid checksum length for {json_file}: {len(checksum)}"
-        assert all(
-            c in "0123456789abcdef" for c in checksum
-        ), f"Invalid checksum format for {json_file}: {checksum}"
-
-        # Validate checksum is not empty or default
-        assert (
-            checksum != "d41d8cd98f00b204e9800998ecf8427e"
-        ), f"Empty file checksum detected for {json_file}"
-
-        print(f"    ✓ {json_file}: {checksum}")
-
-    print(
-        f"✓ Validated checksum format for {len(json_files_with_checksums)} JSON files"
-    )
-    print("✓ All checksums are valid MD5 hashes")
-
-    # ========================================
-    # Step 7: Test Version Create
-    # ========================================
-    print("\n--- Step 7: Creating a new benchmark version ---")
-
-    version_create_args = [
-        "remote",
-        "version",
-        "create",
-        "--benchmark",
-        str(config_file_in_tmp),
-    ]
+        result.returncode == 0
+    ), f"version create failed\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    assert "Creating benchmark version" in result.stdout
 
     with OmniCLISetup() as omni:
-        version_result = omni.call(version_create_args, cwd=str(tmp_path))
-
-        if keep_files:
-            print("\nVERSION CREATE DEBUG:")
-            print(f"Return code: {version_result.returncode}")
-            print(f"STDOUT:\n{version_result.stdout}")
-            print(f"STDERR:\n{version_result.stderr}")
-
-    # Verify version creation succeeded
-    assert version_result.returncode == 0, (
-        f"Version create failed\n"
-        f"STDOUT: {version_result.stdout}\n"
-        f"STDERR: {version_result.stderr}"
-    )
-
-    # Check that the success message is in output
+        result = omni.call(
+            ["remote", "version", "list", "--benchmark", str(s3_workflow.config_path)],
+            cwd=str(s3_workflow.tmp_path),
+        )
     assert (
-        "Create a new benchmark version" in version_result.stdout
-    ), f"Expected version creation message not found in output: {version_result.stdout}"
+        result.returncode == 0
+    ), f"version list failed\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    assert "1.0" in result.stdout, f"Version 1.0 not found: {result.stdout}"
 
-    print("✓ Version create command executed successfully")
-    print("✓ New benchmark version created")
 
-    # ========================================
-    # Step 8: Test Version List
-    # ========================================
-    print("\n--- Step 8: Listing benchmark versions ---")
-
-    version_list_args = [
-        "remote",
-        "version",
-        "list",
-        "--benchmark",
-        str(config_file_in_tmp),
-    ]
-
-    with OmniCLISetup() as omni:
-        list_result = omni.call(version_list_args, cwd=str(tmp_path))
-
-        if keep_files:
-            print("\nVERSION LIST DEBUG:")
-            print(f"Return code: {list_result.returncode}")
-            print(f"STDOUT:\n{list_result.stdout}")
-            print(f"STDERR:\n{list_result.stderr}")
-
-    # Verify version list succeeded
-    assert list_result.returncode == 0, (
-        f"Version list failed\n"
-        f"STDOUT: {list_result.stdout}\n"
-        f"STDERR: {list_result.stderr}"
-    )
-
-    # Check that version 1.0 is listed in output
-    assert (
-        "1.0" in list_result.stdout
-    ), f"Expected version '1.0' not found in output: {list_result.stdout}"
-
-    print("✓ Version list command executed successfully")
-    print("✓ Found version 1.0 in version list")
-
-    # ========================================
-    # Step 9: Benchmark Modification + Version 2.0
-    # ========================================
-    print("\n--- Step 9: Modifying benchmark and creating version 2.0 ---")
-
-    # Read current config file
+@pytest.mark.e2e_s3
+@pytest.mark.timeout(300)
+def test_s3_benchmark_modification_and_version_2(s3_workflow):
+    """Adding method M3, re-running, and creating version 2.0 all succeed."""
     import yaml
 
-    with open(config_file_in_tmp, "r") as f:
-        config_data = yaml.safe_load(f)
+    # Work on a separate copy so other tests are unaffected
+    v2_config = s3_workflow.tmp_path / "06_s3_remote_v2.yaml"
+    shutil.copy2(s3_workflow.config_path, v2_config)
 
-    # Add a new method module (M3)
-    new_method = {
-        "id": "M3",
-        "name": "Method 3 - New processing approach",
-        "software_environment": "host",
-        "repository": {
-            "url": "bundles/dummymodule_4ff8427.bundle",
-            "commit": "4ff8427",
-        },
-        "parameters": [
-            {"evaluate": "input+3000", "input": "data.raw", "kind": "method"}
-        ],
-    }
+    with open(v2_config) as f:
+        config = yaml.safe_load(f)
 
-    # Add M3 to the methods stage
-    methods_stage = next(
-        stage for stage in config_data["stages"] if stage["id"] == "methods"
+    config["version"] = "2.0"
+    methods_stage = next(s for s in config["stages"] if s["id"] == "methods")
+    methods_stage["modules"].append(
+        {
+            "id": "M3",
+            "name": "Method 3",
+            "software_environment": "host",
+            "repository": {
+                "url": "bundles/dummymodule_4ff8427.bundle",
+                "commit": "4ff8427",
+            },
+            "parameters": [
+                {"evaluate": "input+3000", "input": "data.raw", "kind": "method"}
+            ],
+        }
     )
-    methods_stage["modules"].append(new_method)
-
-    # Update version to 2.0
-    config_data["version"] = "2.0"
-
-    # Write modified config
-    with open(config_file_in_tmp, "w") as f:
-        yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
-
-    print("✓ Added new method M3 to benchmark")
-    print("✓ Updated benchmark version to 2.0")
-
-    # Run modified benchmark
-    print("\n--- Running modified benchmark ---")
-    modified_args = [
-        "run",
-        str(config_file_in_tmp),
-        "--use-remote-storage",
-        "--continue-on-error",
-        "-y",
-    ]
+    with open(v2_config, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     with OmniCLISetup() as omni:
-        modified_result = omni.call(modified_args, cwd=str(tmp_path))
-
-        if keep_files:
-            print("\nMODIFIED BENCHMARK DEBUG:")
-            print(f"Return code: {modified_result.returncode}")
-            print(f"STDOUT:\n{modified_result.stdout}")
-            print(f"STDERR:\n{modified_result.stderr}")
-
-    assert modified_result.returncode == 0, (
-        f"Modified benchmark execution failed\n"
-        f"STDOUT: {modified_result.stdout}\n"
-        f"STDERR: {modified_result.stderr}"
-    )
-    print("✓ Modified benchmark executed successfully")
-
-    # Create version 2.0
-    print("\n--- Creating version 2.0 ---")
-    version_create_v2_args = [
-        "remote",
-        "version",
-        "create",
-        "--benchmark",
-        str(config_file_in_tmp),
-    ]
-
-    with OmniCLISetup() as omni:
-        version_v2_result = omni.call(version_create_v2_args, cwd=str(tmp_path))
-
-        if keep_files:
-            print("\nVERSION 2.0 CREATE DEBUG:")
-            print(f"Return code: {version_v2_result.returncode}")
-            print(f"STDOUT:\n{version_v2_result.stdout}")
-            print(f"STDERR:\n{version_v2_result.stderr}")
-
-    assert version_v2_result.returncode == 0, (
-        f"Version 2.0 create failed\n"
-        f"STDOUT: {version_v2_result.stdout}\n"
-        f"STDERR: {version_v2_result.stderr}"
-    )
-    print("✓ Version 2.0 created successfully")
-
-    # List versions again to confirm both exist
-    print("\n--- Listing all versions ---")
-    with OmniCLISetup() as omni:
-        list_all_result = omni.call(version_list_args, cwd=str(tmp_path))
-
-        if keep_files:
-            print("\nVERSION LIST ALL DEBUG:")
-            print(f"Return code: {list_all_result.returncode}")
-            print(f"STDOUT:\n{list_all_result.stdout}")
-            print(f"STDERR:\n{list_all_result.stderr}")
-
-    assert list_all_result.returncode == 0, (
-        f"Version list failed\n"
-        f"STDOUT: {list_all_result.stdout}\n"
-        f"STDERR: {list_all_result.stderr}"
-    )
-
-    # Verify both versions are listed
+        result = omni.call(
+            [
+                "run",
+                str(v2_config),
+                "--use-remote-storage",
+                "--continue-on-error",
+                "-y",
+            ],
+            cwd=str(s3_workflow.tmp_path),
+        )
     assert (
-        "1.0" in list_all_result.stdout
-    ), f"Version 1.0 not found: {list_all_result.stdout}"
+        result.returncode == 0
+    ), f"Modified benchmark run failed\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            ["remote", "version", "create", "--benchmark", str(v2_config)],
+            cwd=str(s3_workflow.tmp_path),
+        )
     assert (
-        "2.0" in list_all_result.stdout
-    ), f"Version 2.0 not found: {list_all_result.stdout}"
+        result.returncode == 0
+    ), f"Version 2.0 create failed\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
 
-    print("✓ Found both versions 1.0 and 2.0 in version list")
-    print("✓ Benchmark modification and versioning workflow complete")
-
-    # ========================================
-    # Final Summary
-    # ========================================
-    print("\n=== S3 Workflow Test Summary ===")
-    print("✓ Pipeline executed successfully with --use-remote-storage")
-    print(f"✓ boto3 listed {len(bucket_contents)} objects from S3")
-    print(
-        "✓ Cartesian product structure validated (3 datasets, 2 methods, 1 exclusion)"
-    )
-    print(f"✓ All {len(downloaded_files)} files downloaded and validated")
-    print("✓ Content patterns match expected values")
-    print("✓ New benchmark version created successfully")
-    print("✓ Modified benchmark with new method M3")
-    print("✓ Created version 2.0 successfully")
-    print("✓ Both versions 1.0 and 2.0 are available")
-    print(f"✓ Bucket: {s3_environment.bucket_name}")
-
-    if keep_files:
-        print("\nFile checksums:")
-        for key, checksum in file_checksums.items():
-            print(f"  {key}: {checksum}")
-
-    # The bucket will be automatically cleaned up by the s3_environment fixture
-    print("✓ Test completed successfully")
+    # List all versions using the original config (same bucket)
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            ["remote", "version", "list", "--benchmark", str(s3_workflow.config_path)],
+            cwd=str(s3_workflow.tmp_path),
+        )
+    assert result.returncode == 0
+    assert "1.0" in result.stdout, f"Version 1.0 missing: {result.stdout}"
+    assert "2.0" in result.stdout, f"Version 2.0 missing: {result.stdout}"

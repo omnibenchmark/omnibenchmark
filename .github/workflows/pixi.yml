@@ -344,7 +344,7 @@ jobs:
           retention-days: 7
 
   test-e2e-s3:
-    name: S3 E2E Tests (Local MinIO)
+    name: S3 E2E Tests (Local RustFS)
     needs: [test-short, lint-and-typecheck]
     runs-on: ubuntu-latest
     
@@ -369,11 +369,11 @@ jobs:
           WHEEL_FILE=$(ls dist/*.whl)
           pixi run pip install "$WHEEL_FILE[test]"
 
-      - name: Run S3 E2E tests with local MinIO (Docker)
+      - name: Run S3 E2E tests with local RustFS (Docker)
         timeout-minutes: 15
         run: |
-          echo "🚀 Running S3 E2E tests with local MinIO in Docker..."
-          echo "Note: Tests will use testcontainers to spin up MinIO automatically"
+          echo "🚀 Running S3 E2E tests with local RustFS in Docker..."
+          echo "Note: Tests will use testcontainers to spin up RustFS automatically"
           pixi run pytest -m e2e_s3 -v -s
         
       - name: Collect diagnostic information on failure

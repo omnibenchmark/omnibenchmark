@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 from .cli_setup import OmniCLISetup
 from .asserts import assert_startswith, assert_in_output
-from .fixtures import minio_storage, _minio_container  # noqa: F401
+from .fixtures import rustfs_storage, _rustfs_container  # noqa: F401
 
 
 def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
@@ -26,10 +26,10 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
     assert run1.returncode == 0
 
 
-def test_create_version(minio_storage):  # noqa: F811
+def test_create_version(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # first we run the benchmark to generate data
-        do_first_run(omni, str(minio_storage.benchmark_file))
+        do_first_run(omni, str(rustfs_storage.benchmark_file))
 
         # then we create a new version
         run2 = omni.call(
@@ -37,7 +37,7 @@ def test_create_version(minio_storage):  # noqa: F811
                 "remote",
                 "version",
                 "create",
-                str(minio_storage.benchmark_file),
+                str(rustfs_storage.benchmark_file),
             ]
         )
 
@@ -47,7 +47,7 @@ def test_create_version(minio_storage):  # noqa: F811
             print(f"STDERR: {run2.stderr}")
         assert run2.returncode == 0
 
-        store = minio_storage.get_storage_client()
+        store = rustfs_storage.get_storage_client()
         store.set_version("1.0")
         store.load_objects()
 
@@ -106,13 +106,15 @@ def get_md5_hash(content: str) -> str:
     return hash_md5.hexdigest()
 
 
-def test_list_files(minio_storage):  # noqa: F811
+def test_list_files(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # first we run the benchmark to generate data
-        do_first_run(omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir)
+        do_first_run(
+            omni, str(rustfs_storage.benchmark_file), cwd=rustfs_storage.out_dir
+        )
 
         # file content depends on the full file name, thus create a file with known content
-        file_content = f"1. Created dataset file .snakemake/storage/s3/{minio_storage.bucket_name}/out/data/D1/default/D1.meta.json.\n"
+        file_content = f"1. Created dataset file .snakemake/storage/s3/{rustfs_storage.bucket_name}/out/data/D1/default/D1.meta.json.\n"
         hash = get_md5_hash(file_content)
 
         # now we create a new version of the benchmark
@@ -121,9 +123,9 @@ def test_list_files(minio_storage):  # noqa: F811
                 "remote",
                 "version",
                 "create",
-                str(minio_storage.benchmark_file),
+                str(rustfs_storage.benchmark_file),
             ],
-            cwd=minio_storage.out_dir,
+            cwd=rustfs_storage.out_dir,
         )
 
         assert run2.returncode == 0
@@ -134,7 +136,7 @@ def test_list_files(minio_storage):  # noqa: F811
                 "remote",
                 "files",
                 "list",
-                str(minio_storage.benchmark_file),
+                str(rustfs_storage.benchmark_file),
             ]
         )
         assert run3.returncode == 0
@@ -144,13 +146,15 @@ def test_list_files(minio_storage):  # noqa: F811
         assert_in_output(run3.stdout, expected)
 
 
-def test_download_files(minio_storage):  # noqa: F811
+def test_download_files(rustfs_storage):  # noqa: F811
     from pathlib import Path
     import os
 
     with OmniCLISetup() as omni:
         # First, run the benchmark to generate data
-        do_first_run(omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir)
+        do_first_run(
+            omni, str(rustfs_storage.benchmark_file), cwd=rustfs_storage.out_dir
+        )
 
         # Now create a version of the benchmark
         run2 = omni.call(
@@ -158,15 +162,15 @@ def test_download_files(minio_storage):  # noqa: F811
                 "remote",
                 "version",
                 "create",
-                str(minio_storage.benchmark_file),
+                str(rustfs_storage.benchmark_file),
             ],
-            cwd=minio_storage.out_dir,
+            cwd=rustfs_storage.out_dir,
         )
         assert run2.returncode == 0
 
         # Test the download functionality
         # First, clear the output directory to ensure we're testing actual downloads
-        for item in Path(minio_storage.out_dir / "out").glob("*"):
+        for item in Path(rustfs_storage.out_dir / "out").glob("*"):
             if item.is_file():
                 os.unlink(item)
             elif item.is_dir() and item.name != ".snakemake":
@@ -178,15 +182,15 @@ def test_download_files(minio_storage):  # noqa: F811
                 "remote",
                 "files",
                 "download",
-                str(minio_storage.benchmark_file),
+                str(rustfs_storage.benchmark_file),
             ],
-            cwd=minio_storage.out_dir,
+            cwd=rustfs_storage.out_dir,
         )
 
         assert run3.returncode == 0
 
         # Verify downloaded files exist by comparing with remote files
-        store = minio_storage.get_storage_client()
+        store = rustfs_storage.get_storage_client()
         store.set_version("1.0")
         store.load_objects()
 
@@ -195,11 +199,11 @@ def test_download_files(minio_storage):  # noqa: F811
 
         # Compare to local files
         for remote_file in remote_files:
-            local_path = Path(minio_storage.out_dir) / remote_file
+            local_path = Path(rustfs_storage.out_dir) / remote_file
             assert local_path.exists(), f"Downloaded file {local_path} does not exist"
 
 
-def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
+def test_S3_storage_missing_access_key(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # Save the original value to restore it later
         original_access_key = os.environ.get("OB_STORAGE_S3_ACCESS_KEY")
@@ -214,9 +218,9 @@ def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
                     "remote",
                     "version",
                     "create",
-                    str(minio_storage.benchmark_file),
+                    str(rustfs_storage.benchmark_file),
                 ],
-                cwd=minio_storage.out_dir,
+                cwd=rustfs_storage.out_dir,
             )
 
             # Verify failure and error message
@@ -232,7 +236,7 @@ def test_S3_storage_missing_access_key(minio_storage):  # noqa: F811
                 os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
 
 
-def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
+def test_S3_storage_credentials_from_file(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # Save original environment variables to restore later
         original_access_key = os.environ.get("OB_STORAGE_S3_ACCESS_KEY")
@@ -250,7 +254,7 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
                 "region": os.environ.get("OB_STORAGE_S3_REGION", "us-east-1"),
             }
 
-            storage_s3_json = Path(minio_storage.out_dir) / "storage_s3.json"
+            storage_s3_json = Path(rustfs_storage.out_dir) / "storage_s3.json"
             with open(storage_s3_json, "w") as f:
                 json.dump(auth_options, f)
 
@@ -261,7 +265,7 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
 
             # Run the benchmark
             do_first_run(
-                omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir
+                omni, str(rustfs_storage.benchmark_file), cwd=rustfs_storage.out_dir
             )
 
             # Try to create a version (should succeed)
@@ -270,14 +274,14 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
                     "remote",
                     "version",
                     "create",
-                    str(minio_storage.benchmark_file),
+                    str(rustfs_storage.benchmark_file),
                 ],
-                cwd=minio_storage.out_dir,
+                cwd=rustfs_storage.out_dir,
             )
 
             # Verify success and message
             assert run.returncode == 0
-            expected_output = "Create a new benchmark version"
+            expected_output = "Creating benchmark version"
             assert_startswith(run.stdout, expected_output)
 
         finally:
@@ -298,7 +302,7 @@ def test_S3_storage_credentials_from_file(minio_storage):  # noqa: F811
                 os.environ.pop("OB_STORAGE_S3_CONFIG", None)
 
 
-def test_create_policy_cli_signature(minio_storage):  # noqa: F811
+def test_create_policy_cli_signature(rustfs_storage):  # noqa: F811
     """Test that create-policy command correctly receives benchmark parameter."""
     from omnibenchmark.cli.remote import remote
 
@@ -311,7 +315,7 @@ def test_create_policy_cli_signature(minio_storage):  # noqa: F811
             "policy",
             "create",
             "--benchmark",
-            str(minio_storage.benchmark_file),
+            str(rustfs_storage.benchmark_file),
         ],
     )
 
@@ -322,7 +326,7 @@ def test_create_policy_cli_signature(minio_storage):  # noqa: F811
     assert "takes 0 positional arguments" not in result.output.lower()
 
 
-def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: F811
+def test_missing_S3_storage_credentials_in_config_file(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # Save original environment variables
         original_access_key = os.environ.get("OB_STORAGE_S3_ACCESS_KEY")
@@ -332,7 +336,7 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
         try:
             # First run the benchmark with VALID credentials
             do_first_run(
-                omni, str(minio_storage.benchmark_file), cwd=minio_storage.out_dir
+                omni, str(rustfs_storage.benchmark_file), cwd=rustfs_storage.out_dir
             )
 
             # NOW create a JSON file with incomplete S3 credentials (missing access_key)
@@ -345,7 +349,7 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
                 "region": os.environ.get("OB_STORAGE_S3_REGION", "us-east-1"),
             }
 
-            storage_s3_json = Path(minio_storage.out_dir) / "storage_s3.json"
+            storage_s3_json = Path(rustfs_storage.out_dir) / "storage_s3.json"
             with open(storage_s3_json, "w") as f:
                 json.dump(auth_options, f)
 
@@ -360,9 +364,9 @@ def test_missing_S3_storage_credentials_in_config_file(minio_storage):  # noqa: 
                     "remote",
                     "version",
                     "create",
-                    str(minio_storage.benchmark_file),
+                    str(rustfs_storage.benchmark_file),
                 ],
-                cwd=minio_storage.out_dir,
+                cwd=rustfs_storage.out_dir,
             )
 
             # Verify failure and error message
