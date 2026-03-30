@@ -64,8 +64,7 @@ stages:
         parameters:
           - values: ["--evaluate", "input+2000", "--input", "data.raw", "--kind", "method"]
     inputs:
-      - entries:
-          - data.raw
+      - data.raw
     outputs:
       - id: methods.result
         path: "{dataset}_method.json"

@@ -63,9 +63,16 @@ class TestVersionValidation:
             warnings.simplefilter("always")
             benchmark = Benchmark(**benchmark_data)
             assert benchmark.version == "1.0"
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "version" in str(w[0].message).lower()
+            # Check that at least one FutureWarning about version was issued
+            # (Python 3.13 may emit additional warnings)
+            assert len(w) >= 1
+            future_warnings = [
+                warning for warning in w if issubclass(warning.category, FutureWarning)
+            ]
+            assert len(future_warnings) >= 1
+            assert any(
+                "version" in str(warning.message).lower() for warning in future_warnings
+            )
 
         # Integer version should work with FutureWarning (using valid semver)
         benchmark_data["version"] = 1
@@ -74,10 +81,15 @@ class TestVersionValidation:
             # This will fail because "1" is not valid semver
             with pytest.raises(ValidationError) as exc_info:
                 benchmark = Benchmark(**benchmark_data)
-            # Should still have the warning
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "version" in str(w[0].message).lower()
+            # Should still have at least one FutureWarning
+            assert len(w) >= 1
+            future_warnings = [
+                warning for warning in w if issubclass(warning.category, FutureWarning)
+            ]
+            assert len(future_warnings) >= 1
+            assert any(
+                "version" in str(warning.message).lower() for warning in future_warnings
+            )
             # And should fail semver validation
             assert "does not follow strict semantic versioning" in str(exc_info.value)
 
@@ -147,10 +159,20 @@ class TestVersionValidation:
             warnings.simplefilter("always")
             benchmark = Benchmark(**benchmark_data)
             assert benchmark.benchmark_yaml_spec == "0.01"
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "benchmark_yaml_spec" in str(w[0].message)
-            assert "should be a string" in str(w[0].message)
+            # Check that at least one FutureWarning about benchmark_yaml_spec was issued
+            assert len(w) >= 1
+            future_warnings = [
+                warning for warning in w if issubclass(warning.category, FutureWarning)
+            ]
+            assert len(future_warnings) >= 1
+            assert any(
+                "benchmark_yaml_spec" in str(warning.message)
+                for warning in future_warnings
+            )
+            assert any(
+                "should be a string" in str(warning.message)
+                for warning in future_warnings
+            )
 
         # Integer yaml spec should work but warn
         benchmark_data["benchmark_yaml_spec"] = 1
@@ -158,10 +180,20 @@ class TestVersionValidation:
             warnings.simplefilter("always")
             benchmark = Benchmark(**benchmark_data)
             assert benchmark.benchmark_yaml_spec == "1"
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "benchmark_yaml_spec" in str(w[0].message)
-            assert "should be a string" in str(w[0].message)
+            # Check that at least one FutureWarning about benchmark_yaml_spec was issued
+            assert len(w) >= 1
+            future_warnings = [
+                warning for warning in w if issubclass(warning.category, FutureWarning)
+            ]
+            assert len(future_warnings) >= 1
+            assert any(
+                "benchmark_yaml_spec" in str(warning.message)
+                for warning in future_warnings
+            )
+            assert any(
+                "should be a string" in str(warning.message)
+                for warning in future_warnings
+            )
 
         # Valid string yaml spec should work
         benchmark_data["benchmark_yaml_spec"] = "0.01"

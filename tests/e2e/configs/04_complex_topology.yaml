@@ -76,8 +76,7 @@ stages:
                 "normalized",
               ]
     inputs:
-      - entries:
-          - data_primary.raw
+      - data_primary.raw
     outputs:
       - id: preprocessing_primary.normalized
         path: "{dataset}_normalized.json"
@@ -101,8 +100,7 @@ stages:
                 "normalized",
               ]
     inputs:
-      - entries:
-          - data_secondary.raw
+      - data_secondary.raw
     outputs:
       - id: preprocessing_secondary.normalized
         path: "{dataset}_normalized.json"
@@ -143,8 +141,7 @@ stages:
                 "method",
               ]
     inputs:
-      - entries:
-          - preprocessing_primary.normalized
+      - preprocessing_primary.normalized
     outputs:
       - id: methods_group1.result
         path: "{dataset}_method.json"
@@ -185,8 +182,7 @@ stages:
                 "method",
               ]
     inputs:
-      - entries:
-          - preprocessing_secondary.normalized
+      - preprocessing_secondary.normalized
     outputs:
       - id: methods_group1_secondary.result
         path: "{dataset}_method.json"
@@ -210,8 +206,7 @@ stages:
                 "method",
               ]
     inputs:
-      - entries:
-          - data_primary.raw
+      - data_primary.raw
     outputs:
       - id: methods_group2.result
         path: "{dataset}_method.json"
@@ -235,8 +230,7 @@ stages:
                 "method",
               ]
     inputs:
-      - entries:
-          - data_secondary.raw
+      - data_secondary.raw
     outputs:
       - id: methods_group3.result
         path: "{dataset}_method.json"

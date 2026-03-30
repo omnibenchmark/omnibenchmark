@@ -5,7 +5,7 @@ from packaging.version import Version
 from pathlib import Path
 
 import pytest
-from git import Repo
+import subprocess
 
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.benchmark import BenchmarkExecution
@@ -212,7 +212,9 @@ class TestS3CompatibleStorage:
             temp_path = Path(temp_dir)
 
             # Initialize git repo
-            repo = Repo.init(temp_path)
+            subprocess.run(["git", "init", str(temp_path)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(temp_path), "config", "user.email", "test@test.com"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(temp_path), "config", "user.name", "Test"], check=True, capture_output=True)
 
             # Copy benchmark file to git repo
             path = get_benchmark_data_path()
@@ -221,8 +223,8 @@ class TestS3CompatibleStorage:
             shutil.copy2(original_benchmark_file, benchmark_file)
 
             # Commit the initial benchmark file
-            repo.index.add([str(benchmark_file.name)])
-            repo.index.commit("Initial benchmark commit")
+            subprocess.run(["git", "-C", str(temp_path), "add", str(benchmark_file.name)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(temp_path), "commit", "-m", "Initial benchmark commit"], check=True, capture_output=True)
 
             # Create BenchmarkExecution with git-tracked file
             benchmark = BenchmarkExecution(benchmark_file)
@@ -245,7 +247,9 @@ class TestS3CompatibleStorage:
             temp_path = Path(temp_dir)
 
             # Initialize git repo
-            repo = Repo.init(temp_path)
+            subprocess.run(["git", "init", str(temp_path)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(temp_path), "config", "user.email", "test@test.com"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(temp_path), "config", "user.name", "Test"], check=True, capture_output=True)
 
             # Copy benchmark file to git repo
             path = get_benchmark_data_path()
@@ -261,8 +265,8 @@ class TestS3CompatibleStorage:
                 shutil.copy2(env_file, envs_dir / env_file.name)
 
             # Commit the initial files
-            repo.index.add([str(benchmark_file.name), "envs/*"])
-            repo.index.commit("Initial benchmark commit")
+            subprocess.run(["git", "-C", str(temp_path), "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(temp_path), "commit", "-m", "Initial benchmark commit"], check=True, capture_output=True)
 
             # Create BenchmarkExecution with git-tracked file
             benchmark = BenchmarkExecution(benchmark_file)

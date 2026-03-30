@@ -1,11 +1,30 @@
 from omnibenchmark.dag import DiGraph, get_node_attributes
 
+# Sampled from matplotlib's "inferno" colormap — no matplotlib dependency needed.
+_INFERNO = [
+    "#0d0887",
+    "#41049d",
+    "#6a00a8",
+    "#8f0da4",
+    "#b12a90",
+    "#cc4778",
+    "#e16462",
+    "#f2844b",
+    "#fca636",
+    "#fcce25",
+]
+
+
+def _stage_color(index: int, total: int) -> str:
+    n = max(total, 1)
+    slot = int(index / n * (len(_INFERNO) - 1))
+    return _INFERNO[slot]
+
 
 def export_to_dot(
     G: DiGraph,
     title: str = "",
 ):
-    import matplotlib.pyplot as plt
     import pydot
 
     # Dynamically scale the node size based on node count
@@ -13,12 +32,9 @@ def export_to_dot(
     div_nodes_count = max(1, nodes_count // 10)
     graph_size = max(15, 15 * div_nodes_count)
 
-    # Color nodes by stage (assuming 'stage' is a node attribute)
+    # Color nodes by stage
     stages = get_node_attributes(G, "stage", default="none")
-    unique_stages = list(set(stages.values()))  # Get unique stages
-
-    # Define a colormap with different shades for the stages
-    stage_colors = plt.get_cmap("inferno", max(len(unique_stages), 5))
+    unique_stages = list(set(stages.values()))
 
     # Convert the graph to a PyDot graph object
     pydot_graph = pydot.Dot(
@@ -46,8 +62,7 @@ def export_to_dot(
 
     for node in G.nodes:
         node_name = str(node)
-        rgba_color = stage_colors(unique_stages.index(stages[node]))
-        hex_color = _rgba_to_hex(rgba_color)
+        hex_color = _stage_color(unique_stages.index(stages[node]), len(unique_stages))
         pydot_node = pydot.Node(node_name, label=node_name, fillcolor=hex_color)
         pydot_graph.add_node(pydot_node)
 
@@ -56,10 +71,3 @@ def export_to_dot(
         pydot_graph.add_edge(pydot_edge)
 
     return pydot_graph
-
-
-def _rgba_to_hex(rgba):
-    r = int(rgba[0] * 255)
-    g = int(rgba[1] * 255)
-    b = int(rgba[2] * 255)
-    return f"#{r:02X}{g:02X}{b:02X}"

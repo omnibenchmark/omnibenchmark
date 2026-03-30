@@ -1,0 +1,25 @@
+id: EnvmodulesTestBenchmark
+description: Minimal benchmark for testing envmodules environment resolution
+version: "1.0"
+benchmarker: "Unit Test Suite"
+benchmark_yaml_spec: "0.3"
+software_backend: envmodules
+
+software_environments:
+  gcc_env:
+    envmodule: "GCC/11.3.0"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Test module with envmodules environment"
+        software_environment: gcc_env
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"

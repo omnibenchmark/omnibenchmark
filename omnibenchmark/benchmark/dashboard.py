@@ -1,14 +1,8 @@
-from typing import TYPE_CHECKING, Dict, List, Any
+import math
+from typing import Dict, List, Any
 
-if TYPE_CHECKING:
-    import pandas as pd
-
-try:
-    import pandas as pd
-
-    EXPORT_AVAILABLE = True
-except ImportError:
-    EXPORT_AVAILABLE = False
+# Always available - no longer requires pandas
+EXPORT_AVAILABLE = True
 
 
 # Performance metrics configuration
@@ -33,19 +27,23 @@ METRIC_CLASS_COLORS = {
 }
 
 
+def _is_na(value: Any) -> bool:
+    """Check if a value is missing/NaN."""
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    return False
+
+
 def create_bettr_dashboard(
-    df: "pd.DataFrame", id_col: str = "module"
+    df: List[Dict[str, Any]], id_col: str = "module"
 ) -> Dict[str, Any]:
-    """Create bettr dashboard dict from performance DataFrame.
+    """Create bettr dashboard dict from performance data (list of dicts).
 
     Parses metrics into structured format, then serializes to bettr JSON.
     """
-    if not EXPORT_AVAILABLE:
-        raise ImportError(
-            "Export functionality is not available. Install with: pip install omnibenchmark[export]"
-        )
-
-    if df.empty:
+    if not df:
         raise ValueError("performance.tsv is empty")
 
     metric_cols = _extract_metric_columns(df, id_col=id_col)
@@ -58,26 +56,27 @@ def create_bettr_dashboard(
     return bettr_data
 
 
-def _extract_metric_columns(df: "pd.DataFrame", id_col: str) -> List[str]:
-    """Extract numeric columns that are defined in PERFORMANCE_METRICS.
+def _extract_metric_columns(df: List[Dict[str, Any]], id_col: str) -> List[str]:
+    """Extract columns defined in PERFORMANCE_METRICS that contain numeric values.
 
     Excludes metadata columns (path, params, module, dataset, lineage).
     """
-    # Exclude non-metric columns
+    if not df:
+        return []
+
     exclude_cols = {id_col, "path", "params", "module", "dataset", "lineage"}
 
     metric_cols = []
-    for col in df.columns:
-        if col not in exclude_cols:
-            # Check if column contains numeric data and is a known performance metric
-            if pd.api.types.is_numeric_dtype(df[col]) and col in PERFORMANCE_METRICS:
+    for col in df[0].keys():
+        if col not in exclude_cols and col in PERFORMANCE_METRICS:
+            if any(isinstance(row.get(col), (int, float)) for row in df):
                 metric_cols.append(col)
 
     return metric_cols
 
 
 def _parse_metrics(
-    df: "pd.DataFrame",
+    df: List[Dict[str, Any]],
     metric_cols: List[str],
     id_col: str,
 ) -> List[Dict]:
@@ -88,9 +87,9 @@ def _parse_metrics(
     """
     # First pass: assign measurement numbers per (module, dataset) pair
     module_dataset_counts: Dict[tuple, int] = {}
-    row_assignments = []  # Store (module, dataset, measurement_num) for each row
+    row_assignments = []
 
-    for idx, row in df.iterrows():
+    for idx, row in enumerate(df):
         module_name = str(row[id_col])
         dataset = str(row["dataset"])
         pair_key = (module_name, dataset)
@@ -123,27 +122,26 @@ def _parse_metrics(
     for collapse_key, row_indices in sorted(collapse_key_to_rows.items()):
         module_name, measurement_num = collapse_key
 
-        # Create unique identifier for this collapsed row
         module_id = f"{module_name}_{measurement_num}"
         metrics = []
 
-        # Collect metrics from all rows with this collapse key
         for row_idx in row_indices:
-            row = df.iloc[row_idx]
+            row = df[row_idx]
             dataset = str(row["dataset"])
 
-            # Add each metric with explicit structure
             for metric in metric_cols:
-                value = row[metric]
-                if pd.isna(value):
+                value = row.get(metric)
+                if _is_na(value):
                     parsed_value = None
                 elif isinstance(value, (int, float)):
                     parsed_value = float(value)
-                else:
+                elif value is not None:
                     try:
                         parsed_value = float(value)
                     except (ValueError, TypeError):
                         parsed_value = None
+                else:
+                    parsed_value = None
 
                 metrics.append(
                     {
@@ -171,10 +169,8 @@ def _serialize_to_bettr_format(
 ) -> Dict[str, Any]:
     """Serialize structured metrics to bettr JSON format.
 
-    Flattens metrics into metric_dataset columns and generates bettr metadata
+    Flattens metrics into metric_dataset columns and generates bettr metadata.
     """
-
-    # Flatten structured metrics into bettr data format
     data = []
     id_info = []
     seen_metric_dataset_combinations = set()
@@ -183,10 +179,8 @@ def _serialize_to_bettr_format(
         module_id = record["module_id"]
         measurement_num = record["measurement_num"]
 
-        # Create flattened data row
         data_row = {id_col: module_id}
 
-        # Flatten metrics into metric_dataset columns
         for metric_entry in record["metrics"]:
             metric = metric_entry["metric"]
             dataset = metric_entry["dataset"]
@@ -198,7 +192,6 @@ def _serialize_to_bettr_format(
 
         data.append(data_row)
 
-        # Create id_info entry
         id_info.append(
             {
                 id_col: module_id,
@@ -206,7 +199,6 @@ def _serialize_to_bettr_format(
             }
         )
 
-    # Generate metricInfo from seen combinations
     metric_info = []
     for metric, dataset in sorted(seen_metric_dataset_combinations):
         metric_dataset_col = f"{metric}_{dataset}"
@@ -221,7 +213,6 @@ def _serialize_to_bettr_format(
             }
         )
 
-    # Generate initialTransforms
     initial_transforms = {}
     for metric, dataset in seen_metric_dataset_combinations:
         metric_dataset_col = f"{metric}_{dataset}"
@@ -231,7 +222,6 @@ def _serialize_to_bettr_format(
             "transform": metric_config.get("transform", None),
         }
 
-    # Generate metricColors using static configuration
     metric_colors = {"Class": METRIC_CLASS_COLORS.copy()}
 
     result = {

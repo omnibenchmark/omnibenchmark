@@ -1,0 +1,25 @@
+id: CondaTestBenchmark
+description: Minimal benchmark for testing conda environment resolution
+version: "1.0"
+benchmarker: "Unit Test Suite"
+benchmark_yaml_spec: "0.3"
+software_backend: conda
+
+software_environments:
+  python_env:
+    conda: envs/python_env.yaml
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Test module with conda environment"
+        software_environment: python_env
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"

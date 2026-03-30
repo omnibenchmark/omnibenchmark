@@ -50,9 +50,7 @@ stages:
           # information.
           - values: ["--evaluate", "input+100", "--input", "data.raw"]
     inputs:
-      # TODO: entries should be deprecated
-      - entries:
-          - data.raw
+      - data.raw
     outputs:
       - id: methods.result
         # XXX I think this is wrong. This module gets passed --name D1...

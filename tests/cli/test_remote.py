@@ -7,6 +7,7 @@ from pathlib import Path
 
 from typing import Optional
 
+import pytest
 from click.testing import CliRunner
 
 from .cli_setup import OmniCLISetup
@@ -26,6 +27,7 @@ def do_first_run(clisetup, file: str, cwd: Optional[str] = None):
     assert run1.returncode == 0
 
 
+@pytest.mark.skip(reason="--use-remote-storage removed from new explicit-snakefile CLI")
 def test_create_version(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # first we run the benchmark to generate data
@@ -106,6 +108,7 @@ def get_md5_hash(content: str) -> str:
     return hash_md5.hexdigest()
 
 
+@pytest.mark.skip(reason="--use-remote-storage removed from new explicit-snakefile CLI")
 def test_list_files(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # first we run the benchmark to generate data
@@ -146,6 +149,7 @@ def test_list_files(rustfs_storage):  # noqa: F811
         assert_in_output(run3.stdout, expected)
 
 
+@pytest.mark.skip(reason="--use-remote-storage removed from new explicit-snakefile CLI")
 def test_download_files(rustfs_storage):  # noqa: F811
     from pathlib import Path
     import os
@@ -236,6 +240,7 @@ def test_S3_storage_missing_access_key(rustfs_storage):  # noqa: F811
                 os.environ.pop("OB_STORAGE_S3_ACCESS_KEY", None)
 
 
+@pytest.mark.skip(reason="--use-remote-storage removed from new explicit-snakefile CLI")
 def test_S3_storage_credentials_from_file(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # Save original environment variables to restore later
@@ -326,6 +331,7 @@ def test_create_policy_cli_signature(rustfs_storage):  # noqa: F811
     assert "takes 0 positional arguments" not in result.output.lower()
 
 
+@pytest.mark.skip(reason="--use-remote-storage removed from new explicit-snakefile CLI")
 def test_missing_S3_storage_credentials_in_config_file(rustfs_storage):  # noqa: F811
     with OmniCLISetup() as omni:
         # Save original environment variables

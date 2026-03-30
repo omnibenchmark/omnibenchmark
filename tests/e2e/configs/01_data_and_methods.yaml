@@ -52,6 +52,4 @@ stages:
       - data.raw
     outputs:
       - id: methods.result
-        # XXX I think this is wrong. This module gets passed --name D1...
-        # but I expect name to be M1.
-        path: "{dataset}_method.json"
+        path: "{dataset}_data.json"

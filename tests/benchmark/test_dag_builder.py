@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock
 
 from omnibenchmark.benchmark._dag_builder import DAGBuilder
-from omnibenchmark.benchmark.params import Params
+from omnibenchmark.model.params import Params
 from omnibenchmark.dag import DiGraph
 from omnibenchmark.model import Benchmark, Stage, ValidationError
 
