@@ -1,23 +1,37 @@
 name: Update CITATION.cff
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ["pixi"]
+    types: [completed]
 
 jobs:
   update-cff:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.head_branch == 'main' ||
+       startsWith(github.event.workflow_run.head_branch, 'v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: btraven00/cffbump@v1
         with:
           git-min-commits: '2'
           include-sources: 'git,crossref'
           doi: '10.48550/arXiv.2409.17038'
+
+      - name: Open PR with updated CITATION.cff
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'chore: update CITATION.cff'
+          branch: chore/update-citation-cff
+          title: 'chore: update CITATION.cff'
+          body: 'Automated update of `CITATION.cff` triggered by tag `${{ github.event.workflow_run.head_branch }}`.'
+          labels: automated
