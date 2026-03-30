@@ -1,0 +1,23 @@
+name: Update CITATION.cff
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  update-cff:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: btraven00/cffbump@v1
+        with:
+          git-min-commits: '2'
+          include-sources: 'git,crossref'
+          doi: '10.48550/arXiv.2409.17038'
