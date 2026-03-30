@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 from typing import Optional, TYPE_CHECKING, Any
 
@@ -6,18 +7,18 @@ from omnibenchmark.benchmark import BenchmarkExecution
 from .RemoteStorage import StorageOptions
 
 if TYPE_CHECKING:
-    from .MinIOStorage import MinIOStorage as MinIOStorageType
+    from .S3Storage import S3CompatibleStorage as S3CompatibleStorageType
 else:
-    MinIOStorageType = Any
+    S3CompatibleStorageType = Any
 
 try:
-    from .MinIOStorage import MinIOStorage
+    from .S3Storage import S3CompatibleStorage
     from .S3config import S3_access_config_from_env
 
     S3_AVAILABLE = True
 except ImportError:
     S3_AVAILABLE = False
-    MinIOStorage = None  # type: ignore
+    S3CompatibleStorage = None  # type: ignore
     S3_access_config_from_env = None
 
 
@@ -31,83 +32,127 @@ def _check_s3_available():
     return S3_AVAILABLE
 
 
-# XXX ARCHITECTURAL DEBT: Storage Factory Pattern Missing
-#
-# Current Issue: We're mixing the storage API abstraction with concrete MinIO implementation.
-# This creates tight coupling and makes it difficult to add new storage backends.
-#
-# Recommended Pattern:
-# class StorageFactory:
-#     @staticmethod
-#     def create_storage(storage_config: Storage) -> RemoteStorage:
-#         match storage_config.api:
-#             case StorageAPIEnum.s3: return MinIOStorage(...)
-#             case StorageAPIEnum.gcs: return GCSStorage(...)  # future
-#
-# This would allow proper dependency injection and easier testing with mock storage.
+def _warn_minio_deprecated(storage_type: str) -> None:
+    """Emit a deprecation warning if storage_type is MinIO."""
+    if storage_type.upper() == "MINIO":
+        warnings.warn(
+            "Storage type 'MinIO' is deprecated. Use 'S3' with a custom endpoint instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
+
+class StorageFactory:
+    """Factory for creating RemoteStorage instances.
+
+    Centralises backend selection so that adding a new storage backend
+    (e.g. GCS, Azure Blob) only requires a change here, not across all
+    call sites.
+
+    Example::
+
+        ss = StorageFactory.create("S3", auth_options, bucket_name)
+    """
+
+    @staticmethod
+    def create(
+        storage_api: str,
+        auth_options: dict,
+        bucket: str,
+        storage_options: Optional[StorageOptions] = None,
+    ) -> Optional[S3CompatibleStorageType]:
+        """Return a RemoteStorage instance for *storage_api*, or None.
+
+        Args:
+            storage_api: Storage API identifier ("S3" or the deprecated "MinIO").
+            auth_options: Authentication dict (endpoint, access_key, secret_key).
+            bucket: S3 bucket name used as the benchmark identifier.
+            storage_options: Tracked-directory configuration.
+
+        Returns:
+            A RemoteStorage instance, or None when the required extras are not
+            installed.
+        """
+        _warn_minio_deprecated(storage_api)
+        resolved_options = storage_options or StorageOptions(out_dir="out")
+
+        if storage_api.upper() in ("MINIO", "S3"):
+            if not _check_s3_available() or S3CompatibleStorage is None:
+                return None
+            return S3CompatibleStorage(auth_options, bucket, resolved_options)
+
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
+
+
 def get_storage(
-    storage_type: str,
+    storage_api: str,
     auth_options: dict,
     benchmark: str,
-    storage_options: StorageOptions = StorageOptions(out_dir="out"),
-) -> Optional[MinIOStorageType]:
-    """
-    Selects a remote storage type.
+    storage_options: Optional[StorageOptions] = None,
+) -> Optional[S3CompatibleStorageType]:
+    """Return a RemoteStorage instance for *storage_api*.
+
+    Thin wrapper around :class:`StorageFactory` kept for backward
+    compatibility. Prefer calling ``StorageFactory.create()`` directly in
+    new code.
 
     Args:
-    - storage_type (str): The type of the remote storage.
-    - auth_options (dict): The authentication options.
-    - benchmark (str): The benchmark name.
-
-    Returns:
-    - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
+        storage_api: Storage API identifier ("S3" or the deprecated "MinIO").
+        auth_options: Authentication dict (endpoint, access_key, secret_key).
+        benchmark: S3 bucket / benchmark name.
+        storage_options: Tracked-directory configuration.
     """
-    if storage_type.upper() == "MINIO" or storage_type.upper() == "S3":
-        if not _check_s3_available() or MinIOStorage is None:
-            return None
-        return MinIOStorage(auth_options, benchmark, storage_options)
+    return StorageFactory.create(storage_api, auth_options, benchmark, storage_options)
 
 
 def get_storage_from_benchmark(
     benchmark: BenchmarkExecution,
-) -> Optional[MinIOStorageType]:
-    """
-    Selects a remote storage type from a benchmark object.
+) -> Optional[S3CompatibleStorageType]:
+    """Return a RemoteStorage instance configured from *benchmark*.
 
     Args:
-    - benchmark (BenchmarkExecution): The benchmark object.
+        benchmark: The benchmark execution object.
 
     Returns:
-    - Optional[MinIOStorage]: The remote storage object, or None if unavailable.
+        A RemoteStorage instance, or None when storage is not configured.
     """
     auth_options = remote_storage_args(benchmark)
-    # setup storage
     storage_api = benchmark.get_storage_api()
     bucket_name = benchmark.get_storage_bucket_name()
 
     if storage_api is None or bucket_name is None:
         return None
 
-    return get_storage(
-        storage_api, auth_options, bucket_name, StorageOptions(out_dir="out")
+    from pathlib import Path
+
+    out_dir = getattr(getattr(benchmark, "context", None), "out_dir", Path("out"))
+    return StorageFactory.create(
+        storage_api, auth_options, bucket_name, StorageOptions(out_dir=str(out_dir))
     )
 
 
 def remote_storage_args(benchmark, required: bool = False) -> dict:
-    """Get remote storage authentication arguments.
+    """Return authentication args for the benchmark's remote storage.
 
     Args:
-        benchmark: The benchmark object
-        required: If True, require credentials to be present (for write operations)
+        benchmark: The benchmark object.
+        required: If True, require credentials to be present (write operations).
 
     Returns:
-        dict: Authentication options for remote storage
+        dict with endpoint, secure, and optionally access_key / secret_key.
     """
     storage_api = benchmark.get_storage_api()
+    if storage_api:
+        _warn_minio_deprecated(storage_api)
+
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
         if not _check_s3_available() or S3_access_config_from_env is None:
             return {}
-        # Let caller decide if credentials are required
         auth_options = S3_access_config_from_env(required=required)
         endpoint = benchmark.get_storage_endpoint()
         if endpoint is None:
@@ -130,7 +175,11 @@ def remote_storage_args(benchmark, required: bool = False) -> dict:
 
 
 def remote_storage_snakemake_args(benchmark) -> dict:
+    """Return Snakemake storage plugin args for *benchmark*'s remote storage."""
     storage_api = benchmark.get_storage_api()
+    if storage_api:
+        _warn_minio_deprecated(storage_api)
+
     if storage_api and (storage_api.upper() == "MINIO" or storage_api.upper() == "S3"):
         if not _check_s3_available() or S3_access_config_from_env is None:
             return {}

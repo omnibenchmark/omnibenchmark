@@ -5,7 +5,7 @@ import glob
 
 from omnibenchmark.benchmark import Benchmark
 from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.exception import MinIOStorageVersioningCorruptionException
+from omnibenchmark.remote.exception import S3StorageVersioningCorruptionException
 
 
 def get_objects_to_tag(
@@ -58,8 +58,6 @@ def get_expected_benchmark_output_files(
             glob_expression
         ) in storage_options.extra_files_to_version_not_in_benchmark_yaml:
             found_files = glob.glob(glob_expression, recursive=True)
-            if isinstance(found_files, str):
-                found_files = [found_files]
             for found_file in found_files:
                 object_names_to_keep.add(found_file)
     return list(object_names_to_keep)
@@ -79,7 +77,7 @@ def filter_objects_to_tag(
             benchmark, storage_options
         )
 
-        rootdirs = [Path(obj).parents[-2].name for obj in object_names_to_tag]
+        rootdirs = [Path(obj).parts[0] for obj in object_names_to_tag]
         overwrite_dirs_to_keep = [
             t
             for t in storage_options.tracked_directories
@@ -118,7 +116,7 @@ def get_single_remoteversion_from_bmversion(
         )
     )
     if len(version_ls) > 1:
-        raise MinIOStorageVersioningCorruptionException(
+        raise S3StorageVersioningCorruptionException(
             f"Multiple versions found for object {object_name}"
         )
     return version_ls[0] if version_ls else None

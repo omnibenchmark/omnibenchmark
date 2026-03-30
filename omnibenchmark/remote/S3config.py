@@ -7,18 +7,23 @@ from dotenv import load_dotenv
 
 from omnibenchmark.cli.utils.logging import logger
 
+# Sentinel so the .env filesystem walk only runs once per process.
+_dotenv_loaded: bool = False
 
-# Load .env file from the current working directory if it exists
-# This allows users to store S3 credentials in a .env file
-dotenv_path = Path.cwd() / ".env"
-if dotenv_path.exists():
-    load_dotenv(dotenv_path=dotenv_path, override=False)
-else:
-    # Try loading from the project root (in case we're running from a subdirectory)
-    # Walk up the directory tree to find .env
-    current_path = Path.cwd()
-    for parent in [current_path] + list(current_path.parents):
-        dotenv_path = parent / ".env"
+
+def _load_dotenv_once() -> None:
+    """Walk up the directory tree from cwd to find and load the first .env file.
+
+    Called lazily on the first credential lookup so that importing this module
+    has no filesystem side effects.
+    """
+    global _dotenv_loaded
+    if _dotenv_loaded:
+        return
+    _dotenv_loaded = True
+
+    for directory in [Path.cwd()] + list(Path.cwd().parents):
+        dotenv_path = directory / ".env"
         if dotenv_path.exists():
             load_dotenv(dotenv_path=dotenv_path, override=False)
             break
@@ -77,15 +82,17 @@ def bucket_readonly_policy(bucket_name):
 
 
 def S3_access_config_from_env(required: bool = True) -> dict:
-    """Get S3 access config from environment variables or file
+    """Get S3 access config from environment variables or file.
 
     Args:
-        required: If True, raise error when credentials are missing.
-                 If False, return empty dict when credentials are missing.
+        required: If True, exit with an error when credentials are missing.
+                 If False, return an empty dict when credentials are missing.
 
     Returns:
-        dict: Dictionary with access_key and secret_key, or empty dict if not required
+        dict with access_key and secret_key, or empty dict if not required.
     """
+    _load_dotenv_once()
+
     if (
         "OB_STORAGE_S3_ACCESS_KEY" in os.environ
         and "OB_STORAGE_S3_SECRET_KEY" in os.environ

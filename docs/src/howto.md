@@ -103,7 +103,7 @@ Check Omnibenchmark has successfully installed.
 === "Output"
 
     ```
-    S3 storage not available. You might want to install the 'minio' and 'boto3' packages.
+    S3 storage not available. You might want to install the 'boto3' packages.
     OmniBenchmark CLI, version 0.4.0
     ```
 

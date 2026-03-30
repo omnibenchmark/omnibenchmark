@@ -1,56 +1,55 @@
-import io
 import json
 
-from omnibenchmark.remote.MinIOStorage import MinIOStorage
+from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
 with open("<CONFIG>.json", "r") as file:
     auth_options = json.load(file)
 
 ########################################################
-### Example step-by-step usage of the MinIOStorage class
+### Example step-by-step usage of the S3CompatibleStorage class
 ########################################################
 
-# setup object, existing benchmark or new benchmark
-ms = MinIOStorage(auth_options, benchmark="obob")
+storage_options = StorageOptions(out_dir="out")
 
-# upload objects to benchmark
-_ = ms.client.put_object(ms.benchmark, "out/f1.txt", io.BytesIO(b"f1"), 2)
-_ = ms.client.put_object(ms.benchmark, "out/f2.txt", io.BytesIO(b"f2"), 2)
+# Setup object — connects to an existing benchmark bucket or creates a new one
+ms = S3CompatibleStorage(
+    auth_options, benchmark="obob", storage_options=storage_options
+)
 
-# util: get available benchmark versions
+# Upload objects to the benchmark bucket (boto3 keyword-argument style)
+ms.client.put_object(Bucket=ms.benchmark, Key="out/f1.txt", Body=b"f1")
+ms.client.put_object(Bucket=ms.benchmark, Key="out/f2.txt", Body=b"f2")
+
+# Refresh the list of available benchmark versions
 ms._get_versions()
 
-# set version (latest)
+# Set the version to create (None → auto-increment from latest)
 ms.set_version()
-# version to create
-print(f"{ms.version}")
-# set version (manual)
+print(f"Next version: {ms.version}")
+
+# Or set a specific version manually
 ms.set_version("0.1")
-# version to create
-print(f"{ms.version}")
+print(f"Version: {ms.version}")
 
-# create version
+# Create version 0.1 (tags current objects and writes the manifest)
 ms.create_new_version()
-# list versions of benchmark
-ms.versions
+print(f"Available versions: {ms.versions}")
 
-# update object
-_ = ms.client.put_object(ms.benchmark, "out/f1.txt", io.BytesIO(b"f1v2"), 4)
-# prepare new version
-ms.set_version()
-# create version
+# Update an object and create the next version
+ms.client.put_object(Bucket=ms.benchmark, Key="out/f1.txt", Body=b"f1v2")
+ms.set_version()  # auto-increments to 0.2
 ms.create_new_version()
 
-# list objects of version 0.2
-ms._get_objects()
-ms.files
+# Load and inspect objects for version 0.2
+ms.load_objects()
+print(ms.files)
 
-# list objects of version 0.1
+# Load and inspect objects for version 0.1
 ms.set_version("0.1")
-ms._get_objects()
-ms.files
+ms.load_objects()
+print(ms.files)
 
-
-# download object to file (tmp.txt)
+# Download an object to a local file
 object_name = list(ms.files.keys())[0]
 ms.download_object(object_name, "tmp.txt")

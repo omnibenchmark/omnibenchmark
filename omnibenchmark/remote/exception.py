@@ -18,9 +18,9 @@ class RemoteStorageInvalidInputException(RemoteStorageException):
         super().__init__(self.message)
 
 
-class MinIOStorageException(RemoteStorageException):
+class S3StorageException(RemoteStorageException):
     """
-    General Exception for MinIOStorage.
+    General Exception for S3-compatible storage.
     """
 
     def __init__(self, message):
@@ -28,7 +28,7 @@ class MinIOStorageException(RemoteStorageException):
         super().__init__(self.message)
 
 
-class MinIOStorageConnectionException(MinIOStorageException):
+class S3StorageConnectionException(S3StorageException):
     """
     Exception raised for connection issues with S3.
     """
@@ -38,7 +38,7 @@ class MinIOStorageConnectionException(MinIOStorageException):
         super().__init__(self.message)
 
 
-class MinIOStorageBucketManipulationException(MinIOStorageException):
+class S3StorageBucketManipulationException(S3StorageException):
     """
     Exception raised for errors with bucket creation and general bucket manipulations.
     """
@@ -48,7 +48,7 @@ class MinIOStorageBucketManipulationException(MinIOStorageException):
         super().__init__(self.message)
 
 
-class MinIOStorageVersioningCorruptionException(MinIOStorageException):
+class S3StorageVersioningCorruptionException(S3StorageException):
     """
     Exception raised for errors with object versioning.
     """
