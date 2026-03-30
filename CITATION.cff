@@ -75,6 +75,6 @@ keywords:
   - envmodules
   - Apptainer
   - workflow
-license: Apache
+license: Apache-2.0
 commit: 4e0e973
 version: 0.4.0
