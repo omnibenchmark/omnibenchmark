@@ -78,6 +78,7 @@ def download_files(
     file_id: str,
     verbose: bool = False,
     overwrite: bool = False,
+    storage_options: StorageOptions = StorageOptions(out_dir="out"),
 ):
     """Download all available files for a certain benchmark, version and stage"""
     from .hash import checksum

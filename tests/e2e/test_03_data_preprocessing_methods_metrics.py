@@ -25,7 +25,7 @@ def test_data_preprocessing_methods_metrics_pipeline(
     )
 
     # Execute CLI with default args
-    runner.execute_cli_command(config_file_in_tmp, ["--continue-on-error", "-y"])
+    runner.execute_cli_command(config_file_in_tmp, ["--continue-on-error"])
 
     # Validate results
     runner.validate_results("03_data_preprocessing_methods_metrics")

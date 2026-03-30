@@ -34,7 +34,7 @@ def test_cartesian_product_exclude_pipeline(
     )
 
     # Execute CLI with default args
-    runner.execute_cli_command(config_file_in_tmp, ["--continue-on-error", "-y"])
+    runner.execute_cli_command(config_file_in_tmp, ["--continue-on-error"])
 
     # Validate results
     runner.validate_results("05_cartesian_product_exclude")
@@ -73,13 +73,13 @@ def test_cartesian_product_exclude_idempotent(
 
     # First run
     first_runner.execute_cli_command(
-        config_file, ["--continue-on-error", "-y"], debug_label="first run"
+        config_file, ["--continue-on-error"], debug_label="first run"
     )
     first_runner.validate_results(test_name)
 
     # Second run (same config, different output dir)
     second_runner.execute_cli_command(
-        config_file, ["--continue-on-error", "-y"], debug_label="second run"
+        config_file, ["--continue-on-error"], debug_label="second run"
     )
     second_runner.validate_results(test_name)
 

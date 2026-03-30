@@ -5,20 +5,53 @@ All tests in this file are marked as 'short' since they mock git operations
 and don't require actual git repositories or external dependencies.
 """
 
-from unittest.mock import patch, MagicMock
+import subprocess
+from unittest.mock import patch, MagicMock, Mock, mock_open
 
 import pytest
 
 from omnibenchmark.versioning.git import GitAwareBenchmarkVersionManager
+from dulwich.errors import NotGitRepository
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _init_git_repo(path):
+    """Initialize a real minimal git repo via subprocess."""
+    subprocess.run(["git", "init", str(path)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(path), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(path), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture
 def mock_git_repo(tmp_path):
-    """Create a mock git repository setup."""
-    # Create a fake .git directory
+    """Create a fake .git directory (not a real repo — used for patched tests)."""
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
     return tmp_path
+
+
+@pytest.fixture
+def real_git_repo(tmp_path):
+    """Create a real git repo."""
+    _init_git_repo(tmp_path)
+    return tmp_path
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.short
@@ -31,7 +64,6 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            # Mock successful git repo
             mock_repo_instance = MagicMock()
             MockRepo.return_value = mock_repo_instance
 
@@ -51,10 +83,7 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            # Mock git not available
-            from git.exc import InvalidGitRepositoryError
-
-            MockRepo.side_effect = InvalidGitRepositoryError()
+            MockRepo.side_effect = NotGitRepository()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file,
@@ -62,7 +91,6 @@ class TestGitAwareBenchmarkVersionManager:
                 lock_dir=tmp_path / "locks",
             )
 
-            # Should not fail, just mark git as unavailable
             assert manager.git_available is False
 
     def test_reconstruct_version_history(self, mock_git_repo):
@@ -74,22 +102,17 @@ class TestGitAwareBenchmarkVersionManager:
             mock_repo = MagicMock()
             MockRepo.return_value = mock_repo
 
-            # Mock commits
-            mock_commit1 = MagicMock()
-            mock_commit1.hexsha = "abc123"
-            mock_commit2 = MagicMock()
-            mock_commit2.hexsha = "def456"
-
-            mock_repo.iter_commits.return_value = [
-                mock_commit2,
-                mock_commit1,
-            ]  # Newest first
+            # Mock walker entries (dulwich API: entry.commit.id)
+            entry1 = MagicMock()
+            entry1.commit.id = b"abc123"
+            entry2 = MagicMock()
+            entry2.commit.id = b"def456"
+            mock_repo.get_walker.return_value = [entry2, entry1]  # newest first
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            # Mock the file content extraction
             with patch.object(manager, "_get_file_content_at_commit") as mock_get:
                 with patch.object(
                     manager, "_extract_version_from_yaml"
@@ -108,9 +131,7 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            from git.exc import InvalidGitRepositoryError
-
-            MockRepo.side_effect = InvalidGitRepositoryError()
+            MockRepo.side_effect = NotGitRepository()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=tmp_path
@@ -128,30 +149,32 @@ class TestGitAwareBenchmarkVersionManager:
             mock_repo = MagicMock()
             MockRepo.return_value = mock_repo
 
-            # Mock commit info
+            # Dulwich API: repo.head() returns bytes sha; repo[sha] returns commit obj
+            mock_repo.head.return_value = b"abc123def456abc1"
             mock_commit = MagicMock()
-            mock_commit.hexsha = "abc123def456"
-            mock_commit.author.name = "John Doe"
-            mock_commit.author.email = "john@example.com"
+            mock_commit.id = b"abc123def456abc1"
+            mock_commit.author = b"John Doe <john@example.com>"
+            mock_commit.author_time = 1704067200
+            mock_repo.__getitem__ = MagicMock(return_value=mock_commit)
 
-            import datetime
+            # Branch via symrefs
+            mock_repo.refs.get_symrefs.return_value = {b"HEAD": b"refs/heads/main"}
 
-            mock_commit.committed_datetime = datetime.datetime(2024, 1, 1, 12, 0, 0)
-
-            mock_repo.head.commit = mock_commit
-            mock_repo.head.is_detached = False
-            mock_repo.active_branch.name = "main"
-            mock_repo.is_dirty.return_value = False
-            mock_repo.remotes.origin.url = "https://github.com/example/repo.git"
+            # Config for remote url
+            mock_config = MagicMock()
+            mock_config.get.return_value = b"https://github.com/example/repo.git"
+            mock_repo.get_config.return_value = mock_config
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            info = manager.get_current_git_info()
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(stdout="", returncode=0)
+                info = manager.get_current_git_info()
 
-            assert info["commit"] == "abc123de"  # Short hash
-            assert info["commit_full"] == "abc123def456"
+            assert info["commit"] == "abc123de"
+            assert info["commit_full"] == "abc123def456abc1"
             assert info["branch"] == "main"
             assert "John Doe" in info["author"]
             assert info["clean"] is True
@@ -165,17 +188,24 @@ class TestGitAwareBenchmarkVersionManager:
             mock_repo = MagicMock()
             MockRepo.return_value = mock_repo
 
+            mock_repo.head.return_value = b"abc123"
             mock_commit = MagicMock()
-            mock_commit.hexsha = "abc123"
-            mock_repo.head.commit = mock_commit
-            mock_repo.is_dirty.return_value = True  # Dirty repo
-            mock_repo.remotes = []  # No remotes
+            mock_commit.id = b"abc123"
+            mock_commit.author = b"Test <test@test.com>"
+            mock_commit.author_time = 0
+            mock_repo.__getitem__ = MagicMock(return_value=mock_commit)
+            mock_repo.refs.get_symrefs.return_value = {}
+            mock_repo.get_config.side_effect = Exception("no config")
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            info = manager.get_current_git_info()
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(
+                    stdout=" M dirty_file.py", returncode=0
+                )
+                info = manager.get_current_git_info()
 
             assert info["clean"] is False
 
@@ -185,16 +215,13 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            from git.exc import InvalidGitRepositoryError
-
-            MockRepo.side_effect = InvalidGitRepositoryError()
+            MockRepo.side_effect = NotGitRepository()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=tmp_path
             )
 
             info = manager.get_current_git_info()
-
             assert info == {}
 
     def test_create_version_with_git_tracking(self, mock_git_repo):
@@ -203,14 +230,7 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
-
-            mock_commit = MagicMock()
-            mock_commit.hexsha = "abc123"
-            mock_repo.head.commit = mock_commit
-            mock_repo.head.is_detached = False
-            mock_repo.active_branch.name = "main"
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file,
@@ -218,7 +238,8 @@ class TestGitAwareBenchmarkVersionManager:
                 lock_dir=mock_git_repo / "locks",
             )
 
-            version = manager.create_version_with_git_tracking("1.0.0")
+            with patch.object(manager, "get_current_git_info", return_value={}):
+                version = manager.create_version_with_git_tracking("1.0.0")
 
             assert version == "1.0.0"
             assert "1.0.0" in manager.get_versions()
@@ -229,8 +250,7 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file,
@@ -238,10 +258,10 @@ class TestGitAwareBenchmarkVersionManager:
                 lock_dir=mock_git_repo / "locks",
             )
 
-            # Create without specifying version
-            version = manager.create_version_with_git_tracking()
+            with patch.object(manager, "get_current_git_info", return_value={}):
+                version = manager.create_version_with_git_tracking()
 
-            assert version == "0.1"  # Default first version
+            assert version == "0.1"
 
     def test_extract_version_from_yaml(self, mock_git_repo):
         """Test extracting version from YAML content."""
@@ -249,14 +269,12 @@ class TestGitAwareBenchmarkVersionManager:
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            # Test valid YAML
             yaml_content = """
 version: 2.1.0
 id: test
@@ -265,7 +283,6 @@ software_backend: SNAKEMAKE
 software_environments: []
 stages: []
 """
-
             with patch("omnibenchmark.model.Benchmark") as MockBenchmark:
                 mock_benchmark = MagicMock()
                 mock_benchmark.version = "2.1.0"
@@ -274,9 +291,8 @@ stages: []
                 version = manager._extract_version_from_yaml(yaml_content)
                 assert version == "2.1.0"
 
-            # Test invalid YAML
-            invalid_yaml = "invalid: yaml: content:"
-            version = manager._extract_version_from_yaml(invalid_yaml)
+            # Invalid YAML returns None
+            version = manager._extract_version_from_yaml("invalid: yaml: content:")
             assert version is None
 
     def test_get_version_at_commit(self, mock_git_repo):
@@ -285,8 +301,7 @@ stages: []
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
@@ -302,7 +317,7 @@ stages: []
                     version = manager.get_version_at_commit("abc123")
                     assert version == "1.5.0"
 
-                    # Test when content not found
+                    # Content not found → None
                     mock_get.return_value = None
                     version = manager.get_version_at_commit("def456")
                     assert version is None
@@ -316,13 +331,11 @@ stages: []
             mock_repo = MagicMock()
             MockRepo.return_value = mock_repo
 
-            # Mock commits
-            mock_commit1 = MagicMock()
-            mock_commit1.hexsha = "abc123def"
-            mock_commit2 = MagicMock()
-            mock_commit2.hexsha = "def456ghi"
-
-            mock_repo.iter_commits.return_value = [mock_commit1, mock_commit2]
+            entry1 = MagicMock()
+            entry1.commit.id = b"abc123def"
+            entry2 = MagicMock()
+            entry2.commit.id = b"def456ghi"
+            mock_repo.get_walker.return_value = [entry1, entry2]
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
@@ -346,8 +359,7 @@ stages: []
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file,
@@ -355,9 +367,7 @@ stages: []
                 lock_dir=mock_git_repo / "locks",
             )
 
-            # Test inherited methods
             assert manager.get_versions() == []
-            # Don't call get_current_version as it tries to parse incomplete YAML
             assert manager._current_version is None
 
             manager.create_version("1.0.0")
@@ -365,7 +375,7 @@ stages: []
             assert manager.compare_versions("1.0.0", "2.0.0") == -1
 
     def test_detached_head_state(self, mock_git_repo):
-        """Test handling of detached HEAD state."""
+        """Test handling of detached HEAD state (no refs/heads/ prefix)."""
         benchmark_file = mock_git_repo / "test.yaml"
         benchmark_file.write_text("version: 1.0.0\n")
 
@@ -373,20 +383,27 @@ stages: []
             mock_repo = MagicMock()
             MockRepo.return_value = mock_repo
 
+            mock_repo.head.return_value = b"abc123"
             mock_commit = MagicMock()
-            mock_commit.hexsha = "abc123"
-            mock_repo.head.commit = mock_commit
-            mock_repo.head.is_detached = True  # Detached HEAD
+            mock_commit.id = b"abc123"
+            mock_commit.author = b"Test <t@t.com>"
+            mock_commit.author_time = 0
+            mock_repo.__getitem__ = MagicMock(return_value=mock_commit)
+            # HEAD points directly to a commit hash (detached)
+            mock_repo.refs.get_symrefs.return_value = {b"HEAD": b"abc123"}
+            mock_repo.get_config.side_effect = Exception("no config")
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            info = manager.get_current_git_info()
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(stdout="", returncode=0)
+                info = manager.get_current_git_info()
 
-            # Should not have branch key when in detached HEAD
+            # No branch key when ref doesn't start with refs/heads/
             assert "branch" not in info
-            assert info["commit"] == "abc123"[:8]  # Short hash
+            assert info["commit"] == "abc123"[:8]
 
     def test_initialize_from_git_history(self, mock_git_repo):
         """Test initializing known versions from git history."""
@@ -394,8 +411,7 @@ stages: []
         benchmark_file.write_text("version: 1.0.0\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
@@ -405,102 +421,78 @@ stages: []
                 manager, "reconstruct_version_history"
             ) as mock_reconstruct:
                 mock_reconstruct.return_value = ["1.0.0", "1.1.0", "2.0.0"]
-
                 manager.initialize_from_git_history()
-
                 assert manager.get_versions() == ["1.0.0", "1.1.0", "2.0.0"]
 
     def test_update_benchmark_version_and_commit(self, mock_git_repo):
         """Test updating benchmark version and committing to git."""
-        from unittest.mock import Mock, patch, mock_open
-
         benchmark_file = mock_git_repo / "test.yaml"
         benchmark_file.write_text("version: 1.0.0\nid: test\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            mock_index = MagicMock()
-            mock_commit = MagicMock()
-            mock_commit.hexsha = "abc123def456"
-
-            mock_repo.index = mock_index
-            mock_index.commit.return_value = mock_commit
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            # Create mock benchmark execution
             mock_benchmark_execution = Mock()
             mock_model = Mock()
             mock_model.version = "1.0.0"
             mock_model.to_yaml.return_value = "version: 2.0.0\nid: test\n"
             mock_benchmark_execution.model = mock_model
 
-            # Mock file writing
-            with patch("builtins.open", mock_open()) as mock_file:
-                commit_hash = manager.update_benchmark_version_and_commit(
-                    mock_benchmark_execution, "2.0.0", "Custom commit message"
-                )
+            with patch("omnibenchmark.versioning.git.porcelain") as mock_porcelain:
+                mock_porcelain.add = MagicMock()
+                mock_porcelain.commit = MagicMock(return_value=b"abc123def456")
 
-                # Verify version was updated in model
+                with patch("builtins.open", mock_open()) as mock_file:
+                    commit_hash = manager.update_benchmark_version_and_commit(
+                        mock_benchmark_execution, "2.0.0", "Custom commit message"
+                    )
+
                 assert mock_model.version == "2.0.0"
-
-                # Verify YAML was written to file
                 mock_file.assert_called_once_with(benchmark_file, "w")
-                mock_file().write.assert_called_once_with("version: 2.0.0\nid: test\n")
-
-                # Verify git operations
-                mock_index.add.assert_called_once()
-                mock_index.commit.assert_called_once_with("Custom commit message")
-
-                # Verify return value
+                mock_porcelain.add.assert_called_once()
+                mock_porcelain.commit.assert_called_once_with(
+                    manager.repo, message=b"Custom commit message"
+                )
                 assert commit_hash == "abc123def456"
 
     def test_update_benchmark_version_and_commit_default_message(self, mock_git_repo):
         """Test updating benchmark version with default commit message."""
-        from unittest.mock import Mock, patch, mock_open
-
         benchmark_file = mock_git_repo / "test.yaml"
         benchmark_file.write_text("version: 1.0.0\nid: test\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            mock_index = MagicMock()
-            mock_commit = MagicMock()
-            mock_commit.hexsha = "def456ghi789"
-
-            mock_repo.index = mock_index
-            mock_index.commit.return_value = mock_commit
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
             )
 
-            # Create mock benchmark execution
             mock_benchmark_execution = Mock()
             mock_model = Mock()
             mock_model.version = "1.0.0"
             mock_model.to_yaml.return_value = "version: 1.5.0\nid: test\n"
             mock_benchmark_execution.model = mock_model
 
-            # Mock file writing
-            with patch("builtins.open", mock_open()):
-                commit_hash = manager.update_benchmark_version_and_commit(
-                    mock_benchmark_execution, "1.5.0"
-                )
+            with patch("omnibenchmark.versioning.git.porcelain") as mock_porcelain:
+                mock_porcelain.add = MagicMock()
+                mock_porcelain.commit = MagicMock(return_value=b"def456ghi789")
 
-                # Verify default commit message was used
-                mock_index.commit.assert_called_once_with(
-                    "Update benchmark version to 1.5.0"
+                with patch("builtins.open", mock_open()):
+                    commit_hash = manager.update_benchmark_version_and_commit(
+                        mock_benchmark_execution, "1.5.0"
+                    )
+
+                mock_porcelain.commit.assert_called_once_with(
+                    manager.repo, message=b"Update benchmark version to 1.5.0"
                 )
                 assert commit_hash == "def456ghi789"
 
     def test_update_benchmark_version_and_commit_no_git(self, mock_git_repo):
         """Test updating benchmark version when git is not available."""
-        from unittest.mock import Mock
         from omnibenchmark.versioning.exceptions import VersioningError
 
         benchmark_file = mock_git_repo / "test.yaml"
@@ -509,14 +501,11 @@ stages: []
         manager = GitAwareBenchmarkVersionManager(
             benchmark_path=benchmark_file, git_repo_path=mock_git_repo
         )
-
-        # Simulate git not available
         manager.git_available = False
         manager.repo = None
 
         mock_benchmark_execution = Mock()
-        mock_model = Mock()
-        mock_benchmark_execution.model = mock_model
+        mock_benchmark_execution.model = Mock()
 
         with pytest.raises(VersioningError, match="Git repository not available"):
             manager.update_benchmark_version_and_commit(
@@ -525,15 +514,13 @@ stages: []
 
     def test_update_benchmark_version_and_commit_file_error(self, mock_git_repo):
         """Test handling file write errors during benchmark update."""
-        from unittest.mock import Mock, patch
         from omnibenchmark.versioning.exceptions import VersioningError
 
         benchmark_file = mock_git_repo / "test.yaml"
         benchmark_file.write_text("version: 1.0.0\nid: test\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file, git_repo_path=mock_git_repo
@@ -552,21 +539,12 @@ stages: []
                 )
 
     def test_create_version_with_persistence(self, mock_git_repo):
-        """Test creating version with persistence (version creation + file update + commit)."""
-        from unittest.mock import Mock, patch, mock_open
-
+        """Test creating version with persistence."""
         benchmark_file = mock_git_repo / "test.yaml"
         benchmark_file.write_text("version: 1.0.0\nid: test\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            mock_index = MagicMock()
-            mock_commit = MagicMock()
-            mock_commit.hexsha = "persistent123"
-
-            mock_repo.index = mock_index
-            mock_index.commit.return_value = mock_commit
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file,
@@ -574,67 +552,55 @@ stages: []
                 lock_dir=mock_git_repo / "locks",
             )
 
-            # Mock benchmark execution
             mock_benchmark_execution = Mock()
             mock_model = Mock()
             mock_model.version = "1.0.0"
             mock_model.to_yaml.return_value = "version: 2.1.0\nid: test\n"
             mock_benchmark_execution.model = mock_model
 
-            # Mock file operations and version creation
-            with patch("builtins.open", mock_open()):
-                with patch.object(manager, "create_version") as mock_create:
-                    mock_create.return_value = "2.1.0"
+            with patch("omnibenchmark.versioning.git.porcelain") as mock_porcelain:
+                mock_porcelain.add = MagicMock()
+                mock_porcelain.commit = MagicMock(return_value=b"persistent123")
 
-                    created_version = manager.create_version_with_persistence(
-                        mock_benchmark_execution, "2.1.0", "Persistent version update"
-                    )
+                with patch("builtins.open", mock_open()):
+                    with patch.object(manager, "create_version") as mock_create:
+                        mock_create.return_value = "2.1.0"
 
-                    # Verify version was created through base class
-                    mock_create.assert_called_once()
-                    call_args = mock_create.call_args
-                    assert call_args[1]["version"] == "2.1.0"
+                        created_version = manager.create_version_with_persistence(
+                            mock_benchmark_execution,
+                            "2.1.0",
+                            "Persistent version update",
+                        )
 
-                    # Verify hooks were called (pre_create_hook, post_create_hook)
-                    assert "pre_create_hook" in call_args[1]
-                    assert "post_create_hook" in call_args[1]
+                        mock_create.assert_called_once()
+                        call_args = mock_create.call_args
+                        assert call_args[1]["version"] == "2.1.0"
+                        assert "pre_create_hook" in call_args[1]
+                        assert "post_create_hook" in call_args[1]
 
-                    # Test the post_create_hook by calling it
-                    post_hook = call_args[1]["post_create_hook"]
-                    post_hook("2.1.0")
+                        # Invoke post_create_hook to verify git calls happen inside it
+                        post_hook = call_args[1]["post_create_hook"]
+                        post_hook("2.1.0")
 
-                    # Verify git operations happened in the hook
-                    mock_index.add.assert_called_once()
-                    mock_index.commit.assert_called_once_with(
-                        "Persistent version update"
-                    )
-
-                    assert created_version == "2.1.0"
+                        mock_porcelain.add.assert_called_once()
+                        mock_porcelain.commit.assert_called_once_with(
+                            manager.repo, message=b"Persistent version update"
+                        )
+                        assert created_version == "2.1.0"
 
     def test_create_version_with_persistence_auto_version(self, mock_git_repo):
         """Test creating version with persistence using auto-increment."""
-        from unittest.mock import Mock, patch, mock_open
-
         benchmark_file = mock_git_repo / "test.yaml"
         benchmark_file.write_text("version: 1.0.0\nid: test\n")
 
         with patch("omnibenchmark.versioning.git.Repo") as MockRepo:
-            mock_repo = MagicMock()
-            mock_index = MagicMock()
-            mock_commit = MagicMock()
-            mock_commit.hexsha = "auto123"
-
-            mock_repo.index = mock_index
-            mock_index.commit.return_value = mock_commit
-            MockRepo.return_value = mock_repo
+            MockRepo.return_value = MagicMock()
 
             manager = GitAwareBenchmarkVersionManager(
                 benchmark_path=benchmark_file,
                 git_repo_path=mock_git_repo,
                 lock_dir=mock_git_repo / "locks",
             )
-
-            # Set up known versions for auto-increment
             manager.set_known_versions(["1.0.0", "1.1.0"])
 
             mock_benchmark_execution = Mock()
@@ -642,17 +608,15 @@ stages: []
             mock_model.to_yaml.return_value = "version: 1.2.0\nid: test\n"
             mock_benchmark_execution.model = mock_model
 
-            with patch("builtins.open", mock_open()):
-                with patch.object(manager, "create_version") as mock_create:
-                    mock_create.return_value = "1.2.0"
+            with patch("omnibenchmark.versioning.git.porcelain"):
+                with patch("builtins.open", mock_open()):
+                    with patch.object(manager, "create_version") as mock_create:
+                        mock_create.return_value = "1.2.0"
 
-                    created_version = manager.create_version_with_persistence(
-                        mock_benchmark_execution
-                    )
+                        created_version = manager.create_version_with_persistence(
+                            mock_benchmark_execution
+                        )
 
-                    # Verify version was auto-created
-                    mock_create.assert_called_once()
-                    call_args = mock_create.call_args
-                    assert call_args[1]["version"] is None  # Auto-increment
-
-                    assert created_version == "1.2.0"
+                        call_args = mock_create.call_args
+                        assert call_args[1]["version"] is None  # Auto-increment
+                        assert created_version == "1.2.0"

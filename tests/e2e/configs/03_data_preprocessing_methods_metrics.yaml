@@ -70,8 +70,7 @@ stages:
                 "preprocessed",
               ]
     inputs:
-      - entries:
-          - data.raw
+      - data.raw
     outputs:
       - id: preprocessing.processed
         # XXX the dummy module does not have a lot of flexibility as
@@ -115,8 +114,7 @@ stages:
                 "method",
               ]
     inputs:
-      - entries:
-          - preprocessing.processed
+      - preprocessing.processed
     outputs:
       - id: methods.result
         path: "{dataset}_method.json"

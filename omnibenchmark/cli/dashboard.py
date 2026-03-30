@@ -1,13 +1,15 @@
 """CLI commands for generating benchmark dashboards"""
 
+import csv
 import json
 import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 import click
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.dashboard import create_bettr_dashboard, EXPORT_AVAILABLE
+from omnibenchmark.benchmark.dashboard import create_bettr_dashboard
 from omnibenchmark.cli.utils.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
@@ -15,6 +17,25 @@ from .debug import add_debug_option
 
 
 DASHBOARD_FORMAT_EXT_DICT = {"bettr": "json"}
+
+
+def _read_performance_tsv(file_path: Path) -> List[Dict[str, Any]]:
+    """Read a TSV performance file as a list of dicts with numeric coercion."""
+    rows: List[Dict[str, Any]] = []
+    with open(file_path, newline="") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            parsed: Dict[str, Any] = {}
+            for key, value in row.items():
+                if value is None or value == "" or value.lower() == "nan":
+                    parsed[key] = None
+                else:
+                    try:
+                        parsed[key] = float(value)
+                    except (ValueError, TypeError):
+                        parsed[key] = value
+            rows.append(parsed)
+    return rows
 
 
 @add_debug_option
@@ -44,17 +65,9 @@ def dashboard(ctx, benchmark, dashboard_format, out_dir):
     """
     ctx.ensure_object(dict)
 
-    if not EXPORT_AVAILABLE:
-        logger.error(
-            "Export functionality not available. Install with: pip install omnibenchmark[export]"
-        )
-        sys.exit(1)
-
     logger.info(
         f"Generating {dashboard_format} dashboard from benchmark performance results..."
     )
-
-    import pandas
 
     try:
         _ = BenchmarkExecution(Path(benchmark), Path(out_dir))
@@ -81,12 +94,11 @@ def dashboard(ctx, benchmark, dashboard_format, out_dir):
         )
         sys.exit(1)
 
-    # Generate dashboard based on format
     try:
         dashboard_data = {}
-        performance_df = pandas.read_csv(performance_file, sep="\t")
+        rows = _read_performance_tsv(performance_file)
         if dashboard_format.lower() == "bettr":
-            dashboard_data = create_bettr_dashboard(performance_df, id_col="module")
+            dashboard_data = create_bettr_dashboard(rows, id_col="module")
         else:
             logger.error(f"Unsupported dashboard format: {dashboard_format}")
             sys.exit(1)

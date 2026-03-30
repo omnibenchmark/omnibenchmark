@@ -19,10 +19,15 @@ xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(_home, ".con
 xdg_bench_home = os.environ.get("XDG_DATA_HOME") or os.path.join(
     _home, ".local", "share"
 )
+xdg_cache_home = os.environ.get("XDG_CACHE_HOME") or os.path.join(_home, ".cache")
 
 
 default_cfg = {
-    "dirs": {"datasets": f"~/{APP_NAME}/datasets", "git_modules": f".{APP_NAME}/git"}
+    "dirs": {
+        "datasets": f"~/{APP_NAME}/datasets",
+        "git_modules": f".{APP_NAME}/git",
+        "git_cache": os.path.join(xdg_cache_home, APP_NAME, "git"),
+    }
 }
 
 bench_dir = os.path.join(xdg_bench_home, APP_NAME)
@@ -235,3 +240,17 @@ def get_temp_prefix() -> str:
         username = str(os.getuid()) if hasattr(os, "getuid") else "unknown"
 
     return f"omnibenchmark_{username}_"
+
+
+def get_git_cache_dir() -> Path:
+    """Get the global git cache directory (XDG-compliant).
+
+    Returns the path to ~/.cache/omnibenchmark/git (or XDG_CACHE_HOME equivalent).
+    Creates the directory if it does not exist.
+    """
+    git_cache_dir_str = config.get(
+        "dirs", "git_cache", default_cfg["dirs"]["git_cache"]
+    )
+    git_cache_dir = Path(git_cache_dir_str).expanduser()
+    git_cache_dir.mkdir(parents=True, exist_ok=True)
+    return git_cache_dir
