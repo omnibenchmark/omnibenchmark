@@ -17,7 +17,7 @@ url: 'https://docs.omnibenchmark.org'
 preferred-citation:
     type: article
     title: "Omnibenchmark: transparent, reproducible, extensible and standardized orchestration of solo and collaborative benchmarks"
-    doi: https://doi.org/10.48550/arXiv.2409.17038
+    doi: 10.48550/arXiv.2409.17038
     authors:
       - given-names: 'Izaskun '
         family-names: Mallona
