@@ -203,7 +203,7 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
                 if head_ref and head_ref.startswith(b"refs/heads/"):
                     info["branch"] = head_ref[len(b"refs/heads/") :].decode()
             except Exception:
-                pass
+                logger.debug("Failed to determine current git branch from HEAD ref.", exc_info=True)
 
             # Dirty check via subprocess (dulwich has no simple is_dirty())
             try:
@@ -214,7 +214,7 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
                 )
                 info["clean"] = result.stdout.strip() == ""
             except Exception:
-                pass
+                logger.debug("Failed to determine git working tree cleanliness.", exc_info=True)
 
             # Remote URL
             try:
@@ -223,10 +223,10 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
                 if url:
                     info["remote"] = url.decode()
             except Exception:
-                pass
+                logger.debug("Failed to retrieve git remote URL from repository config.", exc_info=True)
 
         except Exception:
-            pass
+            logger.debug("Failed to collect git repository information.", exc_info=True)
 
         return info
 

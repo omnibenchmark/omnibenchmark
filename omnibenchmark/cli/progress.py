@@ -153,7 +153,9 @@ class KeyboardListener:
             if select.select([sys.stdin], [], [], 0)[0]:
                 return sys.stdin.read(1)
         except (OSError, ValueError):
-            pass
+            # Non-fatal I/O issues (e.g. stdin closed or not readable) are treated
+            # as "no key pressed" so that progress display continues uninterrupted.
+            return None
         return None
 
 
