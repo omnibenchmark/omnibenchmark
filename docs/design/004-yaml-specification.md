@@ -15,7 +15,7 @@
 
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
-| 0.1 | 2026-01-20 | Initial specification for v0.4 | ben |
+| 1       | 2026-01-20 | Initial specification for v0.4 | ben |
 
 ## 1. Problem Statement
 
