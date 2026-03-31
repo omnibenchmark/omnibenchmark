@@ -131,7 +131,7 @@ class SnakemakeGenerator:
         f.write(f'        entrypoint="{node.module.entrypoint}",\n')
         if node.outputs:
             f.write(
-                "        output_dir=lambda wildcards, output: os.path.dirname(output[0]),\n"
+                '        output_dir=lambda wildcards, output: os.path.dirname(output[0]) or ".",\n'
             )
         if node.parameters:
             cli_args = " ".join(node.get_parameter_cli_args())
