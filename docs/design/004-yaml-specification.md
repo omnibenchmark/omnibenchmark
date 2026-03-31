@@ -16,6 +16,7 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 1       | 2026-01-20 | Initial specification for v0.4 | ben |
+| 2       | 2026-03-31 | Add resource allocation (Section 8) | ben |
 
 ## 1. Problem Statement
 
@@ -440,7 +441,160 @@ Backends must support:
 4. **Environment directives**: Translate environment specs to backend syntax
 5. **Dependency resolution**: Wire inputs to upstream outputs
 
-## 6. References
+## 7. Resource Allocation
+
+> **Status:** Implemented.
+
+### 7.1 Overview
+
+Stages, modules, and metric collectors can declare resource requirements via an optional `resources:` block. These are translated directly into Snakemake `resources:` directives, enabling efficient parallel scheduling.
+
+### 7.2 Schema
+
+```yaml
+resources:
+  cores: <integer>      # Optional: CPU cores per task
+  mem_mb: <integer>     # Optional: memory in MiB
+  disk_mb: <integer>    # Optional: disk space in MiB
+  runtime: <integer>    # Optional: expected runtime in minutes
+```
+
+All fields are optional, but at least one must be present if a `resources:` block is declared.
+
+| Field | Type | Unit | Description |
+|-------|------|------|-------------|
+| `cores` | integer | — | Logical CPU cores to allocate per task |
+| `mem_mb` | integer | MiB | Physical memory to allocate per task |
+| `disk_mb` | integer | MiB | Disk space required per task |
+| `runtime` | integer | minutes | Expected wall-clock runtime (used by Snakemake to prioritise long tasks) |
+
+### 7.3 Placement
+
+`resources:` can appear at three levels:
+
+**Stage level** — applies to all modules in the stage:
+
+```yaml
+stages:
+  - id: clustering
+    resources:
+      cores: 20
+      mem_mb: 16000
+    modules:
+      - id: fastcluster
+      - id: sklearn
+```
+
+**Module level** — overrides the stage default for that module:
+
+```yaml
+stages:
+  - id: clustering
+    resources:
+      cores: 20
+      mem_mb: 16000
+    modules:
+      - id: fastcluster
+        # inherits stage resources
+      - id: lightweight
+        resources:
+          cores: 4
+          mem_mb: 4000
+```
+
+**Metric collector level**:
+
+```yaml
+metric_collectors:
+  - id: plotting
+    resources:
+      cores: 4
+      mem_mb: 8000
+```
+
+### 7.4 Resolution Hierarchy
+
+Resources are resolved with **most-specific-wins** precedence:
+
+1. Module-level `resources:` (highest priority)
+2. Stage-level `resources:`
+3. Global default: `cores=2` (applied when no `resources:` block is present anywhere in the chain)
+
+### 7.5 Snakemake Mapping
+
+Each non-`null` resource field is emitted as a Snakemake `resources:` entry. The `cores` field additionally sets the `threads:` directive so Snakemake accounts for CPU consumption in its scheduler.
+
+```python
+rule clustering_fastcluster_abc12345:
+    threads: 20
+    resources:
+        cores=20,
+        mem_mb=16000,
+    shell: ...
+```
+
+Fields absent from the `resources:` block are not emitted (Snakemake uses its own defaults for unspecified resources).
+
+### 7.6 Controlling parallelism at runtime
+
+Pass `--resources` to the generated Snakemake invocation to cap total consumption:
+
+```bash
+# Cap to 100 cores and 128 GiB RAM across all concurrent rules
+snakemake --cores 100 --resources mem_mb=131072
+```
+
+Snakemake's greedy scheduler will run as many rules in parallel as fit within the declared resource pool.
+
+### 7.7 Complete example
+
+```yaml
+id: ResourceExample
+version: "1.0"
+benchmarker: "Benchmark Team"
+
+software_environments:
+  host:
+    description: "Host execution"
+
+stages:
+  - id: data
+    # No resources: global default applies (cores=2)
+    modules:
+      - id: generator
+        software_environment: host
+        repository: { url: "...", commit: "abc" }
+
+  - id: clustering
+    resources:
+      cores: 20
+      mem_mb: 16000
+    modules:
+      - id: fastcluster
+        software_environment: host
+        repository: { url: "...", commit: "def" }
+
+      - id: lightweight
+        resources:
+          cores: 4
+          mem_mb: 4000
+        software_environment: host
+        repository: { url: "...", commit: "def" }
+
+metric_collectors:
+  - id: plotting
+    resources:
+      cores: 4
+      mem_mb: 8000
+    software_environment: host
+    repository: { url: "...", commit: "ghi" }
+    inputs: [clustering.result]
+    outputs:
+      - id: plot
+        path: "plot.html"
+```
+
+## 8. References
 
 1. [Omnibenchmark Documentation](https://docs.omnibenchmark.org)
 2. [Snakemake Documentation](https://snakemake.readthedocs.io)
