@@ -3,14 +3,28 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
  
-## 0.5.0 UNRELEASED
+## [0.5.0]() UNRELEASED
 
 - feat: add `--compact-params` and `--no-show-params` options to `ob describe topology` (#299)
 - refactor: migrate S3 storage from `minio` client to `boto3`, rename `MinIOStorage` → `S3CompatibleStorage`, and introduce `StorageFactory` for backend-agnostic storage setup (#302)
 
-## [0.5.0]() UNRELEASED
 
 - feat: explicit Snakefile generation (#201)
+- cli(breaking)!: `ob run` flags overhauled for explicit-Snakefile backend
+  - **Removed** (now Snakemake passthroughs via `ob run benchmark.yaml -- <snakemake-flags>`):
+    - `--update` / `-u` → use `-- --forceall`
+    - `--task-timeout` → use `-- --set-resources rule:runtime=N`
+    - `--executor` → use `-- --executor slurm` (or other executor plugin)
+    - `--keep-module-logs` / `--no-keep-module-logs` → handled natively by Snakemake
+  - **Removed** (superseded by DAG-based input resolution):
+    - `--input-dir` / `-i` — input paths are now derived automatically from the resolved DAG
+  - **Changed semantics**:
+    - `-m` / `--module` — previously ran a single module standalone; now prunes the full DAG to the sub-graph required by that module (dev/debug mode)
+    - `--yes` / `-y` — deprecated and hidden; accepted for backward compatibility but has no effect
+  - **Added**:
+    - `--dirty` — allow local-path module references with uncommitted changes (dev only)
+    - `--unpinned` — allow unresolved branch refs on remote repos (dev only)
+    - `snakemake_args` — pass-through positional args to Snakemake after `--`
 
 ## [0.4.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.4.0) (Jan 27th 2026)
 
