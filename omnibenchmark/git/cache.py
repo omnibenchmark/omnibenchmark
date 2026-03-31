@@ -367,13 +367,54 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
         if repo_cache_dir.exists():
             # Update existing repository
             try:
-                repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
                 logging.info(f"Updating cached repository at {repo_cache_dir}")
-                # Fetch all updates from remote
-                # Note: porcelain.fetch by default fetches all refs
-                porcelain.fetch(
-                    repo, repo_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT
-                )
+                # Use the repo as a context manager so it is closed (and any
+                # in-memory ref caches are released) before callers open their
+                # own handle.  Fetch by remote name ("origin") so dulwich
+                # applies the configured refspec and advances
+                # refs/remotes/origin/*; fetching by URL alone retrieves
+                # objects but does not update tracking refs.
+                with cast(Repo, porcelain.open_repo(str(repo_cache_dir))) as repo:
+                    porcelain.fetch(
+                        repo, "origin", errstream=_DEVNULL, outstream=_DEVNULL_TEXT
+                    )
+
+                    # Update the working tree to match the remote tracking branch
+                    # so the cache directory reflects the latest fetched state
+                    try:
+                        from dulwich.index import build_index_from_tree
+                        from dulwich.objectspec import parse_commit
+
+                        # Get the current branch from HEAD
+                        head_ref = repo.refs.read_ref(Ref(b"HEAD"))
+                        if head_ref and head_ref.startswith(b"ref: refs/heads/"):
+                            local_branch = head_ref[len(b"ref: refs/heads/") :]
+                            remote_ref = Ref(b"refs/remotes/origin/" + local_branch)
+
+                            if remote_ref in repo.refs:
+                                # Update local branch to match remote tracking branch
+                                remote_sha = repo.refs[remote_ref]
+                                repo.refs[Ref(b"refs/heads/" + local_branch)] = (
+                                    remote_sha
+                                )
+
+                                # Update working tree to the new HEAD
+                                commit_obj = parse_commit(repo, remote_sha)
+                                # Use temp index file since we don't want to keep it
+                                with tempfile.TemporaryDirectory() as _tmp:
+                                    build_index_from_tree(
+                                        str(repo_cache_dir),
+                                        str(Path(_tmp) / "index"),
+                                        repo.object_store,
+                                        commit_obj.tree,
+                                    )
+                                logging.debug(
+                                    f"Updated cache working tree to {remote_sha.hex()[:7]}"
+                                )
+                    except Exception as e:
+                        logging.debug(f"Could not update working tree after fetch: {e}")
+                        # Non-fatal: remote refs are updated, which is sufficient
+
                 return repo_cache_dir
             except (NotGitRepository, Exception) as e:
                 logging.warning(f"Cached repo appears corrupt: {e}. Re-cloning.")
@@ -436,42 +477,48 @@ def checkout_to_work_dir(
         """dulwich ShaFile.id is 40-byte ASCII hex; repo.head() may be 20-byte binary."""
         return sha.hex() if len(sha) == 20 else sha.decode("ascii")
 
-    try:
-        commit_obj = parse_commit(cached_repo, ref.encode("ascii"))
-        logging.debug(f"Resolved {ref} to {_id_to_str(commit_obj.id)}")
-    except KeyError:
-        commit_obj = None
+    commit_obj = None
 
-        # Try remote tracking branch: refs/remotes/origin/{ref}
-        remote_ref = Ref(f"refs/remotes/origin/{ref}".encode("ascii"))
-        if remote_ref in cached_repo.refs:
-            sha = cached_repo.refs[remote_ref]
-            commit_obj = parse_commit(cached_repo, sha)
-            logging.debug(
-                f"Resolved {ref} via refs/remotes/origin/{ref} to {_id_to_str(commit_obj.id)}"
+    # Check remote tracking branch first.
+    # dulwich's parse_commit(repo, b"main") resolves via refs/heads/main (the
+    # local branch), which is NOT updated by fetch — only refs/remotes/origin/*
+    # is advanced.  Checking the remote tracking ref first ensures we always
+    # return the commit that the remote HEAD points to after a fresh fetch.
+    remote_ref = Ref(f"refs/remotes/origin/{ref}".encode("ascii"))
+    if remote_ref in cached_repo.refs:
+        sha = cached_repo.refs[remote_ref]
+        commit_obj = parse_commit(cached_repo, sha)
+        logging.debug(
+            f"Resolved {ref} via refs/remotes/origin/{ref} to {_id_to_str(commit_obj.id)}"
+        )
+
+    # Direct parse: full commit hash, tag, or any other ref dulwich understands.
+    if commit_obj is None:
+        try:
+            commit_obj = parse_commit(cached_repo, ref.encode("ascii"))
+            logging.debug(f"Resolved {ref} to {_id_to_str(commit_obj.id)}")
+        except KeyError:
+            pass
+
+    # Short hash expansion — object_store yields 20-byte binary SHAs
+    if commit_obj is None and re.match(r"^[0-9a-f]{4,39}$", ref, re.IGNORECASE):
+        ref_prefix = ref.lower()
+        matching = [
+            obj_id.hex()
+            for obj_id in cached_repo.object_store
+            if obj_id.hex().startswith(ref_prefix)
+        ]
+        if len(matching) == 1:
+            commit_obj = parse_commit(cached_repo, matching[0].encode("ascii"))
+            logging.debug(f"Expanded short hash {ref} to {_id_to_str(commit_obj.id)}")
+        elif len(matching) > 1:
+            raise RuntimeError(
+                f"Reference '{ref}' is ambiguous (matches {len(matching)} commits)"
+                f" in repository {repo_url}"
             )
 
-        # Short hash expansion — object_store yields 20-byte binary SHAs
-        if commit_obj is None and re.match(r"^[0-9a-f]{4,39}$", ref, re.IGNORECASE):
-            ref_prefix = ref.lower()
-            matching = [
-                obj_id.hex()
-                for obj_id in cached_repo.object_store
-                if obj_id.hex().startswith(ref_prefix)
-            ]
-            if len(matching) == 1:
-                commit_obj = parse_commit(cached_repo, matching[0].encode("ascii"))
-                logging.debug(
-                    f"Expanded short hash {ref} to {_id_to_str(commit_obj.id)}"
-                )
-            elif len(matching) > 1:
-                raise RuntimeError(
-                    f"Reference '{ref}' is ambiguous (matches {len(matching)} commits)"
-                    f" in repository {repo_url}"
-                )
-
-        if commit_obj is None:
-            raise RuntimeError(f"Reference '{ref}' not found in repository {repo_url}")
+    if commit_obj is None:
+        raise RuntimeError(f"Reference '{ref}' not found in repository {repo_url}")
 
     # Write the commit's tree directly from the object store to work_dir.
     # build_index_from_tree needs an index path — we use a temp file and
