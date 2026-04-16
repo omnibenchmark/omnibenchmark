@@ -167,6 +167,16 @@ class IdentifiableEntity(BaseModel):
 
     id: str = Field(..., description="Unique identifier")
 
+    @field_validator("id")
+    @classmethod
+    def validate_id_not_starting_with_digit(cls, v: str) -> str:
+        if v and v[0].isdigit():
+            raise ValueError(
+                f"id '{v}' must not start with a digit — "
+                "Snakemake rule names are Python identifiers and cannot begin with a number"
+            )
+        return v
+
 
 class DescribableEntity(IdentifiableEntity):
     """Base class for entities with ID, name, and description."""
