@@ -25,6 +25,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
     - `--dirty` — allow local-path module references with uncommitted changes (dev only)
     - `--unpinned` — allow unresolved branch refs on remote repos (dev only)
     - `snakemake_args` — pass-through positional args to Snakemake after `--`
+- bug: fix invalid rule name generation (#312)
 
 ## [0.4.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.4.0) (Jan 27th 2026)
 
