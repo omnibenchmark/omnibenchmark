@@ -38,9 +38,8 @@ stages:
           url: https://github.com/btraven00/omnibenchmark-testing-process.git
           commit: 8bd3e12
     inputs:
-      - entries:
-          - data.counts
-          - data.meta
+      - data.counts
+      - data.meta
     outputs:
       - id: filtered
         path: "{dataset}.txt.gz"

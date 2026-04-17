@@ -375,9 +375,7 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
                 # refs/remotes/origin/*; fetching by URL alone retrieves
                 # objects but does not update tracking refs.
                 with cast(Repo, porcelain.open_repo(str(repo_cache_dir))) as repo:
-                    porcelain.fetch(
-                        repo, "origin", errstream=_DEVNULL, outstream=_DEVNULL_TEXT
-                    )
+                    porcelain.fetch(repo, "origin", errstream=_DEVNULL)
 
                     # Update the working tree to match the remote tracking branch
                     # so the cache directory reflects the latest fetched state
@@ -432,7 +430,6 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
                 checkout=True,  # Checkout default branch to fetch all objects
                 bare=False,
                 errstream=_DEVNULL,
-                outstream=_DEVNULL,
             )
             return repo_cache_dir
         except Exception as e:
@@ -667,9 +664,7 @@ def describe_cache(
             if fetch and remote_url != "unknown":
                 try:
                     logging.info(f"Fetching updates for {repo_rel_path}...")
-                    porcelain.fetch(
-                        repo, remote_url, errstream=_DEVNULL, outstream=_DEVNULL_TEXT
-                    )
+                    porcelain.fetch(repo, remote_url, errstream=_DEVNULL)
 
                     # Get remote HEAD
                     client, path = get_transport_and_path(remote_url)

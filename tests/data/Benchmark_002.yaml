@@ -50,7 +50,8 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 3b17081
     inputs:
-      - entries: [data.counts, data.meta]
+      - data.counts
+      - data.meta
     outputs:
       - id: data.normalized
         path: "{dataset}.txt.gz"
@@ -68,10 +69,9 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 706edb9
     inputs:
-      - entries:
-          - data.normalized
-          - data.counts
-          - data.meta
+      - data.normalized
+      - data.counts
+      - data.meta
     outputs:
       - id: select_counts.selected
         path: "{dataset}_counts.txt.gz"
@@ -91,10 +91,9 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 706edb9
     inputs:
-      - entries:
-          - data.normalized
-          - data.meta
-          - data.coord
+      - data.normalized
+      - data.meta
+      - data.coord
     outputs:
       - id: select_lognorm.selected
         path: "{dataset}_lognorm.txt.gz"
@@ -109,11 +108,10 @@ stages:
         parameters:
           - values: ["-scale false"]
     inputs:
-      - entries:
-          - data.normalized
-          - data.meta
-          - data.coord
-          - select_counts.selected
+      - data.normalized
+      - data.meta
+      - data.coord
+      - select_counts.selected
     outputs:
       - id: pca.matrix
         path: "{dataset}_dimred.txt.gz"
@@ -126,10 +124,9 @@ stages:
           url: git@github.com:omnibenchmark-example/metric.git
           commit: 579c643
     inputs:
-      - entries:
-          - data.meta
-          - data.ncluster
-          - pca.matrix
+      - data.meta
+      - data.ncluster
+      - pca.matrix
     outputs:
       - id: methods.label
         path: "{dataset}.model.out.gz"

@@ -60,10 +60,9 @@ stages:
           url: https://github.com/omnibenchmark-example/method.git
           commit: 8f2f835
     inputs:
-      - entries:
-          - data.counts
-          - data.meta
-          - data.data_specific_params
+      - data.counts
+      - data.meta
+      - data.data_specific_params
     outputs:
       - id: methods.mapping
         path: "{dataset}.model.out.gz"
@@ -81,10 +80,9 @@ stages:
           url: https://github.com/omnibenchmark-example/metric.git
           commit: 579c643
     inputs:
-      - entries:
-          - methods.mapping
-          - data.meta
-          - data.data_specific_params
+      - methods.mapping
+      - data.meta
+      - data.data_specific_params
     outputs:
       - id: metrics.mapping
         path: "{dataset}.results.txt"

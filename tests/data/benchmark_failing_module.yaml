@@ -42,8 +42,7 @@ stages:
         parameters:
           - values: ["--fail", "hard"]
     inputs:
-      - entries:
-          - data.counts
+      - data.counts
     outputs:
       - id: process.out
         path: "{dataset}.processed.txt"
@@ -59,8 +58,7 @@ stages:
         parameters:
           - values: ["--ok", "1", "--output", "analyzed.txt"]
     inputs:
-      - entries:
-          - process.out
+      - process.out
     outputs:
       - id: analysis.result
         path: "{dataset}.computation.txt"

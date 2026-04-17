@@ -77,9 +77,8 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 3b17081
     inputs:
-      - entries:
-          - data.counts
-          - data.meta
+      - data.counts
+      - data.meta
     outputs:
       - id: process.filtered
         path: "{dataset}.txt.gz"
@@ -133,10 +132,9 @@ stages:
           url: https://github.com/omnibenchmark-example/metric.git
           commit: 579c643
     inputs:
-      - entries:
-          - methods.mapping
-          - data.meta
-          - data.data_specific_params
+      - methods.mapping
+      - data.meta
+      - data.data_specific_params
     outputs:
       - id: metrics.mapping
         path: "{dataset}.results.txt"
