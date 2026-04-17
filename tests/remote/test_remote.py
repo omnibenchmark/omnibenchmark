@@ -13,7 +13,7 @@ def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(rustfs_s
 # fmt: on
     # happy path
     storage = get_storage(
-        storage_api="minio",
+        storage_api="S3",
         auth_options=rustfs_storage.auth_options,
         benchmark="test",
     )
@@ -23,7 +23,7 @@ def test_get_storage_raise_exception_when_passed_invalid_benchmark_path(rustfs_s
     # bucket names in S3/MinIO; boto3 raises ClientError on bucket creation
     with pytest.raises(ClientError):
         get_storage(
-            storage_api="minio",
+            storage_api="S3",
             auth_options=rustfs_storage.auth_options,
             benchmark="not_existing_benchmark",
         )

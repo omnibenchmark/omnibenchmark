@@ -36,7 +36,7 @@ stages:
           - values: ["--a 1", "--b 0.1", "--sleep", "2"]
         repository:
           url: https://github.com/btraven00/omnibenchmark-testing-process.git
-          commit: 8bd3e12
+          commit: 32bf7d7
     inputs:
       - data.counts
       - data.meta
