@@ -61,9 +61,8 @@ stages:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 3b17081
     inputs:
-      - entries:
-          - data.counts
-          - data.meta
+      - data.counts
+      - data.meta
     outputs:
       - id: process.filtered
         path: "{dataset}.txt.gz"

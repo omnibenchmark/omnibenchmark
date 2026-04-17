@@ -44,9 +44,8 @@ stages:
           url: https://github.com/example/method.git
           commit: def456
     inputs:
-      - entries:
-          - data.raw
-          - data.meta
+      - data.raw
+      - data.meta
     outputs:
       - id: methods.result
         path: "{dataset}_result.json"
@@ -60,9 +59,8 @@ stages:
           url: https://github.com/example/metric.git
           commit: ghi789
     inputs:
-      - entries:
-          - methods.result
-          - data.raw
+      - methods.result
+      - data.raw
     outputs:
       - id: metrics.score
         path: "{dataset}_score.json"

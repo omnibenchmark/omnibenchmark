@@ -32,8 +32,7 @@ stages:
           - alpha: 0.5
             beta: 2
     inputs:
-      - entries:
-          - data.out
+      - data.out
     outputs:
       - id: methods.out
         path: "result.txt"
