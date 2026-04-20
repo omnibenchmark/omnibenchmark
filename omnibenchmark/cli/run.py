@@ -16,6 +16,10 @@ from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
+from omnibenchmark.backend._snakemake_podman import (
+    PodmanSnakemakeGenerator,
+    DenetPodmanSnakemakeGenerator,
+)
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
@@ -24,6 +28,41 @@ from omnibenchmark.git import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.resolved import ResolvedNode, TemplateContext
 from omnibenchmark.model.validation import BenchmarkParseError
+
+
+_PODMAN_BACKENDS = {SoftwareBackendEnum.podman, SoftwareBackendEnum.denet_podman}
+
+
+def _resolve_cores(cores_str: Optional[str], backend: SoftwareBackendEnum):
+    """Return (snakemake_arg, internal_int) from the raw --cores CLI value.
+
+    snakemake_arg  — passed to snakemake --cores; either "all" or a digit string.
+    internal_int   — used for thread-pool sizing (always a positive int).
+
+    Defaults to "all" for podman/denet backends because cgroups enforce per-container
+    limits; Snakemake's own core accounting would needlessly serialize rules.
+    """
+    import multiprocessing
+
+    if cores_str is None:
+        snakemake_arg = "all" if backend in _PODMAN_BACKENDS else "1"
+    elif cores_str.lower() == "all":
+        snakemake_arg = "all"
+    else:
+        snakemake_arg = cores_str  # validated as digit string below
+
+    try:
+        internal_int = (
+            int(snakemake_arg)
+            if snakemake_arg != "all"
+            else multiprocessing.cpu_count()
+        )
+    except ValueError:
+        raise click.BadParameter(
+            f"--cores must be a positive integer or 'all', got: {cores_str!r}"
+        )
+
+    return snakemake_arg, internal_int
 
 
 def format_pydantic_errors(e: PydanticValidationError) -> str:
@@ -50,9 +89,13 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
 @click.option(
     "-c",
     "--cores",
-    help="Use at most N CPU cores in parallel. Default is 1.",
-    type=int,
-    default=1,
+    help=(
+        "Snakemake parallel core budget.  Pass an integer or 'all' to use every "
+        "available core.  Defaults to 'all' for podman/denet backends (containers "
+        "enforce their own cgroup limits), 1 otherwise."
+    ),
+    type=str,
+    default=None,
 )
 @click.option(
     "-d",
@@ -223,15 +266,18 @@ def _run_benchmark(
 
     use_clean_ui = not debug
 
+    software_backend = b.get_benchmark_software_backend()
+    snakemake_cores, internal_cores = _resolve_cores(cores, software_backend)
+
     # Step 1: Populate git cache (fetch all repos)
-    populate_git_cache(b, quiet=use_clean_ui, cores=cores)
+    populate_git_cache(b, quiet=use_clean_ui, cores=internal_cores)
 
     # Step 2: Generate explicit Snakefile
     _generate_explicit_snakefile(
         benchmark=b,
         benchmark_yaml_path=benchmark_path_abs,
         out_dir=out_dir_path,
-        cores=cores,
+        cores=internal_cores,
         quiet=use_clean_ui,
         start_time=start_time,
         dirty=dirty,
@@ -243,12 +289,11 @@ def _run_benchmark(
     write_run_manifest(output_dir=out_dir_path)
 
     if dry:
-        software_backend = b.get_benchmark_software_backend()
         hint = ""
         if software_backend == SoftwareBackendEnum.conda:
             hint = " --use-conda"
         logger.info("\nSnakefile generated. To execute:")
-        logger.info(f"  cd {out_dir} && snakemake{hint} --cores {cores}")
+        logger.info(f"  cd {out_dir} && snakemake{hint} --cores {snakemake_cores}")
         sys.exit(0)
 
     # Build extra Snakemake args, adding S3 remote storage flags if requested
@@ -272,9 +317,9 @@ def _run_benchmark(
     # Step 3: Run snakemake
     _run_snakemake(
         out_dir=out_dir_path,
-        cores=cores,
+        cores=snakemake_cores,
         continue_on_error=continue_on_error,
-        software_backend=b.get_benchmark_software_backend(),
+        software_backend=software_backend,
         debug=debug,
         extra_snakemake_args=extra_args,
     )
@@ -293,7 +338,7 @@ def _read_rule_log(out_dir: Path, rule_name: str) -> Optional[str]:
 
 def _run_snakemake(
     out_dir: Path,
-    cores: int,
+    cores: str,
     continue_on_error: bool,
     software_backend: SoftwareBackendEnum,
     debug: bool,
@@ -330,7 +375,7 @@ def _run_snakemake(
     else:
         snakemake_bin = shutil.which("snakemake") or "snakemake"
 
-    cmd = [snakemake_bin, "--snakefile", "Snakefile", "--cores", str(cores)]
+    cmd = [snakemake_bin, "--snakefile", "Snakefile", "--cores", cores]
 
     if software_backend == SoftwareBackendEnum.conda:
         cmd.append("--use-conda")
@@ -1082,12 +1127,19 @@ def _generate_explicit_snakefile(
     # Generate Snakefile
     snakefile_path = out_dir / "Snakefile"
 
-    generator = SnakemakeGenerator(
+    _software_backend = benchmark.model.get_software_backend()
+    _generator_kwargs = dict(
         benchmark_name=benchmark.model.get_name(),
         benchmark_version=benchmark.model.get_version(),
         benchmark_author=benchmark.model.get_author(),
         api_version=benchmark.model.api_version,
     )
+    if _software_backend == SoftwareBackendEnum.denet_podman:
+        generator = DenetPodmanSnakemakeGenerator(**_generator_kwargs)
+    elif _software_backend == SoftwareBackendEnum.podman:
+        generator = PodmanSnakemakeGenerator(**_generator_kwargs)
+    else:
+        generator = SnakemakeGenerator(**_generator_kwargs)
 
     generator.generate_snakefile(
         nodes=resolved_nodes,

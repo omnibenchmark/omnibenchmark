@@ -139,23 +139,7 @@ class SnakemakeGenerator:
         else:
             f.write('        cli_args="",\n')
 
-        # benchmark: directive (performance tracking, skipped for aggregate nodes)
-        if not is_collector and not is_gather and node.outputs:
-            first_output = node.outputs[0]
-            benchmark_dir = (
-                os.path.dirname(first_output) if "/" in first_output else "."
-            )
-            if self.api_version >= APIVersion.V0_5_0:
-                benchmark_file = f"{benchmark_dir}/performance.txt"
-            else:
-                # COMPAT(0.4): collector R scripts scan for
-                # "{dataset}_performance.txt".  parts[1] is the root module name.
-                # Remove when 0.4 compat is dropped.
-                parts = first_output.split("/")
-                dataset_name = parts[1] if len(parts) > 2 else parts[0].split(".")[0]
-                benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
-            f.write("    benchmark:\n")
-            f.write(f'        "{benchmark_file}"\n')
+        self._write_benchmark_directive(f, node)
 
         rule_name = self._sanitize_rule_name(node.id)
         f.write("    log:\n")
@@ -170,6 +154,27 @@ class SnakemakeGenerator:
             self._write_shell(f, node)
 
         f.write("\n")
+
+    def _write_benchmark_directive(self, f: TextIO, node: ResolvedNode) -> None:
+        """Write the benchmark: directive (performance tracking).
+
+        Skipped for aggregate/gather nodes. Override to disable.
+        """
+        if node.is_collector or node.is_gather or not node.outputs:
+            return
+        first_output = node.outputs[0]
+        benchmark_dir = os.path.dirname(first_output) if "/" in first_output else "."
+        if self.api_version >= APIVersion.V0_5_0:
+            benchmark_file = f"{benchmark_dir}/performance.txt"
+        else:
+            # COMPAT(0.4): collector R scripts scan for
+            # "{dataset}_performance.txt".  parts[1] is the root module name.
+            # Remove when 0.4 compat is dropped.
+            parts = first_output.split("/")
+            dataset_name = parts[1] if len(parts) > 2 else parts[0].split(".")[0]
+            benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
+        f.write("    benchmark:\n")
+        f.write(f'        "{benchmark_file}"\n')
 
     def _write_all_rule(self, f: TextIO, nodes: List[ResolvedNode]):
         """Write the 'all' rule that depends on all node outputs."""

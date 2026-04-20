@@ -18,6 +18,7 @@ import logging
 import shutil
 from pathlib import Path
 from typing import Optional, Dict
+import threading
 import warnings
 
 import configparser
@@ -85,6 +86,7 @@ class ModuleResolver:
         # from the same local repo share one copy instead of N copies.
         # Maps local_path (str) -> final_work_dir (Path)
         self._dirty_copy_cache: Dict[str, Path] = {}
+        self._dirty_copy_lock = threading.Lock()
 
     def populate_cache(self, module: Module) -> Path:
         """
@@ -198,34 +200,37 @@ class ModuleResolver:
                 commit_prefix = resolved_commit[:7]
                 final_work_dir = self.work_base_dir / repo_name / commit_prefix
 
-                if dirty and str(local_path) in self._dirty_copy_cache:
-                    # Already copied this repo during this run — reuse it.
-                    actual_work_dir = self._dirty_copy_cache[str(local_path)]
-                    logger.info(
-                        f"  Module '{module_id}': reusing dirty copy at {actual_work_dir}"
-                    )
-                elif final_work_dir.exists() and not dirty:
-                    # Already cached and not dirty — skip the copy
-                    logger.info(f"  Module '{module_id}': using cached {commit_prefix}")
-                    actual_work_dir = final_work_dir
-                else:
-                    # Copy working tree (dirty) or first time for this commit.
-                    if final_work_dir.exists():
-                        shutil.rmtree(str(final_work_dir))
-                    temp_work_dir = self.work_base_dir / repo_name / "pending"
-                    actual_work_dir, resolved_commit = copy_local_to_work_dir(
-                        local_path=local_path,
-                        work_dir=temp_work_dir,
-                    )
-
-                    # Rename to commit-based directory for consistency
-                    if actual_work_dir != final_work_dir:
-                        if actual_work_dir.exists():
-                            shutil.move(str(actual_work_dir), str(final_work_dir))
+                with self._dirty_copy_lock:
+                    if dirty and str(local_path) in self._dirty_copy_cache:
+                        # Already copied this repo during this run — reuse it.
+                        actual_work_dir = self._dirty_copy_cache[str(local_path)]
+                        logger.info(
+                            f"  Module '{module_id}': reusing dirty copy at {actual_work_dir}"
+                        )
+                    elif final_work_dir.exists() and not dirty:
+                        # Already cached and not dirty — skip the copy
+                        logger.info(
+                            f"  Module '{module_id}': using cached {commit_prefix}"
+                        )
                         actual_work_dir = final_work_dir
+                    else:
+                        # Copy working tree (dirty) or first time for this commit.
+                        if final_work_dir.exists():
+                            shutil.rmtree(str(final_work_dir))
+                        temp_work_dir = self.work_base_dir / repo_name / "pending"
+                        actual_work_dir, resolved_commit = copy_local_to_work_dir(
+                            local_path=local_path,
+                            work_dir=temp_work_dir,
+                        )
 
-                    if dirty:
-                        self._dirty_copy_cache[str(local_path)] = actual_work_dir
+                        # Rename to commit-based directory for consistency
+                        if actual_work_dir != final_work_dir:
+                            if actual_work_dir.exists():
+                                shutil.move(str(actual_work_dir), str(final_work_dir))
+                            actual_work_dir = final_work_dir
+
+                        if dirty:
+                            self._dirty_copy_cache[str(local_path)] = actual_work_dir
             except Exception as e:
                 logger.error(f"Failed to copy local module '{module_id}': {e}")
                 import traceback
@@ -476,6 +481,11 @@ class ModuleResolver:
             return self._resolve_apptainer_environment(env, environment_id, envs_dir)
         elif self.software_backend == SoftwareBackendEnum.docker:
             return self._resolve_docker_environment(env, environment_id)
+        elif self.software_backend in (
+            SoftwareBackendEnum.podman,
+            SoftwareBackendEnum.denet_podman,
+        ):
+            return self._resolve_docker_environment(env, environment_id)
         elif self.software_backend == SoftwareBackendEnum.envmodules:
             return self._resolve_envmodules_environment(env, environment_id)
         elif self.software_backend == SoftwareBackendEnum.host:
@@ -622,6 +632,9 @@ class ModuleResolver:
             return None
 
         # Docker images are always URLs (docker://...)
+        # TODO(podman): for podman/denet+podman backends, run `podman pull` here during
+        # resolution so the image is cached before execution. This avoids registry traffic
+        # during rule execution, which would contaminate denet's per-rule network capture.
         logger.info(f"Docker environment '{env_id}' uses image: {env.docker}")
         return ResolvedEnvironment(
             backend_type=SoftwareBackendEnum.docker, reference=env.docker

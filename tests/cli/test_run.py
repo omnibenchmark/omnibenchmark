@@ -386,7 +386,7 @@ def test_run_with_double_dash_separator(mock_benchmark_execution):
                     assert "mtime" in extra_args
                     assert "--verbose" in extra_args
 
-                    assert kwargs["cores"] == 4
+                    assert kwargs["cores"] == "4"
                     assert kwargs["continue_on_error"] is True
 
                     assert result.exit_code == 0

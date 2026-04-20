@@ -146,6 +146,8 @@ class SoftwareBackendEnum(str, Enum):
     docker = "docker"
     envmodules = "envmodules"
     host = "host"
+    podman = "podman"
+    denet_podman = "denet+podman"
 
 
 class RepositoryType(str, Enum):
