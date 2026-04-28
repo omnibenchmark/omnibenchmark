@@ -276,12 +276,12 @@ class ModuleResolver:
 
         # Dereference entrypoint
         entrypoint_key = module.repository.entrypoint or "default"
-        entrypoint = self._read_entrypoint(actual_work_dir, module_id, entrypoint_key)
-        if entrypoint is None:
-            raise RuntimeError(
-                f"Failed to dereference entrypoint for module '{module_id}'. "
-                f"Expected omnibenchmark.yaml or config.cfg in {actual_work_dir}"
+        try:
+            entrypoint = self._read_entrypoint(
+                actual_work_dir, module_id, entrypoint_key
             )
+        except ValueError as e:
+            raise RuntimeError(str(e)) from e
 
         # Entrypoint is relative to module_dir
         entrypoint_path = Path(entrypoint)
@@ -659,7 +659,7 @@ class ModuleResolver:
 
     def _read_entrypoint(
         self, module_dir: Path, module_id: str, entrypoint_key: str = "default"
-    ) -> Optional[str]:
+    ) -> str:
         """
         Read entrypoint from omnibenchmark.yaml or fall back to config.cfg.
 
@@ -672,7 +672,10 @@ class ModuleResolver:
             entrypoint_key: Key to look up in the entrypoints dict (default: "default")
 
         Returns:
-            Entrypoint path relative to module_dir, or None if not found
+            Entrypoint path relative to module_dir
+
+        Raises:
+            ValueError: With a descriptive message when the entrypoint cannot be resolved
         """
         # Try new-style omnibenchmark.yaml first
         yaml_path = module_dir / "omnibenchmark.yaml"
@@ -691,33 +694,29 @@ class ModuleResolver:
                         return entrypoint
                     elif isinstance(entrypoints, dict):
                         available = ", ".join(sorted(entrypoints.keys()))
-                        logger.error(
+                        raise ValueError(
                             f"Entrypoint '{entrypoint_key}' not found in module '{module_id}'. "
                             f"Available entrypoints: {available}"
                         )
-                        return None
                     else:
-                        logger.error(
+                        raise ValueError(
                             f"Invalid omnibenchmark.yaml format in '{module_id}'. "
                             "Expected 'entrypoints' to be a dict."
                         )
-                        return None
             except yaml.YAMLError as e:
-                logger.error(
+                raise ValueError(
                     f"Failed to parse omnibenchmark.yaml in '{module_id}': {e}"
                 )
-                return None
 
         # Fall back to old-style config.cfg
         config_path = module_dir / "config.cfg"
         if config_path.exists():
             if entrypoint_key != "default":
-                logger.error(
-                    f"Module '{module_id}' uses deprecated config.cfg which only supports "
-                    f"the 'default' entrypoint. Requested entrypoint: '{entrypoint_key}'. "
+                raise ValueError(
+                    f"Entrypoint '{entrypoint_key}' not found in module '{module_id}'. "
+                    "This module uses deprecated config.cfg which only supports the 'default' entrypoint. "
                     "Please migrate to omnibenchmark.yaml to use named entrypoints."
                 )
-                return None
 
             warnings.warn(
                 f"Module '{module_id}' is using deprecated config.cfg. "
@@ -735,11 +734,12 @@ class ModuleResolver:
                 logger.debug(f"Found entrypoint in config.cfg: {entrypoint}")
                 return entrypoint
             else:
-                logger.error(f"Invalid config.cfg format in '{module_id}'.")
-                return None
+                raise ValueError(
+                    f"Invalid config.cfg format in '{module_id}'. "
+                    "Expected a [DEFAULT] section with a SCRIPT key."
+                )
 
-        logger.error(
-            f"No configuration file found in '{module_id}'. "
+        raise ValueError(
+            f"No configuration file found for module '{module_id}' in {module_dir}. "
             "Expected omnibenchmark.yaml or config.cfg."
         )
-        return None

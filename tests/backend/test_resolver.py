@@ -394,34 +394,24 @@ class TestReadEntrypoint:
         )
         assert result == "scripts/validate.R"
 
-    def test_missing_entrypoint_key_returns_none(
-        self, resolver, module_dir_with_entrypoints
-    ):
-        """A missing entrypoint key returns None."""
-        result = resolver._read_entrypoint(
-            module_dir_with_entrypoints, "mod1", entrypoint_key="nonexistent"
-        )
-        assert result is None
-
-    def test_missing_entrypoint_key_logs_available(
-        self, resolver, module_dir_with_entrypoints, caplog
-    ):
-        """A missing entrypoint key logs the available keys."""
-        import logging
-
-        # Ensure the omnibenchmark logger propagates (may be suppressed by parallel resolution)
-        omni_logger = logging.getLogger("omnibenchmark")
-        omni_logger.propagate = True
-        omni_logger.setLevel(logging.DEBUG)
-
-        with caplog.at_level(logging.ERROR):
+    def test_missing_entrypoint_key_raises(self, resolver, module_dir_with_entrypoints):
+        """A missing entrypoint key raises ValueError with the key name."""
+        with pytest.raises(ValueError, match="nonexistent"):
             resolver._read_entrypoint(
                 module_dir_with_entrypoints, "mod1", entrypoint_key="nonexistent"
             )
-        assert "nonexistent" in caplog.text
-        assert "Available entrypoints:" in caplog.text
-        assert "default" in caplog.text
-        assert "preprocess" in caplog.text
+
+    def test_missing_entrypoint_key_error_lists_available(
+        self, resolver, module_dir_with_entrypoints
+    ):
+        """The ValueError for a missing entrypoint key names the available entrypoints."""
+        with pytest.raises(ValueError, match="Available entrypoints:") as exc_info:
+            resolver._read_entrypoint(
+                module_dir_with_entrypoints, "mod1", entrypoint_key="nonexistent"
+            )
+        error_msg = str(exc_info.value)
+        assert "default" in error_msg
+        assert "preprocess" in error_msg
 
     def test_config_cfg_default_key_works(self, resolver, module_dir_with_config_cfg):
         """config.cfg fallback works for default entrypoint."""
@@ -431,23 +421,20 @@ class TestReadEntrypoint:
             )
         assert result == "legacy_run.py"
 
-    def test_config_cfg_named_key_rejected(
-        self, resolver, module_dir_with_config_cfg, caplog
-    ):
-        """config.cfg fallback rejects non-default entrypoint keys."""
-        import logging
-
-        omni_logger = logging.getLogger("omnibenchmark")
-        omni_logger.propagate = True
-        omni_logger.setLevel(logging.DEBUG)
-
-        with caplog.at_level(logging.ERROR):
-            result = resolver._read_entrypoint(
+    def test_config_cfg_named_key_raises(self, resolver, module_dir_with_config_cfg):
+        """config.cfg fallback raises ValueError for non-default entrypoint keys."""
+        with pytest.raises(ValueError, match="preprocess") as exc_info:
+            resolver._read_entrypoint(
                 module_dir_with_config_cfg, "mod1", entrypoint_key="preprocess"
             )
-        assert result is None
-        assert "only supports" in caplog.text
-        assert "preprocess" in caplog.text
+        assert "only supports" in str(exc_info.value)
+
+    def test_no_config_file_raises(self, resolver, tmp_path):
+        """Missing config file raises ValueError mentioning expected files."""
+        empty_dir = tmp_path / "empty_module"
+        empty_dir.mkdir()
+        with pytest.raises(ValueError, match="omnibenchmark.yaml"):
+            resolver._read_entrypoint(empty_dir, "empty_mod")
 
 
 class TestRepositoryEntrypointField:
