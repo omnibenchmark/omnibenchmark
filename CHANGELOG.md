@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.6.0](UNRELEASED)
 
-- ...
+- feat: output path templates now support `{name}`, `{module.name}`, `{module.stage}`, and `{params.KEY}`; `{name}` always resolves to the current module's own ID (never inherited)
 
 ## [0.5.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.3) (Jun 15th 2026)
 

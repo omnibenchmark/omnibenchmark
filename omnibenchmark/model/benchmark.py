@@ -1167,15 +1167,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         all_stages_outputs: List[Dict[str, str]] = []
         for stage in self.stages:
             stage_outputs = self.get_stage_outputs(stage)
-            # Substitute the actual stage_id into the template like the old LinkML code
+            # Resolve {stage} eagerly here; leave every other placeholder
+            # ({input}, {module}, {params.*}, {dataset}, {name}, {module.*})
+            # for the per-node template engine. We use str.replace rather than
+            # str.format so dotted placeholders like {params.n_components}
+            # pass through untouched instead of triggering attribute lookup.
             stage_outputs = {
-                key: value.format(
-                    input="{input}",
-                    stage=stage.id,  # Substitute actual stage_id here
-                    module="{module}",
-                    params="{params}",
-                    dataset="{dataset}",
-                )
+                key: value.replace("{stage}", stage.id)
                 for key, value in stage_outputs.items()
             }
             all_stages_outputs.append(stage_outputs)
