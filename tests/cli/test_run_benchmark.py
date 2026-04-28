@@ -247,3 +247,82 @@ def test_params_key_in_output_path_resolved_in_snakefile(tmp_path, bundled_repos
     assert (
         "_k5_result.txt" in content
     ), "Expected k=5 output path not found in Snakefile"
+
+
+def test_params_key_in_upstream_output_consumed_downstream(tmp_path, bundled_repos):  # noqa: F811
+    """
+    Regression test: a {params.*} placeholder in an upstream stage's output
+    template must survive the cross-stage input-stitching pass without
+    triggering attribute-access errors.
+
+    The previous code path-stitched outputs via str.format(), which would
+    interpret {params.foo} as attribute access on a string and crash with
+    AttributeError. We now keep dotted placeholders untouched so the per-node
+    template engine resolves them later.
+    """
+    out_dir = tmp_path / "out"
+    benchmark_yaml = tmp_path / "bench_params_cross_stage.yaml"
+    benchmark_yaml.write_text(
+        textwrap.dedent("""
+            id: test_params_cross_stage
+            version: "1.0"
+            benchmarker: "test"
+            api_version: "0.5.0"
+            software_backend: host
+            software_environments:
+              host:
+                description: "host env"
+            stages:
+              - id: data
+                modules:
+                  - id: D1
+                    software_environment: host
+                    repository:
+                      url: bundles/dummymodule_4ff8427.bundle
+                      commit: 4ff8427
+                    parameters:
+                      - k: "3"
+                outputs:
+                  - id: data.result
+                    path: "{name}_k{params.k}_result.txt"
+              - id: consume
+                inputs:
+                  - data.result
+                modules:
+                  - id: C1
+                    software_environment: host
+                    repository:
+                      url: bundles/dummymodule_4ff8427.bundle
+                      commit: 4ff8427
+                outputs:
+                  - id: consume.out
+                    path: "{name}_consumed.txt"
+        """).strip()
+    )
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            ["run", str(benchmark_yaml), "--dry", "--out-dir", str(out_dir)],
+            cwd=str(tmp_path),
+        )
+
+    assert (
+        result.returncode == 0
+    ), f"CLI failed (rc={result.returncode}):\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    assert "AttributeError" not in result.stderr
+    assert "has no attribute" not in result.stderr
+
+    content = (out_dir / "Snakefile").read_text()
+    assert "_k3_result.txt" in content
+
+    # No {params.*} should leak into output: blocks (Snakemake would treat
+    # them as wildcards). {params.*} in shell: blocks is fine — that's
+    # Snakemake's own params: directive being referenced.
+    output_blocks = re.findall(
+        r"\boutput:\s*\n(.*?)(?=\n[ \t]+\w|\nrule |\Z)", content, re.DOTALL
+    )
+    assert output_blocks, "No output: blocks found in Snakefile"
+    for block in output_blocks:
+        assert (
+            "{params." not in block
+        ), f"Unresolved {{params.*}} in output: block:\n{block}"
