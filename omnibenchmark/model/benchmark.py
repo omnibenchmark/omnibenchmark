@@ -1091,6 +1091,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     module="{module}",
                     params="{params}",
                     dataset="{dataset}",
+                    name="{name}",
                 )
                 for key, value in stage_outputs.items()
             }
