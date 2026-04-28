@@ -533,12 +533,17 @@ def _substitute_params_in_path(template: str, params) -> str:
 def _build_template_context(
     stage,
     module_id: str,
+    module_name: Optional[str] = None,
     input_node=None,
     params=None,
 ) -> TemplateContext:
     """Build a TemplateContext for a node during expansion."""
     provides: dict[str, str] = {}
-    module_attrs: dict[str, str] = {"id": module_id, "stage": stage.id}
+    module_attrs: dict[str, str] = {
+        "id": module_id,
+        "stage": stage.id,
+        "name": module_name or module_id,
+    }
 
     stage_provides = getattr(stage, "provides", None)
 
@@ -567,6 +572,9 @@ def _build_template_context(
             provides.setdefault("dataset", str(params["dataset"]))
         else:
             provides.setdefault("dataset", module_id)
+
+    # {name} always resolves to the current module's own ID, never inherited
+    provides["name"] = module_id
 
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
@@ -988,6 +996,7 @@ def _generate_explicit_snakefile(
                     ctx = _build_template_context(
                         stage=stage,
                         module_id=module_id,
+                        module_name=getattr(module, "name", None),
                         input_node=input_node,
                         params=params,
                     )
