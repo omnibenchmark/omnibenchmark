@@ -1,7 +1,5 @@
 """Tests for parameter expansion with combinatorial validation."""
 
-import warnings
-
 import pytest
 
 from omnibenchmark.model.benchmark import Benchmark
@@ -440,8 +438,8 @@ stages:
 
 
 @pytest.mark.short
-def test_disjoint_parameter_keys_raises_warning():
-    """Disjoint parameter keys across list items should emit a UserWarning.
+def test_disjoint_parameter_keys_raises_warning(capsys):
+    """Disjoint parameter keys across list items should print a prominent warning to stderr.
 
     The common mistake:
         parameters:
@@ -478,20 +476,16 @@ stages:
       - id: test.output
         path: test.csv
 """
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        Benchmark.from_yaml(yaml_content)
+    Benchmark.from_yaml(yaml_content)
 
-    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
-    assert len(user_warnings) == 1
-    msg = str(user_warnings[0].message)
-    assert "disjoint" in msg.lower()
-    assert "selection_type" in msg
-    assert "number_selected" in msg
+    err = capsys.readouterr().err
+    assert "disjoint" in err.lower()
+    assert "selection_type" in err
+    assert "number_selected" in err
 
 
 @pytest.mark.short
-def test_non_disjoint_parameter_keys_no_warning():
+def test_non_disjoint_parameter_keys_no_warning(capsys):
     """Parameters sharing at least one common key should not trigger a warning."""
     yaml_content = """
 id: test_benchmark
@@ -520,9 +514,7 @@ stages:
       - id: test.output
         path: test.csv
 """
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        Benchmark.from_yaml(yaml_content)
+    Benchmark.from_yaml(yaml_content)
 
-    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
-    assert len(user_warnings) == 0
+    err = capsys.readouterr().err
+    assert "disjoint" not in err.lower()

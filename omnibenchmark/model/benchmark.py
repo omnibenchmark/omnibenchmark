@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import warnings
 from enum import Enum
 from pathlib import Path
@@ -417,7 +418,10 @@ class SoftwareEnvironmentReference(BaseModel):
     )
 
 
-def _warn_if_disjoint_parameter_keys(parameters: Optional[List["Parameter"]]) -> None:
+def _warn_if_disjoint_parameter_keys(
+    parameters: Optional[List["Parameter"]],
+    line_map: Optional[Dict[str, int]] = None,
+) -> None:
     """Warn when a parameter list has items with completely disjoint key sets.
 
     This catches the common mistake of using separate list items instead of a
@@ -440,17 +444,32 @@ def _warn_if_disjoint_parameter_keys(parameters: Optional[List["Parameter"]]) ->
         for k in ks:
             key_counts[k] = key_counts.get(k, 0) + 1
 
-    if all(count == 1 for count in key_counts.values()):
-        all_keys = sorted(key_counts.keys())
-        per_item = [sorted(ks) for ks in key_sets]
-        warnings.warn(
-            f"Parameter list has {len(param_items)} items with completely disjoint keys "
-            f"{per_item}. This expands to {len(param_items)} separate runs each with "
-            f"different parameter names. If you meant a single run with all parameters "
-            f"combined, merge them under one list item with keys {all_keys}.",
-            UserWarning,
-            stacklevel=4,
-        )
+    if not all(count == 1 for count in key_counts.values()):
+        return
+
+    all_keys = sorted(key_counts.keys())
+    per_item = [sorted(ks) for ks in key_sets]
+
+    line_hint = ""
+    if line_map:
+        for key in line_map:
+            if "parameters[0]" in key:
+                line_hint = f" (line {line_map[key]})"
+                break
+
+    YELLOW = "\033[33m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+    indent = "      "
+    sys.stderr.write(
+        f"{BOLD}{YELLOW}WARN{RESET}{YELLOW}: parameter list has {len(param_items)} items "
+        f"with disjoint keys {per_item}{line_hint}.\n"
+        f"{indent}This creates {len(param_items)} separate runs each with different "
+        f"parameter names.\n"
+        f"{indent}Did you mean to combine them under one item?\n"
+        f"{indent}  Use:  - {' / '.join(all_keys)}: ...\n"
+        f"{indent}  Instead of separate '- ' entries.{RESET}\n"
+    )
 
 
 class Module(DescribableEntity, SoftwareEnvironmentReference):
@@ -479,9 +498,10 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
     @field_validator("parameters")
     @classmethod
     def warn_disjoint_parameter_keys(
-        cls, v: Optional[List[Parameter]]
+        cls, v: Optional[List[Parameter]], info
     ) -> Optional[List[Parameter]]:
-        _warn_if_disjoint_parameter_keys(v)
+        line_map = info.context.get("line_map") if info.context else None
+        _warn_if_disjoint_parameter_keys(v, line_map)
         return v
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
@@ -510,9 +530,10 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
     @field_validator("parameters")
     @classmethod
     def warn_disjoint_parameter_keys(
-        cls, v: Optional[List[Parameter]]
+        cls, v: Optional[List[Parameter]], info
     ) -> Optional[List[Parameter]]:
-        _warn_if_disjoint_parameter_keys(v)
+        line_map = info.context.get("line_map") if info.context else None
+        _warn_if_disjoint_parameter_keys(v, line_map)
         return v
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
