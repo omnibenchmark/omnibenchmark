@@ -32,11 +32,6 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
 
-- fix: raise warning for disjoint keys (Closes: #313)
-- fix: clearer error on missing entrypoint (Closes: #321)
-- fix: truncate filename to avoid hitting filesystem limits (#334)
-- chore(pkg): unpin snakemake dependency (#269)
-
 ## [0.5.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.0) (Apr 23th 2026)
 
 - feat: add `--compact-params` and `--no-show-params` options to `ob describe topology` (#299)
