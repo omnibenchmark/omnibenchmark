@@ -417,6 +417,42 @@ class SoftwareEnvironmentReference(BaseModel):
     )
 
 
+def _warn_if_disjoint_parameter_keys(parameters: Optional[List["Parameter"]]) -> None:
+    """Warn when a parameter list has items with completely disjoint key sets.
+
+    This catches the common mistake of using separate list items instead of a
+    single item with multiple keys:
+
+      Wrong (disjoint):           Correct (combined):
+        - selection_type: [...]     - selection_type: [...]
+        - number_selected: 2000       number_selected: 2000
+    """
+    if parameters is None or len(parameters) < 2:
+        return
+
+    param_items = [p for p in parameters if p.params is not None]
+    if len(param_items) < 2:
+        return
+
+    key_sets = [set(p.params.keys()) for p in param_items]
+    key_counts: Dict[str, int] = {}
+    for ks in key_sets:
+        for k in ks:
+            key_counts[k] = key_counts.get(k, 0) + 1
+
+    if all(count == 1 for count in key_counts.values()):
+        all_keys = sorted(key_counts.keys())
+        per_item = [sorted(ks) for ks in key_sets]
+        warnings.warn(
+            f"Parameter list has {len(param_items)} items with completely disjoint keys "
+            f"{per_item}. This expands to {len(param_items)} separate runs each with "
+            f"different parameter names. If you meant a single run with all parameters "
+            f"combined, merge them under one list item with keys {all_keys}.",
+            UserWarning,
+            stacklevel=4,
+        )
+
+
 class Module(DescribableEntity, SoftwareEnvironmentReference):
     """Module definition."""
 
@@ -440,6 +476,14 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
         description="Resource requirements (overrides stage-level resources)",
     )
 
+    @field_validator("parameters")
+    @classmethod
+    def warn_disjoint_parameter_keys(
+        cls, v: Optional[List[Parameter]]
+    ) -> Optional[List[Parameter]]:
+        _warn_if_disjoint_parameter_keys(v)
+        return v
+
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if module has a software environment reference."""
         if env_id is None:
@@ -462,6 +506,14 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
     resources: Optional[Resources] = Field(
         None, description="Resource requirements for this collector"
     )
+
+    @field_validator("parameters")
+    @classmethod
+    def warn_disjoint_parameter_keys(
+        cls, v: Optional[List[Parameter]]
+    ) -> Optional[List[Parameter]]:
+        _warn_if_disjoint_parameter_keys(v)
+        return v
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if metric collector has a software environment reference."""

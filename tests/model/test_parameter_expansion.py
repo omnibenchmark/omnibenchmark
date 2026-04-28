@@ -1,5 +1,7 @@
 """Tests for parameter expansion with combinatorial validation."""
 
+import warnings
+
 import pytest
 
 from omnibenchmark.model.benchmark import Benchmark
@@ -435,3 +437,92 @@ stages:
     serialized = params[0].serialize()
     assert "gini_threshold" in serialized
     assert "0.1" in serialized
+
+
+@pytest.mark.short
+def test_disjoint_parameter_keys_raises_warning():
+    """Disjoint parameter keys across list items should emit a UserWarning.
+
+    The common mistake:
+        parameters:
+          - selection_type: ["a", "b"]   # list item 1
+          - number_selected: 2000        # list item 2 (separate item, different key)
+
+    The intended form (single item with both keys):
+        parameters:
+          - selection_type: ["a", "b"]
+            number_selected: 2000
+    """
+    yaml_content = """
+id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: Test
+software_backend: host
+software_environments:
+  - id: python
+    description: Python environment
+stages:
+  - id: test_stage
+    modules:
+      - id: test_module
+        name: Test Module
+        software_environment: python
+        repository:
+          url: https://github.com/test/test.git
+          commit: abc123
+        parameters:
+          - selection_type: ["seurat_vst", "scrapper_modelGeneVariances"]
+          - number_selected: 2000
+    outputs:
+      - id: test.output
+        path: test.csv
+"""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        Benchmark.from_yaml(yaml_content)
+
+    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+    assert len(user_warnings) == 1
+    msg = str(user_warnings[0].message)
+    assert "disjoint" in msg.lower()
+    assert "selection_type" in msg
+    assert "number_selected" in msg
+
+
+@pytest.mark.short
+def test_non_disjoint_parameter_keys_no_warning():
+    """Parameters sharing at least one common key should not trigger a warning."""
+    yaml_content = """
+id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: Test
+software_backend: host
+software_environments:
+  - id: python
+    description: Python environment
+stages:
+  - id: test_stage
+    modules:
+      - id: test_module
+        name: Test Module
+        software_environment: python
+        repository:
+          url: https://github.com/test/test.git
+          commit: abc123
+        parameters:
+          - method: genie
+            threshold: 0.1
+          - method: other
+            threshold: 0.5
+    outputs:
+      - id: test.output
+        path: test.csv
+"""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        Benchmark.from_yaml(yaml_content)
+
+    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+    assert len(user_warnings) == 0
