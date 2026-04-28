@@ -438,7 +438,7 @@ def _warn_if_disjoint_parameter_keys(
     if len(param_items) < 2:
         return
 
-    key_sets = [set(p.params.keys()) for p in param_items]
+    key_sets = [set(p.params.keys()) for p in param_items if p.params is not None]
     key_counts: Dict[str, int] = {}
     for ks in key_sets:
         for k in ks:
