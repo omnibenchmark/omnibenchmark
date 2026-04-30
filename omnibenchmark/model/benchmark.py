@@ -422,14 +422,19 @@ def _warn_if_disjoint_parameter_keys(
     parameters: Optional[List["Parameter"]],
     line_map: Optional[Dict[str, int]] = None,
 ) -> None:
-    """Warn when a parameter list has items with completely disjoint key sets.
+    """Warn when parameter list items don't all share the same key set.
 
-    This catches the common mistake of using separate list items instead of a
-    single item with multiple keys:
+    The only safe pattern is items with identical key sets (a grid of values):
+        - method: genie     <- same keys in every item
+          threshold: 0.1
+        - method: other
+          threshold: 0.5
 
-      Wrong (disjoint):           Correct (combined):
-        - selection_type: [...]     - selection_type: [...]
-        - number_selected: 2000       number_selected: 2000
+    Both fully-disjoint and partially-overlapping key sets are suspicious:
+        Wrong (disjoint):           Wrong (partial overlap):
+          - selection_type: [...]     - filter_type: [...]
+          - number_selected: 2000     - filter_type: [...]
+                                        this: ["a", "b"]
     """
     if parameters is None or len(parameters) < 2:
         return
@@ -438,17 +443,13 @@ def _warn_if_disjoint_parameter_keys(
     if len(param_items) < 2:
         return
 
-    key_sets = [set(p.params.keys()) for p in param_items if p.params is not None]
-    key_counts: Dict[str, int] = {}
-    for ks in key_sets:
-        for k in ks:
-            key_counts[k] = key_counts.get(k, 0) + 1
+    key_sets = [frozenset(p.params.keys()) for p in param_items]
 
-    if not all(count == 1 for count in key_counts.values()):
+    if len(set(key_sets)) == 1:
         return
 
-    all_keys = sorted(key_counts.keys())
     per_item = [sorted(ks) for ks in key_sets]
+    all_keys = sorted(set().union(*key_sets))
 
     line_hint = ""
     if line_map:
@@ -463,9 +464,8 @@ def _warn_if_disjoint_parameter_keys(
     indent = "      "
     sys.stderr.write(
         f"{BOLD}{YELLOW}WARN{RESET}{YELLOW}: parameter list has {len(param_items)} items "
-        f"with disjoint keys {per_item}{line_hint}.\n"
-        f"{indent}This creates {len(param_items)} separate runs each with different "
-        f"parameter names.\n"
+        f"with inconsistent keys {per_item}{line_hint}.\n"
+        f"{indent}Each item should have the same set of keys (a grid of values).\n"
         f"{indent}Did you mean to combine them under one item?\n"
         f"{indent}  Use:  - {' / '.join(all_keys)}: ...\n"
         f"{indent}  Instead of separate '- ' entries.{RESET}\n"

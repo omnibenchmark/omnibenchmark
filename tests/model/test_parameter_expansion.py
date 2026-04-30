@@ -479,14 +479,14 @@ stages:
     Benchmark.from_yaml(yaml_content)
 
     err = capsys.readouterr().err
-    assert "disjoint" in err.lower()
+    assert "inconsistent" in err.lower()
     assert "selection_type" in err
     assert "number_selected" in err
 
 
 @pytest.mark.short
 def test_non_disjoint_parameter_keys_no_warning(capsys):
-    """Parameters sharing at least one common key should not trigger a warning."""
+    """Parameters with identical key sets (a value grid) should not trigger a warning."""
     yaml_content = """
 id: test_benchmark
 description: Test benchmark
@@ -517,7 +517,7 @@ stages:
     Benchmark.from_yaml(yaml_content)
 
     err = capsys.readouterr().err
-    assert "disjoint" not in err.lower()
+    assert "inconsistent" not in err.lower()
 
 
 @pytest.mark.short
@@ -568,7 +568,7 @@ stages:
         path: test.csv
 """
     Benchmark.from_yaml(yaml_content)
-    assert "disjoint" not in capsys.readouterr().err.lower()
+    assert "inconsistent" not in capsys.readouterr().err.lower()
 
 
 @pytest.mark.short
@@ -583,7 +583,7 @@ def test_disjoint_warning_with_line_map(capsys):
     line_map = {"stages[0].modules[0].parameters[0]": 42}
     _warn_if_disjoint_parameter_keys(params, line_map)
     err = capsys.readouterr().err
-    assert "disjoint" in err.lower()
+    assert "inconsistent" in err.lower()
     assert "line 42" in err
 
 
