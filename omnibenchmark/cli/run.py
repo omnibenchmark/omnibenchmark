@@ -17,6 +17,7 @@ from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
+from omnibenchmark.backend._snakemake_podman import PodmanSnakemakeGenerator
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.core._paths import (
     truncate_filename,
@@ -1451,7 +1452,11 @@ def _generate_explicit_snakefile(
     # Generate Snakefile
     snakefile_path = out_dir / "Snakefile"
 
-    generator = SnakemakeGenerator(
+    if benchmark.model.get_software_backend() == SoftwareBackendEnum.podman:
+        generator_cls = PodmanSnakemakeGenerator
+    else:
+        generator_cls = SnakemakeGenerator
+    generator = generator_cls(
         benchmark_name=benchmark.model.get_name(),
         benchmark_version=benchmark.model.get_version(),
         benchmark_author=benchmark.model.get_author(),
