@@ -474,7 +474,10 @@ class ModuleResolver:
             return self._resolve_conda_environment(env, environment_id, envs_dir)
         elif self.software_backend == SoftwareBackendEnum.apptainer:
             return self._resolve_apptainer_environment(env, environment_id, envs_dir)
-        elif self.software_backend == SoftwareBackendEnum.docker:
+        elif self.software_backend in (
+            SoftwareBackendEnum.docker,
+            SoftwareBackendEnum.podman,
+        ):
             return self._resolve_docker_environment(env, environment_id)
         elif self.software_backend == SoftwareBackendEnum.envmodules:
             return self._resolve_envmodules_environment(env, environment_id)
