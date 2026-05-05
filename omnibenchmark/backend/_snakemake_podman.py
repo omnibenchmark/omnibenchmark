@@ -118,6 +118,11 @@ class PodmanSnakemakeGenerator(SnakemakeGenerator):
         # only character that needs care inside single quotes is "'" itself —
         # none of the generated tokens contain literal single quotes today.
         inner = f"cd {{params.module_dir}} && {entrypoint} " + " ".join(args)
+        # Pass host shell variables into the container via -e so the inner
+        # command (which runs in a new shell inside the container) can see them.
+        env_flags = "-e OUTPUT_DIR=$OUTPUT_DIR"
+        for key in node.inputs:
+            env_flags += f" -e INPUT_{key}=$INPUT_{key}"
         podman = (
             "podman run --rm"
             " --cpus {resources.cores}"
@@ -125,6 +130,7 @@ class PodmanSnakemakeGenerator(SnakemakeGenerator):
             " --pull=missing"
             " --volume $MOUNT_ROOT:$MOUNT_ROOT"
             " --workdir $MOUNT_ROOT"
+            f" {env_flags}"
             f" {image}"
             f" sh -c '{inner}'"
         )
