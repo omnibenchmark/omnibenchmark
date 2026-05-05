@@ -925,10 +925,9 @@ def _generate_explicit_snakefile(
                             for s in benchmark.model.stages:
                                 if s.id == node.stage_id:
                                     for output_spec in s.outputs:
-                                        output_index = s.outputs.index(output_spec)
-                                        if output_index < len(node.outputs):
+                                        if output_spec.id in node.outputs:
                                             result[output_spec.id] = node.outputs[
-                                                output_index
+                                                output_spec.id
                                             ]
                             return result
 
@@ -977,7 +976,9 @@ def _generate_explicit_snakefile(
                         params=params,
                     )
 
-                    outputs = []
+                    outputs = {}
+                    output_name_mapping = {}
+                    seen_sanitized = set()
                     for output_spec in stage.outputs:
                         output_path_template = ctx.substitute(
                             output_spec.path, params=params
@@ -995,7 +996,16 @@ def _generate_explicit_snakefile(
                                 f"Unknown nesting strategy: {nesting_strategy}"
                             )
 
-                        outputs.append(output_path)
+                        sanitized_id = output_spec.id.replace(".", "_")
+                        if sanitized_id in seen_sanitized:
+                            raise ValueError(
+                                f"Output ids '{output_spec.id}' and another output in stage "
+                                f"'{stage.id}' both sanitize to '{sanitized_id}'. "
+                                f"Rename one to avoid collision."
+                            )
+                        seen_sanitized.add(sanitized_id)
+                        outputs[output_spec.id] = output_path
+                        output_name_mapping[sanitized_id] = output_spec.id
                         if output_spec.id not in output_to_nodes:
                             output_to_nodes[output_spec.id] = []
                         output_to_nodes[output_spec.id].append((node_id, output_path))
@@ -1016,6 +1026,7 @@ def _generate_explicit_snakefile(
                         inputs=inputs,
                         outputs=outputs,
                         input_name_mapping=input_name_mapping,
+                        output_name_mapping=output_name_mapping,
                         benchmark_name=benchmark.model.get_name(),
                         benchmark_version=benchmark.model.get_version(),
                         benchmark_author=benchmark.model.get_author(),

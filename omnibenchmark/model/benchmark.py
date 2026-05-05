@@ -6,7 +6,7 @@ import sys
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
@@ -129,10 +129,11 @@ class APIVersion(str, Enum):
     V0_3_0 = "0.3.0"
     V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
+    V0_6_0 = "0.6.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_5_0
+        return cls.V0_6_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -344,6 +345,7 @@ class IOFile(IdentifiableEntity):
     """Input/Output file definition."""
 
     path: str = Field(..., description="File path")
+    kind: Literal["file", "zip"] = Field("file", description="Output kind")
 
     @field_validator("path")
     @classmethod
@@ -481,7 +483,6 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
     )
     parameters: Optional[List[Parameter]] = Field(None, description="Module parameters")
     exclude: Optional[List[str]] = Field(None, description="Paths to exclude")
-    outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
     requires: Optional[Dict[str, str]] = Field(
         None,
         description=(
