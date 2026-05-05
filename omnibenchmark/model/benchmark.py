@@ -6,7 +6,7 @@ import sys
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
@@ -417,6 +417,7 @@ class IOFile(IdentifiableEntity):
     """Input/Output file definition."""
 
     path: str = Field(..., description="File path")
+    kind: Literal["file", "zip"] = Field("file", description="Output kind")
 
     @field_validator("path")
     @classmethod
@@ -592,7 +593,6 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "Non-module-id entries are silently ignored."
         ),
     )
-    outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
     requires: Optional[Dict[str, str]] = Field(
         None,
         description=(
