@@ -610,6 +610,6 @@ def test_disjoint_warning_metric_collector(capsys):
         }
     )
     err = capsys.readouterr().err
-    assert "disjoint" in err.lower()
+    assert "inconsistent" in err.lower()
     assert "metric_type" in err
     assert "cutoff" in err
