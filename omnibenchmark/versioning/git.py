@@ -15,7 +15,7 @@ from typing import List, Optional, Dict, Any
 
 from dulwich import porcelain
 from dulwich.errors import NotGitRepository
-from dulwich.objects import Commit
+from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 from typing import cast as _cast
 
@@ -128,21 +128,21 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             )
             commit = _cast(Commit, self.repo[commit_id])
             # Walk the tree to find the blob
-            tree = self.repo[commit.tree]
+            tree = _cast(Tree, self.repo[commit.tree])
             parts = str(self.relative_yaml_path).split("/")
-            obj = tree
+            obj: Tree | Blob = tree
             for part in parts:
                 part_bytes = part.encode()
                 # tree items: (mode, name, sha)
                 found = False
-                for item in obj.items():
+                for item in _cast(Tree, obj).items():
                     if item.path == part_bytes:
-                        obj = self.repo[item.sha]
+                        obj = _cast(Tree, self.repo[item.sha])
                         found = True
                         break
                 if not found:
                     return None
-            return obj.data.decode("utf-8")
+            return _cast(Blob, obj).data.decode("utf-8")
         except Exception:
             return None
 
@@ -203,7 +203,10 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
                 if head_ref and head_ref.startswith(b"refs/heads/"):
                     info["branch"] = head_ref[len(b"refs/heads/") :].decode()
             except Exception:
-                logger.debug("Failed to determine current git branch from HEAD ref.", exc_info=True)
+                logger.debug(
+                    "Failed to determine current git branch from HEAD ref.",
+                    exc_info=True,
+                )
 
             # Dirty check via subprocess (dulwich has no simple is_dirty())
             try:
@@ -214,7 +217,9 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
                 )
                 info["clean"] = result.stdout.strip() == ""
             except Exception:
-                logger.debug("Failed to determine git working tree cleanliness.", exc_info=True)
+                logger.debug(
+                    "Failed to determine git working tree cleanliness.", exc_info=True
+                )
 
             # Remote URL
             try:
@@ -223,7 +228,10 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
                 if url:
                     info["remote"] = url.decode()
             except Exception:
-                logger.debug("Failed to retrieve git remote URL from repository config.", exc_info=True)
+                logger.debug(
+                    "Failed to retrieve git remote URL from repository config.",
+                    exc_info=True,
+                )
 
         except Exception:
             logger.debug("Failed to collect git repository information.", exc_info=True)
