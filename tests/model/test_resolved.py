@@ -120,7 +120,7 @@ class TestResolvedNode:
         assert node.module_id == "D1"
         assert node.param_id == "default"
         assert node.module == module
-        assert node.outputs == ["{input}/data/D1/default/{dataset}.json"]
+        assert list(node.outputs.values()) == ["{input}/data/D1/default/{dataset}.json"]
         assert node.is_entrypoint()  # No inputs
 
     def test_resolved_node_with_parameters(self):

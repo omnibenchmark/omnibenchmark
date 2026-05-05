@@ -326,18 +326,15 @@ class TestCoreEntities:
         assert env.conda == "env.yaml"
         assert env.apptainer == "test.sif"
 
-    def test_module_with_outputs(self):
-        """Test Module with outputs."""
-        module = make_module(
-            id="module_outputs",
-            outputs=[
-                {"id": "out1", "path": "output1.txt"},
-                {"id": "out2", "path": "output2.txt"},
-            ],
-        )
-        assert module.outputs is not None
-        assert len(module.outputs) == 2
-        assert module.outputs[0].id == "out1"
+    def test_iofile_kind(self):
+        """Test IOFile kind field defaults and validation."""
+        from omnibenchmark.model.benchmark import IOFile
+
+        f = IOFile(id="out1", path="output.txt")
+        assert f.kind == "file"
+
+        f_zip = IOFile(id="bag", path="data.zip", kind="zip")
+        assert f_zip.kind == "zip"
 
     def test_module_requires_capabilities(self):
         """Module accepts requires_capabilities and defaults it to None."""
