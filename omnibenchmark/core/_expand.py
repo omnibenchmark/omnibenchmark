@@ -192,7 +192,7 @@ def expand_gather_stage(
                 extra_provides={group_label: gval} if group_label else {},
             )
 
-            outputs = []
+            outputs = {}
             for output_spec in stage.outputs:
                 # Only the group label is bound: a template referencing any
                 # other lineage label raises in substitute() — the plan-time
@@ -204,7 +204,7 @@ def expand_gather_stage(
                 output_path = truncate_path_filename(
                     f"{stage.id}/{group_dir}{module_id}/{param_id}/{tmpl}"
                 )
-                outputs.append(output_path)
+                outputs[output_spec.id] = output_path
                 output_to_nodes.setdefault(output_spec.id, []).append(
                     (node_id, output_path)
                 )
@@ -243,11 +243,15 @@ def expand_gather_stage(
 
 def _get_output_ids_for_node(node, benchmark) -> dict:
     """Map each output id declared by `node`'s stage to that node's resolved
-    path (index-matched). Used to resolve a downstream stage's declared inputs."""
+    path. Used to resolve a downstream stage's declared inputs."""
     stage = benchmark.model.get_stage(node.stage_id)
     if stage is None:
         return {}
-    return {spec.id: path for spec, path in zip(stage.outputs, node.outputs)}
+    return {
+        spec.id: node.outputs[spec.id]
+        for spec in stage.outputs
+        if spec.id in node.outputs
+    }
 
 
 def expand_scatter_stage(
@@ -467,7 +471,8 @@ def expand_scatter_stage(
                     module_provides=module.provides,
                 )
 
-                outputs = []
+                outputs = {}
+                output_name_mapping = {}
                 for output_spec in stage.outputs:
                     output_path_template = ctx.substitute(
                         output_spec.path, params=params
@@ -492,7 +497,16 @@ def expand_scatter_stage(
 
                     output_path = truncate_path_filename(output_path)
 
-                    outputs.append(output_path)
+                    sanitized_id = output_spec.id.replace(".", "_")
+                    if sanitized_id in output_name_mapping:
+                        raise ValueError(
+                            f"Output ids '{output_spec.id}' and "
+                            f"'{output_name_mapping[sanitized_id]}' in stage "
+                            f"'{stage.id}' both sanitize to '{sanitized_id}'. "
+                            f"Rename one to avoid collision."
+                        )
+                    outputs[output_spec.id] = output_path
+                    output_name_mapping[sanitized_id] = output_spec.id
                     if output_spec.id not in output_to_nodes:
                         output_to_nodes[output_spec.id] = []
                     output_to_nodes[output_spec.id].append((node_id, output_path))
@@ -515,6 +529,7 @@ def expand_scatter_stage(
                     inputs=inputs,
                     outputs=outputs,
                     input_name_mapping=input_name_mapping,
+                    output_name_mapping=output_name_mapping,
                     benchmark_name=benchmark.model.get_name(),
                     benchmark_version=benchmark.model.get_version(),
                     benchmark_author=benchmark.model.get_author(),
