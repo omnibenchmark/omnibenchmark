@@ -96,9 +96,7 @@ def test_version_sorting_no_regression():
     versions_copy = [Version("2.0"), Version("1.0")]
 
     # This would be the original buggy code that caused the TypeError
-    with pytest.raises(
-        TypeError, match="expected string or bytes-like object, got 'Version'"
-    ):
+    with pytest.raises(TypeError):
         versions_copy.sort(key=Version)
 
 

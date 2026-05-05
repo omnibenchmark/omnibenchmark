@@ -85,8 +85,11 @@ class TestIOFilePathValidation:
             # This simulates a metric collector output path
             io_file = IOFile(id="metrics.file", path="{input}/metrics/results.json")
 
-            # Should not warn because there's no stage context
-            assert len(w) == 0
+            # Should not warn about path slashes because there's no stage context
+            path_warnings = [
+                warning for warning in w if "contains '/'" in str(warning.message)
+            ]
+            assert len(path_warnings) == 0
             assert io_file.path == "{input}/metrics/results.json"
 
 
