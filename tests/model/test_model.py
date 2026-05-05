@@ -84,13 +84,14 @@ class TestEnums:
         assert APIVersion.V0_3_0.value == "0.3.0"
         assert APIVersion.V0_4_0.value == "0.4.0"
 
-        assert APIVersion.latest() == "0.5.0"
+        assert APIVersion.latest() == "0.6.0"
         assert set(APIVersion.supported_versions()) == {
             "0.1.0",
             "0.2.0",
             "0.3.0",
             "0.4.0",
             "0.5.0",
+            "0.6.0",
         }
 
     def test_software_backend_enum(self):
@@ -301,18 +302,15 @@ class TestCoreEntities:
         assert env.conda == "env.yaml"
         assert env.apptainer == "test.sif"
 
-    def test_module_with_outputs(self):
-        """Test Module with outputs."""
-        module = make_module(
-            id="module_outputs",
-            outputs=[
-                {"id": "out1", "path": "output1.txt"},
-                {"id": "out2", "path": "output2.txt"},
-            ],
-        )
-        assert module.outputs is not None
-        assert len(module.outputs) == 2
-        assert module.outputs[0].id == "out1"
+    def test_iofile_kind(self):
+        """Test IOFile kind field defaults and validation."""
+        from omnibenchmark.model.benchmark import IOFile
+
+        f = IOFile(id="out1", path="output.txt")
+        assert f.kind == "file"
+
+        f_zip = IOFile(id="bag", path="data.zip", kind="zip")
+        assert f_zip.kind == "zip"
 
     def test_has_environment_reference(self):
         """Test has_environment_reference method."""
