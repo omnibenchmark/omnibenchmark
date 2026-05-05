@@ -443,7 +443,7 @@ def _warn_if_disjoint_parameter_keys(
     if len(param_items) < 2:
         return
 
-    key_sets = [frozenset(p.params.keys()) for p in param_items]
+    key_sets = [frozenset(p.params.keys()) for p in param_items if p.params is not None]
 
     if len(set(key_sets)) == 1:
         return

@@ -522,9 +522,7 @@ def _generate_module_yaml_snippet(
         )
         snippet_lines.append("    repository:")
         snippet_lines.append(f"      url: {module_entry['repository']['url']}")
-        snippet_lines.append(
-            f"      commit: \"{module_entry['repository']['commit']}\""
-        )
+        snippet_lines.append(f'      commit: "{module_entry["repository"]["commit"]}"')
 
         snippet = "\n".join(snippet_lines)
         return snippet
