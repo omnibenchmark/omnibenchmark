@@ -522,9 +522,7 @@ def _generate_module_yaml_snippet(
         )
         snippet_lines.append("    repository:")
         snippet_lines.append(f"      url: {module_entry['repository']['url']}")
-        snippet_lines.append(
-            f"      commit: \"{module_entry['repository']['commit']}\""
-        )
+        snippet_lines.append(f'      commit: "{module_entry["repository"]["commit"]}"')
 
         snippet = "\n".join(snippet_lines)
         return snippet
@@ -715,7 +713,7 @@ def create_benchmark(
             sys.exit(1)
 
         # Run copier
-        copier_data = {"omnibenchmark_version": __version__}
+        copier_data: Dict[str, Any] = {"omnibenchmark_version": __version__}
 
         # If non-interactive, include provided parameters and enable defaults
         if non_interactive:
@@ -991,7 +989,10 @@ def create_module(
             # Use provided parameters for non-interactive mode
             module_data = {
                 "module_name": name,
-                "module_title": name.replace("-", " ").replace("_", " ").title(),
+                "module_title": (name or "")
+                .replace("-", " ")
+                .replace("_", " ")
+                .title(),
                 "author_name": author_name,
                 "author_email": author_email,
                 "license": license or "GPL-3.0-or-later",

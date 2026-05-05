@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import warnings
 from enum import Enum
 from pathlib import Path
@@ -417,6 +418,60 @@ class SoftwareEnvironmentReference(BaseModel):
     )
 
 
+def _warn_if_disjoint_parameter_keys(
+    parameters: Optional[List["Parameter"]],
+    line_map: Optional[Dict[str, int]] = None,
+) -> None:
+    """Warn when parameter list items don't all share the same key set.
+
+    The only safe pattern is items with identical key sets (a grid of values):
+        - method: genie     <- same keys in every item
+          threshold: 0.1
+        - method: other
+          threshold: 0.5
+
+    Both fully-disjoint and partially-overlapping key sets are suspicious:
+        Wrong (disjoint):           Wrong (partial overlap):
+          - selection_type: [...]     - filter_type: [...]
+          - number_selected: 2000     - filter_type: [...]
+                                        this: ["a", "b"]
+    """
+    if parameters is None or len(parameters) < 2:
+        return
+
+    param_items = [p for p in parameters if p.params is not None]
+    if len(param_items) < 2:
+        return
+
+    key_sets = [frozenset(p.params.keys()) for p in param_items if p.params is not None]
+
+    if len(set(key_sets)) == 1:
+        return
+
+    per_item = [sorted(ks) for ks in key_sets]
+    all_keys = sorted(set().union(*key_sets))
+
+    line_hint = ""
+    if line_map:
+        for key in line_map:
+            if "parameters[0]" in key:
+                line_hint = f" (line {line_map[key]})"
+                break
+
+    YELLOW = "\033[33m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+    indent = "      "
+    sys.stderr.write(
+        f"{BOLD}{YELLOW}WARN{RESET}{YELLOW}: parameter list has {len(param_items)} items "
+        f"with inconsistent keys {per_item}{line_hint}.\n"
+        f"{indent}Each item should have the same set of keys (a grid of values).\n"
+        f"{indent}Did you mean to combine them under one item?\n"
+        f"{indent}  Use:  - {' / '.join(all_keys)}: ...\n"
+        f"{indent}  Instead of separate '- ' entries.{RESET}\n"
+    )
+
+
 class Module(DescribableEntity, SoftwareEnvironmentReference):
     """Module definition."""
 
@@ -440,6 +495,15 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
         description="Resource requirements (overrides stage-level resources)",
     )
 
+    @field_validator("parameters")
+    @classmethod
+    def warn_disjoint_parameter_keys(
+        cls, v: Optional[List[Parameter]], info
+    ) -> Optional[List[Parameter]]:
+        line_map = info.context.get("line_map") if info.context else None
+        _warn_if_disjoint_parameter_keys(v, line_map)
+        return v
+
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if module has a software environment reference."""
         if env_id is None:
@@ -462,6 +526,15 @@ class MetricCollector(DescribableEntity, SoftwareEnvironmentReference):
     resources: Optional[Resources] = Field(
         None, description="Resource requirements for this collector"
     )
+
+    @field_validator("parameters")
+    @classmethod
+    def warn_disjoint_parameter_keys(
+        cls, v: Optional[List[Parameter]], info
+    ) -> Optional[List[Parameter]]:
+        line_map = info.context.get("line_map") if info.context else None
+        _warn_if_disjoint_parameter_keys(v, line_map)
+        return v
 
     def has_environment_reference(self, env_id: Optional[str] = None) -> bool:
         """Check if metric collector has a software environment reference."""

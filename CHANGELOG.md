@@ -3,6 +3,10 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
  
+## [0.5.1](UNRELEASED) ()
+
+- fix: raise warning for disjoint keys (Closes: #313)
+
 ## [0.5.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.0) (Apr 23th 2026)
 
 - feat: add `--compact-params` and `--no-show-params` options to `ob describe topology` (#299)

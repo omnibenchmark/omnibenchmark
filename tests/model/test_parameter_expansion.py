@@ -2,7 +2,7 @@
 
 import pytest
 
-from omnibenchmark.model.benchmark import Benchmark
+from omnibenchmark.model.benchmark import Benchmark, _warn_if_disjoint_parameter_keys
 
 
 @pytest.mark.short
@@ -435,3 +435,181 @@ stages:
     serialized = params[0].serialize()
     assert "gini_threshold" in serialized
     assert "0.1" in serialized
+
+
+@pytest.mark.short
+def test_disjoint_parameter_keys_raises_warning(capsys):
+    """Disjoint parameter keys across list items should print a prominent warning to stderr.
+
+    The common mistake:
+        parameters:
+          - selection_type: ["a", "b"]   # list item 1
+          - number_selected: 2000        # list item 2 (separate item, different key)
+
+    The intended form (single item with both keys):
+        parameters:
+          - selection_type: ["a", "b"]
+            number_selected: 2000
+    """
+    yaml_content = """
+id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: Test
+software_backend: host
+software_environments:
+  - id: python
+    description: Python environment
+stages:
+  - id: test_stage
+    modules:
+      - id: test_module
+        name: Test Module
+        software_environment: python
+        repository:
+          url: https://github.com/test/test.git
+          commit: abc123
+        parameters:
+          - selection_type: ["seurat_vst", "scrapper_modelGeneVariances"]
+          - number_selected: 2000
+    outputs:
+      - id: test.output
+        path: test.csv
+"""
+    Benchmark.from_yaml(yaml_content)
+
+    err = capsys.readouterr().err
+    assert "inconsistent" in err.lower()
+    assert "selection_type" in err
+    assert "number_selected" in err
+
+
+@pytest.mark.short
+def test_non_disjoint_parameter_keys_no_warning(capsys):
+    """Parameters with identical key sets (a value grid) should not trigger a warning."""
+    yaml_content = """
+id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: Test
+software_backend: host
+software_environments:
+  - id: python
+    description: Python environment
+stages:
+  - id: test_stage
+    modules:
+      - id: test_module
+        name: Test Module
+        software_environment: python
+        repository:
+          url: https://github.com/test/test.git
+          commit: abc123
+        parameters:
+          - method: genie
+            threshold: 0.1
+          - method: other
+            threshold: 0.5
+    outputs:
+      - id: test.output
+        path: test.csv
+"""
+    Benchmark.from_yaml(yaml_content)
+
+    err = capsys.readouterr().err
+    assert "inconsistent" not in err.lower()
+
+
+@pytest.mark.short
+def test_disjoint_warning_none_parameters(capsys):
+    """No warning when parameters is None."""
+    _warn_if_disjoint_parameter_keys(None)
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.short
+def test_disjoint_warning_legacy_values_no_params(capsys):
+    """No warning when parameter items have no dict params (legacy values format)."""
+    from omnibenchmark.model.benchmark import Parameter
+
+    params = [
+        Parameter(id="p1", values=["--method", "cosine"]),
+        Parameter(id="p2", values=["--k", "10"]),
+    ]
+    _warn_if_disjoint_parameter_keys(params)
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.short
+def test_disjoint_warning_single_parameter(capsys):
+    """No warning when there is only one parameter item."""
+    yaml_content = """
+id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: Test
+software_backend: host
+software_environments:
+  - id: python
+    description: Python environment
+stages:
+  - id: test_stage
+    modules:
+      - id: test_module
+        name: Test Module
+        software_environment: python
+        repository:
+          url: https://github.com/test/test.git
+          commit: abc123
+        parameters:
+          - selection_type: ["seurat_vst"]
+    outputs:
+      - id: test.output
+        path: test.csv
+"""
+    Benchmark.from_yaml(yaml_content)
+    assert "inconsistent" not in capsys.readouterr().err.lower()
+
+
+@pytest.mark.short
+def test_disjoint_warning_with_line_map(capsys):
+    """Line hint is included in warning when line_map contains a parameters[0] key."""
+    from omnibenchmark.model.benchmark import Parameter
+
+    params = [
+        Parameter(id="p1", params={"alpha": 0.1}),
+        Parameter(id="p2", params={"beta": 0.5}),
+    ]
+    line_map = {"stages[0].modules[0].parameters[0]": 42}
+    _warn_if_disjoint_parameter_keys(params, line_map)
+    err = capsys.readouterr().err
+    assert "inconsistent" in err.lower()
+    assert "line 42" in err
+
+
+@pytest.mark.short
+def test_disjoint_warning_metric_collector(capsys):
+    """Disjoint parameter keys on a MetricCollector also trigger a warning."""
+    from omnibenchmark.model.benchmark import MetricCollector
+
+    MetricCollector.model_validate(
+        {
+            "id": "test_collector",
+            "name": "Test Collector",
+            "software_environment": "python",
+            "repository": {
+                "url": "https://github.com/test/test.git",
+                "commit": "abc123",
+            },
+            "inputs": ["test.output"],
+            "outputs": [{"id": "metrics.json", "path": "metrics.json"}],
+            "parameters": [
+                {"id": "p1", "params": {"metric_type": ["rmse", "mae"]}},
+                {"id": "p2", "params": {"cutoff": 100}},
+            ],
+        }
+    )
+    err = capsys.readouterr().err
+    assert "inconsistent" in err.lower()
+    assert "metric_type" in err
+    assert "cutoff" in err
