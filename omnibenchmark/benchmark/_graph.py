@@ -21,8 +21,11 @@ def expand_stage_nodes(
     nodes = []
 
     input_dirname = str(out_dir) if model.is_initial(stage) else "{pre}"
-    stage_outputs = model.get_stage_outputs(stage).values()
-    outputs = [x.replace("{input}", input_dirname) for x in stage_outputs]
+    stage_outputs = model.get_stage_outputs(stage)
+    outputs = {
+        oid: path.replace("{input}", input_dirname)
+        for oid, path in stage_outputs.items()
+    }
 
     inputs_for_stage = model.get_stage_implicit_inputs(stage)
     if not inputs_for_stage or len(inputs_for_stage) == 0:

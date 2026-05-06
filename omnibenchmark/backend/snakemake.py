@@ -123,16 +123,28 @@ class SnakemakeGenerator:
 
         if node.outputs:
             f.write("    output:\n")
-            for output in node.outputs:
-                f.write(f'        "{output}",\n')
+            if self.api_version >= APIVersion.V0_6_0:
+                for sanitized, path in zip(
+                    node.output_name_mapping.keys(), node.outputs.values()
+                ):
+                    f.write(f'        {sanitized}="{path}",\n')
+            else:
+                for path in node.outputs.values():
+                    f.write(f'        "{path}",\n')
 
         f.write("    params:\n")
         f.write(f'        module_dir="{node.module.module_dir}",\n')
         f.write(f'        entrypoint="{node.module.entrypoint}",\n')
         if node.outputs:
-            f.write(
-                '        output_dir=lambda wildcards, output: os.path.dirname(output[0]) or ".",\n'
-            )
+            if self.api_version >= APIVersion.V0_6_0:
+                first_key = next(iter(node.output_name_mapping.keys()))
+                f.write(
+                    f'        output_dir=lambda wildcards, output: os.path.dirname(output.{first_key}) or ".",\n'
+                )
+            else:
+                f.write(
+                    '        output_dir=lambda wildcards, output: os.path.dirname(output[0]) or ".",\n'
+                )
         if node.parameters:
             cli_args = " ".join(node.get_parameter_cli_args())
             f.write(f'        cli_args="{cli_args}",\n')
@@ -141,7 +153,7 @@ class SnakemakeGenerator:
 
         # benchmark: directive (performance tracking, skipped for aggregate nodes)
         if not is_collector and not is_gather and node.outputs:
-            first_output = node.outputs[0]
+            first_output = next(iter(node.outputs.values()))
             benchmark_dir = (
                 os.path.dirname(first_output) if "/" in first_output else "."
             )
@@ -177,7 +189,7 @@ class SnakemakeGenerator:
         f.write("rule all:\n")
         f.write("    input:\n")
         for node in nodes:
-            for output in node.outputs:
+            for output in node.outputs.values():
                 f.write(f'        "{output}",\n')
         f.write("    default_target: True\n")
         f.write("\n")
@@ -314,7 +326,7 @@ class SnakemakeGenerator:
         # --name for filename construction. Remove this workaround when 0.4 support ends.
         name_param = node.module_id
         if self.api_version <= APIVersion.V0_4_0 and node.outputs:
-            first_output = node.outputs[0]
+            first_output = next(iter(node.outputs.values()))
             parts = first_output.split("/")
             # Output path structure: data/{dataset}/.../[methods/{module}/...]/filename
             # We extract parts[1] which is the dataset identifier
@@ -326,6 +338,19 @@ class SnakemakeGenerator:
                 name_param = dataset_name
 
         cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
+
+        if self.api_version >= APIVersion.V0_6_0 and node.outputs:
+            orig_to_san = {orig: san for san, orig in node.output_name_mapping.items()}
+            output_items = list(node.outputs.items())
+            if len(output_items) == 1:
+                original_id, _ = output_items[0]
+                sanitized = orig_to_san.get(original_id, original_id)
+                cmd.append(f"--output {{output.{sanitized}}}")
+            else:
+                for original_id, _ in output_items:
+                    sanitized = orig_to_san.get(original_id, original_id)
+                    cmd.append(f"--output {original_id}={{output.{sanitized}}}")
+
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
             cmd.append(f"--{original_name} $INPUT_{key}")

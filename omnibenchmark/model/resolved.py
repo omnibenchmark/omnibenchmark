@@ -231,11 +231,13 @@ class ResolvedNode:
     # DAG Structure
     parent_id: Optional[str] = None
     inputs: Dict[str, str] = field(default_factory=dict)
-    outputs: List[str] = field(default_factory=list)
+    outputs: Dict[str, str] = field(
+        default_factory=dict
+    )  # id -> resolved path template
 
-    # Input name mapping (sanitized -> original)
-    # Maps Snakemake-safe input names (data_matrix) to original names (data.matrix)
+    # Name mappings (sanitized key -> original id), same scheme for inputs and outputs
     input_name_mapping: Dict[str, str] = field(default_factory=dict)
+    output_name_mapping: Dict[str, str] = field(default_factory=dict)
 
     # Execution Config
     timeout: Optional[int] = None
@@ -255,6 +257,16 @@ class ResolvedNode:
     is_gather: bool = False  # True for gather-stage nodes (collect multiple inputs)
     is_collector: bool = False  # True for metric-collector nodes (0.4 compat)
 
+    def __post_init__(self):
+        # Normalize outputs from List[str] (legacy test/compat format) to Dict[str, str].
+        if isinstance(self.outputs, list):
+            d = {f"output_{i}": p for i, p in enumerate(self.outputs)}
+            object.__setattr__(self, "outputs", d)
+        # Auto-build output_name_mapping if empty and outputs is populated.
+        if not self.output_name_mapping and self.outputs:
+            onm = {k.replace(".", "_"): k for k in self.outputs}
+            object.__setattr__(self, "output_name_mapping", onm)
+
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
         return not self.inputs or len(self.inputs) == 0
@@ -268,8 +280,8 @@ class ResolvedNode:
         return self.inputs
 
     def get_output_list(self) -> List[str]:
-        """Get list of output paths (template strings)."""
-        return self.outputs
+        """Get list of output paths (template strings), in declaration order."""
+        return list(self.outputs.values())
 
     def get_parameter_cli_args(self, style: str = "gnu") -> List[str]:
         """
@@ -328,6 +340,7 @@ class ResolvedNode:
             "inputs": self.inputs,
             "outputs": self.outputs,
             "input_name_mapping": self.input_name_mapping,
+            "output_name_mapping": self.output_name_mapping,
             "timeout": self.timeout,
             "benchmark_name": self.benchmark_name,
             "benchmark_version": self.benchmark_version,

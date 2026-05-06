@@ -525,12 +525,17 @@ def _substitute_params_in_path(template: str, params) -> str:
 def _build_template_context(
     stage,
     module_id: str,
+    module_name: Optional[str] = None,
     input_node=None,
     params=None,
 ) -> TemplateContext:
     """Build a TemplateContext for a node during expansion."""
     provides: dict[str, str] = {}
-    module_attrs: dict[str, str] = {"id": module_id, "stage": stage.id}
+    module_attrs: dict[str, str] = {
+        "id": module_id,
+        "stage": stage.id,
+        "name": module_name or module_id,
+    }
 
     stage_provides = getattr(stage, "provides", None)
 
@@ -559,6 +564,9 @@ def _build_template_context(
             provides.setdefault("dataset", str(params["dataset"]))
         else:
             provides.setdefault("dataset", module_id)
+
+    # {name} always resolves to the current module's own ID, never inherited
+    provides["name"] = module_id
 
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
@@ -917,10 +925,9 @@ def _generate_explicit_snakefile(
                             for s in benchmark.model.stages:
                                 if s.id == node.stage_id:
                                     for output_spec in s.outputs:
-                                        output_index = s.outputs.index(output_spec)
-                                        if output_index < len(node.outputs):
+                                        if output_spec.id in node.outputs:
                                             result[output_spec.id] = node.outputs[
-                                                output_index
+                                                output_spec.id
                                             ]
                             return result
 
@@ -964,11 +971,14 @@ def _generate_explicit_snakefile(
                     ctx = _build_template_context(
                         stage=stage,
                         module_id=module_id,
+                        module_name=getattr(module, "name", None),
                         input_node=input_node,
                         params=params,
                     )
 
-                    outputs = []
+                    outputs = {}
+                    output_name_mapping = {}
+                    seen_sanitized = set()
                     for output_spec in stage.outputs:
                         output_path_template = ctx.substitute(
                             output_spec.path, params=params
@@ -986,7 +996,16 @@ def _generate_explicit_snakefile(
                                 f"Unknown nesting strategy: {nesting_strategy}"
                             )
 
-                        outputs.append(output_path)
+                        sanitized_id = output_spec.id.replace(".", "_")
+                        if sanitized_id in seen_sanitized:
+                            raise ValueError(
+                                f"Output ids '{output_spec.id}' and another output in stage "
+                                f"'{stage.id}' both sanitize to '{sanitized_id}'. "
+                                f"Rename one to avoid collision."
+                            )
+                        seen_sanitized.add(sanitized_id)
+                        outputs[output_spec.id] = output_path
+                        output_name_mapping[sanitized_id] = output_spec.id
                         if output_spec.id not in output_to_nodes:
                             output_to_nodes[output_spec.id] = []
                         output_to_nodes[output_spec.id].append((node_id, output_path))
@@ -1007,6 +1026,7 @@ def _generate_explicit_snakefile(
                         inputs=inputs,
                         outputs=outputs,
                         input_name_mapping=input_name_mapping,
+                        output_name_mapping=output_name_mapping,
                         benchmark_name=benchmark.model.get_name(),
                         benchmark_version=benchmark.model.get_version(),
                         benchmark_author=benchmark.model.get_author(),

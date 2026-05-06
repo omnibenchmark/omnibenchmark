@@ -240,6 +240,46 @@ class TestBuildTemplateContext:
         ctx = _build_template_context(stage, "M1", input_node=input_node, params=p)
         assert ctx.provides["method"] == "kmeans"
 
+    # --- {name} template variable: always the current module's own ID ---
+
+    def test_root_node_provides_name_is_module_id(self):
+        stage = _make_stage("data", provides=None)
+        ctx = _build_template_context(stage, "D1")
+        assert ctx.provides["name"] == "D1"
+
+    def test_child_node_provides_name_is_own_module_id_not_inherited(self):
+        # {name} must always be the *current* module's ID, never inherited from parent
+        parent_ctx = TemplateContext(
+            provides={"dataset": "D1", "name": "D1"},
+            module_attrs={"id": "D1", "stage": "data"},
+        )
+        input_node = _make_input_node("D1", "data", template_context=parent_ctx)
+        stage = _make_stage("methods", provides=None)
+        ctx = _build_template_context(stage, "M1", input_node=input_node)
+        assert ctx.provides["name"] == "M1"
+
+    def test_name_template_variable_substitution(self):
+        stage = _make_stage("methods", provides=None)
+        ctx = _build_template_context(stage, "M1")
+        assert ctx.substitute("{name}_result.txt") == "M1_result.txt"
+
+    # --- {module.name} template variable: module's human-readable name ---
+
+    def test_module_name_attr_uses_provided_name(self):
+        stage = _make_stage("data", provides=None)
+        ctx = _build_template_context(stage, "D1", module_name="Dataset 1")
+        assert ctx.module_attrs["name"] == "Dataset 1"
+
+    def test_module_name_attr_falls_back_to_module_id(self):
+        stage = _make_stage("data", provides=None)
+        ctx = _build_template_context(stage, "D1", module_name=None)
+        assert ctx.module_attrs["name"] == "D1"
+
+    def test_module_name_template_variable_substitution(self):
+        stage = _make_stage("data", provides=None)
+        ctx = _build_template_context(stage, "D1", module_name="Dataset 1")
+        assert ctx.substitute("{module.name}_output.txt") == "Dataset 1_output.txt"
+
 
 # ---------------------------------------------------------------------------
 # _satisfies_requires
