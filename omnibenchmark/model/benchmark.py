@@ -222,6 +222,23 @@ class Repository(BaseModel):
         return v
 
 
+class Provenance(BaseModel):
+    """Optional lineage metadata. No runtime effect; preserved for tooling."""
+
+    canonical_url: Optional[str] = Field(
+        None,
+        description="Canonical URL where the authoritative version of this benchmark is published",
+    )
+    derived_from: Optional[str] = Field(
+        None,
+        description="Identifier or URL of the benchmark this one was forked/derived from",
+    )
+    subset_of: Optional[str] = Field(
+        None,
+        description="summary_hash() of the parent benchmark of which this is a subset",
+    )
+
+
 class Storage(BaseModel):
     """
     Storage configuration for remote storage of benchmark artifacts.
@@ -666,6 +683,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         description="Benchmark YAML specification version (deprecated, use api_version)",
     )
     api_version: APIVersion = Field(APIVersion.V0_4_0, description="API version")
+    provenance: Optional[Provenance] = Field(None, description="Lineage metadata")
 
     @field_validator("api_version", mode="before")
     @classmethod
@@ -1032,6 +1050,51 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     def get_author(self) -> str:
         """Get author of the benchmark."""
         return self.benchmarker
+
+    def summary_hash(self) -> str:
+        """Stable SHA-256 hash of execution-relevant fields.
+
+        Follows the same canonicalize-then-hash convention as Params: the
+        fields that determine execution (id, software_backend,
+        software_environments, stages, metric_collectors) are serialised to
+        canonical JSON (sorted keys, sorted list elements where order is
+        insignificant) and hashed with SHA-256.
+
+        Excluded: benchmarker, authors, description, version (already part
+        of the storage version string per design/003-storage.md), storage
+        config, api_version, and provenance.
+
+        Returns the full 64-character hex digest.  Use [:8] for the short
+        form that matches the convention in Params.hash_short().
+        """
+        import json as _json
+        import hashlib as _hashlib
+
+        _EXEC_FIELDS = (
+            "id",
+            "software_backend",
+            "software_environments",
+            "stages",
+            "metric_collectors",
+        )
+        _OMIT_ALWAYS = {
+            "name",
+            "description",
+            "benchmarker",
+            "authors",
+            "version",
+            "storage",
+            "storage_api",
+            "storage_bucket_name",
+            "api_version",
+            "benchmark_yaml_spec",
+            "provenance",
+        }
+
+        raw = self.model_dump(mode="json")
+        execution = {k: v for k, v in raw.items() if k in _EXEC_FIELDS}
+        canonical = _json.dumps(execution, sort_keys=True)
+        return _hashlib.sha256(canonical.encode()).hexdigest()
 
     def get_software_backend(self) -> SoftwareBackendEnum:
         """Get software backend of the benchmark."""

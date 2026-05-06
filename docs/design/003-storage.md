@@ -105,8 +105,8 @@ Furthermore, so far handling the remote objects during execution has been done b
 
 ## 5. Implementation Plan
 
-1. Phase 1: Hash of benchmark yaml
-2. Phase 2: Child benchmark yaml, i.e., add additional fields
+1. ~~Phase 1: Hash of benchmark yaml~~ — implemented as `Benchmark.summary_hash()` (see design/004-yaml-specification.md Section 9). Covers execution-relevant fields only; follows the same canonicalize+sort+SHA256 convention as parameter set hashing. Short form (first 8 hex chars) is the `HASH` component of the `VERSION-HASH` artifact tag.
+2. Phase 2: Child benchmark yaml — `provenance` block now accepted in YAML (see design/004-yaml-specification.md Section 9). The `subset_of` field stores the parent's `summary_hash()`.
 3. Phase 3: Local cache
 4. Phase 4: automatic versioning
 5. Phase 5: execution module update
