@@ -187,3 +187,5 @@ Snakefile
 # docs
 docs/site/*
 coverage.xml
+
+/scratch
