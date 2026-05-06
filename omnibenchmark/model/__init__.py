@@ -12,6 +12,7 @@ from omnibenchmark.model.benchmark import (
     # Core models
     Repository,
     Storage,
+    Provenance,
     Parameter,
     IOFile,
     InputCollection,
@@ -57,6 +58,7 @@ __all__ = [
     # Core models
     "Repository",
     "Storage",
+    "Provenance",
     "Parameter",
     "IOFile",
     "InputCollection",

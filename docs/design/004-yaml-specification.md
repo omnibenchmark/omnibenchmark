@@ -17,6 +17,7 @@
 |---------|------|-------------|--------|
 | 1       | 2026-01-20 | Initial specification for v0.4 | ben |
 | 2       | 2026-03-31 | Add resource allocation (Section 8) | ben |
+| 3       | 2026-05-06 | Add provenance metadata (Section 9): canonical_url, derived_from, subset_of | ben |
 
 ## 1. Problem Statement
 
@@ -57,6 +58,10 @@ api_version: <string>                  # Optional: spec version (default: "0.4")
 software_backend: <string>             # Optional: default backend (e.g., "conda")
 software_environments: <object>        # Optional: named environments
 stages: <array>                        # Required: pipeline stages (≥1)
+provenance:                            # Optional: lineage metadata
+  canonical_url: <string>             #   URL of the authoritative publication
+  derived_from: <string>              #   identifier/URL of the upstream benchmark
+  subset_of: <string>                 #   summary hash of the parent benchmark
 ```
 
 #### Required Fields
@@ -72,6 +77,7 @@ stages: <array>                        # Required: pipeline stages (≥1)
 - `api_version`: Specification version (default: `"0.3"`)
 - `software_backend`: Default execution backend
 - `software_environments`: Named environment definitions
+- `provenance`: Lineage metadata (see Section 9)
 
 ### 3.2 Software Environments
 
@@ -593,6 +599,39 @@ metric_collectors:
       - id: plot
         path: "plot.html"
 ```
+
+## 9. Provenance Metadata
+
+The optional `provenance` block records lineage relationships between benchmarks. All fields are informational — the runtime does not act on them today, but they are preserved in the parsed model for tooling and future use.
+
+```yaml
+provenance:
+  canonical_url: "https://omnibenchmark.org/b/clustering-benchmark"
+  derived_from: "clustering-benchmark"
+  subset_of: "a1b2c3d4"
+```
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `canonical_url` | string (URL) | Where the authoritative, published version of this benchmark lives. Useful when a benchmark is mirrored or forked across organisations. |
+| `derived_from` | string | Identifier or URL of the upstream benchmark this one was forked or adapted from. Intended to be populated automatically by a future `ob fork` command. |
+| `subset_of` | string | Summary hash of the parent benchmark of which this is a strict subset (e.g. fewer stages, modules, or parameter grid). The hash should match the value returned by `Benchmark.summary_hash()` once that method is public. |
+
+### Rationale
+
+These fields answer three common questions:
+
+- **Where is the canonical version?** (`canonical_url`) — multiple groups may publish mirrors or slight variants of the same benchmark. This field points back to the source of truth.
+- **Where did this come from?** (`derived_from`) — tracks intellectual lineage. When/if a `fork` command is added, it will write this field automatically.
+- **Is this a strict subset?** (`subset_of`) — a reduced benchmark (e.g. a quick-run variant with fewer methods) can declare which full benchmark it was derived from, enabling tools to aggregate or compare results across the two. It also allows for automated filtering and grouping of benchmarks by their subset relationship. For instance, a web editor can offer a wizard to select subsets of a benchmark for "slicing and dicing" the plan themselves, and export the subset in a standard compact notation.
+
+### Notes on `subset_of` hashing
+
+`subset_of` should be the value returned by `Benchmark.summary_hash()` on the parent benchmark. This is the same hash used to tag storage artifacts (see design/003-storage.md, Section 3 — "HASH of benchmark yaml"). It covers the execution-relevant fields only: `id`, `software_backend`, `software_environments`, `stages`, and `metric_collectors`. Descriptive fields (`benchmarker`, `authors`, `description`), the `version` string (already encoded separately in the artifact version tag as `VERSION-HASH`), storage configuration, `api_version`, and `provenance` itself are all excluded so that purely administrative edits do not invalidate artifact lineage.
+
+The hash follows the same canonicalize-then-SHA256 convention as parameter set hashing: the execution fields are serialised to canonical JSON (`json.dumps(..., sort_keys=True)`) and the full 64-character hex digest is the output. The short 8-character form (first 8 hex chars) matches the `HASH` component of the `VERSION-HASH` artifact tag described in 003-storage.md.
 
 ## 8. References
 
