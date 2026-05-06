@@ -5,6 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.6.0](UNRELEASED)
 
+- feat: add opentelemetry support
 - feat: output path templates now support `{name}`, `{module.name}`, `{module.stage}`, and `{params.KEY}`; `{name}` always resolves to the current module's own ID (never inherited)
 
 ## [0.5.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.3) (Jun 15th 2026)
@@ -27,7 +28,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: raise warning for disjoint keys (Closes: #313)
 - fix: clearer error on missing entrypoint (Closes: #321)
 - fix: truncate filename to avoid hitting filesystem limits (#334)
-- chore(pkg): unpink snakemake dependency (#269)
+- chore(pkg): unpin snakemake dependency (#269)
 
 ## [0.5.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.0) (Apr 23th 2026)
 

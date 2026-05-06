@@ -21,7 +21,7 @@
 
 Every `ob run` invocation materialises a tree of files under the configured output directory (default: `out/`). The layout of that tree — which subdirectories exist, what each one contains, and how the files relate to each other — is implicit in the implementation and has never been formally documented.
 
-Additionally, there is no lightweight, structured record of the *execution environment* in which a benchmark was run. The telemetry system (006) captures a rich distributed trace, but requires `--telemetry json` to be enabled. A minimal "who ran this, on what machine, when" record should always be written, regardless of whether telemetry is active.
+Additionally, there is no lightweight, structured record of the *execution environment* in which a benchmark was run. The telemetry system (006) captures a rich distributed trace, but requires `--telemetry` to be enabled. A minimal "who ran this, on what machine, when" record should always be written, regardless of whether telemetry is active.
 
 This document:
 
@@ -63,7 +63,7 @@ out/                               # configurable via --out-dir
 ├── .modules/                      # checked-out module source trees (git cache worktrees)
 │   └── <repo>/<commit>/           # one directory per (repository, commit) pair
 │
-├── telemetry.jsonl                # OTLP JSON Lines trace (only when --telemetry json)
+├── telemetry.jsonl                # OTLP JSON Lines trace (only when --telemetry)
 │
 └── <stage_id>/                    # benchmark outputs, one top-level dir per stage
     └── <module_id>/
@@ -84,7 +84,7 @@ out/                               # configurable via --out-dir
 | `.logs/snakemake_<ts>.log` | Full stdout/stderr from the Snakemake process. Timestamped to allow multiple runs in the same output dir. | Yes |
 | `.logs/<rule>.log` | Per-rule output captured by `tee` inside the shell command. | Only for executed rules |
 | `.modules/` | Source trees for resolved modules. Populated during the resolution phase. | Yes |
-| `telemetry.jsonl` | OTLP-compatible distributed trace (see 006). | Only with `--telemetry json` |
+| `telemetry.jsonl` | OTLP-compatible distributed trace (see 006). | Only with `--telemetry` |
 | `<stage>/` | Stage output directories, nested by `module_id/param_hash/`. | After execution |
 
 ### Notes on output nesting
@@ -154,7 +154,7 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 
 ### 4.4 Relationship to telemetry
 
-When `--telemetry json` is active:
+When `--telemetry` is active:
 
 - `manifest.json` `run_id` = `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (UUID4 with dashes)
 - `telemetry.jsonl` `trace_id` = same UUID in 32-char hex (no dashes)
