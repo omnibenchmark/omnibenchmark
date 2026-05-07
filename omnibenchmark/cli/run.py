@@ -138,6 +138,18 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=None,
     help="Write telemetry to file instead of stdout. Allows Rich progress to remain active. Implies --telemetry.",
 )
+@click.option(
+    "--until",
+    "until_stage",
+    default=None,
+    type=str,
+    help=(
+        "Stop the pipeline at and including the named stage. "
+        "Stages declared after the named stage in the benchmark YAML are "
+        "pruned from the resolved DAG, and metric collectors whose inputs "
+        "reference pruned stages are skipped."
+    ),
+)
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
@@ -154,6 +166,7 @@ def run(
     module_filter,
     telemetry,
     telemetry_output,
+    until_stage,
     snakemake_args,
 ):
     """Run a benchmark.
@@ -198,6 +211,14 @@ def run(
             f"-m {module_filter}: single execution path, first param expansion only."
         )
 
+    if module_filter and until_stage:
+        log_error_and_quit(
+            logger,
+            "--until and -m/--module cannot be combined: -m already truncates "
+            "the DAG at the target module's stage.",
+        )
+        return
+
     _run_benchmark(
         benchmark_path=benchmark,
         cores=cores,
@@ -211,6 +232,7 @@ def run(
         module_filter=module_filter,
         telemetry=telemetry,
         telemetry_output=telemetry_output,
+        until_stage=until_stage,
         snakemake_args=list(snakemake_args),
     )
 
@@ -228,6 +250,7 @@ def _run_benchmark(
     module_filter=None,
     telemetry=None,
     telemetry_output=None,
+    until_stage=None,
     snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
@@ -280,17 +303,22 @@ def _run_benchmark(
     populate_git_cache(b, quiet=use_clean_ui, cores=cores)
 
     # Step 2: Generate explicit Snakefile
-    resolved_nodes = _generate_explicit_snakefile(
-        benchmark=b,
-        benchmark_yaml_path=benchmark_path_abs,
-        out_dir=out_dir_path,
-        cores=cores,
-        quiet=use_clean_ui,
-        start_time=start_time,
-        dirty=dirty,
-        unpinned=unpinned,
-        module_filter=module_filter,
-    )
+    try:
+        resolved_nodes = _generate_explicit_snakefile(
+            benchmark=b,
+            benchmark_yaml_path=benchmark_path_abs,
+            out_dir=out_dir_path,
+            cores=cores,
+            quiet=use_clean_ui,
+            start_time=start_time,
+            dirty=dirty,
+            unpinned=unpinned,
+            module_filter=module_filter,
+            until_stage=until_stage,
+        )
+    except ValueError as e:
+        log_error_and_quit(logger, str(e))
+        return
 
     # Initialize telemetry with resolved nodes and emit module-resolution span
     if telemetry_emitter and resolved_nodes:
@@ -917,6 +945,62 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
+def _apply_until_filter(stages, until_stage, parents):
+    """Restrict a stage list to `until_stage` plus its transitive ancestors.
+
+    `parents` maps a stage id to the set of its *direct* upstream stage ids
+    (built from the model's declared inputs — see `stage_adjacency`). Stages are
+    kept by declared lineage, not by their order of appearance in the YAML: a
+    benchmark may declare an ancestor of `until_stage` *after* it, and every
+    stage downstream of (or unrelated to) `until_stage` is pruned regardless of
+    declaration order. Output preserves the original declaration order.
+
+    Returns the original sequence as a list when `until_stage` is None.
+    Raises ValueError when the named stage is not present.
+    """
+    stages = list(stages)
+    if until_stage is None:
+        return stages
+    if not any(s.id == until_stage for s in stages):
+        available = ", ".join(s.id for s in stages)
+        raise ValueError(
+            f"--until: stage '{until_stage}' not found. Available stages: {available}"
+        )
+    keep = {until_stage}
+    queue = [until_stage]
+    while queue:
+        for up in parents.get(queue.pop(), ()):
+            if up not in keep:
+                keep.add(up)
+                queue.append(up)
+    return [s for s in stages if s.id in keep]
+
+
+def _filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
+    """Drop metric collectors whose declared inputs reference pruned stages.
+
+    Returns a tuple (kept, dropped_ids). A collector is dropped when any of its
+    declared input ids resolves to a stage outside `included_stage_ids` (or to
+    no stage at all — that case is left to the regular collector resolver to
+    warn about).
+    """
+    kept = []
+    dropped = []
+    for c in collectors or []:
+        keep = True
+        for input_ref in c.inputs:
+            input_id = input_ref if isinstance(input_ref, str) else input_ref.id
+            stage = benchmark.get_stage_by_output(input_id)
+            if stage is not None and stage.id not in included_stage_ids:
+                keep = False
+                break
+        if keep:
+            kept.append(c)
+        else:
+            dropped.append(c.id)
+    return kept, dropped
+
+
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -928,6 +1012,7 @@ def _generate_explicit_snakefile(
     dirty: bool = False,
     unpinned: bool = False,
     module_filter: Optional[str] = None,
+    until_stage: Optional[str] = None,
 ):
     """Generate explicit Snakefile from resolved modules."""
     from omnibenchmark.progress import ProgressDisplay
@@ -951,8 +1036,73 @@ def _generate_explicit_snakefile(
         benchmark_dir=benchmark_dir,
     )
 
+    # Select the stages to expand *before* module resolution, so that modules
+    # in pruned stages are never checked out or environment-resolved. Expansion
+    # runs in topological (dependency) order rather than declaration order:
+    # select_input_nodes can only pick a parent among already-expanded stages,
+    # so a stage must be expanded after every stage producing its inputs. See
+    # https://github.com/omnibenchmark/omnibenchmark/issues/289.
+    from omnibenchmark.core._graph import (
+        build_stage_dag,
+        compute_stage_order,
+        stage_adjacency,
+    )
+
+    topo_order = compute_stage_order(build_stage_dag(benchmark.model))
+    topo_index = {stage_id: i for i, stage_id in enumerate(topo_order)}
+    topo_sorted_stages = sorted(
+        benchmark.model.stages,
+        key=lambda s: topo_index.get(s.id, len(topo_index)),
+    )
+
+    target_stage = None
+    if module_filter:
+        # ob run -m <module_id>: keep the target stage and its topological ancestors.
+        target_stage = next(
+            (
+                stage
+                for stage in benchmark.model.stages
+                if any(m.id == module_filter for m in stage.modules)
+            ),
+            None,
+        )
+        if target_stage is None:
+            logger.error(
+                f"Module '{module_filter}' not found in benchmark. "
+                f"Available modules: "
+                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
+            )
+            sys.exit(1)
+
+        target_pos = topo_index.get(target_stage.id, len(topo_index))
+        stages_to_expand = [
+            stage
+            for stage in topo_sorted_stages
+            if topo_index.get(stage.id, len(topo_index)) <= target_pos
+        ]
+        logger.info(
+            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
+            f"(up to and including '{target_stage.id}'), "
+            "first expansion only."
+        )
+    elif until_stage is not None:
+        # --until <stage>: keep the named stage and its transitive ancestors.
+        parents = {}
+        for up_id, down_id, _ in stage_adjacency(benchmark.model):
+            parents.setdefault(down_id, set()).add(up_id)
+        kept_ids = {s.id for s in _apply_until_filter(
+            benchmark.model.stages, until_stage, parents
+        )}
+        stages_to_expand = [s for s in topo_sorted_stages if s.id in kept_ids]
+        logger.info(
+            f"--until {until_stage}: expanding {len(stages_to_expand)} stage(s) "
+            f"('{until_stage}' and its upstream lineage)."
+        )
+    else:
+        stages_to_expand = topo_sorted_stages
+
     unique_modules = {}
-    for stage in benchmark.model.stages:
+    for stage in stages_to_expand:
         for module in stage.modules:
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
@@ -1086,57 +1236,8 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info("\nBuilding execution graph...")
 
-    # Expand stages in topological (dependency) order rather than declaration
-    # order. select_input_nodes can only pick a parent among already-expanded
-    # stages, so a stage must be expanded after every stage producing its inputs.
-    # Sorting here makes declaration order irrelevant: a plan that declares a
-    # stage before an upstream producer still resolves, as long as that producer
-    # is genuinely upstream (not on a divergent branch -- see the diamond guard
-    # in model/validation.py). The sort is stable for already-ordered plans, so
-    # well-formed benchmarks are unaffected. See
-    # https://github.com/omnibenchmark/omnibenchmark/issues/289.
-    from omnibenchmark.core._graph import build_stage_dag, compute_stage_order
-
-    topo_order = compute_stage_order(build_stage_dag(benchmark.model))
-    topo_index = {stage_id: i for i, stage_id in enumerate(topo_order)}
-    topo_sorted_stages = sorted(
-        benchmark.model.stages,
-        key=lambda s: topo_index.get(s.id, len(topo_index)),
-    )
-
-    # Module-filter pruning (ob run -m <module_id>)
-    if module_filter:
-        target_stage = next(
-            (
-                stage
-                for stage in benchmark.model.stages
-                if any(m.id == module_filter for m in stage.modules)
-            ),
-            None,
-        )
-
-        if target_stage is None:
-            logger.error(
-                f"Module '{module_filter}' not found in benchmark. "
-                f"Available modules: "
-                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
-            )
-            sys.exit(1)
-
-        target_pos = topo_index.get(target_stage.id, len(topo_index))
-        stages_to_expand = [
-            stage
-            for stage in topo_sorted_stages
-            if topo_index.get(stage.id, len(topo_index)) <= target_pos
-        ]
-        logger.info(
-            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
-            f"(up to and including '{target_stage.id}'), "
-            "first expansion only."
-        )
-    else:
-        stages_to_expand = topo_sorted_stages
-
+    # stages_to_expand / target_stage / topo ordering are computed above, before
+    # module resolution, so pruned stages are never checked out.
     resolved_nodes = []
     nodes_by_id = {}
     output_to_nodes = {}
@@ -1394,9 +1495,20 @@ def _generate_explicit_snakefile(
 
     # Resolve metric collectors (skip in -m module mode)
     if not module_filter:
+        collectors_to_resolve = benchmark.model.get_metric_collectors()
+        if until_stage is not None:
+            included_ids = {s.id for s in stages_to_expand}
+            collectors_to_resolve, dropped = _filter_collectors_by_stages(
+                collectors_to_resolve, included_ids, benchmark.model
+            )
+            for cid in dropped:
+                logger.info(
+                    f"--until {until_stage}: skipping metric collector "
+                    f"'{cid}' (references pruned stages)."
+                )
         try:
             collector_nodes = resolve_metric_collectors(
-                metric_collectors=benchmark.model.get_metric_collectors(),
+                metric_collectors=collectors_to_resolve,
                 resolved_nodes=resolved_nodes,
                 benchmark=benchmark.model,
                 resolver=resolver,
