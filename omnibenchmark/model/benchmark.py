@@ -562,6 +562,16 @@ class Stage(DescribableEntity):
     resources: Optional[Resources] = Field(
         None, description="Resource requirements for rules in this stage"
     )
+    provides: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Lineage labels this stage advertises to downstream modules. "
+            "For each label, every node of this stage carries a value, taken "
+            "from a same-named parameter if present, otherwise the module id. "
+            "Downstream modules can gate on these labels via `requires:`. "
+            "Distinct from gather/collector bindings (out of scope here)."
+        ),
+    )
 
     @field_validator("outputs")
     @classmethod
@@ -1225,10 +1235,17 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     if collector.software_environment is None:
                         collector.software_environment = sole_env_id
 
-        # Gate api_version-introduced fields. `requires_capabilities` was
-        # introduced in 0.6.0 and must not be used by older specs.
+        # Gate api_version-introduced fields. `requires_capabilities` and
+        # `Stage.provides` were introduced in 0.6.0 and must not be used by
+        # older specs.
         if self.api_version < APIVersion.V0_6_0:
             for stage in self.stages:
+                if stage.provides:
+                    raise ValueError(
+                        f"Stage '{stage.id}' uses `provides`, which requires "
+                        f"api_version ≥ 0.6.0 (this benchmark declares "
+                        f"{self.api_version.value})."
+                    )
                 for module in stage.modules:
                     if module.requires_capabilities:
                         raise ValueError(

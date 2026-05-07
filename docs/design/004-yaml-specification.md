@@ -129,7 +129,12 @@ stages:
     modules: <array>                   # Required: module list (≥1)
     inputs: <array>                    # Optional: input dependencies
     outputs: <array>                   # Optional: output declarations
+    provides: <array>                  # Optional: lineage labels (api 0.6+)
 ```
+
+`provides:` is a list of label names this stage advertises to downstream
+modules; downstream modules can gate on these labels via `requires:`. See
+[008-filtering.md §3.5](./008-filtering.md) for details.
 
 #### Stage Ordering
 

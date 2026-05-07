@@ -1018,3 +1018,102 @@ class TestModuleSatisfiesCapabilities:
         m = type("Bare", (), {"id": "M1"})()
         assert _module_satisfies_capabilities(m, set()) is True
         assert _module_satisfies_capabilities(m, {"gpu"}) is True
+
+
+# ---------------------------------------------------------------------------
+# Stage.provides → Module.requires end-to-end (real model, not stubs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestProvidesRequiresIntegration:
+    """Exercises the full chain: parsed Benchmark → context build → require gate."""
+
+    YAML = """
+id: lineage_smoke
+description: smoke test for stage.provides → module.requires
+version: "1.0"
+benchmarker: x
+api_version: "0.6.0"
+software_backend: host
+software_environments:
+  host: {description: h}
+stages:
+  - id: data
+    provides: [dataset_size]
+    modules:
+      - id: small
+        software_environment: host
+        repository: {url: https://example.com/r, commit: abc1234}
+        parameters:
+          - dataset_size: sm
+      - id: huge
+        software_environment: host
+        repository: {url: https://example.com/r, commit: abc1234}
+        parameters:
+          - dataset_size: lg
+    outputs:
+      - {id: data.raw, path: D1.json}
+  - id: methods
+    inputs: [data.raw]
+    modules:
+      - id: M_lg_only
+        software_environment: host
+        requires: {dataset_size: lg}
+        repository: {url: https://example.com/r, commit: abc1234}
+    outputs:
+      - {id: methods.result, path: M1.json}
+"""
+
+    def _parse(self):
+        from omnibenchmark.model import Benchmark
+
+        return Benchmark.from_yaml(self.YAML)
+
+    def test_stage_provides_survives_parse(self):
+        b = self._parse()
+        assert b.stages[0].provides == ["dataset_size"]
+
+    def test_data_node_carries_label_value_from_params(self):
+        """A data node built with `dataset_size: lg` carries that in provides."""
+        b = self._parse()
+        data_stage = b.stages[0]
+        # huge module has dataset_size: lg
+        huge_params = Params.expand_from_parameter(
+            b.stages[0].modules[1].parameters[0]
+        )[0]
+        ctx = _build_template_context(data_stage, "huge", params=huge_params)
+        assert ctx.provides.get("dataset_size") == "lg"
+
+    def test_data_node_label_defaults_to_module_id_without_param(self):
+        """If a label has no matching param, it defaults to the module id."""
+        # A stage that provides a label with no corresponding param.
+        b = self._parse()
+        data_stage = b.stages[0]
+        ctx = _build_template_context(data_stage, "small")  # no params
+        # small does not have a `dataset_size` param either way, so label
+        # falls back to module_id "small"
+        assert ctx.provides.get("dataset_size") == "small"
+
+    def test_requires_matches_lg_node(self):
+        b = self._parse()
+        data_stage = b.stages[0]
+        huge_params = Params.expand_from_parameter(
+            b.stages[0].modules[1].parameters[0]
+        )[0]
+        ctx = _build_template_context(data_stage, "huge", params=huge_params)
+        node = _make_input_node("huge", "data", template_context=ctx)
+        # Module M_lg_only has requires: {dataset_size: lg}
+        m = b.stages[1].modules[0]
+        assert _satisfies_requires(m.requires, node) is True
+
+    def test_requires_rejects_sm_node(self):
+        b = self._parse()
+        data_stage = b.stages[0]
+        small_params = Params.expand_from_parameter(
+            b.stages[0].modules[0].parameters[0]
+        )[0]
+        ctx = _build_template_context(data_stage, "small", params=small_params)
+        node = _make_input_node("small", "data", template_context=ctx)
+        m = b.stages[1].modules[0]
+        assert _satisfies_requires(m.requires, node) is False

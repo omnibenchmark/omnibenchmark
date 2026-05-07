@@ -242,6 +242,20 @@ Two axes, composed by AND:
 
 A module is included only when both gates pass for the candidate node.
 
+#### Implementation status (api ≥ 0.6.0)
+
+`Stage.provides` and `Module.requires` are wired end-to-end as of api 0.6.0.
+For each label in `provides`, every node of the providing stage carries a
+value taken from a same-named parameter (if present) or defaulting to the
+module id. Downstream modules with `requires: {label: value}` run only on
+nodes whose provides dict contains the matching value; non-matching
+upstream branches are pruned at DAG-construction time.
+
+This is the *list-of-labels* form of `provides:`. A separate *map* form
+(`provides: {label: output_id}`) was proposed for gather contracts (see
+PR #291) but is intentionally out of scope here. If gather lands later,
+its binding will use a different keyword to keep the namespaces clean.
+
 #### Suggested canonical labels
 
 | Label scope | Example labels | Where declared |

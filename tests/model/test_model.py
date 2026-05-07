@@ -351,6 +351,40 @@ class TestCoreEntities:
         )
         assert bench.stages[0].modules[0].requires_capabilities == ["gpu"]
 
+    def test_stage_provides_default_none(self):
+        """A Stage without `provides` parses with the field unset."""
+        from tests.model.factories import make_stage
+
+        stage = make_stage(id="data")
+        assert stage.provides is None
+
+    def test_stage_provides_list(self):
+        """`provides` is parsed as a list of label names."""
+        from tests.model.factories import make_stage
+
+        stage = make_stage(id="data", provides=["dataset_size", "treatment"])
+        assert stage.provides == ["dataset_size", "treatment"]
+
+    def test_stage_provides_rejected_below_v0_6(self):
+        """`Stage.provides` is gated on api_version ≥ 0.6.0."""
+        from tests.model.factories import make_benchmark, make_stage
+
+        with pytest.raises(ValueError, match="provides"):
+            make_benchmark(
+                api_version=APIVersion.V0_5_0,
+                stages=[make_stage(id="data", provides=["dataset_size"])],
+            )
+
+    def test_stage_provides_accepted_at_v0_6(self):
+        """At api_version 0.6.0 `Stage.provides` is accepted."""
+        from tests.model.factories import make_benchmark, make_stage
+
+        bench = make_benchmark(
+            api_version=APIVersion.V0_6_0,
+            stages=[make_stage(id="data", provides=["dataset_size"])],
+        )
+        assert bench.stages[0].provides == ["dataset_size"]
+
     def test_has_environment_reference(self):
         """Test has_environment_reference method."""
         module = make_module(software_environment="env1")
