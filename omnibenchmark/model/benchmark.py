@@ -500,6 +500,16 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "silently pruned from the resolved DAG."
         ),
     )
+    provides: Optional[Dict[str, str]] = Field(
+        None,
+        description=(
+            "Explicit benchmark-local label bindings for this module. Maps "
+            "label name → value. Takes precedence over the parameter-name "
+            "matching fallback. Use this to keep label routing out of the "
+            "module's CLI parameter contract — modules stay reusable across "
+            "benchmarks that use different label vocabularies."
+        ),
+    )
     resources: Optional[Resources] = Field(
         None,
         description="Resource requirements (overrides stage-level resources)",

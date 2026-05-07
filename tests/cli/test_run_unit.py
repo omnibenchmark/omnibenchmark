@@ -14,6 +14,7 @@ from omnibenchmark.cli.run import (
     _run_snakemake,
     _substitute_params_in_path,
     _build_template_context,
+    _resolve_label_value,
     _select_input_nodes,
     _satisfies_requires,
     _apply_until_filter,
@@ -1117,3 +1118,122 @@ stages:
         node = _make_input_node("small", "data", template_context=ctx)
         m = b.stages[1].modules[0]
         assert _satisfies_requires(m.requires, node) is False
+
+
+# ---------------------------------------------------------------------------
+# _resolve_label_value (precedence chain)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestResolveLabelValue:
+    """Module-level provides > params > module_id fallback."""
+
+    def test_module_provides_wins_over_params(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={"dataset_size": "lg"},
+            params=Params({"dataset_size": "sm"}),
+            module_id="huge",
+        )
+        assert result == "lg"
+
+    def test_module_provides_wins_over_module_id(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={"dataset_size": "lg"},
+            params=None,
+            module_id="huge",
+        )
+        assert result == "lg"
+
+    def test_params_used_when_module_provides_unset(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides=None,
+            params=Params({"dataset_size": "sm"}),
+            module_id="huge",
+        )
+        assert result == "sm"
+
+    def test_params_used_when_module_provides_lacks_label(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={"other_label": "x"},
+            params=Params({"dataset_size": "sm"}),
+            module_id="huge",
+        )
+        assert result == "sm"
+
+    def test_module_id_fallback_when_nothing_set(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides=None,
+            params=None,
+            module_id="huge",
+        )
+        assert result == "huge"
+
+    def test_module_id_fallback_with_empty_dicts(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={},
+            params=Params({}),
+            module_id="huge",
+        )
+        assert result == "huge"
+
+    def test_value_coerced_to_string(self):
+        # parameters can be ints/floats; provides values too
+        assert (
+            _resolve_label_value(
+                "n",
+                module_provides={"n": 42},
+                params=None,
+                module_id="m",
+            )
+            == "42"
+        )
+
+
+@pytest.mark.short
+class TestBuildTemplateContextWithModuleProvides:
+    """End-to-end behavior of _build_template_context with module.provides."""
+
+    def test_module_provides_overrides_param_at_root(self):
+        stage = _make_stage("data", provides=["dataset_size"])
+        ctx = _build_template_context(
+            stage,
+            "huge",
+            params=Params({"dataset_size": "sm"}),
+            module_provides={"dataset_size": "lg"},
+        )
+        assert ctx.provides["dataset_size"] == "lg"
+
+    def test_module_provides_overrides_at_child_node(self):
+        parent_ctx = TemplateContext(
+            provides={"dataset_size": "lg"},
+            module_attrs={"id": "huge", "stage": "data"},
+        )
+        input_node = _make_input_node("huge", "data", template_context=parent_ctx)
+        stage = _make_stage("methods", provides=["method_kind"])
+        ctx = _build_template_context(
+            stage,
+            "fast_method",
+            input_node=input_node,
+            module_provides={"method_kind": "approximate"},
+        )
+        # downstream label overridden
+        assert ctx.provides["method_kind"] == "approximate"
+        # upstream label still flows through unchanged
+        assert ctx.provides["dataset_size"] == "lg"
+
+    def test_no_module_provides_falls_back_to_existing_chain(self):
+        stage = _make_stage("data", provides=["dataset_size"])
+        ctx = _build_template_context(
+            stage,
+            "huge",
+            params=Params({"dataset_size": "lg"}),
+            module_provides=None,
+        )
+        assert ctx.provides["dataset_size"] == "lg"

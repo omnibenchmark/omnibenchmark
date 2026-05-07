@@ -565,13 +565,39 @@ def _substitute_params_in_path(template: str, params) -> str:
     return re.sub(r"\{params\.([^}]+)\}", _replace, template)
 
 
+def _resolve_label_value(
+    label: str,
+    module_provides,
+    params,
+    module_id: str,
+) -> str:
+    """Resolve a single provides label's value for one node.
+
+    Precedence (most specific wins):
+      1. ``module.provides[label]`` — explicit benchmark-local binding.
+      2. ``params[label]`` — same-named parameter (legacy convention).
+      3. ``module_id`` — silent default for the "label = module identity"
+         case, which is the zero-config pattern for data stages.
+    """
+    if module_provides and label in module_provides:
+        return str(module_provides[label])
+    if params is not None and label in params:
+        return str(params[label])
+    return module_id
+
+
 def _build_template_context(
     stage,
     module_id: str,
     input_node=None,
     params=None,
+    module_provides=None,
 ) -> TemplateContext:
-    """Build a TemplateContext for a node during expansion."""
+    """Build a TemplateContext for a node during expansion.
+
+    `module_provides` is the optional `Module.provides` dict (label → value).
+    When supplied it takes precedence over same-named parameters.
+    """
     provides: dict[str, str] = {}
     module_attrs: dict[str, str] = {"id": module_id, "stage": stage.id}
 
@@ -583,20 +609,18 @@ def _build_template_context(
 
         if stage_provides:
             for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
+                provides[label] = _resolve_label_value(
+                    label, module_provides, params, module_id
+                )
 
         module_attrs["parent.id"] = input_node.module_id
         module_attrs["parent.stage"] = input_node.stage_id
     else:
         if stage_provides:
             for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
+                provides[label] = _resolve_label_value(
+                    label, module_provides, params, module_id
+                )
 
         if params is not None and "dataset" in params:
             provides.setdefault("dataset", str(params["dataset"]))
@@ -1087,6 +1111,7 @@ def _generate_explicit_snakefile(
                         module_id=module_id,
                         input_node=input_node,
                         params=params,
+                        module_provides=getattr(module, "provides", None),
                     )
 
                     outputs = []

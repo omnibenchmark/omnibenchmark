@@ -242,19 +242,110 @@ Two axes, composed by AND:
 
 A module is included only when both gates pass for the candidate node.
 
-#### Implementation status (api ≥ 0.6.0)
+#### Resolution chain (api ≥ 0.6.0)
 
-`Stage.provides` and `Module.requires` are wired end-to-end as of api 0.6.0.
-For each label in `provides`, every node of the providing stage carries a
-value taken from a same-named parameter (if present) or defaulting to the
-module id. Downstream modules with `requires: {label: value}` run only on
-nodes whose provides dict contains the matching value; non-matching
-upstream branches are pruned at DAG-construction time.
+For each label declared in `Stage.provides`, the per-node value is
+resolved in order, most specific first:
 
-This is the *list-of-labels* form of `provides:`. A separate *map* form
-(`provides: {label: output_id}`) was proposed for gather contracts (see
-PR #291) but is intentionally out of scope here. If gather lands later,
-its binding will use a different keyword to keep the namespaces clean.
+1. **`Module.provides[label]`** — explicit benchmark-local binding. This is
+   the recommended form: it keeps label routing out of the module's CLI
+   parameter contract, so the same module can be reused across benchmarks
+   that use different label vocabularies.
+2. **`params[label]`** — same-named parameter on the module. Legacy /
+   convenience path: convenient when a parameter naturally doubles as a
+   label, but couples the label name to the module's CLI flags.
+3. **`module_id`** — silent default. The zero-config pattern for "label =
+   module identity" (e.g. `provides: [dataset]` on a data stage where
+   each module *is* a dataset and you gate downstream by dataset name).
+
+Downstream modules with `requires: {label: value}` run only on upstream
+nodes whose resolved label matches by exact string equality.
+
+#### Working example
+
+```yaml
+api_version: "0.6.0"
+stages:
+  - id: data
+    provides: [dataset_size]            # stage advertises this label
+    modules:
+      - id: small
+        provides: {dataset_size: sm}    # explicit, recommended form
+        parameters: [{evaluate: "1+1"}]
+      - id: huge
+        provides: {dataset_size: lg}
+        parameters: [{evaluate: "9+9"}]
+    outputs:
+      - {id: data.raw, path: "{dataset}_data.json"}
+
+  - id: methods
+    inputs: [data.raw]
+    modules:
+      - id: M_lg_only
+        requires: {dataset_size: lg}    # lineage gate
+        parameters: [{evaluate: "input+10"}]
+    outputs:
+      - {id: methods.result, path: "{dataset}_method.json"}
+```
+
+Result: `M_lg_only` runs only on the `huge` execution path; the `small`
+branch is pruned at DAG-construction time. No exclusion list, no
+cartesian-product subtraction.
+
+The "label = module identity" case is even shorter — no `Module.provides`
+needed:
+
+```yaml
+stages:
+  - id: data
+    provides: [dataset]
+    modules:
+      - id: iris
+      - id: penguins
+      - id: atlas_v2
+
+  - id: methods
+    modules:
+      - id: cheap
+        requires: {dataset: iris}       # match by module id
+```
+
+#### Scope and naming
+
+This is the *list-of-labels* form of `Stage.provides:` plus the
+*label → value* form of `Module.provides:`. A separate *map* form
+(`Stage.provides: {label: output_id}`) was proposed for gather contracts
+(see PR #291) but is intentionally out of scope here. If gather lands
+later, its binding will use a different keyword (e.g. `gather_outputs:`,
+`exports:`) to keep the namespaces clean.
+
+> **TODO (deferred — add only if needed):** *stage-level partition syntax*
+> for the case where many modules share a label value. Today, declaring
+> `Module.provides: {dataset_size: lg}` on each of N modules is verbose.
+> A partition form would let the stage author group modules by label
+> value once:
+>
+> ```yaml
+> # Proposed; NOT implemented.
+> provides:
+>   dataset_size:
+>     sm: [iris, penguins, mnist_subset]
+>     lg: [atlas_v2, big_brain]
+> ```
+>
+> Resolution would slot in between (1) and (2) above: stage-level
+> partition consulted if `Module.provides[label]` is unset. Defer until
+> a real benchmark hits this volume — for the small-N case, per-module
+> `provides:` is fine and reads more locally.
+
+> **TODO (follow-up):** a `provides` consistency check at parse time. When
+> a stage declares `provides: [X]`, warn if a module in the stage has no
+> source for X (no `Module.provides`, no matching parameter) — i.e. it
+> would silently fall through to module_id. This catches the foot-gun
+> where the author forgot to declare the value and a downstream `requires`
+> silently prunes the module. Cannot warn unconditionally at the producer
+> side (the "label = module_id" pattern is legitimate); needs to look at
+> sibling modules in the stage and the consumer side to be precise.
 
 #### Suggested canonical labels
 

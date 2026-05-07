@@ -385,6 +385,19 @@ class TestCoreEntities:
         )
         assert bench.stages[0].provides == ["dataset_size"]
 
+    def test_module_provides_default_none(self):
+        """A Module without `provides` parses with the field unset."""
+        module = make_module(id="m_no_provides")
+        assert module.provides is None
+
+    def test_module_provides_dict(self):
+        """`Module.provides` is parsed as a label → value dict."""
+        module = make_module(
+            id="huge",
+            provides={"dataset_size": "lg", "tier": "expensive"},
+        )
+        assert module.provides == {"dataset_size": "lg", "tier": "expensive"}
+
     def test_has_environment_reference(self):
         """Test has_environment_reference method."""
         module = make_module(software_environment="env1")
