@@ -114,6 +114,63 @@ Rationale for silent (not strict) pruning: typos in capability names surface
 loudly via "no nodes resolved for stage X." A `--strict` mode would be
 redundant.
 
+> **TODO (follow-up):** support `requires_capabilities` at the *stage* level
+> as well, with **union** semantics — a module's effective set =
+> `stage.requires_capabilities ∪ module.requires_capabilities`. Override-down
+> (a module silently dropping a stage-level requirement) must not be allowed,
+> because it would let a module fake-pass a host gate the stage author
+> declared. Defer until a real benchmark asks: the DRY case is narrower than
+> it looks (if every module in a stage needs the same capability, that often
+> reads cleaner as a separate stage or benchmark). Tracked separately.
+
+> **TODO (follow-up):** emit a diagnostic when a stage ends up with zero
+> nodes after capability pruning (or after any other filter). Today the
+> resolved DAG silently cascades-empty downstream, which makes a typo in
+> a capability name look like "nothing happened." A single
+> `logger.warning("stage X pruned to empty by --capability …")` line at
+> graph-build time would surface this. Out of scope for the v1 cut.
+
+> **TODO (follow-up):** make capabilities settable once per host so that
+> operators don't have to retype `--capability` every run. Two layered
+> sources, both strictly additive (host facts only ever accumulate, never
+> revoke):
+>
+> - **`~/.omnibenchmarkrc`** (or equivalent user config) — the right home
+>   for *persistent* host facts: capabilities don't change between shell
+>   sessions, they're a property of the box. A workstation operator
+>   declares `capabilities: [gpu, large_mem]` once.
+> - **`OMNIBENCHMARK_CAPABILITIES=gpu,large_mem`** env var — useful for
+>   *ephemeral / scoped* contexts: CI jobs that want per-job control
+>   without writing files, `direnv`-managed project shells, container
+>   entrypoints.
+>
+> Precedence is union, not override: effective set = rc-file ∪ env ∪ CLI.
+> Each layer can only add; nothing can subtract. (If you reach for
+> subtraction, see §3.6 / the rejected-`!gpu` note.) Cheap to add when
+> someone asks.
+
+#### Considered and rejected: negative capabilities (`--capability !gpu`)
+
+A negation syntax was considered and deliberately not adopted in v1.
+`--capability` is scoped to *host facts*: "what does this machine have?"
+A `!gpu` form would conflate that with *node selection*: "which modules do
+I want to exclude?" Two reasons this is the wrong place:
+
+- **Two semantics on one flag is a UX tax.** Host-fact declaration and
+  module-set filtering are orthogonal axes; mixing them invites the user to
+  reason about which interpretation applies in each case.
+- **Most "I want to skip gpu modules" cases collapse to "don't pass
+  `--capability gpu`."** The remaining real case — "skip gpu modules on a
+  host that does have gpu" — belongs in the v2 filter spec (§3.6) as
+  `exclude: [{capability: gpu}]`, where it sits alongside other exclusions
+  in one shared selector grammar.
+- **Slippery slope.** Once `!gpu` is accepted, the next requests are
+  `gpu|tpu`, `gpu&large_mem`, regex, glob. We do not want to negotiate a
+  mini-language on this flag.
+
+If you find yourself reaching for negation, that is the signal to use the
+filter spec instead.
+
 #### What capabilities are good for
 
 Capabilities are *host facts*: things that are true (or not) about the
