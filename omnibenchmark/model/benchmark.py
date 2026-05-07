@@ -129,10 +129,11 @@ class APIVersion(str, Enum):
     V0_3_0 = "0.3.0"
     V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
+    V0_6_0 = "0.6.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_5_0
+        return cls.V0_6_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -488,6 +489,15 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "Explicit upstream plugs. Maps provides-label → module-id. "
             "This module is wired only to the specified ancestor node for each "
             "named label."
+        ),
+    )
+    requires_capabilities: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Host capabilities required to run this module (e.g. 'gpu', "
+            "'large_mem'). At run time, modules whose required set is not a "
+            "subset of the capabilities provided via `--capability` are "
+            "silently pruned from the resolved DAG."
         ),
     )
     resources: Optional[Resources] = Field(
@@ -1214,6 +1224,18 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 for collector in self.metric_collectors:
                     if collector.software_environment is None:
                         collector.software_environment = sole_env_id
+
+        # Gate api_version-introduced fields. `requires_capabilities` was
+        # introduced in 0.6.0 and must not be used by older specs.
+        if self.api_version < APIVersion.V0_6_0:
+            for stage in self.stages:
+                for module in stage.modules:
+                    if module.requires_capabilities:
+                        raise ValueError(
+                            f"Module '{module.id}' uses `requires_capabilities`, "
+                            f"which requires api_version ≥ 0.6.0 "
+                            f"(this benchmark declares {self.api_version.value})."
+                        )
 
         # Call the pure model validation from the validator base class
         self.validate_model_structure()

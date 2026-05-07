@@ -1,0 +1,35 @@
+id: LinearArithmeticWithCapabilities
+description: Linear pipeline exercising capability-gated module pruning
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.6.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1 - CPU-only, always runs"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+
+      - id: D2_gpu
+        name: "Dataset 2 - GPU-gated"
+        software_environment: "host"
+        requires_capabilities: [gpu]
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "2+2"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"

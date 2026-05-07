@@ -149,6 +149,7 @@ modules:
     name: <string>                     # Optional: human-readable name
     parameters: <array>                # Optional: module parameters
     exclude: <array>                   # Optional: exclusion list
+    requires_capabilities: <array>     # Optional: required host capabilities
 ```
 
 #### Required Fields
@@ -156,6 +157,31 @@ modules:
 - `id`: Unique identifier within stage (used as wildcard value)
 - `software_environment`: Reference to defined environment
 - `repository`: Source code specification
+
+#### Capability Gating
+
+`requires_capabilities` declares host capabilities the module needs in order
+to execute (e.g. `gpu`, `large_mem`). At run time, modules whose required set
+is not a subset of the capabilities provided via `ob run --capability <name>`
+(repeatable) are silently pruned from the resolved DAG. Their outputs are
+never registered, so downstream stages naturally lose those branches without
+any explicit exclusion logic.
+
+```yaml
+modules:
+  - id: pca_gpu
+    software_environment: cuda
+    repository:
+      url: https://github.com/example/pca-gpu
+      commit: abc1234
+    requires_capabilities: [gpu]
+```
+
+Capabilities are deliberately scoped to *host* requirements. Free-form tags
+("experimental", "phase2", …) are out of scope; if a value begs for
+free-form text it should be a parameter, a stage split, or a separate
+benchmark. See [008-filtering.md](./008-filtering.md) for the broader
+filtering design.
 
 #### Repository Specification
 

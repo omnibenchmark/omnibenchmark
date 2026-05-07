@@ -125,6 +125,17 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
         "reference pruned stages are skipped."
     ),
 )
+@click.option(
+    "--capability",
+    "capabilities",
+    multiple=True,
+    type=str,
+    help=(
+        "Declare a host capability available to this run (repeatable). "
+        "Modules whose `requires_capabilities` is not a subset of the "
+        "declared set are silently pruned from the resolved DAG."
+    ),
+)
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
@@ -140,6 +151,7 @@ def run(
     use_remote_storage,
     module_filter,
     until_stage,
+    capabilities,
     snakemake_args,
 ):
     """Run a benchmark.
@@ -203,6 +215,7 @@ def run(
         use_remote_storage=use_remote_storage,
         module_filter=module_filter,
         until_stage=until_stage,
+        capabilities=set(capabilities or ()),
         snakemake_args=list(snakemake_args),
     )
 
@@ -219,6 +232,7 @@ def _run_benchmark(
     use_remote_storage=False,
     module_filter=None,
     until_stage=None,
+    capabilities=None,
     snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
@@ -262,6 +276,7 @@ def _run_benchmark(
             unpinned=unpinned,
             module_filter=module_filter,
             until_stage=until_stage,
+            capabilities=capabilities or set(),
         )
     except ValueError as e:
         log_error_and_quit(logger, str(e))
@@ -647,6 +662,18 @@ def _apply_until_filter(stages, until_stage):
     )
 
 
+def _module_satisfies_capabilities(module, available_capabilities):
+    """Return True if a module's `requires_capabilities` is satisfied.
+
+    A module without `requires_capabilities` is always satisfied. Otherwise,
+    every required capability must appear in `available_capabilities`.
+    """
+    required = getattr(module, "requires_capabilities", None) or []
+    if not required:
+        return True
+    return set(required).issubset(set(available_capabilities or ()))
+
+
 def _filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
     """Drop metric collectors whose declared inputs reference pruned stages.
 
@@ -695,6 +722,7 @@ def _generate_explicit_snakefile(
     unpinned: bool = False,
     module_filter: Optional[str] = None,
     until_stage: Optional[str] = None,
+    capabilities: Optional[set] = None,
 ):
     """Generate explicit Snakefile from resolved modules."""
     from omnibenchmark.cli.progress import ProgressDisplay
@@ -901,6 +929,22 @@ def _generate_explicit_snakefile(
                 modules_to_expand = stage.modules[:1]
         else:
             modules_to_expand = stage.modules
+
+        # Capability gating: drop modules whose required capabilities are not
+        # provided. Outputs from a pruned module are never registered, so
+        # downstream stages naturally lose those branches.
+        if capabilities is not None:
+            kept = []
+            for mod in modules_to_expand:
+                if _module_satisfies_capabilities(mod, capabilities):
+                    kept.append(mod)
+                else:
+                    required = ", ".join(mod.requires_capabilities or [])
+                    logger.info(
+                        f"--capability: skipping {stage.id}/{mod.id} "
+                        f"(requires: [{required}])."
+                    )
+            modules_to_expand = kept
 
         for module in modules_to_expand:
             module_id = module.id

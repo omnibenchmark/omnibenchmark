@@ -18,6 +18,7 @@ from omnibenchmark.cli.run import (
     _satisfies_requires,
     _apply_until_filter,
     _filter_collectors_by_stages,
+    _module_satisfies_capabilities,
     run,
 )
 from omnibenchmark.git.prefetch import populate_git_cache
@@ -961,3 +962,59 @@ class TestUntilCliConflict:
                 )
         assert result.exit_code != 0
         assert any("cannot be combined" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# _module_satisfies_capabilities
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubModule:
+    id: str
+    requires_capabilities: list = None
+
+
+@pytest.mark.short
+class TestModuleSatisfiesCapabilities:
+    def test_no_required_capabilities_always_satisfies(self):
+        m = _StubModule("M1", requires_capabilities=None)
+        assert _module_satisfies_capabilities(m, set()) is True
+        assert _module_satisfies_capabilities(m, {"gpu"}) is True
+
+    def test_empty_required_list_always_satisfies(self):
+        m = _StubModule("M1", requires_capabilities=[])
+        assert _module_satisfies_capabilities(m, set()) is True
+
+    def test_single_required_capability_present(self):
+        m = _StubModule("M1", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m, {"gpu"}) is True
+
+    def test_single_required_capability_missing(self):
+        m = _StubModule("M1", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m, set()) is False
+        assert _module_satisfies_capabilities(m, {"large_mem"}) is False
+
+    def test_multiple_required_all_present(self):
+        m = _StubModule("M1", requires_capabilities=["gpu", "large_mem"])
+        assert _module_satisfies_capabilities(m, {"gpu", "large_mem"}) is True
+
+    def test_multiple_required_partially_present(self):
+        m = _StubModule("M1", requires_capabilities=["gpu", "large_mem"])
+        assert _module_satisfies_capabilities(m, {"gpu"}) is False
+
+    def test_extra_available_capabilities_ignored(self):
+        m = _StubModule("M1", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m, {"gpu", "large_mem", "ssd"}) is True
+
+    def test_none_available_treated_as_empty(self):
+        m_no_req = _StubModule("M1", requires_capabilities=None)
+        m_req = _StubModule("M2", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m_no_req, None) is True
+        assert _module_satisfies_capabilities(m_req, None) is False
+
+    def test_module_without_attribute(self):
+        # Older Module objects from cache may lack the attribute entirely.
+        m = type("Bare", (), {"id": "M1"})()
+        assert _module_satisfies_capabilities(m, set()) is True
+        assert _module_satisfies_capabilities(m, {"gpu"}) is True

@@ -3,7 +3,7 @@
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: btraven00
+**Authors**: btraven00, atchox
 **Date**: 2026-05-07
 **Status**: Draft
 **Version**: 0.1
@@ -81,7 +81,7 @@ v1 is restricted to four predicates, all typed:
 
 A *selector set* is a list of selectors interpreted as a union. There is no
 boolean algebra in v1; if combinations are needed they are expressed as
-multiple selector sets (see §3.5).
+multiple selector sets (see §3.6).
 
 ### 3.2 `--until <stage>`
 
@@ -114,14 +114,91 @@ Rationale for silent (not strict) pruning: typos in capability names surface
 loudly via "no nodes resolved for stage X." A `--strict` mode would be
 redundant.
 
-### 3.4 Capabilities are *not* tags
+#### What capabilities are good for
 
-`requires_capabilities` is deliberately scoped to host capabilities. Any field
-that begs for free-form values ("experimental", "old", "phase2") is a code
-smell — it should be modeled either as a parameter, a stage split, or a
-separate benchmark.
+Capabilities are *host facts*: things that are true (or not) about the
+machine running the benchmark. They are static for the duration of a run.
+Useful categories:
 
-### 3.5 Filter spec (deferred to v2)
+| Category | Example labels | Meaning |
+|---|---|---|
+| Hardware accelerator | `gpu`, `tpu`, `cuda_12` | a specific class of accelerator is present |
+| Memory tier | `large_mem` | the host has enough RAM for the heavy method |
+| Compute tier (laptop → cluster) | `compute_xs`, `compute_sm`, `compute_md`, `compute_lg`, `compute_xl` | coarse profile of available compute (cores × RAM × time budget) |
+| Network / data access | `internet`, `s3_egress` | the host can reach remote resources at run time |
+
+The compute-tier vocabulary is a *suggested convention*, not enforced by the
+schema. A module declaring `requires_capabilities: [compute_md]` is asking
+the operator to assert "this is a medium-tier machine"; it does not measure
+RAM. The benchmark author chooses the granularity. Standardizing the names
+in the suggested set lets the wizard surface them as fixed checkboxes
+instead of free-form strings.
+
+### 3.4 Capabilities are *not* tags, and *not* lineage labels
+
+`requires_capabilities` is deliberately scoped to **host facts**, not to:
+
+- **Free-form tags** (`experimental`, `old`, `phase2`). Any value that begs
+  for free-form text is a code smell — it should be modeled as a parameter,
+  a stage split, or a separate benchmark.
+- **Lineage labels** (`dataset_size: lg`, `treatment: ctrl`). Those describe
+  the *data* flowing through an execution path, not the *host*. They are
+  expressed via the existing `provides:` (on stages) / `requires:` (on
+  modules) mechanism — see §3.5 below.
+
+This distinction matters: a host with `--capability lg` should not be
+allowed to fake-run a "large dataset only" method on small data. Host gates
+and lineage gates compose independently and a module may need both.
+
+### 3.5 Lineage-derived gates (`provides` / `requires`)
+
+Independent of capabilities, a module can be gated on properties of its
+upstream lineage. Stages emit labels via `provides:`; modules opt in via
+`requires:`. The values flow with the data, not with the host.
+
+```yaml
+stages:
+  - id: data
+    provides: [dataset_size]
+    modules:
+      - id: small_set
+        parameters: [{dataset_size: sm}]
+      - id: huge_set
+        parameters: [{dataset_size: lg}]
+        requires_capabilities: [large_mem]   # host gate at the source
+
+  - id: methods
+    modules:
+      - id: cheap_method
+        requires: {dataset_size: sm}         # lineage gate
+      - id: scalable_method
+        requires_capabilities: [gpu]         # host gate
+        # no `requires` → runs on every dataset_size
+```
+
+Two axes, composed by AND:
+
+- **Host axis** (`requires_capabilities` ↔ `--capability`): is this box
+  capable?
+- **Lineage axis** (`requires` ↔ `provides`): is this execution path
+  carrying the right kind of data?
+
+A module is included only when both gates pass for the candidate node.
+
+#### Suggested canonical labels
+
+| Label scope | Example labels | Where declared |
+|---|---|---|
+| Lineage / dataset size | `xs`, `sm`, `md`, `lg`, `xl` (as values of a `dataset_size` provides-label) | parameter on the dataset module + `provides` on the stage |
+| Lineage / domain | `treatment: ctrl|drug`, `species: human|mouse` | stage `provides:` |
+| Host / compute tier | `compute_xs`, `compute_sm`, `compute_md`, `compute_lg`, `compute_xl` | module `requires_capabilities:` + run-time `--capability` |
+| Host / hardware | `gpu`, `tpu`, `large_mem`, `internet` | module `requires_capabilities:` |
+
+These are conventions, not enforced names. Encouraging consistency lets the
+filter wizard offer fixed checkboxes and a benchmarker can pick a tier
+without reinventing one per benchmark.
+
+### 3.6 Filter spec (deferred to v2)
 
 Sketch only; do not implement in v1.
 
@@ -141,7 +218,7 @@ included. `exclude` is removed after `include`. The wizard may emit this spec
 verbatim or transport it as base64-JSON (`.obfilter`); both forms must
 round-trip.
 
-### 3.6 Provenance hooks
+### 3.7 Provenance hooks
 
 Every applied filter (including `--until` and `--capability`) is recorded
 under a `provenance.filters` block in the run metadata (#330). A child run
@@ -206,7 +283,7 @@ provenance:
 - Round-trip test: serialize → load → re-run produces the same node set.
 
 ### Phase 4 — Filter spec (deferred)
-- Implement §3.5 once the v1 features have shipped and we understand the
+- Implement §3.6 once the v1 features have shipped and we understand the
   ergonomics.
 
 ### Testing Strategy
