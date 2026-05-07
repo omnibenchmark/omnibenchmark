@@ -1,21 +1,23 @@
 # 008: Filtering and gating mechanisms
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: btraven00, atchox
-**Date**: 2026-05-07
-**Status**: Draft
-**Version**: 0.1
-**Supersedes**: N/A
-**Reviewed-by**: TBD
-**Related Issues**: [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata)
+| Field           | Value                                                                                                               |
+|-----------------|---------------------------------------------------------------------------------------------------------------------|
+| Authors         | btraven00, atchox                                                                                                   |
+| Date            | 2026-05-07                                                                                                          |
+| Status          | Draft                                                                                                               |
+| Version         | 1                                                                                                                   |
+| Supersedes      | N/A                                                                                                                 |
+| Reviewed-by     | TBD                                                                                                                 |
+| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
 
 ## Changes
 
-| Version | Date | Description | Author |
-|---------|------|-------------|--------|
-| 0.1 | 2026-05-07 | Initial draft | btraven00 |
+| Version | Date       | Description   | Author    |
+|---------|------------|---------------|-----------|
+| 1       | 2026-05-07 | Initial draft | btraven00 |
 
 ## 1. Problem Statement
 

@@ -1,21 +1,23 @@
 # 000: A new awesome feature
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
-**Authors**: [your name], ...
-**Date**: [YYYY-MM-DD]
-**Status**: Draft
-**Version**: 0.1
-**Supersedes**: N/A
-**Reviewed-by**: TBD
-**Related Issues**: [Links to related GitHub issues]
+| Field           | Value                                |
+|-----------------|--------------------------------------|
+| Authors         | [your name], …                       |
+| Date            | [YYYY-MM-DD]                         |
+| Status          | Draft                                |
+| Version         | 1                                    |
+| Supersedes      | N/A                                  |
+| Reviewed-by     | TBD                                  |
+| Related Issues  | [Links to related GitHub issues]     |
 
 ## Changes
 
-| Version | Date | Description | Author |
-|---------|------|-------------|--------|
-| 0.1 | [YYYY-MM-DD] | Initial draft | [your name] |
+| Version | Date         | Description    | Author       |
+|---------|--------------|----------------|--------------|
+| 1       | [YYYY-MM-DD] | Initial draft  | [your name]  |
 
 ## 1. Problem Statement
 
