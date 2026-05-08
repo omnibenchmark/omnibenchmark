@@ -17,6 +17,7 @@ from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.benchmark._paths import truncate_path_filename
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.logging import logger
@@ -985,6 +986,8 @@ def _generate_explicit_snakefile(
                             raise ValueError(
                                 f"Unknown nesting strategy: {nesting_strategy}"
                             )
+
+                        output_path = truncate_path_filename(output_path)
 
                         outputs.append(output_path)
                         if output_spec.id not in output_to_nodes:
