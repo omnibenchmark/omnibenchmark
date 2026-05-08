@@ -23,10 +23,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, TextIO
 
+from omnibenchmark.benchmark._paths import (
+    _UNSAFE_CHARS,
+    make_human_name as _make_human_name,
+    truncate_filename,
+)
 from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.model.resolved import ResolvedModule, ResolvedNode
 
-_UNSAFE_CHARS = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", " "]
+__all__ = ["SnakemakeGenerator", "_make_human_name", "_UNSAFE_CHARS"]
 
 # Indentation constants for generated Snakemake syntax.
 # Shell block content lives at 8 spaces (2 levels × 4 spaces).
@@ -41,22 +46,6 @@ def _bash_var(name: str) -> str:
     '_data_raw'
     """
     return "_" + name.replace(".", "_").replace("-", "_")
-
-
-def _make_human_name(params) -> str:
-    """Create a human-readable symlink name from a Params object.
-
-    Joins key-value pairs with underscores and strips filesystem-unsafe
-    characters.  Falls back to appending a short hash if the result exceeds
-    255 characters (the typical filesystem limit).
-    """
-    parts = [f"{k}-{v}" for k, v in params.items()]
-    name = "_".join(parts)
-    for char in _UNSAFE_CHARS:
-        name = name.replace(char, "_")
-    if len(name) > 255:
-        name = name[:246] + "_" + params.hash_short()
-    return name
 
 
 class SnakemakeGenerator:
@@ -158,8 +147,9 @@ class SnakemakeGenerator:
             f.write(f'        "{benchmark_file}"\n')
 
         rule_name = self._sanitize_rule_name(node.id)
+        log_filename = truncate_filename(f"{rule_name}.log")
         f.write("    log:\n")
-        f.write(f'        ".logs/{rule_name}.log"\n')
+        f.write(f'        ".logs/{log_filename}"\n')
 
         self._write_environment_directive(f, node.module)
         self._write_resources_directive(f, node)
