@@ -428,6 +428,32 @@ class TestEdgeCases:
         assert before == after == 1
 
 
+class TestSkippedRulesOnCompletion:
+    def test_unrun_rules_emitted_as_skipped(self):
+        buf = io.StringIO()
+        emitter = TelemetryEmitter(output=buf)
+        _init_simple(emitter)
+
+        # Only run one of the three rules; the other two are "cached".
+        emitter.rule_completed("S1_M1_p0")
+        emitter.benchmark_completed(success=True)
+
+        rule_spans = [s for s in _spans(buf) if s["name"].startswith("rule:")]
+        # All three rules should appear, distributed across their modules.
+        assert len(rule_spans) == 3
+        skipped = [
+            s
+            for s in rule_spans
+            if any(a["key"] == "rule.skipped" for a in s["attributes"])
+        ]
+        assert len(skipped) == 2
+        # Skipped rules still parent to the right module
+        m1_id = emitter._modules[("S1", "M1")]["span_id"]
+        m2_id = emitter._modules[("S1", "M2")]["span_id"]
+        parent_ids = {s["parentSpanId"] for s in skipped}
+        assert parent_ids <= {m1_id, m2_id}
+
+
 class TestMisc:
     def test_trace_id_is_stable(self):
         emitter = _make_emitter()

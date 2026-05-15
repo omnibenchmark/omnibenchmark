@@ -473,8 +473,12 @@ class TelemetryEmitter:
             self._modules[module_key]["has_failures"] = True
             self._maybe_emit_module(module_key)
 
-    def _emit_rule_span(self, rule_name: str):
-        """Emit a completed rule span."""
+    def _emit_rule_span(self, rule_name: str, skipped: bool = False):
+        """Emit a completed rule span.
+
+        When ``skipped`` is true, the span is tagged ``rule.skipped`` so
+        consumers can distinguish cached/unrun rules from real executions.
+        """
         rule = self._rules[rule_name]
         stage_id = rule["stage_id"]
         module_id = rule["module_id"]
@@ -494,6 +498,8 @@ class TelemetryEmitter:
             Attribute("rule.node_id", rule["node_id"]),
             Attribute("rule.param_id", rule["param_id"]),
         ]
+        if skipped:
+            attributes.append(Attribute("rule.skipped", True))
 
         if rule["outputs"]:
             attributes.append(Attribute("rule.outputs", rule["outputs"]))
@@ -702,8 +708,28 @@ class TelemetryEmitter:
             self._emitted_stages.add(stage_id)
 
     def benchmark_completed(self, success: bool, message: str = ""):
-        """Emit any remaining modules, stages, and the benchmark root span."""
+        """Emit any remaining rules, modules, stages, and the benchmark root span.
+
+        Rules that were initialized but never observed running (cached by
+        snakemake, or otherwise skipped) are emitted as zero-duration spans
+        with a ``rule.skipped`` attribute so the trace reflects the full DAG
+        rather than only the work this run performed.
+        """
         end_time = now_ns()
+
+        # Emit a skipped span for every rule that never started.
+        for rule_name, rule in self._rules.items():
+            if rule_name in self._emitted_rules:
+                continue
+            rule["start_time"] = end_time
+            rule["end_time"] = end_time
+            rule["status"] = SpanStatus.UNSET
+            self._emit_rule_span(rule_name, skipped=True)
+            self._emitted_rules.add(rule_name)
+
+            module_key = (rule["stage_id"], rule["module_id"])
+            if module_key in self._modules:
+                self._modules[module_key]["completed_rules"] += 1
 
         # Emit any modules that haven't been emitted yet
         for module_key in self._modules:
