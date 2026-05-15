@@ -930,6 +930,217 @@ def test_populate_git_cache_commit_lookup_keyerror(tmp_path):
         mock_fetch.assert_called_once()
 
 
+# ---------------------------------------------------------------------------
+# _run_snakemake — telemetry-stdout streaming branch
+# ---------------------------------------------------------------------------
+
+
+def _fake_popen_factory(lines, returncode=0):
+    """Build a Popen-shaped MagicMock whose stdout yields the given lines."""
+
+    fake = MagicMock()
+    fake.stdout = iter(lines)
+    fake.returncode = returncode
+    fake.wait = MagicMock(return_value=returncode)
+    return fake
+
+
+@pytest.mark.short
+def test_run_snakemake_telemetry_stdout_stream(tmp_path):
+    """Drive the elif use_telemetry_stdout branch end-to-end with a fake subprocess."""
+    import sys as _sys
+    from omnibenchmark.telemetry import TelemetryEmitter
+
+    (tmp_path / "Snakefile").write_text("rule all: input: []")
+
+    # Emit telemetry to stdout so the elif branch is selected.
+    emitter = TelemetryEmitter()  # output=None → stdout
+    assert emitter._file_handle is _sys.stdout
+
+    snakemake_lines = [
+        "Building DAG of jobs...\n",
+        "rule my_rule:\n",
+        "    input: a.txt\n",
+        "Finished job 0\n",
+        "Error in rule bad_rule:\n",
+        "    line\n",
+        "Shutting down\n",
+    ]
+    fake_proc = _fake_popen_factory(snakemake_lines, returncode=0)
+
+    with (
+        patch("omnibenchmark.cli.run.subprocess.Popen", return_value=fake_proc),
+        patch.object(emitter, "rule_started") as rs,
+        patch.object(emitter, "rule_completed") as rc,
+        patch.object(emitter, "rule_failed") as rf,
+        patch.object(emitter, "emit_setup_span") as es,
+        patch.object(emitter, "benchmark_completed") as bc,
+        patch.object(emitter, "emit_phase_started"),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _run_snakemake(
+            out_dir=tmp_path,
+            cores=1,
+            continue_on_error=False,
+            software_backend=SoftwareBackendEnum.host,
+            debug=False,
+            telemetry_emitter=emitter,
+        )
+
+    # Successful return code → exit 0
+    assert exc_info.value.code == 0
+    started = {c.args[0] for c in rs.call_args_list}
+    assert "my_rule" in started
+    rc.assert_called()
+    rf.assert_called()
+    es.assert_called_once()  # setup span emitted at first rule
+    bc.assert_called_once()
+    assert bc.call_args.kwargs["success"] is True
+
+
+@pytest.mark.short
+def test_run_snakemake_telemetry_stdout_no_rules_still_emits_setup(tmp_path):
+    """When no rules ever run, the setup span is still flushed at the end."""
+    import sys as _sys
+    from omnibenchmark.telemetry import TelemetryEmitter
+
+    (tmp_path / "Snakefile").write_text("rule all: input: []")
+    emitter = TelemetryEmitter()
+    assert emitter._file_handle is _sys.stdout
+
+    fake_proc = _fake_popen_factory(
+        ["Building DAG of jobs...\n", "Nothing to be done\n"], returncode=1
+    )
+
+    with (
+        patch("omnibenchmark.cli.run.subprocess.Popen", return_value=fake_proc),
+        patch.object(emitter, "emit_setup_span") as es,
+        patch.object(emitter, "benchmark_completed") as bc,
+        patch.object(emitter, "emit_phase_started"),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _run_snakemake(
+            out_dir=tmp_path,
+            cores=1,
+            continue_on_error=False,
+            software_backend=SoftwareBackendEnum.host,
+            debug=False,
+            telemetry_emitter=emitter,
+        )
+
+    assert exc_info.value.code == 1
+    es.assert_called_once()
+    assert bc.call_args.kwargs["success"] is False
+
+
+@pytest.mark.short
+def test_run_snakemake_telemetry_to_file_uses_progress_branch(tmp_path):
+    """Telemetry to a file (not stdout) takes the Rich-progress else branch."""
+    from omnibenchmark.telemetry import TelemetryEmitter
+
+    (tmp_path / "Snakefile").write_text("rule all: input: []")
+    telemetry_path = tmp_path / "telemetry.jsonl"
+    emitter = TelemetryEmitter(output=telemetry_path)
+
+    snakemake_lines = [
+        "Building DAG of jobs...\n",
+        "total 2\n",
+        "rule first:\n",
+        "    input: a.txt\n",
+        "Finished job 0\n",
+        "localrule second:\n",
+        "Finished job 1\n",
+        "Error in rule failing:\n",
+        "    boom\n",
+        "Shutting down\n",
+    ]
+    fake_proc = _fake_popen_factory(snakemake_lines, returncode=0)
+
+    fake_progress = MagicMock()
+    fake_progress.completed = 2
+    fake_progress.failed_rules = ["failing"]
+
+    with (
+        patch("omnibenchmark.cli.run.subprocess.Popen", return_value=fake_proc),
+        patch(
+            "omnibenchmark.cli.progress.InteractiveProgress",
+            return_value=fake_progress,
+        ),
+        patch("omnibenchmark.cli.progress.ProgressDisplay") as mock_pd,
+        patch.object(emitter, "rule_started") as rs,
+        patch.object(emitter, "rule_completed") as rc,
+        patch.object(emitter, "rule_failed") as rf,
+        patch.object(emitter, "emit_setup_span") as es,
+        patch.object(emitter, "benchmark_completed") as bc,
+        patch.object(emitter, "emit_phase_started"),
+        pytest.raises(SystemExit),
+    ):
+        # Console.status returns a context-manager-like helper
+        mock_pd.return_value.console.status.return_value = MagicMock()
+        _run_snakemake(
+            out_dir=tmp_path,
+            cores=1,
+            continue_on_error=False,
+            software_backend=SoftwareBackendEnum.host,
+            debug=False,
+            telemetry_emitter=emitter,
+        )
+
+    started = {c.args[0] for c in rs.call_args_list}
+    assert {"first", "second"} <= started
+    rc.assert_called()
+    rf.assert_called()
+    es.assert_called_once()
+    bc.assert_called_once()
+
+
+@pytest.mark.short
+def test_run_benchmark_telemetry_output_path_writes_file(tmp_path):
+    """--telemetry-output should produce a .jsonl file and not block Rich."""
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "Snakefile").write_text("rule all: input: []")
+    telemetry_path = tmp_path / "telemetry.jsonl"
+
+    with (
+        patch("omnibenchmark.cli.run.BenchmarkExecution") as mock_be,
+        patch("omnibenchmark.cli.run.populate_git_cache"),
+        patch(
+            "omnibenchmark.cli.run._generate_explicit_snakefile",
+            return_value=[],  # no resolved nodes → emit_manifest skipped
+        ),
+        patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run._run_snakemake") as mock_snakemake,
+    ):
+        mock_b = MagicMock()
+        mock_b.get_benchmark_software_backend.return_value = SoftwareBackendEnum.host
+        mock_be.return_value = mock_b
+        _run_benchmark(
+            benchmark_path="tests/data/mock_benchmark.yaml",
+            cores=1,
+            dry=False,
+            continue_on_error=False,
+            out_dir=str(out),
+            debug=False,
+            dirty=False,
+            telemetry_output=str(telemetry_path),
+        )
+
+    # Emitter should have been forwarded to _run_snakemake
+    _, kwargs = mock_snakemake.call_args
+    assert kwargs["telemetry_emitter"] is not None
+    assert kwargs["telemetry_emitter"]._file_handle is not None
+
+
+@pytest.mark.short
+def test_run_command_telemetry_flag_forwarded():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(run, ["tests/data/mock_benchmark.yaml", "--telemetry"])
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("telemetry") is True
+
+
 @pytest.mark.short
 def test_run_benchmark_remote_storage_true_bool_appended(tmp_path):
     """A True boolean value in storage args should add a bare --flag."""
