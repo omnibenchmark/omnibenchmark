@@ -110,6 +110,19 @@ class TestReadRuleLog:
         result = _read_rule_log(tmp_path, "my_rule")
         assert result == "some log content"
 
+    def test_reads_truncated_log_for_long_rule_name(self, tmp_path):
+        from omnibenchmark.benchmark._paths import truncate_filename
+
+        long_rule = "a_" * 200  # 400 chars, well over the 255 byte cap
+        log_dir = tmp_path / ".logs"
+        log_dir.mkdir()
+        truncated_name = truncate_filename(f"{long_rule}.log")
+        assert truncated_name != f"{long_rule}.log"
+        (log_dir / truncated_name).write_text("truncated log content")
+
+        result = _read_rule_log(tmp_path, long_rule)
+        assert result == "truncated log content"
+
     def test_returns_none_on_read_error(self, tmp_path):
         log_dir = tmp_path / ".logs"
         log_dir.mkdir()
