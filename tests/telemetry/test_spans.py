@@ -9,6 +9,8 @@ import pytest
 from omnibenchmark.telemetry.events import SpanStatus
 from omnibenchmark.telemetry.spans import SpanBuilder
 
+pytestmark = pytest.mark.short
+
 
 def _attrs(span) -> dict:
     """Flatten a span's attributes to {key: value} for easy assertions."""
