@@ -6,6 +6,7 @@ specific dispatch ladder used inside to_otlp().
 
 import time
 
+import pytest
 
 from omnibenchmark.telemetry.events import (
     Attribute,
@@ -19,6 +20,8 @@ from omnibenchmark.telemetry.events import (
     generate_trace_id,
     now_ns,
 )
+
+pytestmark = pytest.mark.short
 
 
 # ---------------------------------------------------------------------------

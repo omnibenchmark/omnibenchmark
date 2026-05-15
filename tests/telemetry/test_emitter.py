@@ -11,9 +11,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import pytest
 
 from omnibenchmark.telemetry.emitter import TelemetryEmitter
 from omnibenchmark.telemetry.events import SpanStatus
+
+pytestmark = pytest.mark.short
 
 
 # ---------------------------------------------------------------------------
