@@ -18,7 +18,7 @@ from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark._paths import truncate_path_filename
+from omnibenchmark.benchmark._paths import truncate_filename, truncate_path_filename
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.logging import logger
@@ -349,7 +349,7 @@ def _run_benchmark(
 
 def _read_rule_log(out_dir: Path, rule_name: str) -> Optional[str]:
     """Read the per-rule log file if it exists."""
-    log_path = out_dir / ".logs" / f"{rule_name}.log"
+    log_path = out_dir / ".logs" / truncate_filename(f"{rule_name}.log")
     if log_path.exists():
         try:
             return log_path.read_text()

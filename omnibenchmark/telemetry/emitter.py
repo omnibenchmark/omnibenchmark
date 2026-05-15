@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Optional, Union
 
+from omnibenchmark.benchmark._paths import truncate_filename
 from omnibenchmark.telemetry.events import (
     Span,
     SpanStatus,
@@ -275,7 +276,7 @@ class TelemetryEmitter:
                 "parameters": node.get_parameter_json()
                 if hasattr(node, "get_parameter_json")
                 else None,
-                "log_file": f".logs/{rule_name}.log",  # Per-rule log file path
+                "log_file": f".logs/{truncate_filename(rule_name + '.log')}",
                 "start_time": None,
                 "end_time": None,
                 "status": SpanStatus.UNSET,
