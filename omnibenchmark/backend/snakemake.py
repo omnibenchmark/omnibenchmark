@@ -21,7 +21,7 @@ import os
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, TextIO
+from typing import List, Optional, TextIO
 
 from omnibenchmark.benchmark._paths import (
     _UNSAFE_CHARS,
@@ -128,23 +128,7 @@ class SnakemakeGenerator:
         else:
             f.write('        cli_args="",\n')
 
-        # benchmark: directive (performance tracking, skipped for aggregate nodes)
-        if not is_collector and not is_gather and node.outputs:
-            first_output = node.outputs[0]
-            benchmark_dir = (
-                os.path.dirname(first_output) if "/" in first_output else "."
-            )
-            if self.api_version >= APIVersion.V0_5_0:
-                benchmark_file = f"{benchmark_dir}/performance.txt"
-            else:
-                # COMPAT(0.4): collector R scripts scan for
-                # "{dataset}_performance.txt".  parts[1] is the root module name.
-                # Remove when 0.4 compat is dropped.
-                parts = first_output.split("/")
-                dataset_name = parts[1] if len(parts) > 2 else parts[0].split(".")[0]
-                benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
-            f.write("    benchmark:\n")
-            f.write(f'        "{benchmark_file}"\n')
+        self._write_benchmark_directive(f, node)
 
         rule_name = self._sanitize_rule_name(node.id)
         log_filename = truncate_filename(f"{rule_name}.log")
@@ -160,6 +144,28 @@ class SnakemakeGenerator:
             self._write_shell(f, node)
 
         f.write("\n")
+
+    def _write_benchmark_directive(self, f: TextIO, node: ResolvedNode):
+        """Emit Snakemake's benchmark: directive (performance tracking).
+
+        Skipped for aggregate/gather nodes. Subclasses may override to disable
+        it entirely (e.g. when an external profiler tracks resource usage).
+        """
+        if node.is_collector or node.is_gather or not node.outputs:
+            return
+        first_output = node.outputs[0]
+        benchmark_dir = os.path.dirname(first_output) if "/" in first_output else "."
+        if self.api_version >= APIVersion.V0_5_0:
+            benchmark_file = f"{benchmark_dir}/performance.txt"
+        else:
+            # COMPAT(0.4): collector R scripts scan for
+            # "{dataset}_performance.txt".  parts[1] is the root module name.
+            # Remove when 0.4 compat is dropped.
+            parts = first_output.split("/")
+            dataset_name = parts[1] if len(parts) > 2 else parts[0].split(".")[0]
+            benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
+        f.write("    benchmark:\n")
+        f.write(f'        "{benchmark_file}"\n')
 
     def _write_all_rule(self, f: TextIO, nodes: List[ResolvedNode]):
         """Write the 'all' rule that depends on all node outputs."""
@@ -190,21 +196,28 @@ class SnakemakeGenerator:
             f.write(f'    envmodules: "{env.reference}"\n')
         # host backend needs no directive
 
+    # Subclasses may set non-None defaults to guarantee these resources are always
+    # present in the generated rule (e.g. podman --memory needs a value).
+    _default_cores = 2
+    _default_mem_mb: Optional[int] = None
+
     def _write_resources_directive(self, f: TextIO, node: ResolvedNode):
         """Write Snakemake resources: directive for a node.
 
-        Falls back to 2 cores when no resources are specified.
+        ``cores`` always emitted. ``mem_mb`` emitted when set on the node or
+        when the generator declares a default (see ``_default_mem_mb``).
         """
-        default_cores = 2
         f.write("    resources:\n")
 
         r = node.resources
-        cores = (r.cores if r is not None else None) or default_cores
+        cores = (r.cores if r is not None else None) or self._default_cores
         f.write(f"        cores={cores}")
 
+        mem_mb = (r.mem_mb if r is not None else None) or self._default_mem_mb
+        if mem_mb:
+            f.write(f",\n        mem_mb={mem_mb}")
+
         if r is not None:
-            if r.mem_mb:
-                f.write(f",\n        mem_mb={r.mem_mb}")
             if r.disk_mb:
                 f.write(f",\n        disk_mb={r.disk_mb}")
             if r.runtime:
@@ -244,13 +257,23 @@ class SnakemakeGenerator:
         - Writes parameters.json next to outputs
         - Uses pre-resolved shebang / interpreter info
         """
-        lines: list = []
+        lines: list = self._shell_setup_lines(node)
+        entrypoint, args = self._build_entrypoint_command(node)
+        lines += self._emit_invocation(node, entrypoint, args)
+        self._write_shell_lines(f, lines)
 
-        # Resolve output and log directories to absolute paths before cd-ing
-        # into the module directory.
-        lines += [
+    def _shell_setup_lines(self, node: ResolvedNode) -> list:
+        """Common preamble: dir resolution, log redirection, params.json dump.
+
+        Output is the list of bash lines executed before the module entrypoint runs.
+        """
+        lines: list = [
             "mkdir -p {params.output_dir} $(dirname {log})",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
+            # Expose the per-rule scheduling cores so module wrappers can size
+            # BLAS/OMP thread pools to match (snakemake's {resources.cores} is
+            # otherwise only a scheduling token, not a runtime variable).
+            "export OB_CORES={resources.cores}",
         ]
         for key in node.inputs:
             lines.append(
@@ -258,8 +281,6 @@ class SnakemakeGenerator:
                 f"/$(basename {{input.{key}}})"
             )
 
-        # Redirect stdout/stderr through tee so both the terminal and the log
-        # file receive all output.
         lines += [
             "LOG_FILE=$(pwd)/{log}",
             'exec > >(tee "$LOG_FILE") 2>&1',
@@ -268,7 +289,6 @@ class SnakemakeGenerator:
             "echo '---'",
         ]
 
-        # Write parameters.json and a human-readable symlink to the hash folder.
         if node.parameters:
             params_json = json.dumps(node.parameters._params)
             params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
@@ -279,54 +299,51 @@ class SnakemakeGenerator:
                 f" $OUTPUT_DIR/../{_make_human_name(node.parameters)}",
             ]
 
-        lines.append("cd {params.module_dir}")
+        return lines
 
-        # Build command with backslash-continuations between parts.
-        # --name is always the current module's own ID (spec §3.5 Reserved Parameters)
-        # TODO: do not assume python3, only if .py maybe?
+    def _build_entrypoint_command(self, node: ResolvedNode):
+        """Return (entrypoint_str, args_list) for the module invocation.
+
+        The entrypoint is the script invocation (e.g. ``./run.sh`` or
+        ``python3 run.py``); args are CLI flags passed to it.  Backend
+        wrappers compose these into a single command in :py:meth:`_emit_invocation`.
+        """
         if node.module.has_shebang:
-            cmd = ["./{params.entrypoint}"]
+            entrypoint = "./{params.entrypoint}"
         else:
             interpreter = node.module.interpreter or "python3"
-            cmd = [f"{interpreter} {{params.entrypoint}}"]
+            entrypoint = f"{interpreter} {{params.entrypoint}}"
 
-        # Determine the value for --name parameter
-        # BUG WORKAROUND (API <= 0.4): Legacy modules have a design flaw where they
-        # use the --name parameter to construct output filenames ({name}_data.json),
-        # but the benchmark spec expects outputs to be named after datasets
-        # ({dataset}_data.json). This creates a mismatch when module_id != dataset_id.
-        #
-        # For API <= 0.4 ONLY, we work around this by passing the dataset name
-        # (extracted from the output path structure) as --name instead of module_id.
-        # This maintains backward compatibility with existing modules.
-        #
-        # For API >= 0.5, modules MUST use output_dir correctly and not depend on
-        # --name for filename construction. Remove this workaround when 0.4 support ends.
+        # --name resolution. For API <= 0.4 legacy modules use --name to construct
+        # output filenames ({name}_data.json) while the spec expects dataset-named
+        # outputs. Work around by passing the dataset id (parts[1] of the output
+        # path: data/{dataset}/.../filename). Drop with 0.4 support.
         name_param = node.module_id
         if self.api_version <= APIVersion.V0_4_0 and node.outputs:
-            first_output = node.outputs[0]
-            parts = first_output.split("/")
-            # Output path structure: data/{dataset}/.../[methods/{module}/...]/filename
-            # We extract parts[1] which is the dataset identifier
-            # Examples:
-            #   data/D1/.94686c86/D1_data.json -> D1
-            #   data/D1/.94686c86/methods/M1/.68f00a0d/D1_data.json -> D1
+            parts = node.outputs[0].split("/")
             if len(parts) > 1:
-                dataset_name = parts[1]
-                name_param = dataset_name
+                name_param = parts[1]
 
-        cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
+        args = ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
-            cmd.append(f"--{original_name} $INPUT_{key}")
+            args.append(f"--{original_name} $INPUT_{key}")
         if node.parameters:
-            cmd.append("{params.cli_args}")
+            args.append("{params.cli_args}")
 
+        return entrypoint, args
+
+    def _emit_invocation(self, node: ResolvedNode, entrypoint: str, args: list) -> list:
+        """Emit the lines that cd into the module dir and run the entrypoint.
+
+        Override in subclasses to wrap the invocation (e.g. in ``podman run``).
+        """
+        lines = ["cd {params.module_dir}"]
+        cmd = [entrypoint, *args]
         for part in cmd[:-1]:
             lines.append(f"{part} \\\\")
         lines.append(cmd[-1])
-
-        self._write_shell_lines(f, lines)
+        return lines
 
     def _write_gather_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a gather/collector node (production execution).
@@ -344,6 +361,7 @@ class SnakemakeGenerator:
             "mkdir -p {params.output_dir}",
             "MODULE_DIR={params.module_dir}",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
+            "export OB_CORES={resources.cores}",
         ]
 
         # Resolve each input group to absolute paths into a bash array.
