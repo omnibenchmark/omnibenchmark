@@ -270,6 +270,10 @@ class SnakemakeGenerator:
         lines: list = [
             "mkdir -p {params.output_dir} $(dirname {log})",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
+            # Expose the per-rule scheduling cores so module wrappers can size
+            # BLAS/OMP thread pools to match (snakemake's {resources.cores} is
+            # otherwise only a scheduling token, not a runtime variable).
+            "export OB_CORES={resources.cores}",
         ]
         for key in node.inputs:
             lines.append(
@@ -357,6 +361,7 @@ class SnakemakeGenerator:
             "mkdir -p {params.output_dir}",
             "MODULE_DIR={params.module_dir}",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
+            "export OB_CORES={resources.cores}",
         ]
 
         # Resolve each input group to absolute paths into a bash array.

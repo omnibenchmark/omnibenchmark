@@ -95,7 +95,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/lzo-2.10-h280c20c_1002.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/markupsafe-3.0.3-py312h8a5da7c_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/menuinst-2.4.2-py312h7900ff3_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/micromamba-2.5.0-1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/msgpack-python-1.1.2-py312hd9148b4_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ncurses-6.5-h2d0b736_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nlohmann_json-abi-3.12.0-h0f90c79_1.conda
@@ -300,7 +299,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/lzo-2.10-h4132b18_1002.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/markupsafe-3.0.3-py312heb39f77_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/menuinst-2.4.2-py312hb401068_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-64/micromamba-2.5.0-1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-64/msgpack-python-1.1.2-py312hd099df3_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/ncurses-6.5-h0622a9a_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nlohmann_json-abi-3.12.0-h0f90c79_1.conda
@@ -501,7 +499,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/lzo-2.10-h925e9cb_1002.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/markupsafe-3.0.3-py312h04c11ed_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/menuinst-2.4.2-py312h81bd7bf_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/micromamba-2.5.0-1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/msgpack-python-1.1.2-py312h84eede6_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/ncurses-6.5-h5e97a16_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nlohmann_json-abi-3.12.0-h0f90c79_1.conda
@@ -740,7 +737,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/markupsafe-3.0.3-py312h8a5da7c_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/menuinst-2.4.2-py312h7900ff3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mergedeep-1.3.4-pyhd8ed1ab_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/micromamba-2.5.0-1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/mike-2.1.3-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mkdocs-1.6.1-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mkdocs-bibtex-4.4.0-pyhd8ed1ab_0.conda
@@ -975,7 +971,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/markupsafe-3.0.3-py312heb39f77_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/menuinst-2.4.2-py312hb401068_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mergedeep-1.3.4-pyhd8ed1ab_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-64/micromamba-2.5.0-1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/mike-2.1.3-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mkdocs-1.6.1-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mkdocs-bibtex-4.4.0-pyhd8ed1ab_0.conda
@@ -1206,7 +1201,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/markupsafe-3.0.3-py312h04c11ed_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/menuinst-2.4.2-py312h81bd7bf_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mergedeep-1.3.4-pyhd8ed1ab_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/micromamba-2.5.0-1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/mike-2.1.3-pyh29332c3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mkdocs-1.6.1-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mkdocs-bibtex-4.4.0-pyhd8ed1ab_0.conda
@@ -4921,38 +4915,6 @@ packages:
   - pkg:pypi/mergedeep?source=hash-mapping
   size: 11676
   timestamp: 1734157119152
-- conda: https://conda.anaconda.org/conda-forge/linux-64/micromamba-2.5.0-1.tar.bz2
-  sha256: 4ae6e5cdff233616c94d4bb69cf77a572d67b0b227073de12c3aa0ff23795ded
-  md5: 389eb59ea20333bf6993e7b7c2f43428
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  license: BSD-3-Clause AND MIT AND OpenSSL
-  license_family: BSD
-  purls: []
-  size: 6647388
-  timestamp: 1767885679401
-- conda: https://conda.anaconda.org/conda-forge/osx-64/micromamba-2.5.0-1.tar.bz2
-  sha256: a3b4390290481d5ea22fe8014cb99c857117013beea05ad95fd9268239e04a26
-  md5: f44ea2253c1f8c2a673e08532db8ccc6
-  depends:
-  - __osx >=10.13
-  - libcxx >=19
-  license: BSD-3-Clause AND MIT AND OpenSSL
-  license_family: BSD
-  purls: []
-  size: 6485655
-  timestamp: 1767885827742
-- conda: https://conda.anaconda.org/conda-forge/osx-arm64/micromamba-2.5.0-1.tar.bz2
-  sha256: 1fb6b0c237ac6fa07b3d33baa56c08f51316564cd5cfa536d5ff5ecf114efadb
-  md5: 9be6fe21fffad7ae32d026ce579ccb22
-  depends:
-  - __osx >=11.0
-  - libcxx >=19
-  license: BSD-3-Clause AND MIT AND OpenSSL
-  license_family: BSD
-  purls: []
-  size: 6390394
-  timestamp: 1767886118087
 - conda: https://conda.anaconda.org/conda-forge/noarch/mike-2.1.3-pyh29332c3_0.conda
   sha256: 0f9ce5712d30f447524fb5a8d8a33337f6544a6cacad295935ea1f51a8d59e4e
   md5: 13c7fd10f5bb25cf02cd7798ea02ee37
@@ -5304,8 +5266,8 @@ packages:
   timestamp: 1774517834028
 - pypi: ./
   name: omnibenchmark
-  version: 0.4.0.post57+ge27c7290d.d20260330
-  sha256: 58e018d90124fe9bd1e788ba6d52509640cf599e6b95ff062f7e5eb10e59cc37
+  version: 0.5.1.post3+g88b799420
+  sha256: 21e98eba232e17f13627092765fd7e195fdc7220d87df00874967abae799246d
   requires_dist:
   - click>=8.1.7
   - python-dateutil>=2.9.0.post0
@@ -5318,44 +5280,7 @@ packages:
   - dulwich>=0.22.0
   - pathspec>=0.12.0
   - rich>=13.0.0
-  - snakemake>=9.0,<9.10
-  - copier>=9.0.0
-  - pydot>=3.0.2
-  - tqdm>=4.66.4
-  - boto3>=1.34.102 ; extra == 's3'
-  - snakemake-storage-plugin-s3>=0.2.12 ; extra == 's3'
-  - snakemake-executor-plugin-slurm>=1.4.0,<2.0.0 ; extra == 'slurm'
-  - pandas ; extra == 'slurm'
-  - ipython ; extra == 'dev'
-  - pre-commit ; extra == 'dev'
-  - ruff ; extra == 'dev'
-  - typing-extensions ; extra == 'dev'
-  - isort ; extra == 'dev'
-  - pyright ; extra == 'dev'
-  - pytest-cov>=4.1.0 ; extra == 'test'
-  - pytest-split>=0.9.0 ; extra == 'test'
-  - pytest-xdist>=3.6.1 ; extra == 'test'
-  - testcontainers>=4.5.1 ; extra == 'test'
-  - pytest-timeout==2.3.1 ; extra == 'test'
-  - s3fs>=2023.12.0 ; extra == 'test'
-  requires_python: '>=3.12.0,<3.14'
-- pypi: ./
-  name: omnibenchmark
-  version: 0.5.0.post0+ga98c26349.d20260505
-  sha256: 58e018d90124fe9bd1e788ba6d52509640cf599e6b95ff062f7e5eb10e59cc37
-  requires_dist:
-  - click>=8.1.7
-  - python-dateutil>=2.9.0.post0
-  - filelock>=3.4.0
-  - spdx-license-list>=3.19
-  - pyyaml
-  - humanfriendly
-  - pydantic
-  - python-dotenv>=1.0.0
-  - dulwich>=0.22.0
-  - pathspec>=0.12.0
-  - rich>=13.0.0
-  - snakemake>=9.0,<9.10
+  - snakemake>=9.0
   - copier>=9.0.0
   - pydot>=3.0.2
   - tqdm>=4.66.4
