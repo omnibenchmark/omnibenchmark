@@ -1,0 +1,61 @@
+id: LinearArithmeticWithLineageProvides
+description: Lineage gating via Stage.provides + Module.provides + Module.requires
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.6.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    provides: [dataset_size]
+    modules:
+      - id: small
+        name: "Small dataset"
+        software_environment: "host"
+        # Recommended form: explicit benchmark-local label binding,
+        # no pollution of the module's CLI parameter contract.
+        provides:
+          dataset_size: "sm"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+
+      - id: huge
+        name: "Huge dataset"
+        software_environment: "host"
+        provides:
+          dataset_size: "lg"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "9+9"
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    inputs:
+      - data.raw
+    modules:
+      - id: M_lg_only
+        name: "Method that only runs on large datasets"
+        software_environment: "host"
+        requires:
+          dataset_size: "lg"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+10"
+            input: "data.raw"
+            kind: "method"
+    outputs:
+      - id: methods.result
+        path: "{dataset}_method.json"

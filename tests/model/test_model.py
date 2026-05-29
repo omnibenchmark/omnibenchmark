@@ -83,14 +83,17 @@ class TestEnums:
         assert APIVersion.V0_2_0.value == "0.2.0"
         assert APIVersion.V0_3_0.value == "0.3.0"
         assert APIVersion.V0_4_0.value == "0.4.0"
+        assert APIVersion.V0_5_0.value == "0.5.0"
+        assert APIVersion.V0_6_0.value == "0.6.0"
 
-        assert APIVersion.latest() == "0.5.0"
+        assert APIVersion.latest() == "0.6.0"
         assert set(APIVersion.supported_versions()) == {
             "0.1.0",
             "0.2.0",
             "0.3.0",
             "0.4.0",
             "0.5.0",
+            "0.6.0",
         }
 
     def test_software_backend_enum(self):
@@ -313,6 +316,87 @@ class TestCoreEntities:
         assert module.outputs is not None
         assert len(module.outputs) == 2
         assert module.outputs[0].id == "out1"
+
+    def test_module_requires_capabilities_default_none(self):
+        """A Module without `requires_capabilities` parses with the field unset."""
+        module = make_module(id="no_caps")
+        assert module.requires_capabilities is None
+
+    def test_module_requires_capabilities_list(self):
+        """`requires_capabilities` is parsed as a list of strings."""
+        module = make_module(
+            id="gpu_module", requires_capabilities=["gpu", "large_mem"]
+        )
+        assert module.requires_capabilities == ["gpu", "large_mem"]
+
+    def test_requires_capabilities_rejected_below_v0_6(self):
+        """`requires_capabilities` is gated on api_version ≥ 0.6.0."""
+        from tests.model.factories import make_benchmark, make_stage
+
+        gpu_module = make_module(id="gpu_mod", requires_capabilities=["gpu"])
+        with pytest.raises(ValueError, match="requires_capabilities"):
+            make_benchmark(
+                api_version=APIVersion.V0_5_0,
+                stages=[make_stage(id="data", modules=[gpu_module])],
+            )
+
+    def test_requires_capabilities_accepted_at_v0_6(self):
+        """At api_version 0.6.0 the field is accepted."""
+        from tests.model.factories import make_benchmark, make_stage
+
+        gpu_module = make_module(id="gpu_mod", requires_capabilities=["gpu"])
+        bench = make_benchmark(
+            api_version=APIVersion.V0_6_0,
+            stages=[make_stage(id="data", modules=[gpu_module])],
+        )
+        assert bench.stages[0].modules[0].requires_capabilities == ["gpu"]
+
+    def test_stage_provides_default_none(self):
+        """A Stage without `provides` parses with the field unset."""
+        from tests.model.factories import make_stage
+
+        stage = make_stage(id="data")
+        assert stage.provides is None
+
+    def test_stage_provides_list(self):
+        """`provides` is parsed as a list of label names."""
+        from tests.model.factories import make_stage
+
+        stage = make_stage(id="data", provides=["dataset_size", "treatment"])
+        assert stage.provides == ["dataset_size", "treatment"]
+
+    def test_stage_provides_rejected_below_v0_6(self):
+        """`Stage.provides` is gated on api_version ≥ 0.6.0."""
+        from tests.model.factories import make_benchmark, make_stage
+
+        with pytest.raises(ValueError, match="provides"):
+            make_benchmark(
+                api_version=APIVersion.V0_5_0,
+                stages=[make_stage(id="data", provides=["dataset_size"])],
+            )
+
+    def test_stage_provides_accepted_at_v0_6(self):
+        """At api_version 0.6.0 `Stage.provides` is accepted."""
+        from tests.model.factories import make_benchmark, make_stage
+
+        bench = make_benchmark(
+            api_version=APIVersion.V0_6_0,
+            stages=[make_stage(id="data", provides=["dataset_size"])],
+        )
+        assert bench.stages[0].provides == ["dataset_size"]
+
+    def test_module_provides_default_none(self):
+        """A Module without `provides` parses with the field unset."""
+        module = make_module(id="m_no_provides")
+        assert module.provides is None
+
+    def test_module_provides_dict(self):
+        """`Module.provides` is parsed as a label → value dict."""
+        module = make_module(
+            id="huge",
+            provides={"dataset_size": "lg", "tier": "expensive"},
+        )
+        assert module.provides == {"dataset_size": "lg", "tier": "expensive"}
 
     def test_has_environment_reference(self):
         """Test has_environment_reference method."""
@@ -559,10 +643,10 @@ stages:
           commit: "abc123"
         outputs:
           - id: "cleaned_data"
-            path: "output/cleaned.csv"
+            path: "cleaned.csv"
     outputs:
       - id: "cleaned_data"
-        path: "output/cleaned.csv"
+        path: "cleaned.csv"
 metric_collectors:
   - id: performance_metrics
     name: "Performance Metrics"
@@ -572,13 +656,13 @@ metric_collectors:
       commit: "ghi789"
     inputs:
       - id: "cleaned_data"
-        path: "output/cleaned.csv"
+        path: "cleaned.csv"
     outputs:
       - id: "metrics_report"
-        path: "metrics/report.html"
+        path: "report.html"
 outputs:
   - id: "final_report"
-    path: "final/report.pdf"
+    path: "report.pdf"
 """
         yaml_file = tmp_path / "integration.yaml"
         yaml_file.write_text(yaml_content)

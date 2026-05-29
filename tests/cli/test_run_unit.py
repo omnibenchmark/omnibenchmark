@@ -1,6 +1,7 @@
 """Short unit tests for cli/run.py pure and near-pure helper functions."""
 
 import pytest
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from pydantic import ValidationError as PydanticValidationError
@@ -13,8 +14,12 @@ from omnibenchmark.cli.run import (
     _run_snakemake,
     _substitute_params_in_path,
     _build_template_context,
+    _resolve_label_value,
     _select_input_nodes,
     _satisfies_requires,
+    _apply_until_filter,
+    _filter_collectors_by_stages,
+    _module_satisfies_capabilities,
     run,
 )
 from omnibenchmark.git.prefetch import populate_git_cache
@@ -786,3 +791,449 @@ def test_run_benchmark_remote_storage_true_bool_appended(tmp_path):
         _, kwargs = mock_snakemake.call_args
         extra = kwargs["extra_snakemake_args"]
         assert "--use-conda" in extra
+
+
+# ---------------------------------------------------------------------------
+# _apply_until_filter
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubStage:
+    id: str
+
+
+@pytest.mark.short
+class TestApplyUntilFilter:
+    def _stages(self, *ids):
+        return [_StubStage(i) for i in ids]
+
+    def test_none_returns_all_stages_as_list(self):
+        stages = self._stages("a", "b", "c")
+        result = _apply_until_filter(stages, None)
+        assert [s.id for s in result] == ["a", "b", "c"]
+        # must be a fresh list, not the same object
+        assert result is not stages
+
+    def test_initial_stage_keeps_only_first(self):
+        result = _apply_until_filter(self._stages("a", "b", "c"), "a")
+        assert [s.id for s in result] == ["a"]
+
+    def test_middle_stage_includes_named(self):
+        result = _apply_until_filter(self._stages("a", "b", "c", "d"), "b")
+        assert [s.id for s in result] == ["a", "b"]
+
+    def test_terminal_stage_returns_full_list(self):
+        result = _apply_until_filter(self._stages("a", "b", "c"), "c")
+        assert [s.id for s in result] == ["a", "b", "c"]
+
+    def test_unknown_stage_raises(self):
+        with pytest.raises(ValueError, match="stage 'nope' not found"):
+            _apply_until_filter(self._stages("a", "b"), "nope")
+
+    def test_unknown_stage_lists_available(self):
+        with pytest.raises(ValueError, match="a, b"):
+            _apply_until_filter(self._stages("a", "b"), "missing")
+
+    def test_empty_stages_with_until_raises(self):
+        with pytest.raises(ValueError):
+            _apply_until_filter([], "anything")
+
+    def test_empty_stages_without_until_returns_empty(self):
+        assert _apply_until_filter([], None) == []
+
+
+# ---------------------------------------------------------------------------
+# _filter_collectors_by_stages
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubCollector:
+    id: str
+    inputs: list
+
+
+@pytest.mark.short
+class TestFilterCollectorsByStages:
+    def _benchmark(self, output_to_stage):
+        """Build a stub benchmark whose get_stage_by_output returns mapped stages."""
+        bench = MagicMock()
+        bench.get_stage_by_output.side_effect = lambda oid: output_to_stage.get(oid)
+        return bench
+
+    def test_keeps_collector_when_all_inputs_in_included_stages(self):
+        bench = self._benchmark({"methods.result": _StubStage("methods")})
+        collectors = [_StubCollector("MC1", inputs=["methods.result"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data", "methods"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC1"]
+        assert dropped == []
+
+    def test_drops_collector_when_any_input_in_pruned_stage(self):
+        bench = self._benchmark(
+            {
+                "methods.result": _StubStage("methods"),
+                "data.raw": _StubStage("data"),
+            }
+        )
+        collectors = [_StubCollector("MC1", inputs=["methods.result", "data.raw"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == ["MC1"]
+
+    def test_unknown_input_does_not_drop(self):
+        # Unknown outputs are left to the regular collector resolver to warn about.
+        bench = self._benchmark({})
+        collectors = [_StubCollector("MC1", inputs=["unknown.id"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC1"]
+        assert dropped == []
+
+    def test_handles_iofile_inputs(self):
+        # Inputs may be IOFile objects (with `.id`) rather than bare strings.
+        from types import SimpleNamespace
+
+        bench = self._benchmark({"methods.result": _StubStage("methods")})
+        iofile = SimpleNamespace(id="methods.result")
+        collectors = [_StubCollector("MC1", inputs=[iofile])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == ["MC1"]
+
+    def test_empty_collector_list(self):
+        bench = self._benchmark({})
+        kept, dropped = _filter_collectors_by_stages(
+            [], included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == []
+
+    def test_none_collector_list(self):
+        bench = self._benchmark({})
+        kept, dropped = _filter_collectors_by_stages(
+            None, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == []
+
+    def test_partial_pruning_keeps_unrelated_collector(self):
+        bench = self._benchmark(
+            {
+                "methods.result": _StubStage("methods"),
+                "data.raw": _StubStage("data"),
+            }
+        )
+        collectors = [
+            _StubCollector("MC1", inputs=["methods.result"]),
+            _StubCollector("MC2", inputs=["data.raw"]),
+        ]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC2"]
+        assert dropped == ["MC1"]
+
+
+# ---------------------------------------------------------------------------
+# CLI conflict guard: --until + -m
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestUntilCliConflict:
+    def test_until_and_module_are_exclusive(self, caplog):
+        import logging
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            Path("dummy.yaml").write_text("name: dummy")
+            with caplog.at_level(logging.ERROR, logger="omnibenchmark"):
+                result = runner.invoke(
+                    run,
+                    ["dummy.yaml", "-m", "M1", "--until", "methods"],
+                    catch_exceptions=False,
+                )
+        assert result.exit_code != 0
+        assert any("cannot be combined" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# _module_satisfies_capabilities
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubModule:
+    id: str
+    requires_capabilities: list = None
+
+
+@pytest.mark.short
+class TestModuleSatisfiesCapabilities:
+    def test_no_required_capabilities_always_satisfies(self):
+        m = _StubModule("M1", requires_capabilities=None)
+        assert _module_satisfies_capabilities(m, set()) is True
+        assert _module_satisfies_capabilities(m, {"gpu"}) is True
+
+    def test_empty_required_list_always_satisfies(self):
+        m = _StubModule("M1", requires_capabilities=[])
+        assert _module_satisfies_capabilities(m, set()) is True
+
+    def test_single_required_capability_present(self):
+        m = _StubModule("M1", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m, {"gpu"}) is True
+
+    def test_single_required_capability_missing(self):
+        m = _StubModule("M1", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m, set()) is False
+        assert _module_satisfies_capabilities(m, {"large_mem"}) is False
+
+    def test_multiple_required_all_present(self):
+        m = _StubModule("M1", requires_capabilities=["gpu", "large_mem"])
+        assert _module_satisfies_capabilities(m, {"gpu", "large_mem"}) is True
+
+    def test_multiple_required_partially_present(self):
+        m = _StubModule("M1", requires_capabilities=["gpu", "large_mem"])
+        assert _module_satisfies_capabilities(m, {"gpu"}) is False
+
+    def test_extra_available_capabilities_ignored(self):
+        m = _StubModule("M1", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m, {"gpu", "large_mem", "ssd"}) is True
+
+    def test_none_available_treated_as_empty(self):
+        m_no_req = _StubModule("M1", requires_capabilities=None)
+        m_req = _StubModule("M2", requires_capabilities=["gpu"])
+        assert _module_satisfies_capabilities(m_no_req, None) is True
+        assert _module_satisfies_capabilities(m_req, None) is False
+
+    def test_module_without_attribute(self):
+        # Older Module objects from cache may lack the attribute entirely.
+        m = type("Bare", (), {"id": "M1"})()
+        assert _module_satisfies_capabilities(m, set()) is True
+        assert _module_satisfies_capabilities(m, {"gpu"}) is True
+
+
+# ---------------------------------------------------------------------------
+# Stage.provides → Module.requires end-to-end (real model, not stubs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestProvidesRequiresIntegration:
+    """Exercises the full chain: parsed Benchmark → context build → require gate."""
+
+    YAML = """
+id: lineage_smoke
+description: smoke test for stage.provides → module.requires
+version: "1.0"
+benchmarker: x
+api_version: "0.6.0"
+software_backend: host
+software_environments:
+  host: {description: h}
+stages:
+  - id: data
+    provides: [dataset_size]
+    modules:
+      - id: small
+        software_environment: host
+        repository: {url: https://example.com/r, commit: abc1234}
+        parameters:
+          - dataset_size: sm
+      - id: huge
+        software_environment: host
+        repository: {url: https://example.com/r, commit: abc1234}
+        parameters:
+          - dataset_size: lg
+    outputs:
+      - {id: data.raw, path: D1.json}
+  - id: methods
+    inputs: [data.raw]
+    modules:
+      - id: M_lg_only
+        software_environment: host
+        requires: {dataset_size: lg}
+        repository: {url: https://example.com/r, commit: abc1234}
+    outputs:
+      - {id: methods.result, path: M1.json}
+"""
+
+    def _parse(self):
+        from omnibenchmark.model import Benchmark
+
+        return Benchmark.from_yaml(self.YAML)
+
+    def test_stage_provides_survives_parse(self):
+        b = self._parse()
+        assert b.stages[0].provides == ["dataset_size"]
+
+    def test_data_node_carries_label_value_from_params(self):
+        """A data node built with `dataset_size: lg` carries that in provides."""
+        b = self._parse()
+        data_stage = b.stages[0]
+        # huge module has dataset_size: lg
+        huge_params = Params.expand_from_parameter(
+            b.stages[0].modules[1].parameters[0]
+        )[0]
+        ctx = _build_template_context(data_stage, "huge", params=huge_params)
+        assert ctx.provides.get("dataset_size") == "lg"
+
+    def test_data_node_label_defaults_to_module_id_without_param(self):
+        """If a label has no matching param, it defaults to the module id."""
+        # A stage that provides a label with no corresponding param.
+        b = self._parse()
+        data_stage = b.stages[0]
+        ctx = _build_template_context(data_stage, "small")  # no params
+        # small does not have a `dataset_size` param either way, so label
+        # falls back to module_id "small"
+        assert ctx.provides.get("dataset_size") == "small"
+
+    def test_requires_matches_lg_node(self):
+        b = self._parse()
+        data_stage = b.stages[0]
+        huge_params = Params.expand_from_parameter(
+            b.stages[0].modules[1].parameters[0]
+        )[0]
+        ctx = _build_template_context(data_stage, "huge", params=huge_params)
+        node = _make_input_node("huge", "data", template_context=ctx)
+        # Module M_lg_only has requires: {dataset_size: lg}
+        m = b.stages[1].modules[0]
+        assert _satisfies_requires(m.requires, node) is True
+
+    def test_requires_rejects_sm_node(self):
+        b = self._parse()
+        data_stage = b.stages[0]
+        small_params = Params.expand_from_parameter(
+            b.stages[0].modules[0].parameters[0]
+        )[0]
+        ctx = _build_template_context(data_stage, "small", params=small_params)
+        node = _make_input_node("small", "data", template_context=ctx)
+        m = b.stages[1].modules[0]
+        assert _satisfies_requires(m.requires, node) is False
+
+
+# ---------------------------------------------------------------------------
+# _resolve_label_value (precedence chain)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestResolveLabelValue:
+    """Module-level provides > params > module_id fallback."""
+
+    def test_module_provides_wins_over_params(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={"dataset_size": "lg"},
+            params=Params({"dataset_size": "sm"}),
+            module_id="huge",
+        )
+        assert result == "lg"
+
+    def test_module_provides_wins_over_module_id(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={"dataset_size": "lg"},
+            params=None,
+            module_id="huge",
+        )
+        assert result == "lg"
+
+    def test_params_used_when_module_provides_unset(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides=None,
+            params=Params({"dataset_size": "sm"}),
+            module_id="huge",
+        )
+        assert result == "sm"
+
+    def test_params_used_when_module_provides_lacks_label(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={"other_label": "x"},
+            params=Params({"dataset_size": "sm"}),
+            module_id="huge",
+        )
+        assert result == "sm"
+
+    def test_module_id_fallback_when_nothing_set(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides=None,
+            params=None,
+            module_id="huge",
+        )
+        assert result == "huge"
+
+    def test_module_id_fallback_with_empty_dicts(self):
+        result = _resolve_label_value(
+            "dataset_size",
+            module_provides={},
+            params=Params({}),
+            module_id="huge",
+        )
+        assert result == "huge"
+
+    def test_value_coerced_to_string(self):
+        # parameters can be ints/floats; provides values too
+        assert (
+            _resolve_label_value(
+                "n",
+                module_provides={"n": 42},
+                params=None,
+                module_id="m",
+            )
+            == "42"
+        )
+
+
+@pytest.mark.short
+class TestBuildTemplateContextWithModuleProvides:
+    """End-to-end behavior of _build_template_context with module.provides."""
+
+    def test_module_provides_overrides_param_at_root(self):
+        stage = _make_stage("data", provides=["dataset_size"])
+        ctx = _build_template_context(
+            stage,
+            "huge",
+            params=Params({"dataset_size": "sm"}),
+            module_provides={"dataset_size": "lg"},
+        )
+        assert ctx.provides["dataset_size"] == "lg"
+
+    def test_module_provides_overrides_at_child_node(self):
+        parent_ctx = TemplateContext(
+            provides={"dataset_size": "lg"},
+            module_attrs={"id": "huge", "stage": "data"},
+        )
+        input_node = _make_input_node("huge", "data", template_context=parent_ctx)
+        stage = _make_stage("methods", provides=["method_kind"])
+        ctx = _build_template_context(
+            stage,
+            "fast_method",
+            input_node=input_node,
+            module_provides={"method_kind": "approximate"},
+        )
+        # downstream label overridden
+        assert ctx.provides["method_kind"] == "approximate"
+        # upstream label still flows through unchanged
+        assert ctx.provides["dataset_size"] == "lg"
+
+    def test_no_module_provides_falls_back_to_existing_chain(self):
+        stage = _make_stage("data", provides=["dataset_size"])
+        ctx = _build_template_context(
+            stage,
+            "huge",
+            params=Params({"dataset_size": "lg"}),
+            module_provides=None,
+        )
+        assert ctx.provides["dataset_size"] == "lg"
