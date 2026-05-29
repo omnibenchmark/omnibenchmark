@@ -424,6 +424,22 @@ stages:
 ```
 
 
+## Collect telemetry from a run
+
+`ob run` can emit OpenTelemetry traces and events covering benchmark setup, DAG construction, and per-job execution. Pass `--telemetry` to enable OTLP/JSON Lines output:
+
+```bash
+# Emit telemetry to stdout (disables the Rich progress display)
+ob run benchmark.yaml --telemetry
+
+# Write telemetry to a file instead, keeping the progress display active
+ob run benchmark.yaml --telemetry --telemetry-output run.jsonl
+```
+
+Each line is a self-contained JSON record (span or event) following the OTLP schema, suitable for ingestion by any OpenTelemetry-compatible backend.
+
+For interactive inspection of a telemetry stream — live progress, span timelines, and run summaries — see [obmon](https://github.com/omnibenchmark/obmon), a companion TUI that consumes the JSON Lines produced by `--telemetry`.
+
 ## Use local module repositories
 
 Local Git repositories can be referenced directly in the `url` field of benchmarking YAML manifestos, without the need to push to GitHub, GitLab, Bitbucket, or any other remote. To ensure changes are tracked, remember to stage them with `git add` and commit them with `git commit` in the local repository. It is recommended to specify full paths (beginning with `/`) to the local Git repository (i.e. `/home/user/repos/data` in the example below).

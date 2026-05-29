@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from collections import deque
 from pathlib import Path
 from typing import Optional
 
@@ -17,7 +18,7 @@ from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark._paths import truncate_path_filename
+from omnibenchmark.benchmark._paths import truncate_filename, truncate_path_filename
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.cli.utils.logging import logger
@@ -114,6 +115,18 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
         "first upstream input × parameter expansion for each module."
     ),
 )
+@click.option(
+    "--telemetry",
+    is_flag=True,
+    default=False,
+    help="Emit OTLP telemetry as JSON Lines to stdout (disables Rich progress).",
+)
+@click.option(
+    "--telemetry-output",
+    type=click.Path(),
+    default=None,
+    help="Write telemetry to file instead of stdout. Allows Rich progress to remain active. Implies --telemetry.",
+)
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
@@ -128,6 +141,8 @@ def run(
     yes_flag,
     use_remote_storage,
     module_filter,
+    telemetry,
+    telemetry_output,
     snakemake_args,
 ):
     """Run a benchmark.
@@ -149,6 +164,7 @@ def run(
       ob run benchmark.yaml --dirty            # Allow local paths with uncommitted changes
       ob run benchmark.yaml --unpinned         # Allow branch refs on remote repos
       ob run benchmark.yaml -m M1              # Dev mode: run only module M1
+      ob run benchmark.yaml --telemetry         # Emit OTLP/JSONL telemetry to stdout
       ob run benchmark.yaml -- --rerun-triggers mtime  # Pass flags to snakemake
       ob run benchmark.yaml -- --forceall      # Force re-run all rules
     """
@@ -182,6 +198,8 @@ def run(
         unpinned=unpinned,
         use_remote_storage=use_remote_storage,
         module_filter=module_filter,
+        telemetry=telemetry,
+        telemetry_output=telemetry_output,
         snakemake_args=list(snakemake_args),
     )
 
@@ -197,6 +215,8 @@ def _run_benchmark(
     unpinned=False,
     use_remote_storage=False,
     module_filter=None,
+    telemetry=None,
+    telemetry_output=None,
     snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
@@ -204,6 +224,12 @@ def _run_benchmark(
 
     out_dir = out_dir if out_dir else "out"
     out_dir_path = Path(out_dir)
+
+    # --telemetry-output implies --telemetry.
+    telemetry = telemetry or bool(telemetry_output)
+
+    # Telemetry to stdout disables Rich progress (they would compete for stdout).
+    use_telemetry_stdout = telemetry and not telemetry_output
 
     try:
         benchmark_path_abs = Path(benchmark_path).resolve()
@@ -224,11 +250,26 @@ def _run_benchmark(
 
     use_clean_ui = not debug
 
+    # Suppress logging when streaming telemetry to stdout (would interleave with JSONL).
+    if use_telemetry_stdout:
+        logging.getLogger("omnibenchmark").setLevel(logging.WARNING)
+
+    # Setup telemetry emitter early so pre-snakemake phases are traced.
+    telemetry_emitter = None
+    if telemetry:
+        from omnibenchmark.telemetry import TelemetryEmitter
+
+        if telemetry_output:
+            telemetry_emitter = TelemetryEmitter(output=Path(telemetry_output))
+        else:
+            telemetry_emitter = TelemetryEmitter()  # stdout
+
     # Step 1: Populate git cache (fetch all repos)
+    resolution_start_ns = int(time.time() * 1_000_000_000)
     populate_git_cache(b, quiet=use_clean_ui, cores=cores)
 
     # Step 2: Generate explicit Snakefile
-    _generate_explicit_snakefile(
+    resolved_nodes = _generate_explicit_snakefile(
         benchmark=b,
         benchmark_yaml_path=benchmark_path_abs,
         out_dir=out_dir_path,
@@ -239,6 +280,28 @@ def _run_benchmark(
         unpinned=unpinned,
         module_filter=module_filter,
     )
+
+    # Initialize telemetry with resolved nodes and emit module-resolution span
+    if telemetry_emitter and resolved_nodes:
+        stages = [{"id": s.id, "name": s.name or s.id} for s in b.model.stages]
+        telemetry_emitter.emit_manifest(
+            benchmark_name=b.model.get_name(),
+            benchmark_version=b.model.get_version(),
+            benchmark_author=b.model.get_author(),
+            software_backend=str(b.get_benchmark_software_backend().value),
+            cores=cores,
+            stages=stages,
+            resolved_nodes=resolved_nodes,
+        )
+        resolution_end_ns = int(time.time() * 1_000_000_000)
+        telemetry_emitter.emit_phase_span(
+            name="setup: module resolution",
+            phase="module_resolution",
+            setup_type="resolution",
+            output=f"Resolved {len(resolved_nodes)} nodes",
+            start_time_ns=resolution_start_ns,
+            end_time_ns=resolution_end_ns,
+        )
 
     # Write run manifest
     write_run_manifest(output_dir=out_dir_path)
@@ -278,12 +341,15 @@ def _run_benchmark(
         software_backend=b.get_benchmark_software_backend(),
         debug=debug,
         extra_snakemake_args=extra_args,
+        telemetry_emitter=telemetry_emitter,
+        benchmark=b,
+        resolved_nodes=resolved_nodes,
     )
 
 
 def _read_rule_log(out_dir: Path, rule_name: str) -> Optional[str]:
     """Read the per-rule log file if it exists."""
-    log_path = out_dir / ".logs" / f"{rule_name}.log"
+    log_path = out_dir / ".logs" / truncate_filename(f"{rule_name}.log")
     if log_path.exists():
         try:
             return log_path.read_text()
@@ -299,8 +365,23 @@ def _run_snakemake(
     software_backend: SoftwareBackendEnum,
     debug: bool,
     extra_snakemake_args: Optional[list] = None,
+    telemetry_emitter=None,
+    benchmark: Optional[BenchmarkExecution] = None,
+    resolved_nodes: Optional[list] = None,
 ):
-    """Run snakemake on the generated Snakefile."""
+    """Run snakemake on the generated Snakefile.
+
+    Args:
+        out_dir: Output directory containing the Snakefile.
+        cores: Number of cores to use.
+        continue_on_error: Whether to continue on job failures.
+        software_backend: Software backend (determines --use-conda etc.).
+        debug: Whether to enable verbose output (shows full output instead of progress).
+        extra_snakemake_args: Extra args appended to the snakemake command line.
+        telemetry_emitter: Pre-initialized TelemetryEmitter (or None).
+        benchmark: BenchmarkExecution instance (for telemetry metadata).
+        resolved_nodes: List of ResolvedNode objects (for telemetry manifest).
+    """
     from omnibenchmark.cli.progress import ProgressDisplay, InteractiveProgress
     from datetime import datetime
     import re
@@ -319,6 +400,12 @@ def _run_snakemake(
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = logs_dir / f"snakemake_{timestamp}.log"
+
+    # Detect whether the emitter is streaming to stdout. If so, suppress Rich UI.
+    use_telemetry_stdout = (
+        telemetry_emitter is not None
+        and getattr(telemetry_emitter, "_file_handle", None) is sys.stdout
+    )
 
     # Prefer snakemake co-located with the current Python executable (pixi/conda env)
     import shutil
@@ -366,7 +453,8 @@ def _run_snakemake(
     original_dir = os.getcwd()
     os.chdir(out_dir)
 
-    summary_console = ProgressDisplay().console
+    # No Rich console when telemetry is competing for stdout.
+    summary_console = None if use_telemetry_stdout else ProgressDisplay().console
 
     try:
         if debug:
@@ -378,7 +466,141 @@ def _run_snakemake(
 
             with open(log_file, "r") as f:
                 print(f.read())
+        elif use_telemetry_stdout:
+            # Telemetry-to-stdout mode: no Rich progress, just emit telemetry events.
+            # use_telemetry_stdout is derived from telemetry_emitter, so it's set here.
+            assert telemetry_emitter is not None
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+
+            rule_start_pattern = re.compile(r"rule ([\w.]+):")
+            job_error_pattern = re.compile(r"Error in rule ([\w.]+):")
+            localrule_pattern = re.compile(r"localrule ([\w.]+):")
+
+            current_rule: Optional[str] = None
+            completed_jobs = 0
+            failed_rules: list[str] = []
+
+            # Buffers for telemetry payloads.
+            rule_output_buffer: deque = deque(maxlen=100)
+            capturing_error = False
+            error_lines: list[str] = []
+
+            setup_buffer: list[str] = []
+            first_rule_seen = False
+            setup_start_ns = int(time.time() * 1_000_000_000)
+            telemetry_emitter.emit_phase_started(
+                "environment preparation", "environment_setup"
+            )
+
+            assert process.stdout is not None
+            with open(log_file, "w") as f:
+                for line in process.stdout:
+                    f.write(line)
+                    f.flush()
+
+                    line_stripped = line.strip()
+
+                    if not first_rule_seen:
+                        setup_buffer.append(line_stripped)
+                    else:
+                        rule_output_buffer.append(line_stripped)
+
+                    if capturing_error:
+                        error_lines.append(line_stripped)
+
+                    match = rule_start_pattern.search(line) or localrule_pattern.search(
+                        line
+                    )
+                    if match:
+                        if not first_rule_seen:
+                            setup_end_ns = int(time.time() * 1_000_000_000)
+                            telemetry_emitter.emit_setup_span(
+                                "\n".join(setup_buffer),
+                                setup_start_ns,
+                                setup_end_ns,
+                            )
+                            first_rule_seen = True
+
+                        current_rule = normalize_rule_name(match.group(1))
+                        rule_output_buffer.clear()
+                        telemetry_emitter.rule_started(current_rule)
+
+                    if (
+                        "Finished job" in line
+                        or "Finished jobid" in line
+                        or "Nothing to be done" in line
+                    ):
+                        completed_jobs += 1
+                        if current_rule:
+                            snakemake_output = "\n".join(rule_output_buffer)
+                            rule_log = _read_rule_log(Path("."), current_rule)
+                            full_output = (
+                                f"{snakemake_output}\n--- Command Output ---\n{rule_log}"
+                                if rule_log
+                                else snakemake_output
+                            )
+                            telemetry_emitter.rule_completed(
+                                current_rule, stdout=full_output
+                            )
+                        rule_output_buffer.clear()
+
+                    err_match = job_error_pattern.search(line)
+                    if err_match:
+                        failed_rule = normalize_rule_name(err_match.group(1))
+                        if failed_rule not in failed_rules:
+                            failed_rules.append(failed_rule)
+                        capturing_error = True
+                        error_lines = [line_stripped]
+
+                    if capturing_error and (
+                        line_stripped == ""
+                        or "Shutting down" in line
+                        or "Error executing rule" in line
+                    ):
+                        if failed_rules:
+                            snakemake_output = "\n".join(rule_output_buffer)
+                            rule_log = _read_rule_log(Path("."), failed_rules[-1])
+                            stderr = (
+                                f"{snakemake_output}\n--- Command Output ---\n{rule_log}"
+                                if rule_log
+                                else (snakemake_output or "\n".join(error_lines))
+                            )
+                            telemetry_emitter.rule_failed(
+                                failed_rules[-1],
+                                f"Error in rule {failed_rules[-1]}",
+                                stderr=stderr,
+                            )
+                        capturing_error = False
+                        error_lines = []
+
+            process.wait()
+            result = process
+
+            # Edge case: no rules ever ran — still emit a setup span.
+            if not first_rule_seen and setup_buffer:
+                setup_end_ns = int(time.time() * 1_000_000_000)
+                telemetry_emitter.emit_setup_span(
+                    "\n".join(setup_buffer), setup_start_ns, setup_end_ns
+                )
+
+            telemetry_emitter.benchmark_completed(
+                success=(result.returncode == 0),
+                message=(
+                    f"Completed {completed_jobs} jobs"
+                    if result.returncode == 0
+                    else f"Failed with {len(failed_rules)} error(s)"
+                ),
+            )
         else:
+            # summary_console is only None when use_telemetry_stdout is True,
+            # which is handled by the elif branches above; pyright can't see that.
+            assert summary_console is not None
             summary_console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
             summary_console.print(f"[dim]Log file: {log_file}[/dim]")
             summary_console.print()
@@ -399,6 +621,18 @@ def _run_snakemake(
             total_jobs = None
             current_rule = None
 
+            # Telemetry buffers (only used when telemetry_emitter is set).
+            rule_output_buffer: deque = deque(maxlen=100)
+            capturing_error = False
+            error_lines: list[str] = []
+            setup_buffer: list[str] = []
+            first_rule_seen = False
+            setup_start_ns = int(time.time() * 1_000_000_000)
+            if telemetry_emitter:
+                telemetry_emitter.emit_phase_started(
+                    "environment preparation", "environment_setup"
+                )
+
             setup_status = summary_console.status("Setting up...")
             setup_status.start()
 
@@ -412,6 +646,14 @@ def _run_snakemake(
                         progress.check_keyboard()
 
                     line_stripped = line.strip()
+
+                    if telemetry_emitter:
+                        if not first_rule_seen:
+                            setup_buffer.append(line_stripped)
+                        else:
+                            rule_output_buffer.append(line_stripped)
+                        if capturing_error:
+                            error_lines.append(line_stripped)
 
                     if line_stripped.startswith("total") and total_jobs is None:
                         parts = line_stripped.split()
@@ -430,15 +672,41 @@ def _run_snakemake(
 
                     match = rule_start_pattern.search(line)
                     if match:
+                        if telemetry_emitter and not first_rule_seen:
+                            setup_end_ns = int(time.time() * 1_000_000_000)
+                            telemetry_emitter.emit_setup_span(
+                                "\n".join(setup_buffer),
+                                setup_start_ns,
+                                setup_end_ns,
+                            )
+                            first_rule_seen = True
+
                         current_rule = normalize_rule_name(match.group(1))
+                        if telemetry_emitter:
+                            rule_output_buffer.clear()
                         if progress:
                             progress.update(current_rule=current_rule)
+                        if telemetry_emitter:
+                            telemetry_emitter.rule_started(current_rule)
 
                     match = localrule_pattern.search(line)
                     if match:
+                        if telemetry_emitter and not first_rule_seen:
+                            setup_end_ns = int(time.time() * 1_000_000_000)
+                            telemetry_emitter.emit_setup_span(
+                                "\n".join(setup_buffer),
+                                setup_start_ns,
+                                setup_end_ns,
+                            )
+                            first_rule_seen = True
+
                         current_rule = normalize_rule_name(match.group(1))
+                        if telemetry_emitter:
+                            rule_output_buffer.clear()
                         if progress:
                             progress.update(current_rule=current_rule)
+                        if telemetry_emitter:
+                            telemetry_emitter.rule_started(current_rule)
 
                     if (
                         "Finished job" in line
@@ -447,12 +715,57 @@ def _run_snakemake(
                     ):
                         if progress:
                             progress.update(advance=1)
+                        if telemetry_emitter and current_rule:
+                            snakemake_output = "\n".join(rule_output_buffer)
+                            rule_log = _read_rule_log(Path("."), current_rule)
+                            full_output = (
+                                f"{snakemake_output}\n--- Command Output ---\n{rule_log}"
+                                if rule_log
+                                else snakemake_output
+                            )
+                            telemetry_emitter.rule_completed(
+                                current_rule, stdout=full_output
+                            )
+                            rule_output_buffer.clear()
 
                     match = job_error_pattern.search(line)
                     if match:
                         failed_rule = normalize_rule_name(match.group(1))
                         if progress:
                             progress.add_failed_rule(failed_rule)
+                        if telemetry_emitter:
+                            capturing_error = True
+                            error_lines = [line_stripped]
+
+                    if (
+                        telemetry_emitter
+                        and capturing_error
+                        and (
+                            line_stripped == ""
+                            or "Shutting down" in line
+                            or "Error executing rule" in line
+                        )
+                    ):
+                        if error_lines:
+                            err_match = job_error_pattern.search(error_lines[0])
+                            if err_match:
+                                failed_rule_name = normalize_rule_name(
+                                    err_match.group(1)
+                                )
+                                snakemake_output = "\n".join(rule_output_buffer)
+                                rule_log = _read_rule_log(Path("."), failed_rule_name)
+                                stderr = (
+                                    f"{snakemake_output}\n--- Command Output ---\n{rule_log}"
+                                    if rule_log
+                                    else (snakemake_output or "\n".join(error_lines))
+                                )
+                                telemetry_emitter.rule_failed(
+                                    failed_rule_name,
+                                    f"Error in rule {failed_rule_name}",
+                                    stderr=stderr,
+                                )
+                        capturing_error = False
+                        error_lines = []
 
             process.wait()
             result = process
@@ -460,11 +773,28 @@ def _run_snakemake(
             if setup_status:
                 setup_status.stop()
 
+            # Edge case: no rules ran — still emit a setup span.
+            if telemetry_emitter and not first_rule_seen and setup_buffer:
+                setup_end_ns = int(time.time() * 1_000_000_000)
+                telemetry_emitter.emit_setup_span(
+                    "\n".join(setup_buffer), setup_start_ns, setup_end_ns
+                )
+
             completed_jobs = progress.completed if progress else 0
             failed_rules = progress.failed_rules if progress else []
 
             if progress:
                 progress.finish()
+
+            if telemetry_emitter:
+                telemetry_emitter.benchmark_completed(
+                    success=(result.returncode == 0),
+                    message=(
+                        f"Completed {completed_jobs} jobs"
+                        if result.returncode == 0
+                        else f"Failed with {len(failed_rules)} error(s)"
+                    ),
+                )
 
             if result.returncode == 0:
                 summary_console.print(
@@ -489,7 +819,8 @@ def _run_snakemake(
                 summary_console.print(f"[dim]See full log: {log_file}[/dim]")
 
         if result.returncode == 0:
-            if not debug:
+            if not debug and not use_telemetry_stdout:
+                assert summary_console is not None
                 summary_console.print()
             logger.info("Benchmark run completed successfully.")
             sys.exit(0)
