@@ -383,6 +383,20 @@ stages:
    [snip]
 ```
 
+Semantics worth knowing:
+
+- **Matched by module id.** Each entry is a *module id*. Anything else (a stage
+  id, or a typo) simply never matches — it is silently ignored, not an error.
+- **Transitive.** The two modules do not need to be in adjacent stages. Any
+  execution path that contains *both* modules is pruned, however many stages
+  separate them.
+- **Symmetric.** Declaring `M1: exclude [D2]` is exactly equivalent to declaring
+  `D2: exclude [M1]` — both prune the same paths. Put it wherever it reads most
+  naturally.
+- **OR over the list.** `exclude: [D2, D3]` means "not with D2, *and* not with
+  D3" as two independent rules: a path is pruned if it contains M1 together with
+  D2 **or** with D3. There is no "exclude only when both are present" (AND) form.
+
 ## Use a custom apptainer container to run methods
 
 We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.

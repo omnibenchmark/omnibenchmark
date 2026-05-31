@@ -10,6 +10,7 @@ from omnibenchmark.dag import (
 from omnibenchmark.model import Benchmark, Stage, ValidationError
 
 from ._node import BenchmarkNode
+from ._paths import is_lineage_excluded
 
 
 def expand_stage_nodes(
@@ -126,24 +127,12 @@ def list_all_paths(graph: DiGraph, source: BenchmarkNode, target: BenchmarkNode)
     return all_paths
 
 
-def contains_all(path, modules):
-    path_modules = [node.module_id for node in path]
-    return all(module in path_modules for module in modules)
-
-
 def exclude_paths(paths, path_exclusions):
-    updated_paths = []
-    for path in paths:
-        should_exclude = False
-        for module, excluded_modules in path_exclusions.items():
-            for excluded_module in excluded_modules:
-                if contains_all(path, [module, excluded_module]):
-                    should_exclude = True
-
-        if not should_exclude:
-            updated_paths.append(path)
-
-    return updated_paths
+    return [
+        path
+        for path in paths
+        if not is_lineage_excluded({node.module_id for node in path}, path_exclusions)
+    ]
 
 
 def compute_stage_order(stage_dag: DiGraph) -> List:

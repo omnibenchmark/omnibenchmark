@@ -17,7 +17,11 @@ from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.core import BenchmarkExecution
-from omnibenchmark.core._paths import truncate_path_filename
+from omnibenchmark.core._paths import (
+    truncate_path_filename,
+    collect_path_exclusions,
+    is_lineage_excluded,
+)
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
@@ -613,6 +617,21 @@ def _satisfies_requires(requires: dict, input_node) -> bool:
     return True
 
 
+def _lineage_module_ids(input_node, nodes_by_id) -> set:
+    """Return the module_ids along input_node's full lineage, inclusive.
+
+    Walks the explicit ``parent_id`` chain rather than matching node-ID string
+    prefixes, so it is unaffected by module/stage ids that contain the id
+    separator. ``nodes_by_id`` maps node id → node.
+    """
+    lineage = set()
+    node = input_node
+    while node is not None:
+        lineage.add(node.module_id)
+        node = nodes_by_id.get(node.parent_id) if node.parent_id else None
+    return lineage
+
+
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -809,9 +828,14 @@ def _generate_explicit_snakefile(
         stages_to_expand = benchmark.model.stages
 
     resolved_nodes = []
+    nodes_by_id = {}
     output_to_nodes = {}
     previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
+
+    # Lineage-wide exclusion rules, shared with execution-path pruning so the
+    # two code paths agree (see core._paths.is_lineage_excluded).
+    path_exclusions = collect_path_exclusions(benchmark.model)
 
     for stage in stages_to_expand:
         current_stage_nodes = []
@@ -873,21 +897,17 @@ def _generate_explicit_snakefile(
                     node_combinations = node_combinations[:1]
 
                 for input_node, params in node_combinations:
-                    if input_node and module.exclude:
-                        if input_node.module_id in module.exclude:
-                            logger.debug(
-                                f"      Excluding combination: {input_node.module_id} → {module_id}"
-                            )
-                            continue
-
-                    # Also check: input module may declare that it excludes this method
+                    # Exclusions are transitive over the full lineage, not just
+                    # the immediate predecessor: prune if any exclusion rule has
+                    # both endpoints present along this node's lineage.
                     if input_node:
-                        input_excludes = benchmark.model.get_module_excludes(
-                            input_node.module_id
-                        )
-                        if input_excludes and module_id in input_excludes:
+                        lineage = _lineage_module_ids(input_node, nodes_by_id) | {
+                            module_id
+                        }
+                        if is_lineage_excluded(lineage, path_exclusions):
                             logger.debug(
-                                f"      Excluding combination: {input_node.module_id} excludes {module_id}"
+                                f"      Excluding combination: lineage {lineage} "
+                                f"violates an exclusion rule"
                             )
                             continue
 
@@ -1007,6 +1027,7 @@ def _generate_explicit_snakefile(
                         param_id=param_id,
                         module=resolved_module,
                         parameters=params,
+                        parent_id=input_node.id if input_node else None,
                         inputs=inputs,
                         outputs=outputs,
                         input_name_mapping=input_name_mapping,
@@ -1018,6 +1039,7 @@ def _generate_explicit_snakefile(
                     )
 
                     resolved_nodes.append(node)
+                    nodes_by_id[node.id] = node
                     current_stage_nodes.append(node)
 
                 if not quiet:
