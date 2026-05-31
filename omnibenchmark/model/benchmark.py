@@ -509,7 +509,16 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
         None, description="Software environment ID"
     )
     parameters: Optional[List[Parameter]] = Field(None, description="Module parameters")
-    exclude: Optional[List[str]] = Field(None, description="Paths to exclude")
+    exclude: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Module IDs this module must not share an execution path with. "
+            "Symmetric (declaring it on either module is equivalent), transitive "
+            "(applies across non-adjacent stages), and OR over the list (a path "
+            "is pruned if it contains this module together with any listed one). "
+            "Non-module-id entries are silently ignored."
+        ),
+    )
     outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
     requires: Optional[Dict[str, str]] = Field(
         None,

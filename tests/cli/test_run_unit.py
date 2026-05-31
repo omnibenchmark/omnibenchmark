@@ -15,6 +15,7 @@ from omnibenchmark.cli.run import (
     _build_template_context,
     _select_input_nodes,
     _satisfies_requires,
+    _lineage_module_ids,
     run,
 )
 from omnibenchmark.core.prefetch import populate_git_cache
@@ -305,6 +306,74 @@ class TestSatisfiesRequires:
             _satisfies_requires({"dataset": "pbmc3k", "treatment": "stim"}, node)
             is False
         )
+
+
+# ---------------------------------------------------------------------------
+# _lineage_module_ids
+# ---------------------------------------------------------------------------
+
+
+def _make_lineage_node(module_id, parent_id=None, node_id=None):
+    n = MagicMock()
+    n.id = node_id if node_id is not None else module_id
+    n.module_id = module_id
+    n.parent_id = parent_id
+    return n
+
+
+def _by_id(*nodes):
+    return {n.id: n for n in nodes}
+
+
+@pytest.mark.short
+class TestLineageModuleIds:
+    def test_root_node_lineage_is_self(self):
+        root = _make_lineage_node("adamson")
+        assert _lineage_module_ids(root, _by_id(root)) == {"adamson"}
+
+    def test_immediate_predecessor_in_lineage(self):
+        root = _make_lineage_node("adamson")
+        child = _make_lineage_node("prep", parent_id=root.id)
+        assert _lineage_module_ids(child, _by_id(root, child)) == {"adamson", "prep"}
+
+    def test_transitive_lineage_across_non_adjacent_stages(self):
+        """Regression: a download module several stages upstream must appear in
+        the lineage of a leaf node, not just the immediate predecessor."""
+        download = _make_lineage_node("adamson")
+        preprocess = _make_lineage_node("prep", parent_id=download.id)
+        split = _make_lineage_node("sim", parent_id=preprocess.id)
+        # split is the immediate predecessor of a `methods` node; its lineage
+        # must still include the non-adjacent `adamson` download module.
+        assert _lineage_module_ids(split, _by_id(download, preprocess, split)) == {
+            "adamson",
+            "prep",
+            "sim",
+        }
+
+    def test_unrelated_branch_excluded_from_lineage(self):
+        download = _make_lineage_node("adamson")
+        other = _make_lineage_node("norman")  # sibling root, not an ancestor
+        child = _make_lineage_node("prep", parent_id=download.id)
+        assert _lineage_module_ids(child, _by_id(download, other, child)) == {
+            "adamson",
+            "prep",
+        }
+
+    def test_dashed_module_ids_resolve_via_parent_links(self):
+        """Lineage follows explicit parent_id links, so module ids containing the
+        id separator ('-') cannot confuse ancestry (the old prefix-match risk)."""
+        download = _make_lineage_node(
+            "adamson-v2", node_id="download-adamson-v2.default"
+        )
+        method = _make_lineage_node(
+            "my-method",
+            parent_id=download.id,
+            node_id="download-adamson-v2.default-methods-my-method.default",
+        )
+        assert _lineage_module_ids(method, _by_id(download, method)) == {
+            "adamson-v2",
+            "my-method",
+        }
 
 
 # ---------------------------------------------------------------------------

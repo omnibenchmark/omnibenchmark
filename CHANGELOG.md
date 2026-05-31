@@ -5,15 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.5.2](UNRELEASED) ()
 
-- refactor: untangle subpackage import cycles into an acyclic dependency graph; add a generated `ARCHITECTURE.md` and a CI guard that fails on any new cycle
-- refactor(breaking)!: rename the `omnibenchmark.benchmark` subpackage to `omnibenchmark.core` (`BenchmarkExecution` now at `omnibenchmark.core.execution`; a `Benchmark` alias is kept)
-- docs: expose YAML spec reference in the public docs
+- refactor: untangle subpackage import cycles into an acyclic dependency graph; add a generated `ARCHITECTURE.md` and a CI guard that fails on any new cycle (Closes #340)
+- refactor(breaking)!: rename the `omnibenchmark.benchmark` subpackage to `omnibenchmark.core` (`BenchmarkExecution` now at `omnibenchmark.core.execution`; a `Benchmark` alias is kept) (#341)
+- docs: expose YAML spec reference in the public docs (#342)
+- bug: prune `exclude` transitively across non-adjacent stages (previously only the immediate predecessor was checked); run-loop and path-level exclusion unified behind a shared predicate (Closes: 337)
+- docs: clarify `exclude` semantics (module-id matched, transitive, symmetric, OR over list) (Closes: #337)
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
 
 - fix: raise warning for disjoint keys (Closes: #313)
 - fix: clearer error on missing entrypoint (Closes: #321)
-- fix: truncate filename to avoid hitting filesystem limits (Closes: #...)
+- fix: truncate filename to avoid hitting filesystem limits (#334)
 - chore(pkg): unpink snakemake dependency (#269)
 
 ## [0.5.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.0) (Apr 23th 2026)

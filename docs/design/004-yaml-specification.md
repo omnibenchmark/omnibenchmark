@@ -154,7 +154,7 @@ modules:
     repository: <object>               # Required: source location
     name: <string>                     # Optional: human-readable name
     parameters: <array>                # Optional: module parameters
-    exclude: <array>                   # Optional: exclusion list
+    exclude: <array>                   # Optional: module ids this module must not share a path with
 ```
 
 #### Required Fields
@@ -332,13 +332,28 @@ Downstream stages inherit wildcards from upstream dependencies.
 
 #### Cartesian Exclusions
 
-Modules can exclude specific combinations:
+Modules can exclude specific combinations. Each entry is a **module id**; any
+execution path containing both this module and a listed one is pruned:
 
 ```yaml
 modules:
   - id: D2
-    exclude: [M2]  # Exclude combination dataset=D2 AND method=M2
+    exclude: [M2]  # drop every path containing both D2 and M2
 ```
+
+Semantics:
+
+- **Matched by module id.** Entries are module ids, not stage ids or paths.
+  A non-matching entry (wrong level, or a typo) is silently ignored, not an error.
+- **Transitive.** The two modules need not be in adjacent stages — any path
+  carrying both is pruned, however many stages separate them.
+- **Symmetric.** `D2: exclude [M2]` and `M2: exclude [D2]` prune the same paths;
+  declare it wherever it reads most naturally.
+- **OR over the list.** `exclude: [M2, M3]` is two independent rules (drop D2+M2,
+  drop D2+M3). There is no "exclude only when both present" (AND) form. (A future
+  additive lineage gate — `provides`/`requires`, not yet implemented — is the
+  intended home for richer conditions; see
+  [PR #332](https://github.com/omnibenchmark/omnibenchmark/pull/332).)
 
 ## 4. Complete Example
 

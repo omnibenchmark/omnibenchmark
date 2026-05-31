@@ -225,3 +225,23 @@ def collect_path_exclusions(model) -> Dict[str, List[str]]:
                 path_exclusions[module_id] = module_excludes
 
     return path_exclusions
+
+
+def is_lineage_excluded(
+    module_ids: Set[str], path_exclusions: Dict[str, List[str]]
+) -> bool:
+    """Whether a lineage of module IDs violates any declared exclusion.
+
+    ``module_ids`` is the full set of module IDs along a path (e.g. an execution
+    path or a candidate node's lineage). A lineage is excluded when, for any
+    module that declares exclusions, both the declaring module and one of its
+    excluded modules are present — i.e. the degenerate combination co-occurs on
+    the same path, regardless of how many stages separate them.
+
+    This is the single source of truth shared by execution-path pruning
+    (``exclude_paths``) and Snakefile generation (``cli/run.py``).
+    """
+    for module_id, excluded in path_exclusions.items():
+        if module_id in module_ids and any(e in module_ids for e in excluded):
+            return True
+    return False

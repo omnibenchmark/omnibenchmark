@@ -110,7 +110,8 @@ stages:
         # optional (array), Module parameters
         parameters: ...
 
-        # optional (array), Paths to exclude
+        # optional (array), module ids this module must not share a path with
+        # (symmetric, transitive, OR over the list)
         exclude: ...
 
         # optional (array), Module outputs
