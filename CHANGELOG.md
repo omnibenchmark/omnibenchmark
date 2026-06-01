@@ -5,11 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.5.2](UNRELEASED) ()
 
-- refactor: untangle subpackage import cycles into an acyclic dependency graph; add a generated `ARCHITECTURE.md` and a CI guard that fails on any new cycle (Closes #340)
-- refactor(breaking)!: rename the `omnibenchmark.benchmark` subpackage to `omnibenchmark.core` (`BenchmarkExecution` now at `omnibenchmark.core.execution`; a `Benchmark` alias is kept) (#341)
+- refactor: untangle subpackage import cycles into an acyclic dependency graph (Closes #340)
+- refactor(breaking)!: rename the `omnibenchmark.benchmark` subpackage to `omnibenchmark.core` (#341)
 - docs: expose YAML spec reference in the public docs (#342)
 - bug: prune `exclude` transitively across non-adjacent stages (previously only the immediate predecessor was checked); run-loop and path-level exclusion unified behind a shared predicate (Closes: 337)
 - docs: clarify `exclude` semantics (module-id matched, transitive, symmetric, OR over list) (Closes: #337)
+- feat: add `ob collect performance` to gather scattered `performance.txt` files into a combined `performances.tsv`, enriched with stage, module, parameters and lineage; restores the input expected by `ob dashboard`
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
 

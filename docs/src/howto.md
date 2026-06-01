@@ -438,6 +438,37 @@ stages:
 ```
 
 
+## Collect performance metrics
+
+Every executed node writes a Snakemake benchmark file (`performance.txt`) next to its outputs, recording wall-clock time, memory, I/O and CPU usage. These files are scattered across the output tree, one per `stage/module/parameter` combination.
+
+To gather them into a single table, run:
+
+```bash
+ob collect performance -o out
+```
+
+This walks the output directory, parses every `performance.txt`, and writes a combined `out/performances.tsv`. Each row carries the performance metrics plus metadata reconstructed from the output path:
+
+- `stage`, `module`, `dataset` — where the measurement comes from
+- `param_hash` — the parameter-set identifier (empty for default/unparametrized nodes)
+- `params` — the parameters used, merged across the lineage (read from the `parameters.json` files along the path)
+- `lineage` — the full `stage/module` chain that produced the result
+- `path` — the original performance file, relative to the output directory
+
+Collection is a plain filesystem walk: it does not run Snakemake and can be invoked against any existing output directory, including ones produced by earlier runs.
+
+### Build a dashboard from the metrics
+
+Once `performances.tsv` exists, you can render an interactive [bettr](https://github.com/federicomarini/bettr) dashboard:
+
+```bash
+ob dashboard benchmark.yaml -o out
+```
+
+This reads `out/performances.tsv` and writes `out/bettr_dashboard.json`. If the table is missing, run `ob collect performance` first.
+
+
 ## Use local module repositories
 
 Local Git repositories can be referenced directly in the `url` field of benchmarking YAML manifestos, without the need to push to GitHub, GitLab, Bitbucket, or any other remote. To ensure changes are tracked, remember to stage them with `git add` and commit them with `git commit` in the local repository. It is recommended to specify full paths (beginning with `/`) to the local Git repository (i.e. `/home/user/repos/data` in the example below).
