@@ -5,6 +5,7 @@ import click
 from omnibenchmark import __version__
 from omnibenchmark.cli.archive import archive
 from omnibenchmark.cli.cite import cite
+from omnibenchmark.cli.collect import collect
 from omnibenchmark.cli.create import create
 from omnibenchmark.cli.dashboard import dashboard
 from omnibenchmark.cli.describe import describe
@@ -69,6 +70,7 @@ def cli(ctx):
 
 # Add subcommands to the CLI
 cli.add_command(add_debug_option(cite))
+cli.add_command(collect)
 cli.add_command(add_debug_option(create))
 cli.add_command(add_debug_option(describe))
 cli.add_command(add_debug_option(remote))
