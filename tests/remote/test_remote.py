@@ -3,7 +3,7 @@ from botocore.exceptions import ClientError
 
 from omnibenchmark.remote.storage import get_storage
 from omnibenchmark.remote.sizeof import sizeof_fmt
-from omnibenchmark.remote.RemoteStorage import RemoteStorage
+from omnibenchmark.storage import RemoteStorage
 
 from ..fixtures import rustfs_storage, _rustfs_container  # noqa: F401
 

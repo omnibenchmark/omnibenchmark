@@ -8,8 +8,8 @@ import tqdm
 
 from omnibenchmark.core import Benchmark
 from omnibenchmark.logging import logger
-from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
+from omnibenchmark.storage import StorageOptions
+from omnibenchmark.storage import get_expected_benchmark_output_files
 
 
 def _setup_remote_storage(

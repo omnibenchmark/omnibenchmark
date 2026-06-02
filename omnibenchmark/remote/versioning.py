@@ -1,10 +1,9 @@
 import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
-import glob
 
 from omnibenchmark.core import Benchmark
-from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.storage import StorageOptions, get_expected_benchmark_output_files
 
 
 def get_objects_to_tag(
@@ -45,21 +44,6 @@ def get_objects_to_tag(
             object_names_to_tag.append(object_name)
             versionid_of_objects_to_tag.append(newest_version)
     return object_names_to_tag, versionid_of_objects_to_tag
-
-
-def get_expected_benchmark_output_files(
-    benchmark: Benchmark,
-    storage_options: StorageOptions,
-) -> List:
-    object_names_to_keep = benchmark.get_output_paths()
-    if storage_options.extra_files_to_version_not_in_benchmark_yaml:
-        for (
-            glob_expression
-        ) in storage_options.extra_files_to_version_not_in_benchmark_yaml:
-            found_files = glob.glob(glob_expression, recursive=True)
-            for found_file in found_files:
-                object_names_to_keep.add(found_file)
-    return list(object_names_to_keep)
 
 
 # filter objects based on workflow.

@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.storage import StorageOptions
 
 
 class StorageService:
