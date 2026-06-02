@@ -2,7 +2,7 @@
 
 import pytest
 
-from omnibenchmark.cli.progress import (
+from omnibenchmark.progress import (
     extract_rule_display_name,
     IncrementalLogReader,
     InteractiveProgress,

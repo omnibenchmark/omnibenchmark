@@ -20,7 +20,7 @@ from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark._paths import truncate_path_filename
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 from omnibenchmark.git import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.resolved import ResolvedNode, TemplateContext
@@ -301,7 +301,7 @@ def _run_snakemake(
     extra_snakemake_args: Optional[list] = None,
 ):
     """Run snakemake on the generated Snakefile."""
-    from omnibenchmark.cli.progress import ProgressDisplay, InteractiveProgress
+    from omnibenchmark.progress import ProgressDisplay, InteractiveProgress
     from datetime import datetime
     import re
 
@@ -626,7 +626,7 @@ def _generate_explicit_snakefile(
     module_filter: Optional[str] = None,
 ):
     """Generate explicit Snakefile from resolved modules."""
-    from omnibenchmark.cli.progress import ProgressDisplay
+    from omnibenchmark.progress import ProgressDisplay
     import time
 
     progress = ProgressDisplay()

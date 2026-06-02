@@ -11,7 +11,7 @@ from omnibenchmark.benchmark._paths import (
 
 from omnibenchmark.benchmark import _graph as graph
 from omnibenchmark.model import Benchmark as BenchmarkModel, SoftwareBackendEnum
-from omnibenchmark.utils import format_mc_output
+from omnibenchmark.benchmark._mc_output import format_mc_output
 
 from ._dag_builder import DAGBuilder
 from ._dot import export_to_dot

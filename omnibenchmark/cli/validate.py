@@ -19,7 +19,7 @@ from omnibenchmark.benchmark.repository_utils import (
     cleanup_temp_repositories,
 )
 from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
 

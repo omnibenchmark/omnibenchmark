@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.remote.files import checksum_files

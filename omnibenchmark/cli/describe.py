@@ -13,7 +13,7 @@ from omnibenchmark.benchmark.status.status import prepare_status, print_exec_pat
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.dag import get_node_attributes
 
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 from .debug import add_debug_option
 
 
