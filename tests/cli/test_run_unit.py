@@ -622,7 +622,7 @@ def test_populate_git_cache_quiet_uses_progress_display(tmp_path):
         patch(
             "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
         ),
-        patch("omnibenchmark.cli.progress.ProgressDisplay") as mock_pd,
+        patch("omnibenchmark.progress.ProgressDisplay") as mock_pd,
     ):
         mock_pd.return_value = MagicMock()
         populate_git_cache(

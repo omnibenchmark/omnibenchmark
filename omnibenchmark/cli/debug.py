@@ -3,7 +3,7 @@ from typing import TypeVar, Union, cast
 
 import click
 
-from .utils.logging import configure_logging
+from omnibenchmark.logging import configure_logging
 
 T = TypeVar("T", bound=Union[click.Command, click.Group])
 

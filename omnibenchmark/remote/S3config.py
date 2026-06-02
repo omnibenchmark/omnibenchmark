@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 
 # Sentinel so the .env filesystem walk only runs once per process.
 _dotenv_loaded: bool = False

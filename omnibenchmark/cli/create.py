@@ -13,7 +13,7 @@ import questionary
 import yaml
 
 from omnibenchmark import __version__
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 
 from .debug import add_debug_option
 

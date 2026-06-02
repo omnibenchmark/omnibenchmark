@@ -19,7 +19,7 @@ from pydantic import (
     ValidationError as PydanticValidationError,
 )
 
-from omnibenchmark.utils import merge_dict_list  # type: ignore[import]
+from omnibenchmark.model._merge import merge_dict_list
 
 from ._parsing import convert_pydantic_error_to_parse_error
 from .params import Params
@@ -814,10 +814,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                     param["values"] = [str(v) for v in param["values"]]
 
                                     # Emit structured warning with line context
-                                    from omnibenchmark.cli.error_formatting import (
+                                    from omnibenchmark.error_formatting import (
                                         format_yaml_warning,
                                     )
-                                    from omnibenchmark.cli.utils.logging import logger
+                                    from omnibenchmark.logging import logger
 
                                     stage_id = stage.get(
                                         "id", f"<stage index {stage_idx}>"

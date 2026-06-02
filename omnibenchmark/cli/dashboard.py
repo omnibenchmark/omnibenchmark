@@ -10,7 +10,7 @@ import click
 
 from omnibenchmark.benchmark import BenchmarkExecution
 from omnibenchmark.benchmark.dashboard import create_bettr_dashboard
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
 from .debug import add_debug_option

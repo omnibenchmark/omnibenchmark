@@ -10,7 +10,7 @@ from omnibenchmark.benchmark.cite import (
     format_output,
     CitationExtractionError,
 )
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 
 
 @click.command(name="cite")

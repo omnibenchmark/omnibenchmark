@@ -33,7 +33,7 @@ def populate_git_cache(
         quiet:     When True, show a Rich progress bar instead of log lines.
         cores:     Maximum number of parallel fetch workers.
     """
-    from omnibenchmark.cli.progress import ProgressDisplay
+    from omnibenchmark.progress import ProgressDisplay
 
     cache_dir = get_git_cache_dir()
 
