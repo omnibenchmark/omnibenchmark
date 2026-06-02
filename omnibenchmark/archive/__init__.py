@@ -1,9 +1,12 @@
 """
-Archive module for creating benchmark archives.
+Archive — bundle a benchmark's components into a portable archive.
 
-This module provides functionality to create archives of benchmarks including
-configuration, code, software environments, and results. It supports both
-local-only archiving and remote storage integration.
+Represents: assembling the parts of a benchmark (configuration, code, software
+environments, results) into a single archive, for local-only use or upload.
+When results come from object storage, the connected backend is *injected* by
+the caller, so this package depends only on the storage interface.
+Layer: service
+Depends on: core, model, git, storage.
 """
 
 from .archive import archive_benchmark

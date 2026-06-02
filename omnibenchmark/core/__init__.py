@@ -1,6 +1,11 @@
 """
 Core execution engine for omnibenchmark.
 
+Represents: the engine that turns a validated benchmark definition into a run —
+builds the DAG of stages/modules and drives it to completion.
+Layer: engine (central domain)
+Depends on: model, git, dag.
+
 This is the central domain package: it turns a validated benchmark
 definition (see :mod:`omnibenchmark.model`) into an executable workflow and
 drives it to completion.

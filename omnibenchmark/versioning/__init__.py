@@ -1,5 +1,10 @@
 """
-Versioning Module for omnibenchmark.
+Versioning — centralized benchmark version lifecycle.
+
+Represents: the single source of truth for parsing, validating, comparing, and
+incrementing benchmark versions, plus version-manager lifecycle and locking.
+Layer: service
+Depends on: core, config, git.
 
 This module consolidates all versioning logic for the omnibenchmark system into a single, cohesive
 component. This design prevents versioning concerns from being scattered across
