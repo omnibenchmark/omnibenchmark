@@ -10,7 +10,9 @@ nav:
   - Philosophy: philosophy.md
   - Tutorials: tutorial.md
   - How-to guides: howto.md
-  - CLI reference: reference.md
+  - Reference:
+    - Spec Reference: spec-reference.md
+    - CLI Reference: reference.md
   # - Configuration: config.md
   - Examples: examples.md
   - News: news.md

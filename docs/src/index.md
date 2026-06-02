@@ -5,6 +5,7 @@
 - [Tutorials](tutorial.md)
 - [How to guides](howto.md)
 - [Examples](examples.md)
+- [Spec Reference](spec-reference.md)
 - [Architecture](architecture.md) — how the codebase is layered
 
 ## Preprints
