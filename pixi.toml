@@ -115,8 +115,9 @@ mike = "*"
 
 [feature.docs.tasks]
 # Documentation tasks (available when docs feature is enabled)
-docs-build = { cmd = "mkdocs build", cwd = "docs", description = "Build documentation" }
-docs-serve = { cmd = "mkdocs serve", cwd = "docs", description = "Serve documentation locally" }
+docs-template = { cmd = "python templategen.py", cwd = "docs", description = "Regenerate docs/templates/benchmark_template.yaml from the Pydantic models" }
+docs-build = { cmd = "mkdocs build", cwd = "docs", depends-on = ["docs-template"], description = "Build documentation" }
+docs-serve = { cmd = "mkdocs serve", cwd = "docs", depends-on = ["docs-template"], description = "Serve documentation locally" }
 
 [environments]
 default = { solve-group = "default" }

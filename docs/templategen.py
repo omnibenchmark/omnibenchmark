@@ -45,6 +45,19 @@ def _get_field_default(model_cls, field_name):
         return None
 
 
+def _enum_options(schema):
+    """Return a schema's enum values, excluding any flagged in `deprecatedEnum`.
+
+    Deprecated members are still valid for back-compat but should not be
+    advertised in the reference template.
+    """
+    values = schema.get("enum")
+    if not values:
+        return []
+    deprecated = set(schema.get("deprecatedEnum", []))
+    return [v for v in values if v not in deprecated]
+
+
 def generate_yaml_template(model_cls, indent=0, schema_defs=None):
     """Recursively generates a commented YAML template from a Pydantic model."""
     schema = model_cls.model_json_schema()
@@ -110,12 +123,12 @@ def generate_yaml_template(model_cls, indent=0, schema_defs=None):
 
         # Add enum options if available
         if "enum" in prop:
-            enum_values = prop["enum"]
+            enum_values = _enum_options(prop)
             comments.append(f"options: {', '.join(map(str, enum_values))}")
         elif "$ref" in prop and prop_type in schema_defs:
             nested_schema = schema_defs[prop_type]
             if "enum" in nested_schema:
-                enum_values = nested_schema["enum"]
+                enum_values = _enum_options(nested_schema)
                 comments.append(f"options: {', '.join(map(str, enum_values))}")
 
         yaml_lines.append(f"{indent_str}# {', '.join(comments)}")
@@ -144,7 +157,7 @@ def generate_yaml_template(model_cls, indent=0, schema_defs=None):
                     ):
                         yaml_lines[-1] = f"{indent_str}{name}: {default_value}"
                     else:
-                        first_option = nested_schema["enum"][0]
+                        first_option = _enum_options(nested_schema)[0]
                         yaml_lines[-1] = f"{indent_str}{name}: {first_option}"
                 else:
                     nested_lines = _generate_nested_template(
@@ -178,7 +191,7 @@ def generate_yaml_template(model_cls, indent=0, schema_defs=None):
 
         # Handle enums
         elif "enum" in prop:
-            enum_values = prop["enum"]
+            enum_values = _enum_options(prop)
             # Use default if available, otherwise first option
             if default_value is not None and str(default_value) != "PydanticUndefined":
                 yaml_lines.append(f"{indent_str}{name}: {default_value}")
@@ -246,12 +259,12 @@ def _generate_nested_template(schema, indent, schema_defs, example_values=None):
 
         # Add enum options if available
         if "enum" in prop:
-            enum_values = prop["enum"]
+            enum_values = _enum_options(prop)
             comment += f", options: {', '.join(map(str, enum_values))}"
         elif "$ref" in prop and prop_type in schema_defs:
             nested_schema = schema_defs[prop_type]
             if "enum" in nested_schema:
-                enum_values = nested_schema["enum"]
+                enum_values = _enum_options(nested_schema)
                 comment += f", options: {', '.join(map(str, enum_values))}"
         yaml_lines.append(f"{indent_str}# {comment}")
 
@@ -269,7 +282,7 @@ def _generate_nested_template(schema, indent, schema_defs, example_values=None):
         if ref_name:
             if ref_name in schema_defs and "enum" in schema_defs[ref_name]:
                 # It's an enum, show first option as example
-                first_option = schema_defs[ref_name]["enum"][0]
+                first_option = _enum_options(schema_defs[ref_name])[0]
                 yaml_lines.append(f"{indent_str}{name}: {first_option}")
             elif ref_name in schema_defs:
                 yaml_lines.append(f"{indent_str}{name}:")
@@ -292,7 +305,7 @@ def _generate_nested_template(schema, indent, schema_defs, example_values=None):
                 )
                 yaml_lines.extend(nested_lines)
         elif "enum" in prop:
-            enum_values = prop["enum"]
+            enum_values = _enum_options(prop)
             first_option = enum_values[0] if enum_values else "..."
             yaml_lines.append(f"{indent_str}{name}: {first_option}")
         else:

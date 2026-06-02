@@ -155,11 +155,23 @@ class RepositoryType(str, Enum):
     git = "git"
 
 
+# Storage API values still accepted for back-compat but no longer advertised
+# (e.g. in the generated YAML reference template). Surfaced in the JSON schema as
+# `deprecatedEnum` so tooling can distinguish them from supported values.
+_DEPRECATED_STORAGE_APIS = frozenset({"MINIO"})
+
+
 class StorageAPIEnum(str, Enum):
     """Storage API types. Currently only S3 is supported."""
 
     s3 = "S3"
     minio = "MINIO"  # Deprecated: MinIO is S3-compatible; use api: S3 with a custom endpoint.
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        json_schema = handler(core_schema)
+        json_schema["deprecatedEnum"] = sorted(_DEPRECATED_STORAGE_APIS)
+        return json_schema
 
 
 # Base models

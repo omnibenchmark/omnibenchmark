@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - refactor: untangle subpackage import cycles into an acyclic dependency graph; add a generated `ARCHITECTURE.md` and a CI guard that fails on any new cycle
 - refactor(breaking)!: rename the `omnibenchmark.benchmark` subpackage to `omnibenchmark.core` (`BenchmarkExecution` now at `omnibenchmark.core.execution`; a `Benchmark` alias is kept)
+- docs: expose YAML spec reference in the public docs
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
 

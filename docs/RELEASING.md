@@ -37,19 +37,28 @@ source of truth** — `pyproject.toml` is never bumped manually.
    Commit the result if it changed. (CI runs `--check` on every PR, so this is
    normally already current.)
 
-5. **Commit and push to `main`.**
+5. **Regenerate the benchmark reference template.** Keeps
+   `docs/templates/benchmark_template.yaml` (embedded in the Benchmark
+   Definition Reference) in sync with the Pydantic models:
+   ```bash
+   pixi run -e docs docs-template
+   ```
+   The version string in the file header should match the release. Commit it
+   alongside the other release changes.
+
+6. **Commit and push to `main`.**
    ```bash
    git commit -am "chore: release vX.Y.Z"
    git push origin main
    ```
 
-6. **Tag and push the tag.**
+7. **Tag and push the tag.**
    ```bash
    git tag -a vX.Y.Z -m "Release X.Y.Z"
    git push origin vX.Y.Z
    ```
 
-7. **Build the package.** Clean first to avoid stale artifacts polluting the
+8. **Build the package.** Clean first to avoid stale artifacts polluting the
    upload:
    ```bash
    rm -rf dist/ build/ omnibenchmark.egg-info/
@@ -60,7 +69,7 @@ source of truth** — `pyproject.toml` is never bumped manually.
    `+dirty` or `.devN` suffix — those mean the working tree wasn't clean or
    you forgot to tag).
 
-8. **Upload to PyPI.** Optionally smoke-test on TestPyPI first:
+9. **Upload to PyPI.** Optionally smoke-test on TestPyPI first:
    ```bash
    pixi run twine upload --repository testpypi dist/*
    ```
@@ -69,7 +78,7 @@ source of truth** — `pyproject.toml` is never bumped manually.
    pixi run twine upload dist/*
    ```
 
-9. **Create the GitHub release** for tag `vX.Y.Z` and paste the CHANGELOG entry
+10. **Create the GitHub release** for tag `vX.Y.Z` and paste the CHANGELOG entry
    as the body.
 
 ## Post-release

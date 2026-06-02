@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v0.1)
+# 004: Omnibenchmark YAML Specification (v3)
 
-[![Status: Under Review](https://img.shields.io/badge/Status-UnderReview-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.1](https://img.shields.io/badge/Version-0.3-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
-**Status**: Under Review
-**Version**: 0.1
+**Status**: Accepted
+**Version**: 3
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
