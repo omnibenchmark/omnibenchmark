@@ -4,8 +4,8 @@ from pathlib import Path
 
 import click
 
-from omnibenchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.cite import (
+from omnibenchmark.core import BenchmarkExecution
+from omnibenchmark.core.cite import (
     extract_citation_metadata,
     format_output,
     CitationExtractionError,

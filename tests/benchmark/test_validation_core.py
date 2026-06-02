@@ -1,7 +1,7 @@
 """Tests for the new strategy-pattern-based validation system."""
 
 import pytest
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.metadata import (
     ValidationResult,
     ValidationIssue,
     ValidationSeverity,

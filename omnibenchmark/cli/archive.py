@@ -4,7 +4,7 @@ import click
 import zipfile
 from pathlib import Path
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.archive import archive_benchmark
 from omnibenchmark.constants import COMPRESSION_GZIP, DEFAULT_COMPRESSION
 from omnibenchmark.remote.tree import tree_string_from_list

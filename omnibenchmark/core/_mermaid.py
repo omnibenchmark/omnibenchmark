@@ -3,7 +3,7 @@
 from typing import Dict, List
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.benchmark import Parameter
-from omnibenchmark.benchmark._graph import get_nodes_by_module_id
+from omnibenchmark.core._graph import get_nodes_by_module_id
 from omnibenchmark.model.params import Params
 
 

@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from omnibenchmark.model.params import Params
-from omnibenchmark.benchmark.symlinks import SymlinkManager
+from omnibenchmark.core.symlinks import SymlinkManager
 
 
 @pytest.fixture

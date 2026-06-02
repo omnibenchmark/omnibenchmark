@@ -2,7 +2,7 @@
 
 import pytest
 
-from omnibenchmark.benchmark.cite import (
+from omnibenchmark.core.cite import (
     ModuleCitationResult,
     convert_errors_to_warnings,
     create_cite_issue,
@@ -13,7 +13,7 @@ from omnibenchmark.benchmark.cite import (
     _extract_year_from_date,
     _clean_for_serialization,
 )
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.metadata import (
     ValidationIssue,
     ValidationSeverity,
 )

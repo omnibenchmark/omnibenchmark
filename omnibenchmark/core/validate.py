@@ -5,8 +5,8 @@ import yaml
 from pathlib import Path
 from typing import Dict, Optional, Any, List
 
-from omnibenchmark.benchmark.benchmark import BenchmarkExecution
-from omnibenchmark.benchmark.repository_utils import (
+from omnibenchmark.core.execution import BenchmarkExecution
+from omnibenchmark.core.repository_utils import (
     RepositoryManager,
     get_module_repository_info,
     resolve_module_repository,

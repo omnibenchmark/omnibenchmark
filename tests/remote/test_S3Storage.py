@@ -8,7 +8,7 @@ import pytest
 import subprocess
 
 from omnibenchmark.model import SoftwareBackendEnum
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
 from omnibenchmark.remote.S3Storage import S3CompatibleStorage

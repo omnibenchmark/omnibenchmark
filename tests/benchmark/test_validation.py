@@ -1,5 +1,5 @@
 import pytest
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.metadata import (
     ValidationResult,
     ValidationIssue,
     ValidationSeverity,

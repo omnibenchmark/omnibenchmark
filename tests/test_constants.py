@@ -7,7 +7,7 @@ All tests are marked as 'short' since they test simple constant definitions.
 
 import pytest
 from omnibenchmark.constants import LayoutDesign, COMPRESSION_GZIP, DEFAULT_COMPRESSION
-from omnibenchmark.benchmark.constants import LOCAL_TIMEOUT_VAR, OUTPUT_PATH_PREFIX
+from omnibenchmark.core.constants import LOCAL_TIMEOUT_VAR, OUTPUT_PATH_PREFIX
 
 
 @pytest.mark.short

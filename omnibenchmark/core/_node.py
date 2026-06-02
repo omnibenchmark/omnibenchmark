@@ -148,7 +148,7 @@ class BenchmarkNode:
     def get_environment_path(
         self, env_key: str, software_backend: SoftwareBackendEnum, benchmark_dir: Path
     ) -> Optional[str]:
-        from omnibenchmark.benchmark import Validator
+        from omnibenchmark.core import Validator
 
         environment = self.get_benchmark_software_environments().get(env_key, None)
         environment_path = (

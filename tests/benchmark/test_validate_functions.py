@@ -2,7 +2,7 @@
 
 import pytest
 
-from omnibenchmark.benchmark.validate import (
+from omnibenchmark.core.validate import (
     ValidationResult,
     _detect_license_from_content,
     _validate_license_consistency,

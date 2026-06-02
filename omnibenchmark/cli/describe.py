@@ -9,8 +9,8 @@ import json
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
-from omnibenchmark.benchmark.status.status import prepare_status, print_exec_path_dict
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core.status.status import prepare_status, print_exec_path_dict
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.dag import get_node_attributes
 
 from omnibenchmark.logging import logger

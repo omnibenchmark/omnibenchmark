@@ -3,7 +3,7 @@ import warnings
 
 from typing import Optional, TYPE_CHECKING, Any
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from .RemoteStorage import StorageOptions
 
 if TYPE_CHECKING:

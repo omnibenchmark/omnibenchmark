@@ -1,6 +1,6 @@
 """Unit tests for filename truncation in benchmark._paths."""
 
-from omnibenchmark.benchmark._paths import (
+from omnibenchmark.core._paths import (
     MAX_FILENAME_LEN,
     truncate_filename,
     truncate_path_filename,
