@@ -21,7 +21,7 @@ Key responsibilities:
 
 Layering: ``core`` depends downward on :mod:`omnibenchmark.model`,
 :mod:`omnibenchmark.git`, and the leaf utilities (``logging``, ``progress``,
-``error_formatting``). Nothing in a lower layer imports ``core``.
+``formatting``). Nothing in a lower layer imports ``core``.
 
 (Formerly ``omnibenchmark.benchmark``; renamed to avoid overloading the word
 "benchmark" across the tool, package, module, and model class.)

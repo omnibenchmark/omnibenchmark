@@ -9,7 +9,7 @@ import click
 
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.logging import logger
-from omnibenchmark.cli.error_formatting import pretty_print_parse_error
+from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.remote.files import checksum_files
 from omnibenchmark.remote.files import list_files

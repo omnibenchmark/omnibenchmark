@@ -11,7 +11,7 @@ Package layering (imports flow top → bottom; nothing imports upward):
   ────────────────────────────────────────────────────────
   model          benchmark definition (Pydantic) + validation
   dag            generic DAG primitives
-  config  constants  logging  progress  error_formatting   leaf utilities
+  config  constants  logging  progress  formatting         leaf utilities
 
 The only remaining import cycle is ``archive <-> remote``; everything else
 forms a clean DAG.
