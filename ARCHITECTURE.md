@@ -6,27 +6,27 @@ Packages are layered top (user-facing) to bottom (foundation). Imports only ever
 
 ```mermaid
 flowchart TB
-  subgraph cli[cli]
+  subgraph layer_cli[cli]
     cli
   end
-  subgraph backend[backend]
+  subgraph layer_backend[backend]
     remote
   end
-  subgraph service[service]
+  subgraph layer_service[service]
     archive
     backend
     versioning
   end
-  subgraph interface[interface]
+  subgraph layer_interface[interface]
     storage
   end
-  subgraph engine[engine]
+  subgraph layer_engine[engine]
     core
   end
-  subgraph infrastructure[infrastructure]
+  subgraph layer_infrastructure[infrastructure]
     git
   end
-  subgraph foundation[foundation]
+  subgraph layer_foundation[foundation]
     dag
     model
   end
