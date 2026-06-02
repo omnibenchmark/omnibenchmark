@@ -9,8 +9,8 @@ try:
 except ImportError:
     ClientError = Exception  # type: ignore[assignment,misc]
 
-from omnibenchmark.remote.exception import S3StorageBucketManipulationException
-from omnibenchmark.remote.RemoteStorage import is_valid_version
+from omnibenchmark.storage.exceptions import S3StorageBucketManipulationException
+from omnibenchmark.storage import is_valid_version
 
 
 def get_s3_object_versions_and_tags(

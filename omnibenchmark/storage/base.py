@@ -1,4 +1,4 @@
-"""Base class for remote storage."""
+"""Storage interface (port) and tracked-directory options."""
 
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 import packaging.version
 from packaging.version import Version
 
-from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
+from omnibenchmark.storage.exceptions import RemoteStorageInvalidInputException
 
 
 class StorageOptions:

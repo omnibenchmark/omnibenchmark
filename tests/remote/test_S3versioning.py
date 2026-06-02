@@ -7,7 +7,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from omnibenchmark.remote.S3versioning import get_s3_object_versions_and_tags
-from omnibenchmark.remote.exception import S3StorageBucketManipulationException
+from omnibenchmark.storage.exceptions import S3StorageBucketManipulationException
 
 
 # ---------------------------------------------------------------------------

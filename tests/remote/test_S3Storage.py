@@ -9,8 +9,8 @@ import subprocess
 
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.core import BenchmarkExecution
-from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.exception import RemoteStorageInvalidInputException
+from omnibenchmark.storage import StorageOptions
+from omnibenchmark.storage.exceptions import RemoteStorageInvalidInputException
 from omnibenchmark.remote.S3Storage import S3CompatibleStorage
 
 from ..fixtures import rustfs_storage, _rustfs_container  # noqa: F401

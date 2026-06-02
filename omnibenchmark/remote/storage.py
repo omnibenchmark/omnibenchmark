@@ -4,7 +4,7 @@ import warnings
 from typing import Optional, TYPE_CHECKING, Any
 
 from omnibenchmark.core import BenchmarkExecution
-from .RemoteStorage import StorageOptions
+from omnibenchmark.storage import StorageOptions
 
 if TYPE_CHECKING:
     from .S3Storage import S3CompatibleStorage as S3CompatibleStorageType

@@ -21,13 +21,13 @@ except ImportError:
     boto3 = None  # type: ignore
 
 from omnibenchmark.core import BenchmarkExecution
-from omnibenchmark.remote.exception import (
+from omnibenchmark.storage.exceptions import (
     RemoteStorageInvalidInputException,
     S3StorageConnectionException,
     S3StorageBucketManipulationException,
 )
 from omnibenchmark.archive.components import prepare_archive_software
-from omnibenchmark.remote.RemoteStorage import RemoteStorage, StorageOptions
+from omnibenchmark.storage import RemoteStorage, StorageOptions
 from omnibenchmark.remote.S3config import bucket_readonly_policy
 from omnibenchmark.remote.S3versioning import get_s3_object_versions_and_tags
 from omnibenchmark.remote.versioning import (

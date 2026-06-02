@@ -13,7 +13,7 @@ import yaml
 
 from omnibenchmark.model import Benchmark
 from omnibenchmark.remote.S3Storage import S3CompatibleStorage
-from omnibenchmark.remote.RemoteStorage import StorageOptions
+from omnibenchmark.storage import StorageOptions
 
 RUSTFS_IMAGE = "rustfs/rustfs:1.0.0-alpha.85"
 RUSTFS_ACCESS_KEY = "rustfsadmin"

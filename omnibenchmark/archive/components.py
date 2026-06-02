@@ -13,8 +13,7 @@ from typing import List
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.benchmark import _is_environment_url
-from omnibenchmark.remote.RemoteStorage import StorageOptions
-from omnibenchmark.remote.versioning import get_expected_benchmark_output_files
+from omnibenchmark.storage import StorageOptions, get_expected_benchmark_output_files
 
 
 def prepare_archive_config(benchmark: BenchmarkExecution) -> List[Path]:
