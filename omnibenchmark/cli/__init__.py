@@ -1,6 +1,11 @@
 """
 Command-line interface for omnibenchmark.
 
+Represents: the user-facing ``ob`` commands; each module maps to a subcommand
+and wires user input to the layers below.
+Layer: cli (top — nothing imports it)
+Depends on: everything below (core, model, remote, archive, ...).
+
 The top, user-facing layer: each module maps to an ``ob`` subcommand and wires
 user input to the lower layers. It depends downward on everything it needs
 (:mod:`omnibenchmark.core`, :mod:`omnibenchmark.model`,

@@ -1,9 +1,12 @@
 """
-Backend module for omnibenchmark execution.
+Execution backend — compile a benchmark into a runnable workflow.
 
-Provides the compilation pipeline:
+Represents: the compilation pipeline that turns resolved nodes into an
+executable Snakemake workflow:
 - Module resolution (cloning, entrypoint detection)
 - Snakefile generation from resolved nodes
+Layer: service
+Depends on: core, model, git.
 """
 
 from .resolver import ModuleResolver

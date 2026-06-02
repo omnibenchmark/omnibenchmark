@@ -1,4 +1,11 @@
-"""Pydantic models for Omnibenchmark."""
+"""
+Benchmark definition — the typed data model and its validation.
+
+Represents: what a benchmark *is*, as passive Pydantic structures (stages,
+modules, parameters, storage config, ...) plus the rules that validate them.
+Layer: foundation (data model)
+Depends on: nothing internal — the base layer everything else builds on.
+"""
 
 from omnibenchmark.model.benchmark import (
     # Base classes
