@@ -36,6 +36,14 @@ def archive_version(
 
     Maintained for backward compatibility.
     """
+    # Build the storage backend here (remote owns backend selection) and inject
+    # it, so the archive layer never imports a concrete backend.
+    storage = None
+    if results and remote_storage:
+        from omnibenchmark.remote.storage import get_storage_for_archive
+
+        storage = get_storage_for_archive(benchmark, results_dir)
+
     result = archive_benchmark(
         benchmark=benchmark,
         outdir=outdir,
@@ -48,6 +56,7 @@ def archive_version(
         compresslevel=compresslevel,
         dry_run=dry_run,
         remote_storage=remote_storage,
+        storage=storage,
     )
 
     if dry_run:

@@ -8,12 +8,16 @@ Each component can be included or excluded independently.
 
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.benchmark import _is_environment_url
-from omnibenchmark.storage import StorageOptions, get_expected_benchmark_output_files
+from omnibenchmark.storage import (
+    RemoteStorage,
+    StorageOptions,
+    get_expected_benchmark_output_files,
+)
 
 
 def prepare_archive_config(benchmark: BenchmarkExecution) -> List[Path]:
@@ -192,7 +196,10 @@ def prepare_archive_software_apptainer(benchmark: BenchmarkExecution) -> List[Pa
 
 
 def prepare_archive_results(
-    benchmark: BenchmarkExecution, results_dir: str, remote_storage: bool = False
+    benchmark: BenchmarkExecution,
+    results_dir: str,
+    remote_storage: bool = False,
+    storage: Optional[RemoteStorage] = None,
 ) -> List[Path]:
     """
     Prepare the results files to archive.
@@ -205,12 +212,15 @@ def prepare_archive_results(
         benchmark: The benchmark execution object
         results_dir: Directory containing results files
         remote_storage: Whether to use remote storage
+        storage: A connected storage backend, required when remote_storage is
+            True. Injected by the caller so this layer needs no knowledge of
+            concrete backends (see :mod:`omnibenchmark.storage`).
 
     Returns:
         List[Path]: The filenames of all results to archive
     """
     if remote_storage:
-        return prepare_archive_results_remote(benchmark, results_dir)
+        return prepare_archive_results_remote(benchmark, results_dir, storage)
     else:
         return prepare_archive_results_local(benchmark, results_dir)
 
@@ -253,7 +263,9 @@ def prepare_archive_results_local(
 
 
 def prepare_archive_results_remote(
-    benchmark: BenchmarkExecution, results_dir: str
+    benchmark: BenchmarkExecution,
+    results_dir: str,
+    storage: Optional[RemoteStorage] = None,
 ) -> List[Path]:
     """
     Prepare remote results files for archiving (downloads from remote storage).
@@ -287,8 +299,10 @@ def prepare_archive_results_remote(
     Returns:
         List[Path]: The filenames of results downloaded from remote storage
     """
-    # Import here to avoid circular imports
-    from omnibenchmark.remote.storage import get_storage, remote_storage_args
+    # Storage is injected by the caller (which owns backend selection), so this
+    # layer depends only on the storage *interface*, never on a concrete backend.
+    if storage is None:
+        raise ValueError("Remote storage requested but no storage backend was provided")
 
     # Get expected files based on benchmark configuration
     storage_options = StorageOptions(out_dir=results_dir)
@@ -307,28 +321,10 @@ def prepare_archive_results_remote(
         else:
             expected_files_normalized.append(f_str)
 
-    # Get storage connection with custom storage_options
-    auth_options = remote_storage_args(benchmark.model)
-    storage_api = benchmark.get_storage_api()
-    bucket_name = benchmark.get_storage_bucket_name()
-
-    if storage_api is None:
-        raise ValueError("No storage API configured for benchmark")
-    if bucket_name is None:
-        raise ValueError("No storage bucket configured for benchmark")
-
-    ss = get_storage(
-        storage_api,
-        auth_options,
-        bucket_name,
-        storage_options,
-    )
-    if ss is None:
-        raise ValueError("Failed to initialize storage - check credentials")
-
     # Set version and get objects from the version manifest
     # NOTE: This requires that 'ob remote version create' was run after the benchmark
     # and that it successfully tagged the result files in S3
+    ss = storage
     ss.set_version(benchmark.get_benchmark_version())
     ss.load_objects()
 

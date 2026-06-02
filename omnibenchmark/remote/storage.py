@@ -136,6 +136,40 @@ def get_storage_from_benchmark(
     )
 
 
+def get_storage_for_archive(
+    benchmark, results_dir: str = "out"
+) -> S3CompatibleStorageType:
+    """Build a connected storage backend for archiving *benchmark*'s results.
+
+    Centralises the backend selection that archiving needs so the archive layer
+    can stay backend-agnostic and receive the storage object by injection.
+
+    Args:
+        benchmark: The benchmark execution object.
+        results_dir: Results directory, used as the tracked ``out_dir``.
+
+    Returns:
+        A connected RemoteStorage instance.
+
+    Raises:
+        ValueError: If storage is not configured or cannot be initialised.
+    """
+    storage_options = StorageOptions(out_dir=results_dir)
+    auth_options = remote_storage_args(benchmark.model)
+    storage_api = benchmark.get_storage_api()
+    bucket_name = benchmark.get_storage_bucket_name()
+
+    if storage_api is None:
+        raise ValueError("No storage API configured for benchmark")
+    if bucket_name is None:
+        raise ValueError("No storage bucket configured for benchmark")
+
+    ss = get_storage(storage_api, auth_options, bucket_name, storage_options)
+    if ss is None:
+        raise ValueError("Failed to initialize storage - check credentials")
+    return ss
+
+
 def remote_storage_args(benchmark, required: bool = False) -> dict:
     """Return authentication args for the benchmark's remote storage.
 

@@ -176,6 +176,14 @@ def archive(
         outdir = Path(".")
         custom_filename = None
 
+    # Build the storage backend up here (the CLI owns backend selection) and
+    # inject it; archive itself stays backend-agnostic.
+    storage = None
+    if results and use_remote_storage:
+        from omnibenchmark.remote.storage import get_storage_for_archive
+
+        storage = get_storage_for_archive(benchmark_obj, results_dir)
+
     archive_file = archive_benchmark(
         benchmark_obj,
         outdir=outdir,
@@ -188,6 +196,7 @@ def archive(
         compresslevel=compresslevel,
         dry_run=dry_run,
         remote_storage=use_remote_storage,
+        storage=storage,
         custom_filename=custom_filename,
     )
     if dry_run:
