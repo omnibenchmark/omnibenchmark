@@ -19,7 +19,7 @@ from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.core._paths import truncate_path_filename
 from omnibenchmark.model.params import Params
-from omnibenchmark.cli.error_formatting import pretty_print_parse_error
+from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
 from omnibenchmark.core import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum

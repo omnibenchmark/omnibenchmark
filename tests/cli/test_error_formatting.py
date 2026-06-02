@@ -1,7 +1,7 @@
 """Tests for CLI error formatting functionality."""
 
 import pytest
-from omnibenchmark.cli.error_formatting import pretty_print_parse_error
+from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.model.validation import BenchmarkParseError
 
 

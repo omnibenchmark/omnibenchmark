@@ -814,7 +814,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                     param["values"] = [str(v) for v in param["values"]]
 
                                     # Emit structured warning with line context
-                                    from omnibenchmark.error_formatting import (
+                                    from omnibenchmark.formatting import (
                                         format_yaml_warning,
                                     )
                                     from omnibenchmark.logging import logger

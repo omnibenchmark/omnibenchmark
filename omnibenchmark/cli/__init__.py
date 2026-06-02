@@ -21,5 +21,5 @@ Subcommands:
 - ``archive.py`` / ``remote.py`` — archiving and remote-storage operations
 - ``debug.py``    — debug helpers and logging configuration
 
-Helpers ``error_formatting.py`` (CLI parse-error rendering) live alongside.
+Helpers ``formatting.py`` (CLI parse-error rendering) live alongside.
 """
