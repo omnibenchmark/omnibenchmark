@@ -35,3 +35,14 @@ cd clustering_example
 
 ob run Clustering_conda.yml
 ```
+
+## Community Benchmarks
+
+These are benchmarks organized by the community using Omnibenchmark.
+
+| Git repository | Description | API Version | License | DOI |
+|----------------|-------------|-------------|---------|-----|
+| [OB_GSEA-main](https://github.com/cphgeno/OB_GSEA-main) | Comparison of 17 single-sample gene set enrichment analysis (GSEA) methods across diverse datasets | 0.3.2 | MIT | — |
+| [scrna-bench](https://github.com/scrna-bench/pipelines-plan) | End-to-end scRNA-seq analysis pipelines, from HDF5 inputs to PCA, clustering, and other outputs | 0.4.0 | MIT | [10.5281/zenodo.19886347](https://zenodo.org/records/19886347) |
+
+Have a benchmark to share? Open a PR (or an [issue](https://github.com/omnibenchmark/omnibenchmark/issues)) to add it to this section.
