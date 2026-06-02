@@ -21,7 +21,7 @@ from omnibenchmark.benchmark._paths import truncate_path_filename
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.error_formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
-from omnibenchmark.git import populate_git_cache
+from omnibenchmark.benchmark import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.resolved import ResolvedNode, TemplateContext
 from omnibenchmark.model.validation import BenchmarkParseError

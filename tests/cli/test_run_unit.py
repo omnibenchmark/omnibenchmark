@@ -17,7 +17,7 @@ from omnibenchmark.cli.run import (
     _satisfies_requires,
     run,
 )
-from omnibenchmark.git.prefetch import populate_git_cache
+from omnibenchmark.benchmark.prefetch import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.resolved import TemplateContext
 from omnibenchmark.model.params import Params
@@ -552,13 +552,17 @@ def _mock_benchmark(repo_url=None, commit="abc1234", local=False):
 @pytest.mark.short
 def test_populate_git_cache_no_repos_quiet(tmp_path):
     """No repos → early return, no exception."""
-    with patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path):
+    with patch(
+        "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+    ):
         populate_git_cache(_mock_benchmark(), quiet=True, cores=1)
 
 
 @pytest.mark.short
 def test_populate_git_cache_no_repos_verbose(tmp_path):
-    with patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path):
+    with patch(
+        "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+    ):
         populate_git_cache(_mock_benchmark(), quiet=False, cores=1)
 
 
@@ -566,8 +570,10 @@ def test_populate_git_cache_no_repos_verbose(tmp_path):
 def test_populate_git_cache_local_path_skipped(tmp_path):
     """Local path repos are skipped → treated as no remote repos."""
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=True),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=True),
     ):
         populate_git_cache(
             _mock_benchmark(repo_url="/local/path/module"), quiet=True, cores=1
@@ -577,9 +583,13 @@ def test_populate_git_cache_local_path_skipped(tmp_path):
 @pytest.mark.short
 def test_populate_git_cache_remote_repo_success(tmp_path):
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.git.prefetch.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_or_update_cached_repo"
+        ) as mock_fetch,
         patch(
             "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
         ),
@@ -595,10 +605,12 @@ def test_populate_git_cache_remote_repo_success(tmp_path):
 @pytest.mark.short
 def test_populate_git_cache_remote_repo_failure(tmp_path):
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
         patch(
-            "omnibenchmark.git.prefetch.get_or_update_cached_repo",
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_or_update_cached_repo",
             side_effect=RuntimeError("network error"),
         ),
         patch(
@@ -616,9 +628,11 @@ def test_populate_git_cache_remote_repo_failure(tmp_path):
 @pytest.mark.short
 def test_populate_git_cache_quiet_uses_progress_display(tmp_path):
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.git.prefetch.get_or_update_cached_repo"),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch("omnibenchmark.benchmark.prefetch.get_or_update_cached_repo"),
         patch(
             "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
         ),
@@ -645,9 +659,13 @@ def test_populate_git_cache_commit_in_cache_skips_fetch(tmp_path):
     # repo[commit_bytes] succeeds → skip_fetch = True
 
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.git.prefetch.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_or_update_cached_repo"
+        ) as mock_fetch,
         patch(
             "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
         ),
@@ -673,9 +691,11 @@ def test_populate_git_cache_future_exception(tmp_path):
     failing_future.set_exception(RuntimeError("unexpected failure"))
 
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.git.prefetch.get_or_update_cached_repo"),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch("omnibenchmark.benchmark.prefetch.get_or_update_cached_repo"),
         patch(
             "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
         ),
@@ -712,9 +732,13 @@ def test_populate_git_cache_metric_collector_repo(tmp_path):
     mock_b.model.metric_collectors = [mock_collector]
 
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.git.prefetch.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_or_update_cached_repo"
+        ) as mock_fetch,
         patch(
             "omnibenchmark.git.cache.parse_repo_url",
             return_value="github.com/org/metrics",
@@ -735,9 +759,13 @@ def test_populate_git_cache_commit_lookup_keyerror(tmp_path):
     mock_repo.__getitem__ = MagicMock(side_effect=KeyError("not found"))
 
     with (
-        patch("omnibenchmark.git.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.git.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.git.prefetch.get_or_update_cached_repo") as mock_fetch,
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_git_cache_dir", return_value=tmp_path
+        ),
+        patch("omnibenchmark.benchmark.prefetch.is_local_path", return_value=False),
+        patch(
+            "omnibenchmark.benchmark.prefetch.get_or_update_cached_repo"
+        ) as mock_fetch,
         patch(
             "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
         ),

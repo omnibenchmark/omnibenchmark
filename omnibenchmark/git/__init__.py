@@ -16,7 +16,6 @@ from .cache import (
     describe_cache,
     resolve_local_path,
 )
-from .prefetch import populate_git_cache
 
 __all__ = [
     "clone_module_v2",
@@ -27,5 +26,4 @@ __all__ = [
     "checkout_to_work_dir",
     "describe_cache",
     "resolve_local_path",
-    "populate_git_cache",
 ]

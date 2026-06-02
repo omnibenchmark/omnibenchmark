@@ -13,7 +13,7 @@ from omnibenchmark.git.cache import (
 )
 
 if TYPE_CHECKING:
-    from omnibenchmark.benchmark import BenchmarkExecution
+    from omnibenchmark.benchmark.benchmark import BenchmarkExecution
 
 logger = logging.getLogger(__name__)
 
