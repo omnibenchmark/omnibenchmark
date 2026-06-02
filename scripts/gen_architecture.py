@@ -195,7 +195,7 @@ def render(pkgs: dict, edges: dict[str, set[str]], cycles: list[list[str]]) -> s
         members = by_layer.get(layer, [])
         if not members:
             continue
-        lines.append(f"  subgraph {layer}[{layer}]")
+        lines.append(f"  subgraph layer_{layer}[{layer}]")
         for m in sorted(members):
             lines.append(f"    {m}")
         lines.append("  end")
