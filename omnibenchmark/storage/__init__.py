@@ -14,10 +14,11 @@ Contains:
 - ``expected.get_expected_benchmark_output_files``  pure: benchmark + options
                             -> expected output file list (no I/O)
 
-Layer: interface (a "port"). Sits above :mod:`omnibenchmark.core` (it speaks in
-core domain objects) and below every concrete or orchestrating layer.
-
+Layer: interface (port)
 Depends on: ``core``.
+
+It sits above :mod:`omnibenchmark.core` (it speaks in core domain objects) and
+below every concrete or orchestrating layer.
 Implemented by: :mod:`omnibenchmark.remote` (the concrete S3 backend + factory).
 Consumed by: :mod:`omnibenchmark.remote`, :mod:`omnibenchmark.archive`.
 

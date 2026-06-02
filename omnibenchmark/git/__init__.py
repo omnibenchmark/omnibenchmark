@@ -2,11 +2,13 @@
 Git repository cache for omnibenchmark.
 
 Represents: fetching and caching the module git repositories a benchmark
-references, via a two-tier scheme:
-- Cache tier: full clones in ~/.cache/omnibenchmark/git/{host}/{org}/{repo}/
-- Work tier: lightweight checkouts to .modules/{repo_name}/{commit}/ before execution
+references, via a two-tier scheme.
 Layer: infrastructure
 Depends on: config.
+
+Tiers:
+- Cache tier: full clones in ~/.cache/omnibenchmark/git/{host}/{org}/{repo}/
+- Work tier: lightweight checkouts to .modules/{repo_name}/{commit}/ before execution
 """
 
 from .cache import (
