@@ -3,15 +3,15 @@ import os.path
 from pathlib import Path
 from typing import Dict, List, Set, Optional
 
-from omnibenchmark.benchmark._mermaid import generate_mermaid_diagram
-from omnibenchmark.benchmark._paths import (
+from omnibenchmark.core._mermaid import generate_mermaid_diagram
+from omnibenchmark.core._paths import (
     collect_output_paths,
     collect_path_exclusions,
 )
 
-from omnibenchmark.benchmark import _graph as graph
+from omnibenchmark.core import _graph as graph
 from omnibenchmark.model import Benchmark as BenchmarkModel, SoftwareBackendEnum
-from omnibenchmark.benchmark._mc_output import format_mc_output
+from omnibenchmark.core._mc_output import format_mc_output
 
 from ._dag_builder import DAGBuilder
 from ._dot import export_to_dot
@@ -235,7 +235,7 @@ class BenchmarkExecution:
     def get_environment_path(
         self, env_key: str, software_backend: SoftwareBackendEnum
     ) -> Optional[str]:
-        from omnibenchmark.benchmark import Validator
+        from omnibenchmark.core import Validator
 
         benchmark_dir = self.context.directory
         environment = self.get_benchmark_software_environments().get(env_key, None)

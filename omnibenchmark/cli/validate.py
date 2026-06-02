@@ -9,16 +9,16 @@ import click
 import yaml
 from pydantic import ValidationError as PydanticValidationError
 
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.metadata import (
     ValidationException,
     ValidationSeverity,
     validate_module_files,
 )
-from omnibenchmark.benchmark.repository_utils import (
+from omnibenchmark.core.repository_utils import (
     RepositoryManager,
     cleanup_temp_repositories,
 )
-from omnibenchmark.benchmark.validate import ValidationResult, format_validation_results
+from omnibenchmark.core.validate import ValidationResult, format_validation_results
 from omnibenchmark.logging import logger
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.validation import BenchmarkParseError, ValidationError

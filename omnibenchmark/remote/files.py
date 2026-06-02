@@ -6,7 +6,7 @@ from typing import Optional
 
 import tqdm
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.core import Benchmark
 from omnibenchmark.logging import logger
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 from omnibenchmark.remote.versioning import get_expected_benchmark_output_files

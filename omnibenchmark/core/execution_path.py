@@ -2,7 +2,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 from typing import Union
-from omnibenchmark.benchmark import Benchmark, BenchmarkNode
+from omnibenchmark.core import Benchmark, BenchmarkNode
 from omnibenchmark.model.benchmark import Repository
 from omnibenchmark.model.repo import get_repo_hash
 from abc import ABCMeta, abstractmethod

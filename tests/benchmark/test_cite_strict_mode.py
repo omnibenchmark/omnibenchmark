@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from omnibenchmark.benchmark.cite import (
+from omnibenchmark.core.cite import (
     extract_citation_metadata,
     CitationExtractionError,
     ModuleCitationResult,
@@ -12,8 +12,8 @@ from omnibenchmark.benchmark.cite import (
     create_cite_issue,
     _extract_single_module_citation,
 )
-from omnibenchmark.benchmark.repository_utils import RepositoryManager
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.repository_utils import RepositoryManager
+from omnibenchmark.core.metadata import (
     ValidationSeverity,
 )
 
@@ -202,7 +202,7 @@ def test_extract_citation_metadata_warn_mode_continue(mock_benchmark):
     )
 
     # Should continue and process all modules in warn mode, but will raise RuntimeWarning about no repos
-    with patch("omnibenchmark.benchmark.cite.logger"):
+    with patch("omnibenchmark.core.cite.logger"):
         with pytest.raises(RuntimeWarning) as exc_info:
             extract_citation_metadata(benchmark, strict=True, warn_mode=True)
 
@@ -235,7 +235,7 @@ license: MIT
 """
 
     # Mock the repo hash to point to our temp directory
-    with patch("omnibenchmark.benchmark.repository_utils.get_repo_hash") as mock_hash:
+    with patch("omnibenchmark.core.repository_utils.get_repo_hash") as mock_hash:
         mock_hash.return_value = "test_hash"
 
         # Create the expected directory structure
@@ -245,7 +245,7 @@ license: MIT
         citation_file.write_text(citation_content)
 
         # Patch the repos_base_dir to use our temp directory
-        with patch("omnibenchmark.benchmark.repository_utils.Path") as mock_path:
+        with patch("omnibenchmark.core.repository_utils.Path") as mock_path:
 
             def path_side_effect(path_str):
                 if path_str == ".snakemake/repos":
@@ -284,7 +284,7 @@ invalid: yaml: structure: here
 license: MIT
 """
 
-    with patch("omnibenchmark.benchmark.repository_utils.get_repo_hash") as mock_hash:
+    with patch("omnibenchmark.core.repository_utils.get_repo_hash") as mock_hash:
         mock_hash.return_value = "test_hash"
 
         repo_dir = temp_repos_dir / "test_hash"
@@ -292,7 +292,7 @@ license: MIT
         citation_file = repo_dir / "CITATION.cff"
         citation_file.write_text(citation_content)
 
-        with patch("omnibenchmark.benchmark.repository_utils.Path") as mock_path:
+        with patch("omnibenchmark.core.repository_utils.Path") as mock_path:
 
             def path_side_effect(path_str):
                 if path_str == ".snakemake/repos":
@@ -312,7 +312,7 @@ license: MIT
             assert result["test_module"]["citation_file_found"] is False
 
             # Should also succeed in warn mode
-            with patch("omnibenchmark.benchmark.cite.logger"):
+            with patch("omnibenchmark.core.cite.logger"):
                 result_warn = extract_citation_metadata(
                     benchmark, strict=True, warn_mode=True
                 )
@@ -357,18 +357,16 @@ def test_extract_single_module_citation_missing_citation_file(
     repo_info.commit_hash = "abc123def456"
     converter.get_module_repository.return_value = repo_info
 
-    with patch("omnibenchmark.benchmark.repository_utils.get_repo_hash") as mock_hash:
+    with patch("omnibenchmark.core.repository_utils.get_repo_hash") as mock_hash:
         mock_hash.return_value = "test_hash"
 
-        with patch(
-            "omnibenchmark.benchmark.repository_utils.clone_module"
-        ) as mock_clone:
+        with patch("omnibenchmark.core.repository_utils.clone_module") as mock_clone:
             # Create repo directory but no CITATION.cff
             repo_dir = temp_repos_dir / "test_hash"
             repo_dir.mkdir()
             mock_clone.return_value = repo_dir
 
-            with patch("omnibenchmark.benchmark.repository_utils.Path") as mock_path:
+            with patch("omnibenchmark.core.repository_utils.Path") as mock_path:
 
                 def path_side_effect(path_str):
                     if path_str == ".snakemake/repos":

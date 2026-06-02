@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 from typing import List, Optional, Union
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.constants import COMPRESSION_GZIP, DEFAULT_COMPRESSION
 
 from .components import (

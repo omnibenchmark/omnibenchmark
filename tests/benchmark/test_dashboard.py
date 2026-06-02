@@ -2,7 +2,7 @@
 
 import pytest
 
-from omnibenchmark.benchmark.dashboard import (
+from omnibenchmark.core.dashboard import (
     EXPORT_AVAILABLE,
     _extract_metric_columns,
     _is_na,

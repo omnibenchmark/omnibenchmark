@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import List
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.benchmark import _is_environment_url
 from omnibenchmark.remote.RemoteStorage import StorageOptions

@@ -12,7 +12,7 @@ from omnibenchmark.cli.validate import (
     _format_warning_message,
     _convert_validation_result,
 )
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.metadata import (
     ValidationResult as MetadataValidationResult,
     ValidationIssue,
     ValidationSeverity,
@@ -331,7 +331,7 @@ license: MIT
             with patch(
                 "omnibenchmark.cli.validate.validate_module_files"
             ) as mock_validate:
-                from omnibenchmark.benchmark.metadata import (
+                from omnibenchmark.core.metadata import (
                     ValidationException,
                 )
 
@@ -719,7 +719,7 @@ class TestEdgeCasesAndErrorHandling:
             (module_dir / "CITATION.cff").write_text("cff-version: 1.2.0")
 
             with patch(
-                "omnibenchmark.benchmark.repository_utils.RepositoryManager"
+                "omnibenchmark.core.repository_utils.RepositoryManager"
             ) as mock_manager_class:
                 mock_manager = MagicMock()
                 mock_manager_class.return_value.__enter__.return_value = mock_manager

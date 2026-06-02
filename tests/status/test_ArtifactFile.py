@@ -1,4 +1,4 @@
-from omnibenchmark.benchmark.execution_path import (
+from omnibenchmark.core.execution_path import (
     n2f,
     LocalArtifactFile,
     ArtifactFileConfig,

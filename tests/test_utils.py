@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from omnibenchmark.model._merge import merge_dict_list
-from omnibenchmark.benchmark._mc_output import format_mc_output
+from omnibenchmark.core._mc_output import format_mc_output
 
 
 @pytest.mark.short

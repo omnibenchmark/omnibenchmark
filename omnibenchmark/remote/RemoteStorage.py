@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 if TYPE_CHECKING:
-    from omnibenchmark.benchmark import BenchmarkExecution
+    from omnibenchmark.core import BenchmarkExecution
 
 import packaging.version
 from packaging.version import Version

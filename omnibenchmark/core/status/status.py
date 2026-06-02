@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Union
-from omnibenchmark.benchmark.execution_path import (
+from omnibenchmark.core.execution_path import (
     ExecutionPathSet,
 )
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 
 
 def print_exec_path_dict(

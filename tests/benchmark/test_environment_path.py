@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
 
 

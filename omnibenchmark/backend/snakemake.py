@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, TextIO
 
-from omnibenchmark.benchmark._paths import (
+from omnibenchmark.core._paths import (
     _UNSAFE_CHARS,
     make_human_name as _make_human_name,
     truncate_filename,

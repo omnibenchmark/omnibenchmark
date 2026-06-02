@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Union
 import glob
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.core import Benchmark
 from omnibenchmark.remote.RemoteStorage import StorageOptions
 
 

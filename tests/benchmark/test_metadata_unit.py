@@ -1,6 +1,6 @@
 """Unit tests for metadata validation functions with minimal mocking."""
 
-from omnibenchmark.benchmark.metadata import (
+from omnibenchmark.core.metadata import (
     validate_citation_cff_content,
     validate_license_file_content,
     validate_omnibenchmark_yaml_content,
@@ -470,7 +470,7 @@ class TestValidationResult:
         result = ValidationResult()
 
         # Create and add an error issue
-        from omnibenchmark.benchmark.metadata import ValidationIssue, ValidationSeverity
+        from omnibenchmark.core.metadata import ValidationIssue, ValidationSeverity
 
         error_issue = ValidationIssue(
             issue_type="test_error",
@@ -491,7 +491,7 @@ class TestValidationResult:
         result = ValidationResult()
 
         # Create and add a warning issue
-        from omnibenchmark.benchmark.metadata import ValidationIssue, ValidationSeverity
+        from omnibenchmark.core.metadata import ValidationIssue, ValidationSeverity
 
         warning_issue = ValidationIssue(
             issue_type="test_warning",

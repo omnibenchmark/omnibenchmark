@@ -4,8 +4,8 @@ import random
 import pytest
 from pathlib import Path
 
-from omnibenchmark.benchmark import Benchmark
-from omnibenchmark.benchmark._dot import export_to_dot
+from omnibenchmark.core import Benchmark
+from omnibenchmark.core._dot import export_to_dot
 from omnibenchmark.dag import DiGraph
 
 

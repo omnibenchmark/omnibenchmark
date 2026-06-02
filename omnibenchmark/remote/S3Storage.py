@@ -20,7 +20,7 @@ try:
 except ImportError:
     boto3 = None  # type: ignore
 
-from omnibenchmark.benchmark import BenchmarkExecution
+from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.remote.exception import (
     RemoteStorageInvalidInputException,
     S3StorageConnectionException,

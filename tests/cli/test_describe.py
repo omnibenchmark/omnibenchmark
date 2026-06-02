@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from omnibenchmark.benchmark import Benchmark
+from omnibenchmark.core import Benchmark
 from tests.cli.cli_setup import OmniCLISetup
 
 benchmark_data = Path("..") / "data"

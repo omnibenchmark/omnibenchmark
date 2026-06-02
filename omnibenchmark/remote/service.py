@@ -105,11 +105,11 @@ class StorageService:
         from pathlib import Path
 
         if full_model:
-            from omnibenchmark.benchmark import BenchmarkExecution
+            from omnibenchmark.core import BenchmarkExecution
 
             benchmark_model = BenchmarkExecution(Path(benchmark_path))
         else:
-            from omnibenchmark.benchmark import Benchmark
+            from omnibenchmark.core import Benchmark
 
             benchmark_model = Benchmark(Path(benchmark_path))
 

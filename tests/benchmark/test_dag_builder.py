@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock
 
-from omnibenchmark.benchmark._dag_builder import DAGBuilder
+from omnibenchmark.core._dag_builder import DAGBuilder
 from omnibenchmark.model.params import Params
 from omnibenchmark.dag import DiGraph
 from omnibenchmark.model import Benchmark, Stage, ValidationError
