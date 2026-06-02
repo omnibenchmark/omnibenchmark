@@ -13,6 +13,7 @@ from typing import List, Optional, Union
 
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.constants import COMPRESSION_GZIP, DEFAULT_COMPRESSION
+from omnibenchmark.storage import RemoteStorage
 
 from .components import (
     prepare_archive_code,
@@ -34,6 +35,7 @@ def archive_benchmark(
     compresslevel: Optional[int] = None,
     dry_run: bool = False,
     remote_storage: bool = False,
+    storage: Optional[RemoteStorage] = None,
     custom_filename: Optional[str] = None,
 ) -> List[Path]:
     """
@@ -51,6 +53,9 @@ def archive_benchmark(
         compresslevel: Compression level
         dry_run: If True, return list of files without creating archive
         remote_storage: Whether to use remote storage for results
+        storage: A connected storage backend, required when remote_storage is
+            True. Built and injected by the caller so archive depends only on
+            the storage interface, not on any concrete backend.
         custom_filename: Custom filename for the archive (overrides default naming)
 
     Returns:
@@ -76,7 +81,9 @@ def archive_benchmark(
 
     # Results (output files)
     if results:
-        for f in prepare_archive_results(benchmark, results_dir, remote_storage):
+        for f in prepare_archive_results(
+            benchmark, results_dir, remote_storage, storage
+        ):
             files_to_archive.append((f, str(f)))
 
     if dry_run:

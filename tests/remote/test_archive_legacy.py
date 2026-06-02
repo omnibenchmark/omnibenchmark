@@ -54,6 +54,7 @@ class TestArchiveLegacy:
             compresslevel=6,
             dry_run=False,
             remote_storage=True,
+            storage=None,
         )
 
         # Verify return value handling
@@ -80,6 +81,7 @@ class TestArchiveLegacy:
             compresslevel=None,
             dry_run=False,
             remote_storage=True,
+            storage=None,
         )
 
         assert result == Path("/test/default.zip")
