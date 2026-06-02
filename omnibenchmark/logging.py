@@ -1,3 +1,9 @@
+"""Shared logging setup: the ``omnibenchmark`` logger and its configuration.
+
+A leaf module — depends on nothing in the package, imported by any layer that
+needs to log. (Formerly ``omnibenchmark.cli.utils.logging``.)
+"""
+
 import logging
 import sys
 
