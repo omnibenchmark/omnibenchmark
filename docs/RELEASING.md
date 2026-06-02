@@ -27,19 +27,29 @@ source of truth** — `pyproject.toml` is never bumped manually.
    ```
    Updates `README.md`, `omni-environment.yml`, and `docs/src/*.md`.
 
-4. **Commit and push to `main`.**
+4. **Refresh `ARCHITECTURE.md`.** Regenerate it from the package docstrings and
+   imports so the layering diagram stays in sync (also fails on any import
+   cycle):
+   ```bash
+   pixi run python scripts/gen_architecture.py
+   pixi run python scripts/gen_architecture.py --check   # must exit 0
+   ```
+   Commit the result if it changed. (CI runs `--check` on every PR, so this is
+   normally already current.)
+
+5. **Commit and push to `main`.**
    ```bash
    git commit -am "chore: release vX.Y.Z"
    git push origin main
    ```
 
-5. **Tag and push the tag.**
+6. **Tag and push the tag.**
    ```bash
    git tag -a vX.Y.Z -m "Release X.Y.Z"
    git push origin vX.Y.Z
    ```
 
-6. **Build the package.** Clean first to avoid stale artifacts polluting the
+7. **Build the package.** Clean first to avoid stale artifacts polluting the
    upload:
    ```bash
    rm -rf dist/ build/ omnibenchmark.egg-info/
@@ -50,7 +60,7 @@ source of truth** — `pyproject.toml` is never bumped manually.
    `+dirty` or `.devN` suffix — those mean the working tree wasn't clean or
    you forgot to tag).
 
-7. **Upload to PyPI.** Optionally smoke-test on TestPyPI first:
+8. **Upload to PyPI.** Optionally smoke-test on TestPyPI first:
    ```bash
    pixi run twine upload --repository testpypi dist/*
    ```
@@ -59,7 +69,7 @@ source of truth** — `pyproject.toml` is never bumped manually.
    pixi run twine upload dist/*
    ```
 
-8. **Create the GitHub release** for tag `vX.Y.Z` and paste the CHANGELOG entry
+9. **Create the GitHub release** for tag `vX.Y.Z` and paste the CHANGELOG entry
    as the body.
 
 ## Post-release
