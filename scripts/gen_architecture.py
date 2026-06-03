@@ -37,6 +37,12 @@ REPO = Path(__file__).resolve().parent.parent
 PKG_DIR = REPO / PKG
 OUT = REPO / "ARCHITECTURE.md"
 
+# Hand-drawn companion diagram. Its node labels are maintained by hand, so we
+# cross-check them against the discovered packages and warn on drift.
+SVG = REPO / "docs" / "assets" / "architecture.svg"
+# Display label in the SVG -> real package name, where they differ on purpose.
+SVG_LABEL_ALIASES = {"software backend": "backend"}
+
 # High (user-facing) → low (foundation). Matches the real dependency direction:
 # cli → service/backend → interface(storage) → engine(core) → infrastructure(git) → foundation
 LAYER_ORDER = [
@@ -188,6 +194,24 @@ def render(pkgs: dict, edges: dict[str, set[str]], cycles: list[list[str]]) -> s
     )
     lines.append("")
 
+    # --- Hand-drawn layer overview (companion to the generated mermaid graph) ---
+    lines.append(
+        '<p align="center">'
+        '<img src="docs/assets/architecture.svg" width="520" '
+        'alt="Layered architecture overview: cli on top, then services '
+        "(storage, remote, versioning, archive, software backend), then the "
+        'core domain (core, model, dag, git) at the foundation.">'
+        "</p>"
+    )
+    lines.append("")
+    lines.append(
+        '<p align="center"><sub>Diagram by '
+        '<a href="https://github.com/daninci">daninci</a> '
+        '(<a href="https://github.com/omnibenchmark/omnibenchmark/pull/341'
+        '#issuecomment-4610392101">#341</a>).</sub></p>'
+    )
+    lines.append("")
+
     # --- Mermaid diagram (GitHub renders this natively) ---
     lines.append("```mermaid")
     lines.append("flowchart TB")
@@ -235,6 +259,30 @@ def render(pkgs: dict, edges: dict[str, set[str]], cycles: list[list[str]]) -> s
     return "\n".join(lines)
 
 
+def svg_drift(pkgs: dict) -> list[str]:
+    """Compare the hand-drawn SVG's node labels to the discovered packages.
+
+    Returns human-readable drift messages (empty when in sync). The SVG is a
+    hand-maintained companion to the generated mermaid graph, so its chip
+    labels can silently fall out of step when a package is added or removed.
+    """
+    if not SVG.exists():
+        return [f"companion diagram missing: {SVG.relative_to(REPO)}"]
+
+    labels = re.findall(r'class="chip"[^>]*>([^<]+)<', SVG.read_text(encoding="utf-8"))
+    svg_pkgs = {SVG_LABEL_ALIASES.get(s := lbl.strip(), s) for lbl in labels}
+    real = set(pkgs)
+
+    msgs = []
+    missing = real - svg_pkgs  # in code, absent from the drawing
+    if missing:
+        msgs.append("diagram is missing package(s): " + ", ".join(sorted(missing)))
+    extra = svg_pkgs - real  # drawn, but no such package
+    if extra:
+        msgs.append("diagram shows unknown node(s): " + ", ".join(sorted(extra)))
+    return msgs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -247,6 +295,7 @@ def main() -> int:
     pkgs = discover()
     edges = import_edges(set(pkgs))
     cycles = find_cycles(edges)
+    drift = svg_drift(pkgs)
     content = render(pkgs, edges, cycles) + "\n"
 
     if args.check:
@@ -259,13 +308,16 @@ def main() -> int:
             problems.append(
                 "ARCHITECTURE.md is stale — run scripts/gen_architecture.py"
             )
+        problems += [f"{m} — update {SVG.relative_to(REPO)}" for m in drift]
         if problems:
             for p in problems:
                 print(f"FAIL: {p}", file=sys.stderr)
             return 1
-        print("OK: ARCHITECTURE.md current, no import cycles")
+        print("OK: ARCHITECTURE.md current, no import cycles, diagram in sync")
         return 0
 
+    for m in drift:
+        print(f"WARNING: companion diagram out of sync — {m}", file=sys.stderr)
     OUT.write_text(content, encoding="utf-8")
     status = "with CYCLES" if cycles else "acyclic"
     print(f"wrote {OUT.relative_to(REPO)} ({len(pkgs)} packages, {status})")
