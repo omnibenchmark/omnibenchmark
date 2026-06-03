@@ -39,7 +39,7 @@ OUT = REPO / "ARCHITECTURE.md"
 
 # Hand-drawn companion diagram. Its node labels are maintained by hand, so we
 # cross-check them against the discovered packages and warn on drift.
-SVG = REPO / "docs" / "assets" / "architecture.svg"
+SVG = REPO / "docs" / "src" / "assets" / "architecture.svg"
 # Display label in the SVG -> real package name, where they differ on purpose.
 SVG_LABEL_ALIASES = {"software backend": "backend"}
 
@@ -197,7 +197,7 @@ def render(pkgs: dict, edges: dict[str, set[str]], cycles: list[list[str]]) -> s
     # --- Hand-drawn layer overview (companion to the generated mermaid graph) ---
     lines.append(
         '<p align="center">'
-        '<img src="docs/assets/architecture.svg" width="520" '
+        '<img src="docs/src/assets/architecture.svg" width="520" '
         'alt="Layered architecture overview: cli on top, then services '
         "(storage, remote, versioning, archive, software backend), then the "
         'core domain (core, model, dag, git) at the foundation.">'
