@@ -4,6 +4,10 @@
 
 Packages are layered top (user-facing) to bottom (foundation). Imports only ever point downward — the graph is acyclic.
 
+<p align="center"><img src="docs/assets/architecture.svg" width="520" alt="Layered architecture overview: cli on top, then services (storage, remote, versioning, archive, software backend), then the core domain (core, model, dag, git) at the foundation."></p>
+
+<p align="center"><sub>Diagram by <a href="https://github.com/daninci">daninci</a> (<a href="https://github.com/omnibenchmark/omnibenchmark/pull/341#issuecomment-4610392101">#341</a>).</sub></p>
+
 ```mermaid
 flowchart TB
   subgraph layer_cli[cli]
