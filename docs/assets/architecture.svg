@@ -1,9 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="900" height="900" viewBox="0 0 900 900" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif">
   <defs>
     <style>
       .role  { font-size: 15px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; }
       .sub   { font-size: 11px; font-weight: 400; letter-spacing: 0.3px; }
       .chip  { font-size: 13px; font-weight: 500; fill: #4a3526; }
+      a { cursor: pointer; }
     </style>
     <!-- soft elevation for the component chips -->
     <filter id="chip" x="-40%" y="-40%" width="180%" height="180%">
@@ -19,45 +20,61 @@
   <circle cx="450" cy="450" r="275" fill="#d9c3a6" stroke="#bda37d" stroke-width="1.5"/>
   <circle cx="450" cy="450" r="140" fill="#8a5638" stroke="#6d422b" stroke-width="2"/>
 
+  <!-- Chips link to their package on GitHub. NB: links are live only when the
+       SVG is viewed as a document (opened directly / mkdocs <object>); a
+       Markdown <img> embed rasterises it, so the links are inert there. -->
+
   <!-- ===== Interface (thin outer rim) ===== -->
   <text x="450" y="104" class="role" fill="#5a3d2b" text-anchor="middle">Interface</text>
   <text x="450" y="121" class="sub"  fill="#7a6450" text-anchor="middle">user entry point</text>
-  <g filter="url(#chip)">
-    <rect x="418" y="137" width="64" height="28" rx="6" fill="#ffffff" stroke="#c2ac8e" stroke-width="1.2"/>
-  </g>
-  <text x="450" y="156" class="chip" text-anchor="middle">cli</text>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/cli" target="_blank">
+    <g filter="url(#chip)">
+      <rect x="418" y="137" width="64" height="28" rx="6" fill="#ffffff" stroke="#c2ac8e" stroke-width="1.2"/>
+    </g>
+    <text x="450" y="156" class="chip" text-anchor="middle">cli</text>
+  </a>
 
   <!-- ===== Services (distributed evenly around the ring) ===== -->
   <text x="450" y="203" class="role" fill="#5a3d2b" text-anchor="middle">Services</text>
   <text x="450" y="220" class="sub"  fill="#7a6450" text-anchor="middle">I/O &amp; infrastructure</text>
-  <g filter="url(#chip)" fill="#ffffff" stroke="#bda37d" stroke-width="1.2">
-    <rect x="288" y="266" width="78" height="28" rx="6"/>
-    <rect x="537" y="266" width="72" height="28" rx="6"/>
-    <rect x="204" y="501" width="92" height="28" rx="6"/>
-    <rect x="614" y="501" width="72" height="28" rx="6"/>
-    <rect x="380" y="646" width="140" height="28" rx="6"/>
-  </g>
-  <g>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/storage" target="_blank">
+    <g filter="url(#chip)"><rect x="288" y="266" width="78" height="28" rx="6" fill="#ffffff" stroke="#bda37d" stroke-width="1.2"/></g>
     <text x="327" y="284" class="chip" text-anchor="middle">storage</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/remote" target="_blank">
+    <g filter="url(#chip)"><rect x="537" y="266" width="72" height="28" rx="6" fill="#ffffff" stroke="#bda37d" stroke-width="1.2"/></g>
     <text x="573" y="284" class="chip" text-anchor="middle">remote</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/versioning" target="_blank">
+    <g filter="url(#chip)"><rect x="204" y="501" width="92" height="28" rx="6" fill="#ffffff" stroke="#bda37d" stroke-width="1.2"/></g>
     <text x="250" y="519" class="chip" text-anchor="middle">versioning</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/archive" target="_blank">
+    <g filter="url(#chip)"><rect x="614" y="501" width="72" height="28" rx="6" fill="#ffffff" stroke="#bda37d" stroke-width="1.2"/></g>
     <text x="650" y="519" class="chip" text-anchor="middle">archive</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/backend" target="_blank">
+    <g filter="url(#chip)"><rect x="380" y="646" width="140" height="28" rx="6" fill="#ffffff" stroke="#bda37d" stroke-width="1.2"/></g>
     <text x="450" y="664" class="chip" text-anchor="middle">software backend</text>
-  </g>
+  </a>
 
   <!-- ===== Core (distributed around inner circle) ===== -->
   <text x="450" y="446" class="role" fill="#ffffff" text-anchor="middle">Core</text>
   <text x="450" y="468" class="sub"  fill="#e8d6c2" text-anchor="middle">domain</text>
-  <g filter="url(#chip)" fill="#ffffff" stroke="#e0cdb4" stroke-width="1.2">
-    <rect x="420" y="356" width="60" height="28" rx="6"/>
-    <rect x="496" y="436" width="68" height="28" rx="6"/>
-    <rect x="422" y="516" width="56" height="28" rx="6"/>
-    <rect x="344" y="436" width="52" height="28" rx="6"/>
-  </g>
-  <g>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/core" target="_blank">
+    <g filter="url(#chip)"><rect x="420" y="356" width="60" height="28" rx="6" fill="#ffffff" stroke="#e0cdb4" stroke-width="1.2"/></g>
     <text x="450" y="374" class="chip" text-anchor="middle">core</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/model" target="_blank">
+    <g filter="url(#chip)"><rect x="496" y="436" width="68" height="28" rx="6" fill="#ffffff" stroke="#e0cdb4" stroke-width="1.2"/></g>
     <text x="530" y="454" class="chip" text-anchor="middle">model</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/dag" target="_blank">
+    <g filter="url(#chip)"><rect x="422" y="516" width="56" height="28" rx="6" fill="#ffffff" stroke="#e0cdb4" stroke-width="1.2"/></g>
     <text x="450" y="534" class="chip" text-anchor="middle">dag</text>
+  </a>
+  <a href="https://github.com/omnibenchmark/omnibenchmark/tree/main/omnibenchmark/git" target="_blank">
+    <g filter="url(#chip)"><rect x="344" y="436" width="52" height="28" rx="6" fill="#ffffff" stroke="#e0cdb4" stroke-width="1.2"/></g>
     <text x="370" y="454" class="chip" text-anchor="middle">git</text>
-  </g>
+  </a>
 </svg>

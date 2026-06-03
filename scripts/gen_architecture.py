@@ -269,7 +269,8 @@ def svg_drift(pkgs: dict) -> list[str]:
     if not SVG.exists():
         return [f"companion diagram missing: {SVG.relative_to(REPO)}"]
 
-    labels = re.findall(r'class="chip"[^>]*>([^<]+)<', SVG.read_text(encoding="utf-8"))
+    svg = SVG.read_text(encoding="utf-8")
+    labels = re.findall(r'class="chip"[^>]*>([^<]+)<', svg)
     svg_pkgs = {SVG_LABEL_ALIASES.get(s := lbl.strip(), s) for lbl in labels}
     real = set(pkgs)
 
@@ -280,6 +281,15 @@ def svg_drift(pkgs: dict) -> list[str]:
     extra = svg_pkgs - real  # drawn, but no such package
     if extra:
         msgs.append("diagram shows unknown node(s): " + ", ".join(sorted(extra)))
+
+    # Chip hyperlinks are a second hand-maintained mapping; make sure every
+    # link still points at a real package directory.
+    linked = set(re.findall(r"/tree/[^/]+/omnibenchmark/([a-z_]+)", svg))
+    dangling = linked - real
+    if dangling:
+        msgs.append(
+            "diagram links to unknown package(s): " + ", ".join(sorted(dangling))
+        )
     return msgs
 
 
