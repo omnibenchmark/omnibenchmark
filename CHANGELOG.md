@@ -11,6 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - bug: prune `exclude` transitively across non-adjacent stages (previously only the immediate predecessor was checked); run-loop and path-level exclusion unified behind a shared predicate (Closes: 337)
 - docs: clarify `exclude` semantics (module-id matched, transitive, symmetric, OR over list) (Closes: #337)
 - feat: add `ob collect performance` to gather scattered `performance.txt` files into a combined `performances.tsv`, enriched with stage, module, parameters and lineage; restores the input expected by `ob dashboard`
+- fix: prevent intermittent failures when running modules that share a local repository in parallel
+- fix: correctly mark all entrypoints as executable (Closes: #346)
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
 
