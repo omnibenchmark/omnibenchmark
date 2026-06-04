@@ -42,9 +42,11 @@ These are benchmarks organized by the community using Omnibenchmark.
 
 | Git repository | Description | API Version | License | DOI |
 |----------------|-------------|-------------|---------|-----|
-| [OB_GSEA-main](https://github.com/cphgeno/OB_GSEA-main) | Comparison of 17 single-sample gene set enrichment analysis (GSEA) methods across diverse datasets | 0.3.2 | MIT | — |
+| [OB_GSEA](https://github.com/cphgeno/OB_GSEA-main) | Comparison of 17 single-sample gene set enrichment analysis (GSEA) methods across diverse datasets | 0.3.2 | MIT | — |
 | [scrna-bench](https://github.com/scrna-bench/pipelines-plan) | End-to-end scRNA-seq analysis pipelines, from HDF5 inputs to PCA, clustering, and other outputs | 0.4.0 | MIT | [10.5281/zenodo.19886347](https://zenodo.org/records/19886347), [10.64898/2026.05.01.722166](https://doi.org/10.64898/2026.05.01.722166) |
 | [CyTOF pipelines](https://github.com/kaae-2/ob-pipeline-cytof) | Comparison of CyTOF preprocessing and clustering pipelines | 0.3.2 | MIT | - |
-| [VarCallBench](https://github.com/Jiayi-Wang-Joey/VarCallBench) | Comparison of variant callers for long read RNA-seq data | 0.4.0 | MIT | [10.5281/zenodo.19857089](https://doi.org/10.5281/zenodo.19857089), [10.64898/2026.04.29.721619](https://doi.org/10.64898/2026.04.29.721619) |
+| [VarCallBench](https://github.com/Jiayi-Wang-Joey/VarCallBench) | Comparison of variant callers for long read RNA-seq data | 0.5.1 | MIT | [10.5281/zenodo.19857089](https://doi.org/10.5281/zenodo.19857089), [10.64898/2026.04.29.721619](https://doi.org/10.64898/2026.04.29.721619) |
+| [OB_LONGREAD_GERMLINE_SV_CALLERS_BENCHMARK](https://github.com/cphgeno/OB_LONGREAD_GERMLINE_SV_CALLERS_BENCHMARK-main) | Benchmarking long-read germline structural variant callers for research and clinic using both linear and pangenome-graph references with a novel dataset | 0.3.2 | MIT | — |
+| [OB_SV_BENCHMARK_GERMLINE_SHORTREADS](https://github.com/cphgeno/OB_SV_BENCHMARK_GERMLINE_SHORTREADS-main) | An Omnibenchmark workflow running multiple structural-variant (SV) callers on short-reads data and benchmarking their results against a single truth set with Truvari | 0.3.2 | MIT | — |
 
 Have a benchmark to share? Open a PR (or an [issue](https://github.com/omnibenchmark/omnibenchmark/issues)) to add it to this section.
