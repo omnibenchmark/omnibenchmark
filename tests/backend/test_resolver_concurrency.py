@@ -143,3 +143,84 @@ class TestConcurrentLocalPathResolve:
         assert len(resolved) == n
         work_dirs = {r.module_dir for r in resolved}
         assert len(work_dirs) == 1
+
+
+def _init_multi_entrypoint_repo(repo_dir: Path) -> None:
+    """A repo exposing two entrypoints, neither carrying the git execute bit."""
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "omnibenchmark.yaml").write_text(
+        "entrypoints:\n  select: select.R\n  integrate: integrate.R\n"
+    )
+    (repo_dir / "select.R").write_text("#!/usr/bin/env Rscript\ncat('select')\n")
+    (repo_dir / "integrate.R").write_text("#!/usr/bin/env Rscript\ncat('integrate')\n")
+    (repo_dir / "select.R").chmod(0o644)
+    (repo_dir / "integrate.R").chmod(0o644)
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "test")
+    git("add", ".")
+    git("commit", "-q", "-m", "init")
+
+
+def _is_executable(path: Path) -> bool:
+    import stat
+
+    return bool(path.stat().st_mode & stat.S_IXUSR)
+
+
+@pytest.mark.short
+class TestEntrypointExecutableBit:
+    """Every entrypoint in a shared checkout must end up executable.
+
+    A single repo/commit is checked out once and shared by all modules that
+    reference it. The resolver previously chmod'd only the entrypoint of the
+    module currently being resolved, so siblings sharing the checkout were
+    left without the execute bit whenever their own module's chmod didn't run
+    against the final tree (partial/targeted resolution, or a recopy/rmtree
+    wiping an earlier chmod). Regression for that bug.
+    """
+
+    @pytest.fixture
+    def multi_entrypoint_repo(self, tmp_path: Path) -> Path:
+        repo_dir = tmp_path / "seurat"
+        _init_multi_entrypoint_repo(repo_dir)
+        return repo_dir
+
+    def _checkout_dir(self, work_base: Path) -> Path:
+        repo_root = work_base / "seurat"
+        return next(p for p in repo_root.iterdir() if p.name != "pending")
+
+    def test_resolving_one_module_makes_all_entrypoints_executable(
+        self, tmp_path: Path, multi_entrypoint_repo: Path
+    ) -> None:
+        """Resolving only the `integrate` module must still chmod `select.R`."""
+        resolver = ModuleResolver(
+            work_base_dir=tmp_path / "work",
+            output_dir=tmp_path / "out",
+        )
+        module = Module(
+            id="seven-integrate",
+            repository=Repository(
+                url=str(multi_entrypoint_repo),
+                commit="main",
+                entrypoint="integrate",
+            ),
+            software_environment="env",
+        )
+
+        resolver.resolve(
+            module=module,
+            module_id=module.id,
+            software_environment_id="env",
+            dirty=True,
+        )
+
+        checkout = self._checkout_dir(tmp_path / "work")
+        assert _is_executable(checkout / "integrate.R")
+        assert _is_executable(
+            checkout / "select.R"
+        ), "sibling entrypoint sharing the checkout must also be executable"

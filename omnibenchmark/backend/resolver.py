@@ -300,15 +300,14 @@ class ModuleResolver:
         # Entrypoint is relative to module_dir
         entrypoint_path = Path(entrypoint)
 
-        # Make entrypoint executable
-        entrypoint_full_path = actual_work_dir / entrypoint_path
-        if entrypoint_full_path.exists():
-            import stat
-
-            entrypoint_full_path.chmod(
-                entrypoint_full_path.stat().st_mode | stat.S_IEXEC
-            )
-            logger.debug(f"Made entrypoint executable: {entrypoint_full_path}")
+        # Make ALL entrypoints in this checkout executable, not just the one
+        # being resolved. A single repo/commit is shared across every module
+        # that references it (e.g. one repo exposing `select` and `integrate`
+        # entrypoints used by two stages), so they all live in the same
+        # checkout dir. chmod'ing only the current entrypoint leaves the
+        # siblings non-executable whenever a recopy, cross-run rmtree, or
+        # partial resolution doesn't re-run every module's chmod.
+        self._make_entrypoints_executable(actual_work_dir, module_id)
 
         # Create ResolvedModule
         # module_dir should be relative to the Snakefile location (which is in out_dir)
@@ -671,6 +670,61 @@ class ModuleResolver:
             backend_type=SoftwareBackendEnum.envmodules, reference=env.envmodule
         )
 
+    def _make_entrypoints_executable(self, module_dir: Path, module_id: str) -> None:
+        """
+        Set the execute bit on every entrypoint declared by the module.
+
+        A repo/commit checkout is shared by all modules that reference it, so a
+        single resolution must make every declared entrypoint executable —
+        otherwise siblings of the entrypoint we happen to be resolving are left
+        without the execute bit (the resolver only re-runs per module, and a
+        recopy or partial run can drop the others' chmod).
+
+        Best-effort: missing files or unreadable config are skipped quietly.
+        """
+        import stat
+
+        for entrypoint in self._list_entrypoints(module_dir):
+            entrypoint_full_path = module_dir / entrypoint
+            if entrypoint_full_path.exists():
+                entrypoint_full_path.chmod(
+                    entrypoint_full_path.stat().st_mode | stat.S_IEXEC
+                )
+                logger.debug(f"Made entrypoint executable: {entrypoint_full_path}")
+
+    def _list_entrypoints(self, module_dir: Path) -> list:
+        """
+        Return all entrypoint paths declared in the module's config.
+
+        Reads every value from `entrypoints:` in omnibenchmark.yaml, falling
+        back to the single SCRIPT from config.cfg. Returns relative paths.
+        """
+        yaml_path = module_dir / "omnibenchmark.yaml"
+        if yaml_path.exists():
+            try:
+                with open(yaml_path, "r") as f:
+                    config = yaml.safe_load(f)
+                entrypoints = (config or {}).get("entrypoints")
+                if isinstance(entrypoints, dict):
+                    return [str(v) for v in entrypoints.values()]
+            except yaml.YAMLError:
+                return []
+            return []
+
+        # TODO(0.6): drop config.cfg support. This is the legacy 0.4-era
+        # entrypoint format; it only carries a single SCRIPT and will be
+        # deprecated in 0.6 in favour of omnibenchmark.yaml `entrypoints:`.
+        config_path = module_dir / "config.cfg"
+        if config_path.exists():
+            parser = configparser.ConfigParser()
+            try:
+                parser.read(config_path)
+            except configparser.Error:
+                return []
+            if "DEFAULT" in parser and "SCRIPT" in parser["DEFAULT"]:
+                return [parser["DEFAULT"]["SCRIPT"]]
+        return []
+
     def _read_entrypoint(
         self, module_dir: Path, module_id: str, entrypoint_key: str = "default"
     ) -> str:
@@ -722,7 +776,9 @@ class ModuleResolver:
                     f"Failed to parse omnibenchmark.yaml in '{module_id}': {e}"
                 )
 
-        # Fall back to old-style config.cfg
+        # Fall back to old-style config.cfg.
+        # TODO(0.6): drop config.cfg support — deprecate this legacy 0.4-era
+        # format in 0.6; modules must migrate to omnibenchmark.yaml.
         config_path = module_dir / "config.cfg"
         if config_path.exists():
             if entrypoint_key != "default":

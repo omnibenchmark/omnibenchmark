@@ -17,6 +17,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
 from omnibenchmark.backend._snakemake_debug import DebugSnakemakeGenerator
@@ -609,3 +611,77 @@ class TestWriteRunManifest:
         result = write_run_manifest(out_dir)
         assert isinstance(result, dict)
         assert result["platform"] in ("linux", "darwin", "win32", result["platform"])
+
+
+# ---------------------------------------------------------------------------
+# Entrypoint invocation contract
+#
+# A shared repo checkout is made executable for every declared entrypoint by
+# the resolver (chmod-all). Invocation then prefers the entrypoint's own
+# shebang (direct ./exec) and falls back to the inferred interpreter only when
+# there is no shebang.
+#
+# Two backend paths emit invocation commands: _write_shell (regular nodes) and
+# _write_gather_shell (the shared aggregate path). Today only collectors
+# (is_collector) reach the aggregate path in production; is_gather is dormant
+# plumbing that routes to the same code and is not yet produced anywhere. The
+# is_gather cases below pin the contract on that shared path so it can't drift
+# from the regular path before gather is wired up by the explicit-gather
+# feature coming after 0.7
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestEntrypointInvocationContract:
+    def test_regular_shebang_executes_directly(self):
+        module = _make_module(entrypoint="select.R", has_shebang=True)
+        node = _make_node(module=module, outputs=["out/s/m/default/r.csv"])
+        out = _capture(_gen()._write_node_rule, node)
+        assert "./{params.entrypoint}" in out
+        assert "Rscript {params.entrypoint}" not in out
+
+    def test_regular_no_shebang_falls_back_to_interpreter(self):
+        module = _make_module(
+            entrypoint="select.R", has_shebang=False, interpreter="Rscript"
+        )
+        node = _make_node(module=module, outputs=["out/s/m/default/r.csv"])
+        out = _capture(_gen()._write_node_rule, node)
+        assert "Rscript {params.entrypoint}" in out
+        assert "./{params.entrypoint}" not in out
+
+    def test_regular_no_shebang_no_interpreter_defaults_python3(self):
+        module = _make_module(entrypoint="run", has_shebang=False, interpreter=None)
+        node = _make_node(module=module, outputs=["out/s/m/default/r.csv"])
+        out = _capture(_gen()._write_node_rule, node)
+        assert "python3 {params.entrypoint}" in out
+
+    def test_gather_shebang_executes_directly(self):
+        module = _make_module(entrypoint="integrate.R", has_shebang=True)
+        node = _make_node(
+            node_id="gather_s2-m2-default",
+            stage_id="s2",
+            module=module,
+            inputs={"score_0": "out/a/score.csv"},
+            outputs=["out/gather/result.csv"],
+            input_name_mapping={"score_0": "score"},
+            is_gather=True,
+        )
+        out = _capture(_gen()._write_node_rule, node)
+        assert "$MODULE_DIR/{params.entrypoint}" in out
+        assert "Rscript $MODULE_DIR" not in out
+
+    def test_gather_no_shebang_falls_back_to_interpreter(self):
+        module = _make_module(
+            entrypoint="integrate.R", has_shebang=False, interpreter="Rscript"
+        )
+        node = _make_node(
+            node_id="gather_s2-m2-default",
+            stage_id="s2",
+            module=module,
+            inputs={"score_0": "out/a/score.csv"},
+            outputs=["out/gather/result.csv"],
+            input_name_mapping={"score_0": "score"},
+            is_gather=True,
+        )
+        out = _capture(_gen()._write_node_rule, node)
+        assert "Rscript $MODULE_DIR/{params.entrypoint}" in out
