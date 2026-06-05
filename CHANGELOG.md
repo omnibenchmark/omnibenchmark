@@ -3,6 +3,10 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [0.6.0](UNRELEASED)
+
+- ...
+
 ## [0.5.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.2) (Jun 5th 2026)
 
 - refactor: untangle subpackage import cycles into an acyclic dependency graph (Closes #340)
