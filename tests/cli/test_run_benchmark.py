@@ -1,4 +1,6 @@
 import os
+import re
+import textwrap
 
 import pytest
 
@@ -173,3 +175,154 @@ def test_benchmark_ok_if_one_module_fails_with_continue(tmp_path, bundled_repos)
         assert failed_msg not in result.stdout
         assert failed_msg not in result.stderr
         assert result.returncode == 0
+
+
+def test_params_key_in_output_path_resolved_in_snakefile(tmp_path, bundled_repos):  # noqa: F811
+    """
+    Integration test: {params.key} in output path templates must be fully
+    substituted to concrete values before being written into the Snakefile.
+    Snakemake must never see a {params.*} wildcard in an output: block.
+
+    This test verifies the full pipeline:
+      YAML parsing → param expansion → TemplateContext.substitute() → Snakefile generation
+    """
+    out_dir = tmp_path / "out"
+    benchmark_yaml = tmp_path / "bench_params_output.yaml"
+    benchmark_yaml.write_text(
+        textwrap.dedent("""
+            id: test_params_in_output
+            version: "1.0"
+            benchmarker: "test"
+            api_version: "0.5.0"
+            software_backend: host
+            software_environments:
+              host:
+                description: "host env"
+            stages:
+              - id: data
+                modules:
+                  - id: D1
+                    software_environment: host
+                    repository:
+                      url: bundles/dummymodule_4ff8427.bundle
+                      commit: 4ff8427
+                    parameters:
+                      - k: "3"
+                      - k: "5"
+                outputs:
+                  - id: data.result
+                    path: "{name}_k{params.k}_result.txt"
+        """).strip()
+    )
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            ["run", str(benchmark_yaml), "--dry", "--out-dir", str(out_dir)],
+            cwd=str(tmp_path),
+        )
+
+    assert (
+        result.returncode == 0
+    ), f"CLI failed (rc={result.returncode}):\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+
+    snakefile = out_dir / "Snakefile"
+    assert snakefile.exists(), "Snakefile was not generated"
+    content = snakefile.read_text()
+
+    # Extract all output: blocks and verify no {params.*} placeholders remain —
+    # Snakemake would misinterpret them as wildcards.
+    output_blocks = re.findall(
+        r"\boutput:\s*\n(.*?)(?=\n[ \t]+\w|\nrule |\Z)", content, re.DOTALL
+    )
+    assert output_blocks, "No output: blocks found in Snakefile"
+    for block in output_blocks:
+        assert (
+            "{params." not in block
+        ), f"Unresolved {{params.*}} placeholder in Snakefile output: block:\n{block}"
+
+    # Both parameter variants must produce distinct, concrete output filenames.
+    assert (
+        "_k3_result.txt" in content
+    ), "Expected k=3 output path not found in Snakefile"
+    assert (
+        "_k5_result.txt" in content
+    ), "Expected k=5 output path not found in Snakefile"
+
+
+def test_params_key_in_upstream_output_consumed_downstream(tmp_path, bundled_repos):  # noqa: F811
+    """
+    Regression test: a {params.*} placeholder in an upstream stage's output
+    template must survive the cross-stage input-stitching pass without
+    triggering attribute-access errors.
+
+    The previous code path-stitched outputs via str.format(), which would
+    interpret {params.foo} as attribute access on a string and crash with
+    AttributeError. We now keep dotted placeholders untouched so the per-node
+    template engine resolves them later.
+    """
+    out_dir = tmp_path / "out"
+    benchmark_yaml = tmp_path / "bench_params_cross_stage.yaml"
+    benchmark_yaml.write_text(
+        textwrap.dedent("""
+            id: test_params_cross_stage
+            version: "1.0"
+            benchmarker: "test"
+            api_version: "0.5.0"
+            software_backend: host
+            software_environments:
+              host:
+                description: "host env"
+            stages:
+              - id: data
+                modules:
+                  - id: D1
+                    software_environment: host
+                    repository:
+                      url: bundles/dummymodule_4ff8427.bundle
+                      commit: 4ff8427
+                    parameters:
+                      - k: "3"
+                outputs:
+                  - id: data.result
+                    path: "{name}_k{params.k}_result.txt"
+              - id: consume
+                inputs:
+                  - data.result
+                modules:
+                  - id: C1
+                    software_environment: host
+                    repository:
+                      url: bundles/dummymodule_4ff8427.bundle
+                      commit: 4ff8427
+                outputs:
+                  - id: consume.out
+                    path: "{name}_consumed.txt"
+        """).strip()
+    )
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            ["run", str(benchmark_yaml), "--dry", "--out-dir", str(out_dir)],
+            cwd=str(tmp_path),
+        )
+
+    assert (
+        result.returncode == 0
+    ), f"CLI failed (rc={result.returncode}):\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    assert "AttributeError" not in result.stderr
+    assert "has no attribute" not in result.stderr
+
+    content = (out_dir / "Snakefile").read_text()
+    assert "_k3_result.txt" in content
+
+    # No {params.*} should leak into output: blocks (Snakemake would treat
+    # them as wildcards). {params.*} in shell: blocks is fine — that's
+    # Snakemake's own params: directive being referenced.
+    output_blocks = re.findall(
+        r"\boutput:\s*\n(.*?)(?=\n[ \t]+\w|\nrule |\Z)", content, re.DOTALL
+    )
+    assert output_blocks, "No output: blocks found in Snakefile"
+    for block in output_blocks:
+        assert (
+            "{params." not in block
+        ), f"Unresolved {{params.*}} in output: block:\n{block}"

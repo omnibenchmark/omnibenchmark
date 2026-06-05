@@ -468,6 +468,96 @@ ob dashboard benchmark.yaml -o out
 
 This reads `out/performances.tsv` and writes `out/bettr_dashboard.json`. If the table is missing, run `ob collect performance` first.
 
+## Use template variables in output paths
+
+Output `path` fields in the benchmark YAML accept template variables that are resolved at runtime for each node in the execution graph. All variables use `{curly_brace}` syntax.
+
+### Available variables
+
+| Variable | Resolves to | Notes |
+|----------|-------------|-------|
+| `{dataset}` | Root dataset ID (e.g. `D1`) | Inherited from the first stage; see deprecation note below |
+| `{name}` | Current module's own ID (e.g. `M1`) | Always the *current* module — never inherited |
+| `{module.id}` | Current module's own ID | Same as `{name}` |
+| `{module.name}` | Module's human-readable `name` attribute | Falls back to the module ID if `name` is not set |
+| `{module.stage}` | Current stage ID (e.g. `methods`) | |
+| `{params.KEY}` | Value of parameter `KEY` for this node | Fully resolved before Snakemake sees the path; one output path per parameter combination |
+
+### When to use `{dataset}` vs `{name}`
+
+Use **`{name}`** when you want the filename to reflect *which module produced the file* — this is the recommended choice for method and metric stages, where each module's output should be independently identifiable.
+
+Use **`{dataset}`** when the first-stage module IDs are themselves meaningful dataset identifiers (e.g. `D1`, `pbmc3k`) and you want that identity to propagate through the whole pipeline. **`{dataset}` is only useful if the first-stage module `id` values are semantically meaningful.** If the first stage uses a single dispatcher module with a fixed ID (e.g. `id: loader`) and instead varies datasets via parameters, `{dataset}` will always resolve to `"loader"` — which is not useful. In that case use `{params.dataset}` or `{name}` instead.
+
+> **Deprecation notice:** `{dataset}` is a legacy variable that couples output filenames to first-stage module IDs. It will be deprecated in a future release. Prefer `{name}` for new benchmarks.
+
+```yaml
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        ...
+    outputs:
+      - id: data.counts
+        path: "{dataset}.txt.gz"     # → D1.txt.gz  (dataset ID)
+
+  - id: methods
+    inputs: [data.counts]
+    modules:
+      - id: M1
+        name: "Method 1"
+        ...
+      - id: M2
+        name: "Method 2"
+        ...
+    outputs:
+      - id: methods.result
+        path: "{name}_result.txt"    # → M1_result.txt / M2_result.txt  (own module ID)
+        # or equivalently:
+        # path: "{module.id}_result.txt"
+```
+
+The `--name` CLI argument passed to each module script always receives the current module's own ID, matching the `{name}` template variable.
+
+### Using the human-readable module name
+
+`{module.name}` gives the `name:` field from the YAML entry rather than the `id:`. This is useful for labelling outputs with a descriptive string:
+
+```yaml
+stages:
+  - id: methods
+    modules:
+      - id: kmeans
+        name: "k-Means Clustering"
+        ...
+    outputs:
+      - id: methods.result
+        path: "{module.name}_output.txt"  # → k-Means Clustering_output.txt
+```
+
+When `name:` is omitted from the module entry, `{module.name}` falls back to the module ID.
+
+### Encoding parameter values in output paths
+
+`{params.KEY}` is resolved to the concrete parameter value for each node before the Snakefile is written, so Snakemake always sees fully-qualified, concrete output paths — one per parameter combination.
+
+```yaml
+stages:
+  - id: data
+    modules:
+      - id: D1
+        parameters:
+          - k: "3"
+          - k: "5"
+    outputs:
+      - id: data.result
+        path: "{name}_k{params.k}_result.txt"
+        # → D1_k3_result.txt  (k=3 node)
+        # → D1_k5_result.txt  (k=5 node)
+```
+
+This is useful when a single module is run with multiple parameter sweeps and each run's output must be stored at a distinct path.
 
 ## Use local module repositories
 
