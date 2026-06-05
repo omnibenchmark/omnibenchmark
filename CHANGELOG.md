@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.6.0](UNRELEASED)
 
-- ...
+- fix(pkg): give all authors emails so PyPI lists them correctly instead of partitioning name-only entries into the Author field
 
 ## [0.5.3](UNRELEASED)
 
