@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import click
 
-from omnibenchmark.cli.utils.logging import logger
+from omnibenchmark.logging import logger
 from .debug import add_debug_option
 
 # Directories that never contain benchmark performance files but are expensive
