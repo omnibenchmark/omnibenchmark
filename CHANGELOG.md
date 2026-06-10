@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - ...
 
+## [0.5.3](UNRELEASED)
+
+- fix: avoid crash on logs decode error (#351)
+
 ## [0.5.2](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.2) (Jun 5th 2026)
 
 - refactor: untangle subpackage import cycles into an acyclic dependency graph (Closes #340)

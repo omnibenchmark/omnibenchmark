@@ -380,7 +380,7 @@ def _run_snakemake(
             with open(log_file, "w") as f:
                 result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
 
-            with open(log_file, "r") as f:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                 print(f.read())
         else:
             summary_console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
@@ -393,6 +393,9 @@ def _run_snakemake(
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                encoding="utf-8",  # don't depend on locale
+                errors="replace",  # torn multibyte chars on the merged pipe
+                # (concurrent --cores>1 jobs) must not kill the runner
             )
 
             rule_start_pattern = re.compile(r"rule ([\w.]+):")
