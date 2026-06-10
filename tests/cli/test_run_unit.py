@@ -1,5 +1,8 @@
 """Short unit tests for cli/run.py pure and near-pure helper functions."""
 
+import subprocess
+import sys
+
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -451,6 +454,57 @@ def test_run_snakemake_missing_snakefile_exits(tmp_path):
             software_backend=SoftwareBackendEnum.host,
             debug=False,
         )
+
+
+@pytest.mark.short
+def test_run_snakemake_tolerates_torn_multibyte_output(tmp_path):
+    """Regression: a torn multibyte UTF-8 sequence on snakemake's merged
+    stdout/stderr pipe must not crash the runner with UnicodeDecodeError.
+
+    With ``--cores > 1`` and ``stderr=subprocess.STDOUT`` several module jobs
+    write to one shared pipe; their bytes interleave and can split a 3-byte
+    char (e.g. ``—`` == ``E2 80 94``). A strict decoder then raises "invalid
+    continuation byte" and tears down the whole run. The read loop must decode
+    tolerantly instead.
+    """
+    (tmp_path / "Snakefile").write_text("rule all:\n    input: []\n")
+
+    # Emulate interleaved concurrent writers: a 3-byte char's lead byte (0xe2)
+    # is followed by a foreign byte before the sequence completes — exactly the
+    # CI failure shape from the bug report.
+    child = (
+        "import os\n"
+        'os.write(1, b"rule foo:\\n")\n'
+        'os.write(1, b"\\xe2")\n'  # lead byte of a 3-byte UTF-8 char
+        'os.write(1, b"X\\xe2\\x80\\x94")\n'  # foreign byte breaks the sequence
+        'os.write(1, b"\\ndone\\n")\n'
+    )
+    fake_cmd = [sys.executable, "-c", child]
+
+    real_popen = subprocess.Popen
+
+    def fake_popen(cmd, **kwargs):
+        # Ignore the real snakemake invocation but keep run.py's own decode
+        # kwargs, so this test exercises exactly the flags the orchestrator uses
+        # and regresses if the tolerant-decode handler is removed.
+        return real_popen(fake_cmd, **kwargs)
+
+    with patch("subprocess.Popen", side_effect=fake_popen):
+        with pytest.raises(SystemExit) as exc:
+            _run_snakemake(
+                out_dir=tmp_path,
+                cores=4,
+                continue_on_error=False,
+                software_backend=SoftwareBackendEnum.host,
+                debug=False,
+            )
+
+    # Child exits 0; the run should complete cleanly rather than raise.
+    assert exc.value.code == 0
+    logs = list((tmp_path / ".logs").glob("snakemake_*.log"))
+    assert logs, "expected a snakemake log file to be written"
+    content = logs[0].read_text(encoding="utf-8", errors="replace")
+    assert "done" in content
 
 
 # ---------------------------------------------------------------------------
