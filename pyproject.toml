@@ -5,8 +5,8 @@ authors = [
     { name = "Almut Lütge", email = "almut.lue@gmail.com" },
     { name = "Izaskun Mallona", email = "izaskun.mallona@gmail.com" },
     { name = "Daniel Incicau", email = "daniel.incicau@gmail.com" },
-    { name = "Reto Gerber" },
-    { name = "Ben Carrillo" },
+    { name = "Reto Gerber", email = "reto.gerber@uzh.ch" },
+    { name = "Ben Carrillo", email = "ben.uzh@proton.me" },
 ]
 readme = "README.md"
 classifiers = [
