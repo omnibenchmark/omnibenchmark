@@ -749,8 +749,41 @@ def _generate_explicit_snakefile(
         benchmark_dir=benchmark_dir,
     )
 
+    # Select the stages to expand *before* module resolution, so that modules
+    # in pruned stages are never checked out or environment-resolved.
+    # Module-filter pruning (ob run -m <module_id>)
+    if module_filter:
+        target_stage_idx = None
+        for idx, stage in enumerate(benchmark.model.stages):
+            if any(m.id == module_filter for m in stage.modules):
+                target_stage_idx = idx
+                break
+
+        if target_stage_idx is None:
+            logger.error(
+                f"Module '{module_filter}' not found in benchmark. "
+                f"Available modules: "
+                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
+            )
+            sys.exit(1)
+
+        target_stage = benchmark.model.stages[target_stage_idx]
+        stages_to_expand = benchmark.model.stages[: target_stage_idx + 1]
+        logger.info(
+            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
+            f"(up to and including '{target_stage.id}'), "
+            "first expansion only."
+        )
+    else:
+        stages_to_expand = _apply_until_filter(benchmark.model.stages, until_stage)
+        if until_stage is not None:
+            logger.info(
+                f"--until {until_stage}: expanding {len(stages_to_expand)} stage(s) "
+                f"(up to and including '{until_stage}')."
+            )
+
     unique_modules = {}
-    for stage in benchmark.model.stages:
+    for stage in stages_to_expand:
         for module in stage.modules:
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
@@ -883,37 +916,6 @@ def _generate_explicit_snakefile(
 
     if not quiet:
         logger.info("\nBuilding execution graph...")
-
-    # Module-filter pruning (ob run -m <module_id>)
-    if module_filter:
-        target_stage_idx = None
-        for idx, stage in enumerate(benchmark.model.stages):
-            if any(m.id == module_filter for m in stage.modules):
-                target_stage_idx = idx
-                break
-
-        if target_stage_idx is None:
-            logger.error(
-                f"Module '{module_filter}' not found in benchmark. "
-                f"Available modules: "
-                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
-            )
-            sys.exit(1)
-
-        target_stage = benchmark.model.stages[target_stage_idx]
-        stages_to_expand = benchmark.model.stages[: target_stage_idx + 1]
-        logger.info(
-            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
-            f"(up to and including '{target_stage.id}'), "
-            "first expansion only."
-        )
-    else:
-        stages_to_expand = _apply_until_filter(benchmark.model.stages, until_stage)
-        if until_stage is not None:
-            logger.info(
-                f"--until {until_stage}: expanding {len(stages_to_expand)} stage(s) "
-                f"(up to and including '{until_stage}')."
-            )
 
     resolved_nodes = []
     nodes_by_id = {}
