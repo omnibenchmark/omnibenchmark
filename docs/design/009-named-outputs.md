@@ -1,4 +1,4 @@
-# 008: Named Outputs and Module/Benchmark Decoupling
+# 009: Named Outputs and Module/Benchmark Decoupling
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
