@@ -4,8 +4,8 @@ from pathlib import Path
 from tests.e2e.common import E2ETestRunner, run_standard_pipeline_test
 
 
-CONFIG_FILENAME = "09_named_outputs_v06.yaml"
-TEST_NAME = "09_named_outputs_v06"
+CONFIG_FILENAME = "12_named_outputs_v06.yaml"
+TEST_NAME = "12_named_outputs_v06"
 
 
 @pytest.fixture
