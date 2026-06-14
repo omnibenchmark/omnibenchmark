@@ -135,7 +135,13 @@ stages:
     modules: <array>                   # Required: module list (≥1)
     inputs: <array>                    # Optional: input dependencies
     outputs: <array>                   # Optional: output declarations
+    provides: <array>                  # Optional: lineage labels (api 0.6+)
 ```
+
+`provides:` is a list of label names this stage advertises to downstream
+modules; downstream modules gate on these labels via `requires:`. The
+builtin labels `name` and `dataset` are reserved. See
+[008-filtering.md §3.5](./008-filtering.md) for details.
 
 #### Stage Ordering
 
@@ -155,6 +161,8 @@ modules:
     name: <string>                     # Optional: human-readable name
     parameters: <array>                # Optional: module parameters
     exclude: <array>                   # Optional: module ids this module must not share a path with
+    requires: <object>                 # Optional: lineage gate, label → value (api 0.6+)
+    provides: <object>                 # Optional: label → value bindings for this module (api 0.6+)
 ```
 
 #### Required Fields
