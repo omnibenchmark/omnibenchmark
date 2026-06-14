@@ -558,14 +558,37 @@ def _substitute_params_in_path(template: str, params) -> str:
     return re.sub(r"\{params\.([^}]+)\}", _replace, template)
 
 
+def _resolve_label_value(label: str, module_provides, module_id: str) -> str:
+    """Resolve a single `Stage.provides` label's value for one node.
+
+    Two-level chain, most specific first:
+      1. ``module.provides[label]`` — explicit benchmark-local binding.
+      2. ``module_id`` — default for the "label = module identity" pattern.
+
+    The parameter-name fallback prototyped earlier is intentionally absent:
+    sourcing a label from a same-named CLI parameter couples the module's CLI
+    contract to the benchmark's routing across repositories. See
+    docs/design/008-filtering.md §3.5.
+    """
+    if module_provides and label in module_provides:
+        return str(module_provides[label])
+    return module_id
+
+
 def _build_template_context(
     stage,
     module_id: str,
     module_name: Optional[str] = None,
     input_node=None,
     params=None,
+    module_provides=None,
 ) -> TemplateContext:
-    """Build a TemplateContext for a node during expansion."""
+    """Build a TemplateContext for a node during expansion.
+
+    `module_provides` is the optional `Module.provides` dict (label → value);
+    it sources the values for the labels this stage advertises via
+    `Stage.provides`, defaulting to the module id.
+    """
     provides: dict[str, str] = {}
     module_attrs: dict[str, str] = {
         "id": module_id,
@@ -575,27 +598,19 @@ def _build_template_context(
 
     stage_provides = getattr(stage, "provides", None)
 
+    # Inherit the upstream lineage labels first, then layer this stage's own.
+    if input_node is not None and input_node.template_context is not None:
+        provides.update(input_node.template_context.provides)
+
+    if stage_provides:
+        for label in stage_provides:
+            provides[label] = _resolve_label_value(label, module_provides, module_id)
+
     if input_node is not None:
-        if input_node.template_context is not None:
-            provides.update(input_node.template_context.provides)
-
-        if stage_provides:
-            for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
-
         module_attrs["parent.id"] = input_node.module_id
         module_attrs["parent.stage"] = input_node.stage_id
     else:
-        if stage_provides:
-            for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
-
+        # Builtin `dataset` label: root identity, propagated downstream.
         if params is not None and "dataset" in params:
             provides.setdefault("dataset", str(params["dataset"]))
         else:
@@ -922,6 +937,9 @@ def _generate_explicit_snakefile(
     output_to_nodes = {}
     previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
+    # Count pruned combinations by reason, so a silently absent result cell is
+    # observable (see docs/design/008-filtering.md, "No silent absence").
+    prune_counts = {"requires": 0, "exclude": 0}
 
     # Lineage-wide exclusion rules, shared with execution-path pruning so the
     # two code paths agree (see core._paths.is_lineage_excluded).
@@ -995,6 +1013,7 @@ def _generate_explicit_snakefile(
                             module_id
                         }
                         if is_lineage_excluded(lineage, path_exclusions):
+                            prune_counts["exclude"] += 1
                             logger.debug(
                                 f"      Excluding combination: lineage {lineage} "
                                 f"violates an exclusion rule"
@@ -1003,6 +1022,7 @@ def _generate_explicit_snakefile(
 
                     if input_node and module.requires:
                         if not _satisfies_requires(module.requires, input_node):
+                            prune_counts["requires"] += 1
                             logger.debug(
                                 f"      Skipping combination: requires not satisfied for {module_id} "
                                 f"(upstream context: {input_node.template_context.provides})"
@@ -1078,6 +1098,7 @@ def _generate_explicit_snakefile(
                         module_name=getattr(module, "name", None),
                         input_node=input_node,
                         params=params,
+                        module_provides=module.provides,
                     )
 
                     outputs = []
@@ -1150,7 +1171,26 @@ def _generate_explicit_snakefile(
                 if logger.level <= 10:
                     traceback.print_exc()
 
+        # A stage that had modules to expand but produced no nodes was pruned
+        # to empty by a filter (requires / exclude). Without this the empty set
+        # cascades downstream and looks like "nothing happened" — usually a
+        # typo in a label value or an over-broad exclusion.
+        if modules_to_expand and not current_stage_nodes:
+            logger.warning(
+                f"Stage '{stage.id}' produced no nodes: every module/input "
+                f"combination was pruned by a filter (requires/exclude). "
+                f"Downstream stages depending on it will also be empty."
+            )
+
         previous_stage_nodes = current_stage_nodes
+
+    total_pruned = sum(prune_counts.values())
+    if total_pruned:
+        logger.info(
+            f"Pruned {total_pruned} combination(s): "
+            f"{prune_counts['requires']} by requires, "
+            f"{prune_counts['exclude']} by exclude."
+        )
 
     if not quiet:
         logger.info(f"Created {len(resolved_nodes)} nodes")
