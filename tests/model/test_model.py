@@ -83,14 +83,17 @@ class TestEnums:
         assert APIVersion.V0_2_0.value == "0.2.0"
         assert APIVersion.V0_3_0.value == "0.3.0"
         assert APIVersion.V0_4_0.value == "0.4.0"
+        assert APIVersion.V0_5_0.value == "0.5.0"
+        assert APIVersion.V0_6_0.value == "0.6.0"
 
-        assert APIVersion.latest() == "0.5.0"
+        assert APIVersion.latest() == "0.6.0"
         assert set(APIVersion.supported_versions()) == {
             "0.1.0",
             "0.2.0",
             "0.3.0",
             "0.4.0",
             "0.5.0",
+            "0.6.0",
         }
 
     def test_software_backend_enum(self):
@@ -323,6 +326,67 @@ class TestCoreEntities:
         collector = make_metric_collector(software_environment="env1")
         assert collector.has_environment_reference("env1") is True
         assert collector.has_environment_reference("env2") is False
+
+
+# Test lineage provides/requires (api 0.6)
+@pytest.mark.short
+class TestLineageProvides:
+    def test_stage_provides_default_none(self):
+        """A stage without `provides` parses with the field unset."""
+        stage = make_stage(id="data")
+        assert stage.provides is None
+
+    def test_module_provides_default_none(self):
+        """A module without `provides` parses with the field unset."""
+        module = make_module(id="no_labels")
+        assert module.provides is None
+
+    def test_stage_provides_list(self):
+        """`Stage.provides` is parsed as a list of label names."""
+        stage = make_stage(id="data", provides=["dataset_size"])
+        assert stage.provides == ["dataset_size"]
+
+    def test_module_provides_dict(self):
+        """`Module.provides` is parsed as a label→value dict."""
+        module = make_module(id="huge", provides={"dataset_size": "lg"})
+        assert module.provides == {"dataset_size": "lg"}
+
+    def test_stage_provides_rejected_below_v0_6(self):
+        """`Stage.provides` is gated on api_version ≥ 0.6.0."""
+        with pytest.raises(ValueError, match="provides"):
+            make_benchmark(
+                api_version=APIVersion.V0_5_0,
+                stages=[make_stage(id="data", provides=["dataset_size"])],
+            )
+
+    def test_module_provides_rejected_below_v0_6(self):
+        """`Module.provides` is gated on api_version ≥ 0.6.0."""
+        bound = make_module(id="huge", provides={"dataset_size": "lg"})
+        with pytest.raises(ValueError, match="provides"):
+            make_benchmark(
+                api_version=APIVersion.V0_5_0,
+                stages=[make_stage(id="data", modules=[bound])],
+            )
+
+    def test_provides_accepted_at_v0_6(self):
+        """At api_version 0.6.0 both producer and binding are accepted."""
+        bound = make_module(id="huge", provides={"dataset_size": "lg"})
+        bench = make_benchmark(
+            api_version=APIVersion.V0_6_0,
+            stages=[make_stage(id="data", provides=["dataset_size"], modules=[bound])],
+        )
+        data_stage = bench.stages[0]
+        assert data_stage.provides == ["dataset_size"]
+        assert data_stage.modules[0].provides == {"dataset_size": "lg"}
+
+    @pytest.mark.parametrize("reserved", ["name", "dataset"])
+    def test_reserved_label_rejected(self, reserved):
+        """A stage may not advertise the builtin `name`/`dataset` labels."""
+        with pytest.raises(ValueError, match="reserved"):
+            make_benchmark(
+                api_version=APIVersion.V0_6_0,
+                stages=[make_stage(id="data", provides=[reserved])],
+            )
 
 
 # Test Benchmark
