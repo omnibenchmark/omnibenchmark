@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - ...
 
-## [0.5.3](UNRELEASED)
+## [0.5.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.4) (Jun 15th 2026)
 
 - fix: avoid crash on logs decode error (#351)
 
