@@ -118,6 +118,18 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
         "first upstream input × parameter expansion for each module."
     ),
 )
+@click.option(
+    "--until",
+    "until_stage",
+    default=None,
+    type=str,
+    help=(
+        "Stop the pipeline at and including the named stage. "
+        "Stages declared after the named stage in the benchmark YAML are "
+        "pruned from the resolved DAG, and metric collectors whose inputs "
+        "reference pruned stages are skipped."
+    ),
+)
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
@@ -132,6 +144,7 @@ def run(
     yes_flag,
     use_remote_storage,
     module_filter,
+    until_stage,
     snakemake_args,
 ):
     """Run a benchmark.
@@ -175,6 +188,14 @@ def run(
             f"-m {module_filter}: single execution path, first param expansion only."
         )
 
+    if module_filter and until_stage:
+        log_error_and_quit(
+            logger,
+            "--until and -m/--module cannot be combined: -m already truncates "
+            "the DAG at the target module's stage.",
+        )
+        return
+
     _run_benchmark(
         benchmark_path=benchmark,
         cores=cores,
@@ -186,6 +207,7 @@ def run(
         unpinned=unpinned,
         use_remote_storage=use_remote_storage,
         module_filter=module_filter,
+        until_stage=until_stage,
         snakemake_args=list(snakemake_args),
     )
 
@@ -201,6 +223,7 @@ def _run_benchmark(
     unpinned=False,
     use_remote_storage=False,
     module_filter=None,
+    until_stage=None,
     snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
@@ -232,17 +255,22 @@ def _run_benchmark(
     populate_git_cache(b, quiet=use_clean_ui, cores=cores)
 
     # Step 2: Generate explicit Snakefile
-    _generate_explicit_snakefile(
-        benchmark=b,
-        benchmark_yaml_path=benchmark_path_abs,
-        out_dir=out_dir_path,
-        cores=cores,
-        quiet=use_clean_ui,
-        start_time=start_time,
-        dirty=dirty,
-        unpinned=unpinned,
-        module_filter=module_filter,
-    )
+    try:
+        _generate_explicit_snakefile(
+            benchmark=b,
+            benchmark_yaml_path=benchmark_path_abs,
+            out_dir=out_dir_path,
+            cores=cores,
+            quiet=use_clean_ui,
+            start_time=start_time,
+            dirty=dirty,
+            unpinned=unpinned,
+            module_filter=module_filter,
+            until_stage=until_stage,
+        )
+    except ValueError as e:
+        log_error_and_quit(logger, str(e))
+        return
 
     # Write run manifest
     write_run_manifest(output_dir=out_dir_path)
@@ -530,14 +558,37 @@ def _substitute_params_in_path(template: str, params) -> str:
     return re.sub(r"\{params\.([^}]+)\}", _replace, template)
 
 
+def _resolve_label_value(label: str, module_provides, module_id: str) -> str:
+    """Resolve a single `Stage.provides` label's value for one node.
+
+    Two-level chain, most specific first:
+      1. ``module.provides[label]`` — explicit benchmark-local binding.
+      2. ``module_id`` — default for the "label = module identity" pattern.
+
+    The parameter-name fallback prototyped earlier is intentionally absent:
+    sourcing a label from a same-named CLI parameter couples the module's CLI
+    contract to the benchmark's routing across repositories. See
+    docs/design/008-filtering.md §3.5.
+    """
+    if module_provides and label in module_provides:
+        return str(module_provides[label])
+    return module_id
+
+
 def _build_template_context(
     stage,
     module_id: str,
     module_name: Optional[str] = None,
     input_node=None,
     params=None,
+    module_provides=None,
 ) -> TemplateContext:
-    """Build a TemplateContext for a node during expansion."""
+    """Build a TemplateContext for a node during expansion.
+
+    `module_provides` is the optional `Module.provides` dict (label → value);
+    it sources the values for the labels this stage advertises via
+    `Stage.provides`, defaulting to the module id.
+    """
     provides: dict[str, str] = {}
     module_attrs: dict[str, str] = {
         "id": module_id,
@@ -547,27 +598,19 @@ def _build_template_context(
 
     stage_provides = getattr(stage, "provides", None)
 
+    # Inherit the upstream lineage labels first, then layer this stage's own.
+    if input_node is not None and input_node.template_context is not None:
+        provides.update(input_node.template_context.provides)
+
+    if stage_provides:
+        for label in stage_provides:
+            provides[label] = _resolve_label_value(label, module_provides, module_id)
+
     if input_node is not None:
-        if input_node.template_context is not None:
-            provides.update(input_node.template_context.provides)
-
-        if stage_provides:
-            for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
-
         module_attrs["parent.id"] = input_node.module_id
         module_attrs["parent.stage"] = input_node.stage_id
     else:
-        if stage_provides:
-            for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
-
+        # Builtin `dataset` label: root identity, propagated downstream.
         if params is not None and "dataset" in params:
             provides.setdefault("dataset", str(params["dataset"]))
         else:
@@ -617,6 +660,49 @@ def _select_input_nodes(
     return [n for n in resolved_nodes if n.stage_id == deepest_stage_id]
 
 
+def _apply_until_filter(stages, until_stage):
+    """Truncate a stage list to include only stages up to and including `until_stage`.
+
+    Returns the original sequence as a list when `until_stage` is None.
+    Raises ValueError when the named stage is not present.
+    """
+    stages = list(stages)
+    if until_stage is None:
+        return stages
+    for idx, stage in enumerate(stages):
+        if stage.id == until_stage:
+            return stages[: idx + 1]
+    available = ", ".join(s.id for s in stages)
+    raise ValueError(
+        f"--until: stage '{until_stage}' not found. Available stages: {available}"
+    )
+
+
+def _filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
+    """Drop metric collectors whose declared inputs reference pruned stages.
+
+    Returns a tuple (kept, dropped_ids). A collector is dropped when any of its
+    declared input ids resolves to a stage outside `included_stage_ids` (or to
+    no stage at all — that case is left to the regular collector resolver to
+    warn about).
+    """
+    kept = []
+    dropped = []
+    for c in collectors or []:
+        keep = True
+        for input_ref in c.inputs:
+            input_id = input_ref if isinstance(input_ref, str) else input_ref.id
+            stage = benchmark.get_stage_by_output(input_id)
+            if stage is not None and stage.id not in included_stage_ids:
+                keep = False
+                break
+        if keep:
+            kept.append(c)
+        else:
+            dropped.append(c.id)
+    return kept, dropped
+
+
 def _satisfies_requires(requires: dict, input_node) -> bool:
     """Return True if the input_node's lineage satisfies all requires constraints."""
     if not input_node.template_context:
@@ -654,6 +740,7 @@ def _generate_explicit_snakefile(
     dirty: bool = False,
     unpinned: bool = False,
     module_filter: Optional[str] = None,
+    until_stage: Optional[str] = None,
 ):
     """Generate explicit Snakefile from resolved modules."""
     from omnibenchmark.progress import ProgressDisplay
@@ -677,8 +764,41 @@ def _generate_explicit_snakefile(
         benchmark_dir=benchmark_dir,
     )
 
+    # Select the stages to expand *before* module resolution, so that modules
+    # in pruned stages are never checked out or environment-resolved.
+    # Module-filter pruning (ob run -m <module_id>)
+    if module_filter:
+        target_stage_idx = None
+        for idx, stage in enumerate(benchmark.model.stages):
+            if any(m.id == module_filter for m in stage.modules):
+                target_stage_idx = idx
+                break
+
+        if target_stage_idx is None:
+            logger.error(
+                f"Module '{module_filter}' not found in benchmark. "
+                f"Available modules: "
+                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
+            )
+            sys.exit(1)
+
+        target_stage = benchmark.model.stages[target_stage_idx]
+        stages_to_expand = benchmark.model.stages[: target_stage_idx + 1]
+        logger.info(
+            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
+            f"(up to and including '{target_stage.id}'), "
+            "first expansion only."
+        )
+    else:
+        stages_to_expand = _apply_until_filter(benchmark.model.stages, until_stage)
+        if until_stage is not None:
+            logger.info(
+                f"--until {until_stage}: expanding {len(stages_to_expand)} stage(s) "
+                f"(up to and including '{until_stage}')."
+            )
+
     unique_modules = {}
-    for stage in benchmark.model.stages:
+    for stage in stages_to_expand:
         for module in stage.modules:
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
@@ -812,37 +932,14 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info("\nBuilding execution graph...")
 
-    # Module-filter pruning (ob run -m <module_id>)
-    if module_filter:
-        target_stage_idx = None
-        for idx, stage in enumerate(benchmark.model.stages):
-            if any(m.id == module_filter for m in stage.modules):
-                target_stage_idx = idx
-                break
-
-        if target_stage_idx is None:
-            logger.error(
-                f"Module '{module_filter}' not found in benchmark. "
-                f"Available modules: "
-                + ", ".join(m.id for s in benchmark.model.stages for m in s.modules)
-            )
-            sys.exit(1)
-
-        target_stage = benchmark.model.stages[target_stage_idx]
-        stages_to_expand = benchmark.model.stages[: target_stage_idx + 1]
-        logger.info(
-            f"Module mode: expanding {len(stages_to_expand)} stage(s) "
-            f"(up to and including '{target_stage.id}'), "
-            "first expansion only."
-        )
-    else:
-        stages_to_expand = benchmark.model.stages
-
     resolved_nodes = []
     nodes_by_id = {}
     output_to_nodes = {}
     previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
+    # Count pruned combinations by reason, so a silently absent result cell is
+    # observable (see docs/design/008-filtering.md, "No silent absence").
+    prune_counts = {"requires": 0, "exclude": 0}
 
     # Lineage-wide exclusion rules, shared with execution-path pruning so the
     # two code paths agree (see core._paths.is_lineage_excluded).
@@ -916,6 +1013,7 @@ def _generate_explicit_snakefile(
                             module_id
                         }
                         if is_lineage_excluded(lineage, path_exclusions):
+                            prune_counts["exclude"] += 1
                             logger.debug(
                                 f"      Excluding combination: lineage {lineage} "
                                 f"violates an exclusion rule"
@@ -924,6 +1022,7 @@ def _generate_explicit_snakefile(
 
                     if input_node and module.requires:
                         if not _satisfies_requires(module.requires, input_node):
+                            prune_counts["requires"] += 1
                             logger.debug(
                                 f"      Skipping combination: requires not satisfied for {module_id} "
                                 f"(upstream context: {input_node.template_context.provides})"
@@ -999,6 +1098,7 @@ def _generate_explicit_snakefile(
                         module_name=getattr(module, "name", None),
                         input_node=input_node,
                         params=params,
+                        module_provides=module.provides,
                     )
 
                     outputs = []
@@ -1071,7 +1171,26 @@ def _generate_explicit_snakefile(
                 if logger.level <= 10:
                     traceback.print_exc()
 
+        # A stage that had modules to expand but produced no nodes was pruned
+        # to empty by a filter (requires / exclude). Without this the empty set
+        # cascades downstream and looks like "nothing happened" — usually a
+        # typo in a label value or an over-broad exclusion.
+        if modules_to_expand and not current_stage_nodes:
+            logger.warning(
+                f"Stage '{stage.id}' produced no nodes: every module/input "
+                f"combination was pruned by a filter (requires/exclude). "
+                f"Downstream stages depending on it will also be empty."
+            )
+
         previous_stage_nodes = current_stage_nodes
+
+    total_pruned = sum(prune_counts.values())
+    if total_pruned:
+        logger.info(
+            f"Pruned {total_pruned} combination(s): "
+            f"{prune_counts['requires']} by requires, "
+            f"{prune_counts['exclude']} by exclude."
+        )
 
     if not quiet:
         logger.info(f"Created {len(resolved_nodes)} nodes")
@@ -1093,9 +1212,20 @@ def _generate_explicit_snakefile(
 
     # Resolve metric collectors (skip in -m module mode)
     if not module_filter:
+        collectors_to_resolve = benchmark.model.get_metric_collectors()
+        if until_stage is not None:
+            included_ids = {s.id for s in stages_to_expand}
+            collectors_to_resolve, dropped = _filter_collectors_by_stages(
+                collectors_to_resolve, included_ids, benchmark.model
+            )
+            for cid in dropped:
+                logger.info(
+                    f"--until {until_stage}: skipping metric collector "
+                    f"'{cid}' (references pruned stages)."
+                )
         try:
             collector_nodes = resolve_metric_collectors(
-                metric_collectors=benchmark.model.get_metric_collectors(),
+                metric_collectors=collectors_to_resolve,
                 resolved_nodes=resolved_nodes,
                 benchmark=benchmark.model,
                 resolver=resolver,

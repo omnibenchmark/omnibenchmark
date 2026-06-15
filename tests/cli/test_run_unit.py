@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 import pytest
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from pydantic import ValidationError as PydanticValidationError
@@ -16,9 +17,12 @@ from omnibenchmark.cli.run import (
     _run_snakemake,
     _substitute_params_in_path,
     _build_template_context,
+    _resolve_label_value,
     _select_input_nodes,
     _satisfies_requires,
     _lineage_module_ids,
+    _apply_until_filter,
+    _filter_collectors_by_stages,
     run,
 )
 from omnibenchmark.core.prefetch import populate_git_cache
@@ -159,6 +163,26 @@ class TestSubstituteParamsInPath:
 
 
 # ---------------------------------------------------------------------------
+# _resolve_label_value
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestResolveLabelValue:
+    def test_module_binding_wins(self):
+        assert _resolve_label_value("size", {"size": "lg"}, "M1") == "lg"
+
+    def test_defaults_to_module_id_when_no_binding(self):
+        assert _resolve_label_value("size", None, "M1") == "M1"
+
+    def test_defaults_to_module_id_when_label_absent_from_binding(self):
+        assert _resolve_label_value("size", {"other": "x"}, "M1") == "M1"
+
+    def test_non_string_binding_coerced(self):
+        assert _resolve_label_value("n", {"n": 3}, "M1") == "3"
+
+
+# ---------------------------------------------------------------------------
 # _build_template_context
 # ---------------------------------------------------------------------------
 
@@ -193,11 +217,20 @@ class TestBuildTemplateContext:
         ctx = _build_template_context(stage, "D1", params=p)
         assert ctx.provides["dataset"] == "pbmc3k"
 
-    def test_root_node_provides_label_from_params(self):
+    def test_root_node_provides_label_from_module_binding(self):
+        stage = _make_stage("data", provides=["treatment"])
+        ctx = _build_template_context(
+            stage, "D1", module_provides={"treatment": "ctrl"}
+        )
+        assert ctx.provides["treatment"] == "ctrl"
+
+    def test_root_node_provides_label_ignores_same_named_param(self):
+        # The parameter-name fallback was cut: a same-named param must NOT
+        # become the label value (see 008 §3.5). Falls through to module id.
         stage = _make_stage("data", provides=["treatment"])
         p = Params({"treatment": "ctrl"})
         ctx = _build_template_context(stage, "D1", params=p)
-        assert ctx.provides["treatment"] == "ctrl"
+        assert ctx.provides["treatment"] == "D1"
 
     def test_root_node_provides_label_defaults_to_module_id(self):
         stage = _make_stage("data", provides=["treatment"])
@@ -233,16 +266,19 @@ class TestBuildTemplateContext:
         ctx = _build_template_context(stage, "M1", input_node=input_node)
         assert ctx.provides["method"] == "M1"
 
-    def test_child_node_provides_label_from_params(self):
+    def test_child_node_provides_label_from_module_binding(self):
         parent_ctx = TemplateContext(
             provides={"dataset": "pbmc3k"},
             module_attrs={"id": "D1", "stage": "data"},
         )
         input_node = _make_input_node("D1", "data", template_context=parent_ctx)
         stage = _make_stage("methods", provides=["method"])
-        p = Params({"method": "kmeans"})
-        ctx = _build_template_context(stage, "M1", input_node=input_node, params=p)
+        ctx = _build_template_context(
+            stage, "M1", input_node=input_node, module_provides={"method": "kmeans"}
+        )
         assert ctx.provides["method"] == "kmeans"
+        # parent lineage labels still inherited
+        assert ctx.provides["dataset"] == "pbmc3k"
 
     # --- {name} template variable: always the current module's own ID ---
 
@@ -949,3 +985,175 @@ def test_run_benchmark_remote_storage_true_bool_appended(tmp_path):
         _, kwargs = mock_snakemake.call_args
         extra = kwargs["extra_snakemake_args"]
         assert "--use-conda" in extra
+
+
+# ---------------------------------------------------------------------------
+# _apply_until_filter
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubStage:
+    id: str
+
+
+@pytest.mark.short
+class TestApplyUntilFilter:
+    def _stages(self, *ids):
+        return [_StubStage(i) for i in ids]
+
+    def test_none_returns_all_stages_as_list(self):
+        stages = self._stages("a", "b", "c")
+        result = _apply_until_filter(stages, None)
+        assert [s.id for s in result] == ["a", "b", "c"]
+        # must be a fresh list, not the same object
+        assert result is not stages
+
+    def test_initial_stage_keeps_only_first(self):
+        result = _apply_until_filter(self._stages("a", "b", "c"), "a")
+        assert [s.id for s in result] == ["a"]
+
+    def test_middle_stage_includes_named(self):
+        result = _apply_until_filter(self._stages("a", "b", "c", "d"), "b")
+        assert [s.id for s in result] == ["a", "b"]
+
+    def test_terminal_stage_returns_full_list(self):
+        result = _apply_until_filter(self._stages("a", "b", "c"), "c")
+        assert [s.id for s in result] == ["a", "b", "c"]
+
+    def test_unknown_stage_raises(self):
+        with pytest.raises(ValueError, match="stage 'nope' not found"):
+            _apply_until_filter(self._stages("a", "b"), "nope")
+
+    def test_unknown_stage_lists_available(self):
+        with pytest.raises(ValueError, match="a, b"):
+            _apply_until_filter(self._stages("a", "b"), "missing")
+
+    def test_empty_stages_with_until_raises(self):
+        with pytest.raises(ValueError):
+            _apply_until_filter([], "anything")
+
+    def test_empty_stages_without_until_returns_empty(self):
+        assert _apply_until_filter([], None) == []
+
+
+# ---------------------------------------------------------------------------
+# _filter_collectors_by_stages
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubCollector:
+    id: str
+    inputs: list
+
+
+@pytest.mark.short
+class TestFilterCollectorsByStages:
+    def _benchmark(self, output_to_stage):
+        """Build a stub benchmark whose get_stage_by_output returns mapped stages."""
+        bench = MagicMock()
+        bench.get_stage_by_output.side_effect = lambda oid: output_to_stage.get(oid)
+        return bench
+
+    def test_keeps_collector_when_all_inputs_in_included_stages(self):
+        bench = self._benchmark({"methods.result": _StubStage("methods")})
+        collectors = [_StubCollector("MC1", inputs=["methods.result"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data", "methods"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC1"]
+        assert dropped == []
+
+    def test_drops_collector_when_any_input_in_pruned_stage(self):
+        bench = self._benchmark(
+            {
+                "methods.result": _StubStage("methods"),
+                "data.raw": _StubStage("data"),
+            }
+        )
+        collectors = [_StubCollector("MC1", inputs=["methods.result", "data.raw"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == ["MC1"]
+
+    def test_unknown_input_does_not_drop(self):
+        # Unknown outputs are left to the regular collector resolver to warn about.
+        bench = self._benchmark({})
+        collectors = [_StubCollector("MC1", inputs=["unknown.id"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC1"]
+        assert dropped == []
+
+    def test_handles_iofile_inputs(self):
+        # Inputs may be IOFile objects (with `.id`) rather than bare strings.
+        from types import SimpleNamespace
+
+        bench = self._benchmark({"methods.result": _StubStage("methods")})
+        iofile = SimpleNamespace(id="methods.result")
+        collectors = [_StubCollector("MC1", inputs=[iofile])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == ["MC1"]
+
+    def test_empty_collector_list(self):
+        bench = self._benchmark({})
+        kept, dropped = _filter_collectors_by_stages(
+            [], included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == []
+
+    def test_none_collector_list(self):
+        bench = self._benchmark({})
+        kept, dropped = _filter_collectors_by_stages(
+            None, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert kept == []
+        assert dropped == []
+
+    def test_partial_pruning_keeps_unrelated_collector(self):
+        bench = self._benchmark(
+            {
+                "methods.result": _StubStage("methods"),
+                "data.raw": _StubStage("data"),
+            }
+        )
+        collectors = [
+            _StubCollector("MC1", inputs=["methods.result"]),
+            _StubCollector("MC2", inputs=["data.raw"]),
+        ]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC2"]
+        assert dropped == ["MC1"]
+
+
+# ---------------------------------------------------------------------------
+# CLI conflict guard: --until + -m
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestUntilCliConflict:
+    def test_until_and_module_are_exclusive(self, caplog):
+        import logging
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            Path("dummy.yaml").write_text("name: dummy")
+            with caplog.at_level(logging.ERROR, logger="omnibenchmark"):
+                result = runner.invoke(
+                    run,
+                    ["dummy.yaml", "-m", "M1", "--until", "methods"],
+                    catch_exceptions=False,
+                )
+        assert result.exit_code != 0
+        assert any("cannot be combined" in record.message for record in caplog.records)
