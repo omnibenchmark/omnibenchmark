@@ -372,11 +372,11 @@ class ExecutionPathStage:
             )
         )
 
-        # TODO: check if log file is newer than input files, can be both newer or older than output files
-        stdout_log = Path(self.output_dir) / "stdout.log"
-        self.stdout_log = stdout_log if stdout_log.is_file() else None
-        stderr_log = Path(self.output_dir) / "stderr.log"
-        self.stderr_log = stderr_log if stderr_log.is_file() else None
+        # Path to this node's combined stdout/stderr log, as written by the
+        # Snakemake backend at "{out_dir}/.logs/{rule_name}.log".  Populated by
+        # the owning ExecutionPath once the full ancestor chain (hence the rule
+        # name) is known; None when the log file does not exist on disk.
+        self.log: Union[Path, None] = None
 
     def update(self):
         for f in self.output_stage_files:
@@ -666,19 +666,11 @@ class ExecutionPath:
 
     def remove_logs(self):
         """
-        Remove stdout and stderr log files for all stages.
+        Remove the log file for all stages.
         """
         for st in self.stages:
-            if (
-                self.exec_path[st].stdout_log
-                and self.exec_path[st].stdout_log.is_file()
-            ):
-                self.exec_path[st].stdout_log.unlink()
-            if (
-                self.exec_path[st].stderr_log
-                and self.exec_path[st].stderr_log.is_file()
-            ):
-                self.exec_path[st].stderr_log.unlink()
+            if self.exec_path[st].log and self.exec_path[st].log.is_file():
+                self.exec_path[st].log.unlink()
 
 
 # repo_timestamps_all = get_module_timestamps(b)
