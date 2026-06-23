@@ -111,7 +111,7 @@ class TestReadRuleLog:
         assert result == "some log content"
 
     def test_reads_truncated_log_for_long_rule_name(self, tmp_path):
-        from omnibenchmark.benchmark._paths import truncate_filename
+        from omnibenchmark.core._paths import truncate_filename
 
         long_rule = "a_" * 200  # 400 chars, well over the 255 byte cap
         log_dir = tmp_path / ".logs"
@@ -1063,10 +1063,10 @@ def test_run_snakemake_telemetry_to_file_uses_progress_branch(tmp_path):
     with (
         patch("omnibenchmark.cli.run.subprocess.Popen", return_value=fake_proc),
         patch(
-            "omnibenchmark.cli.progress.InteractiveProgress",
+            "omnibenchmark.progress.InteractiveProgress",
             return_value=fake_progress,
         ),
-        patch("omnibenchmark.cli.progress.ProgressDisplay") as mock_pd,
+        patch("omnibenchmark.progress.ProgressDisplay") as mock_pd,
         patch.object(emitter, "rule_started") as rs,
         patch.object(emitter, "rule_completed") as rc,
         patch.object(emitter, "rule_failed") as rf,

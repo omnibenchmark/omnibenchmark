@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Optional, Union
 
-from omnibenchmark.benchmark._paths import truncate_filename
+from omnibenchmark.core._paths import truncate_filename
 from omnibenchmark.telemetry.events import (
     Span,
     SpanStatus,
