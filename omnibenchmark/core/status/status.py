@@ -1,9 +1,34 @@
 from pathlib import Path
 from typing import Union
+from omnibenchmark.core._paths import sanitize_rule_name, truncate_filename
 from omnibenchmark.core.execution_path import (
     ExecutionPathSet,
 )
 from omnibenchmark.core import BenchmarkExecution
+
+
+def _attach_log_paths(exec_path_dict: dict, out_dir: Union[str, Path]) -> None:
+    """Populate ``ExecPathStage.log`` for every stage in every execution path.
+
+    The Snakemake backend writes each node's combined log to
+    ``{out_dir}/.logs/{rule_name}.log``, where ``rule_name`` is the sanitized,
+    fully-nested node id (ancestor chain joined by '-').  We rebuild that same id
+    here so status can point at the real files; the attribute is left as the
+    resolved Path only when the file exists, else None.
+    """
+    logs_dir = Path(out_dir) / ".logs"
+    for ep in exec_path_dict.values():
+        nested_id = ""
+        for st in ep.stages:
+            node = ep.exec_path[st].node
+            param_id = node.param_id
+            suffix = param_id if param_id.startswith(".") else f".{param_id}"
+            segment = f"{node.stage_id}-{node.module_id}{suffix}"
+            nested_id = f"{nested_id}-{segment}" if nested_id else segment
+            log_file = logs_dir / truncate_filename(
+                f"{sanitize_rule_name(nested_id)}.log"
+            )
+            ep.exec_path[st].log = log_file if log_file.is_file() else None
 
 
 def print_exec_path_dict(
@@ -30,7 +55,7 @@ def print_exec_path_dict(
     nmissls = []
     for i in range(len(exec_path_dict)):
         outls2 = []
-        tmps1, nmiss, is_failed_stage = exec_path_dict[i].dict_encode(
+        tmps1, nmiss, _ = exec_path_dict[i].dict_encode(
             full=full, cumulative=True, stages=stages
         )
         outls2.append(tmps1)
@@ -50,11 +75,12 @@ def print_exec_path_dict(
 
         if logs:
             tmps2 = ""
-            if is_failed_stage is not None:
-                if exec_path_dict[i].exec_path[st].stdout_log is not None:
-                    tmps2 += f"\n        STDOUT: {exec_path_dict[i].exec_path[st].stdout_log.as_posix()}"
-                if exec_path_dict[i].exec_path[st].stderr_log is not None:
-                    tmps2 += f"\n        STDERR: {exec_path_dict[i].exec_path[st].stderr_log.as_posix()}"
+            # Show the log for every stage with a missing/invalid output (a
+            # non-"." per-stage code), not just the first failed one.
+            for st_id in exec_path_dict[i].stages:
+                stage = exec_path_dict[i].exec_path[st_id]
+                if stage.dict_encode(full=full) != "." and stage.log is not None:
+                    tmps2 += f"\n        LOG ({st_id}): {stage.log.as_posix()}"
             logls.append(tmps2)
         outls.append(outls2)
 
@@ -111,6 +137,7 @@ def prepare_status(
 
     stages = eps.stages
     exec_path_dict = eps.exec_path_dict
+    _attach_log_paths(exec_path_dict, out_dir)
     filedict2 = eps.get_filedict(cumulative=True)
 
     status_dict = {}

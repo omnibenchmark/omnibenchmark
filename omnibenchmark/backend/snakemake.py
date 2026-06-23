@@ -26,6 +26,7 @@ from typing import List, TextIO
 from omnibenchmark.core._paths import (
     _UNSAFE_CHARS,
     make_human_name as _make_human_name,
+    sanitize_rule_name,
     truncate_filename,
 )
 from omnibenchmark.model.benchmark import APIVersion
@@ -216,10 +217,7 @@ class SnakemakeGenerator:
 
     def _sanitize_rule_name(self, node_id: str) -> str:
         """Sanitize node ID to a valid Snakemake rule name (Python identifier)."""
-        name = node_id.replace("-", "_").replace(".", "_")
-        if name and not name[0].isalpha():
-            name = "rule_" + name
-        return name
+        return sanitize_rule_name(node_id)
 
     # ------------------------------------------------------------------
     # Shell writers — override in subclasses to change generated commands

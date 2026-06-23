@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: expand stages in topological order so a stage declared before an upstream-only producer resolves instead of failing with an opaque `Could not resolve input <id>` at run time (#289)
 - feat: `ob validate plan` rejects "diamond" input joins — a stage collecting inputs from two divergent branches (neither upstream of the other) — with an actionable error that names both branch stages, instead of surfacing only as a runtime warning (#289)
 - fix(pkg): give all authors emails so PyPI lists them correctly instead of partitioning name-only entries into the Author field
+- bug: make status --logs display logs for failed rules (#318)
 
 ## [0.5.3](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.3) (Jun 15th 2026)
 
