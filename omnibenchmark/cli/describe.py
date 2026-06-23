@@ -233,7 +233,7 @@ def status(
             ),
             result_file_str=result_file_str,
             show_incomplete_reason=show_incomplete_reason and not is_complete,
-            show_missing_files=show_missing_files and not is_complete,
+            show_missing_files=(show_missing_files or show_logs) and not is_complete,
         )
         logger.info(result_str)
         sys.exit(0)
@@ -256,10 +256,8 @@ def status(
                 node_key = (st, eps.node.get_id())
                 if node_key not in logs_by_node:
                     logs = []
-                    if eps.stdout_log is not None:
-                        logs.append(str(Path(eps.stdout_log).absolute()))
-                    if eps.stderr_log is not None:
-                        logs.append(str(Path(eps.stderr_log).absolute()))
+                    if eps.log is not None:
+                        logs.append(str(Path(eps.log).absolute()))
                     logs_by_node[node_key] = logs
 
         # Collect file status for each node
