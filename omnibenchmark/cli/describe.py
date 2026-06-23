@@ -1,7 +1,7 @@
 """cli commands related to benchmark infos and stats"""
 
 import sys
-from typing import Any, List
+from typing import Any, List, Optional
 
 import click
 import json
@@ -36,6 +36,38 @@ def _rows_to_html_table(
         f"  <tbody>\n    {body}\n  </tbody>\n"
         f"</table>"
     )
+
+
+def _load_validation_index(out_dir: Path) -> dict:
+    """Map resolved output path -> (status, abs_log_path) from out/.validation/*.json.
+
+    Keying by the *resolved* path makes the report agnostic to whether an output
+    is referenced via its hidden param-hash dir or its human-readable symlink —
+    both resolve to the same real file the validators ran against. Read-only:
+    this only reads results written by ``ob validate outputs``.
+    """
+    index: dict = {}
+    root = out_dir / ".validation"
+    if not root.is_dir():
+        return index
+    for result_json in root.rglob("*.json"):
+        try:
+            data = json.loads(result_json.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        output_file = data.get("output_file")
+        if not output_file:
+            continue
+        real = (out_dir / output_file).resolve()
+        status = "pass" if data.get("exit_code") == 0 else "fail"
+        log = str((out_dir / data["log"]).resolve()) if data.get("log") else ""
+        index[real] = (status, log)
+    return index
+
+
+def _validation_for(filepath, index: dict) -> tuple:
+    """``(status, log)`` for an output file; ``("not_validated", "")`` if absent."""
+    return index.get(Path(filepath).resolve(), ("not_validated", ""))
 
 
 @click.group(name="describe")
@@ -146,8 +178,8 @@ def plot_topology(ctx, benchmark, show_params, compact_params):
 @click.option(
     "--html-file",
     type=str,
-    default="status_report.html",
-    help="Output HTML file name.",
+    default=None,
+    help="Output HTML path (default: <out-dir>/status_report.html).",
 )
 @click.option(
     "--force",
@@ -166,7 +198,7 @@ def status(
     show_logs: bool = False,
     return_json: bool = False,
     return_html: bool = False,
-    html_file: str = "status_report.html",
+    html_file: Optional[str] = None,
     overwrite_html_file: bool = False,
 ):
     """Show the status of a benchmark.
@@ -174,6 +206,9 @@ def status(
     BENCHMARK: Path to benchmark YAML file.
     """
     ctx.ensure_object(dict)
+    # Default the HTML report into the output folder.
+    if html_file is None:
+        html_file = str(Path(out_dir) / "status_report.html")
     status_dict, filedict, exec_path_dict = prepare_status(
         benchmark, out_dir, return_all=True, cache_dir=Path(".snakemake") / "repos"
     )
@@ -281,6 +316,23 @@ def status(
                 else:
                     status_by_node[node_key] = "unknown"
 
+        # Output validation results (read-only; populated by `ob validate outputs`)
+        validation_index = _load_validation_index(Path(out_dir))
+
+        def _node_validation(node_key):
+            """Roll up per-output validation for a node -> (status, [log paths])."""
+            statuses, vlogs = [], []
+            for f in files_by_node.get(node_key, []):
+                vstatus, vlog = _validation_for(f, validation_index)
+                statuses.append(vstatus)
+                if vstatus in ("pass", "fail") and vlog:
+                    vlogs.append(vlog)
+            if "fail" in statuses:
+                return "fail", vlogs
+            if any(s == "pass" for s in statuses):
+                return "pass", vlogs
+            return "not_validated", vlogs
+
         # Define status colors (colorblind-friendly palette)
         status_color_dict = {
             "complete": "#999999",  # Grey
@@ -288,6 +340,14 @@ def status(
             "empty": "#F0E442",  # Yellow
             "missing": "#D50000",  #
             "unknown": "#222222",  # Dark Grey
+        }
+
+        # Validation colours — drawn as the node border (ring) so the file-status
+        # fill stays visible underneath.
+        validation_color_dict = {
+            "pass": "#2ECC40",  # Green
+            "fail": "#FF4136",  # Red
+            "not_validated": "#cccccc",  # Light grey (thin ring)
         }
 
         # Create nodes data for vis.js
@@ -304,18 +364,29 @@ def status(
             # Get files and logs for this node
             files = files_by_node.get(node_key, [])
             logs = logs_by_node.get(node_key, [])
+            validation, validation_logs = _node_validation(node_key)
+            validation_border = validation_color_dict.get(validation, "#cccccc")
+
+            # Box label: stage / module (/ params, when not the default).
+            label = f"{stage}\n{node.module_id}"
+            if node.param_id != "default":
+                label += f"\n{node.param_id}"
 
             graph_nodes.append(
                 {
                     "id": node_id,
-                    "label": f"{node.module_id}\n{node.param_id if node.param_id != 'default' else ''}",
-                    "color": color,
+                    "label": label,
+                    # File-status fill + validation ring (thick when validated).
+                    "color": {"background": color, "border": validation_border},
+                    "borderWidth": 4 if validation in ("pass", "fail") else 1,
                     "stage": stage,
                     "module": node.module_id,
                     "status": status,
                     "files": files,
                     "logs": logs,
-                    "title": f"Stage: {stage}\nModule: {node.module_id}\nParams: {node.param_id}\nStatus: {status}",
+                    "validation": validation,
+                    "validation_logs": validation_logs,
+                    "title": f"Stage: {stage}\nModule: {node.module_id}\nParams: {node.param_id}\nStatus: {status}\nValidation: {validation}",
                 }
             )
 
@@ -331,6 +402,13 @@ def status(
             {"name": "Empty", "color": status_color_dict["empty"]},
             {"name": "Missing", "color": status_color_dict["missing"]},
             {"name": "Unknown", "color": status_color_dict["unknown"]},
+        ]
+
+        # Validation legend (node border / ring colours)
+        validation_legend = [
+            {"name": "Validated: pass", "color": validation_color_dict["pass"]},
+            {"name": "Validated: fail", "color": validation_color_dict["fail"]},
+            {"name": "Not validated", "color": validation_color_dict["not_validated"]},
         ]
 
         # Collect files for table (keeping existing code)
@@ -355,6 +433,8 @@ def status(
                         nd.get_id(),
                         st,
                         logs_str,
+                        _validation_for(f, validation_index)[0],
+                        _validation_for(f, validation_index)[1],
                     ]
                     for j, f in enumerate(filedict[st][nd]["output_files"])
                 ]
@@ -368,6 +448,8 @@ def status(
             "node",
             "stage",
             "logs",
+            "validation",
+            "validator log",
         ]
         sum_columns = ["Stage", "Completed", "Missing", "Total", "Progress %"]
         sum_rows = [
@@ -414,6 +496,7 @@ def status(
             graph_nodes=graph_nodes,
             graph_edges=graph_edges,
             graph_legend=graph_legend,
+            validation_legend=validation_legend,
         )
         if Path(html_file).exists() and not overwrite_html_file:
             logger.error(

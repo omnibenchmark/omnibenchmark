@@ -434,6 +434,24 @@ class SoftwareEnvironment(DescribableEntity):
         return self
 
 
+class ValidatorsConfig(BaseModel):
+    """Configuration for output validators.
+
+    Validators are ad-hoc scripts dropped at ``{directory}/{stage}/{output}/``
+    that receive a single output file path and signal pass/fail via exit code
+    (0 = pass, non-zero = fail). All validators run in the single software
+    environment referenced by ``env``.
+    """
+
+    env: str = Field(
+        ..., description="software_environments id used to run all validators"
+    )
+    directory: Optional[str] = Field(
+        "validators",
+        description="Path to the validators directory, relative to the plan file",
+    )
+
+
 class SoftwareEnvironmentReference(BaseModel):
     """Reference to a software environment."""
 
@@ -705,6 +723,9 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     )
     api_version: APIVersion = Field(APIVersion.V0_4_0, description="API version")
     provenance: Optional[Provenance] = Field(None, description="Lineage metadata")
+    validators: Optional[ValidatorsConfig] = Field(
+        None, description="Output validators configuration"
+    )
 
     @field_validator("api_version", mode="before")
     @classmethod
@@ -1124,6 +1145,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     def get_software_environments(self) -> Dict[str, SoftwareEnvironment]:
         """Get software environments as a dict."""
         return {env.id: env for env in self.software_environments}
+
+    def get_validators_config(self) -> Optional["ValidatorsConfig"]:
+        """Get the output validators configuration, if declared."""
+        return self.validators
 
     def get_stages(self) -> Dict[str, Stage]:
         """Get benchmark stages as a dict."""
