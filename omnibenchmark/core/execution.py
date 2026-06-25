@@ -230,7 +230,10 @@ class BenchmarkExecution:
     # Visualization functions
 
     def export_to_dot(self):
-        return export_to_dot(self.G, title=self.get_benchmark_name())
+        # Render the topology view (every declared cross-stage edge), not the
+        # execution DAG, whose single-``after`` edges drop cross-stage links.
+        display_graph = graph.build_topology_dag(self.model, self.G)
+        return export_to_dot(display_graph, title=self.get_benchmark_name())
 
     def get_environment_path(
         self, env_key: str, software_backend: SoftwareBackendEnum
