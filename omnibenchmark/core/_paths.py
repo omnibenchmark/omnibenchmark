@@ -150,9 +150,16 @@ def construct_output_paths(
     else:
         stage_outputs = model.get_stage_outputs(head.stage_id).values()
 
+    # On disk the param dir is always dot-prefixed (hidden): ".default" or
+    # ".{hash}" (see cli/run.py). Node param_ids already carry the dot for
+    # hashes but not for "default", so normalise here to match the run layout —
+    # otherwise stages below a default-param stage are looked up at the wrong
+    # path and falsely reported "missing".
+    param_seg = head.param_id if head.param_id.startswith(".") else f".{head.param_id}"
+
     current_path = f"{head.stage_id}/{head.module_id}"
     if any(["{params}" in o for o in stage_outputs]):
-        current_path += f"/{head.param_id}"
+        current_path += f"/{param_seg}"
 
     new_prefix = f"{prefix}/{current_path}"
     paths = [
@@ -160,7 +167,7 @@ def construct_output_paths(
             input=str(prefix),
             stage=head.stage_id,
             module=head.module_id,
-            params=head.param_id,
+            params=param_seg,
             dataset="{dataset}",
         )
         for x in stage_outputs

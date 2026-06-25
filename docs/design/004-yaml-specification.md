@@ -62,6 +62,9 @@ provenance:                            # Optional: lineage metadata
   canonical_url: <string>             #   URL of the authoritative publication
   derived_from: <string>              #   identifier/URL of the upstream benchmark
   subset_of: <string>                 #   summary hash of the parent benchmark
+validators:                            # Optional: output validators (see Section 3.9)
+  env: <string>                       #   software_environments id used to run validators
+  directory: <string>                 #   validators dir (default: "validators")
 ```
 
 #### Required Fields
@@ -78,6 +81,7 @@ provenance:                            # Optional: lineage metadata
 - `software_backend`: Default execution backend
 - `software_environments`: Named environment definitions
 - `provenance`: Lineage metadata (see Section 9)
+- `validators`: Output validator configuration (see Section 3.9)
 
 ### 3.2 Software Environments
 
@@ -354,6 +358,34 @@ Semantics:
   additive lineage gate — `provides`/`requires`, not yet implemented — is the
   intended home for richer conditions; see
   [PR #332](https://github.com/omnibenchmark/omnibenchmark/pull/332).)
+
+### 3.9 Output Validators
+
+Validators are ad-hoc scripts that check the files a stage produces. They are an
+optional, post-run quality gate — pass/fail per output, surfaced (read-only) as a
+green/red status per module in the status report.
+
+```yaml
+validators:
+  env: <string>            # Required: a software_environments id; all validators run here
+  directory: <string>      # Optional: validators dir, relative to the plan (default: "validators")
+```
+
+Validators live under `directory/{STAGE_ID}/{OUTPUT_ID}/validate.{py,R,sh}` — keyed by
+the stage id and the **output id** as declared in the stage's `outputs` (e.g.
+`PCA/pcas_tsv`). The output id is resolved to its path template, so the validator runs
+against exactly that output's produced files. Each script:
+
+- receives a single produced output file path as its only argument;
+- signals **pass with exit code 0, fail with any non-zero code** (stdout/stderr are
+  captured to a log);
+- runs inside the single environment named by `validators.env` (so its interpreter and
+  dependencies must be available there).
+
+The same validator applies to every module implementing the stage, run against each
+module's produced file. Validation is executed on demand by `ob validate outputs`
+(a generated wildcard Snakefile under `out/.validation/`); the status report only reads
+the results and never executes them.
 
 ## 4. Complete Example
 
