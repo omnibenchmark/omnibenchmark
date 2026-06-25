@@ -1,5 +1,6 @@
+from collections import defaultdict
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 
 from omnibenchmark.dag import (
     DiGraph,
@@ -110,6 +111,94 @@ def build_stage_dag(model: Benchmark) -> DiGraph:
                 g.add_edge(dep.id, stage.id)
 
     return g
+
+
+def stage_adjacency(model: Benchmark) -> List[Tuple[str, str, List[str]]]:
+    """Declared stage-to-stage topology edges.
+
+    Returns one ``(upstream_stage_id, stage_id, shared_output_ids)`` triple per
+    pair of stages where the downstream stage's declared inputs reference one or
+    more of the upstream stage's outputs. ``shared_output_ids`` is exactly those
+    outputs (sorted) — suitable for edge labels. Triples are ordered by
+    downstream stage, then by first appearance of the upstream stage in the
+    downstream stage's inputs.
+
+    This is the single source of truth for topology edges. It reads the model's
+    *declared* inputs directly (every upstream stage of an input group, not just
+    the topologically-latest one the execution DAG keeps for output-path
+    chaining), so it stays correct when an input group spans multiple stages.
+
+    Consumers:
+      * ``upstream_stage_ids`` / ``build_topology_dag`` here, which back the
+        mermaid and dot exporters.
+      * **obeditor** — the browser-based benchmark editor loads omnibenchmark as
+        a Pyodide wheel and calls this to render its pipeline-topology diagram
+        (stage-level, labeled edges). It is an *external* consumer, so this
+        function has no in-repo caller beyond the wrappers below; do not flag it
+        as dead code or inline it away.
+    """
+    adjacency: List[Tuple[str, str, List[str]]] = []
+    for stage in model.get_stages().values():
+        shared_by_stage: Dict[str, List[str]] = {}
+        order: List[str] = []
+        for entries in model.get_stage_implicit_inputs(stage):
+            for output_id in entries:
+                producing_stage = model.get_output_stage(output_id)
+                if producing_stage is None or producing_stage.id == stage.id:
+                    continue
+                if producing_stage.id not in shared_by_stage:
+                    shared_by_stage[producing_stage.id] = []
+                    order.append(producing_stage.id)
+                if output_id not in shared_by_stage[producing_stage.id]:
+                    shared_by_stage[producing_stage.id].append(output_id)
+        for up_stage_id in order:
+            adjacency.append(
+                (up_stage_id, stage.id, sorted(shared_by_stage[up_stage_id]))
+            )
+    return adjacency
+
+
+def upstream_stage_ids(model: Benchmark, stage: "Stage") -> List[str]:
+    """IDs of every stage feeding *stage* via its declared inputs.
+
+    Thin wrapper over :func:`stage_adjacency`. Unlike the execution DAG's
+    ``after`` join (which keeps only the topologically-latest producing stage so
+    output-path construction stays a linear ancestry), this returns *all*
+    upstream stages — every declared dependency, regardless of how many stages a
+    single input group spans.
+    """
+    return [
+        up_stage_id
+        for up_stage_id, stage_id, _ in stage_adjacency(model)
+        if stage_id == stage.id
+    ]
+
+
+def build_topology_dag(model: Benchmark, graph: DiGraph) -> DiGraph:
+    """Build a display-only DAG with every declared cross-stage edge.
+
+    Reuses the nodes of the execution *graph* but recomputes edges from the
+    model's declared inputs: every node of each upstream stage connects to every
+    node of the consuming stage. The execution DAG connects each node only to
+    its single ``after`` stage (correct for linear output-path chaining but
+    lossy when an input group spans multiple upstream stages); this restores the
+    dropped edges for visualization without perturbing execution.
+    """
+    display = DiGraph()
+
+    nodes_by_stage: dict = defaultdict(list)
+    for node in graph.nodes:
+        nodes_by_stage[node.stage_id].append(node)
+        display.add_node(node, stage=node.stage_id)
+
+    for stage in model.get_stages().values():
+        targets = nodes_by_stage.get(stage.id, [])
+        for up_stage_id in upstream_stage_ids(model, stage):
+            for source in nodes_by_stage.get(up_stage_id, []):
+                for target in targets:
+                    display.add_edge(source, target)
+
+    return display
 
 
 def find_initial_and_terminal_nodes(
