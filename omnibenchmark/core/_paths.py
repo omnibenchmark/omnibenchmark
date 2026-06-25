@@ -63,6 +63,19 @@ def truncate_filename(name: str, limit: int = MAX_FILENAME_LEN) -> str:
     return stem[:keep] + sep + digest + suffix
 
 
+def sanitize_rule_name(node_id: str) -> str:
+    """Sanitize a node ID into a valid Snakemake rule name (Python identifier).
+
+    Shared by the Snakefile generator (which names each rule's ``log:`` file)
+    and the status reporter (which locates those log files), so the two stay in
+    lockstep.
+    """
+    name = node_id.replace("-", "_").replace(".", "_")
+    if name and not name[0].isalpha():
+        name = "rule_" + name
+    return name
+
+
 _UNSAFE_CHARS = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", " "]
 
 
