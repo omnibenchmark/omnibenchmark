@@ -18,6 +18,7 @@ from omnibenchmark.cli.run import (
     _substitute_params_in_path,
     _build_template_context,
     _module_capabilities_met,
+    _select_capable_modules,
     run,
 )
 from omnibenchmark.core._lineage import (
@@ -342,6 +343,67 @@ class TestModuleCapabilitiesMet:
     def test_none_available_treated_as_empty(self):
         m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
         assert _module_capabilities_met(m, None) is False
+
+
+@pytest.mark.short
+class TestSelectCapableModules:
+    def _modules(self):
+        return [
+            _StubModule("M_cpu", requires_capabilities=None),
+            _StubModule("M_gpu", requires_capabilities=["gpu"]),
+        ]
+
+    def test_prunes_module_missing_capability(self):
+        kept, pruned = _select_capable_modules(self._modules(), None, set())
+        assert [m.id for m in kept] == ["M_cpu"]
+        assert [m.id for m in pruned] == ["M_gpu"]
+
+    def test_keeps_all_when_capability_provided(self):
+        kept, pruned = _select_capable_modules(self._modules(), None, {"gpu"})
+        assert [m.id for m in kept] == ["M_cpu", "M_gpu"]
+        assert pruned == []
+
+    def test_module_filter_bypasses_gate(self):
+        # -m/--module set: nothing is pruned, even the gpu module on a host
+        # without gpu — the user asked for it explicitly.
+        kept, pruned = _select_capable_modules(self._modules(), "M_gpu", set())
+        assert [m.id for m in kept] == ["M_cpu", "M_gpu"]
+        assert pruned == []
+
+    def test_none_available_prunes_requirers(self):
+        kept, pruned = _select_capable_modules(self._modules(), None, None)
+        assert [m.id for m in kept] == ["M_cpu"]
+        assert [m.id for m in pruned] == ["M_gpu"]
+
+
+@pytest.mark.short
+def test_run_with_capability_threads_set():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(
+            run,
+            [
+                "tests/data/mock_benchmark.yaml",
+                "--with-capability",
+                "gpu",
+                "--with-capability",
+                "large_mem",
+            ],
+        )
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("available_capabilities") == {
+            "gpu",
+            "large_mem",
+        }
+
+
+@pytest.mark.short
+def test_run_without_capability_threads_empty_set():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(run, ["tests/data/mock_benchmark.yaml"])
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("available_capabilities") == set()
 
 
 # ---------------------------------------------------------------------------

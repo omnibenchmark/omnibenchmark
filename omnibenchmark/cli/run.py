@@ -944,6 +944,23 @@ def _module_capabilities_met(module, available_capabilities) -> bool:
     return set(required).issubset(available_capabilities or set())
 
 
+def _select_capable_modules(modules, module_filter, available_capabilities):
+    """Partition modules into (kept, pruned) by the host-capability gate.
+
+    A module is pruned when its `requires_capabilities` are not all provided.
+    `-m/--module` (dev mode) bypasses the gate entirely — the user asked for a
+    specific module explicitly, so nothing is silently dropped from under them.
+    """
+    if module_filter:
+        return list(modules), []
+    kept, pruned = [], []
+    for module in modules:
+        (
+            kept if _module_capabilities_met(module, available_capabilities) else pruned
+        ).append(module)
+    return kept, pruned
+
+
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -980,23 +997,19 @@ def _generate_explicit_snakefile(
     )
 
     # Capability gate: drop modules whose required host capabilities are not all
-    # provided. -m/--module bypasses host gates (dev mode): the user asked for
-    # that module explicitly, so it fails loudly at run time rather than silently.
-    def _capability_pruned(module):
-        if module_filter:
-            return False
-        return not _module_capabilities_met(module, available_capabilities)
-
+    # provided, before any checkout/env resolution. -m/--module bypasses it.
     unique_modules = {}
     for stage in benchmark.model.stages:
-        for module in stage.modules:
-            if _capability_pruned(module):
-                logger.info(
-                    f"Pruning module '{module.id}': requires capabilities "
-                    f"{module.requires_capabilities}, host provides "
-                    f"{sorted(available_capabilities or [])}."
-                )
-                continue
+        kept, pruned = _select_capable_modules(
+            stage.modules, module_filter, available_capabilities
+        )
+        for module in pruned:
+            logger.info(
+                f"Pruning module '{module.id}': requires capabilities "
+                f"{module.requires_capabilities}, host provides "
+                f"{sorted(available_capabilities or [])}."
+            )
+        for module in kept:
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
                 unique_modules[cache_key] = (module, module.software_environment)
@@ -1206,7 +1219,9 @@ def _generate_explicit_snakefile(
             else:
                 modules_to_expand = stage.modules[:1]
         else:
-            modules_to_expand = [m for m in stage.modules if not _capability_pruned(m)]
+            modules_to_expand, _ = _select_capable_modules(
+                stage.modules, module_filter, available_capabilities
+            )
 
         for module in modules_to_expand:
             module_id = module.id
