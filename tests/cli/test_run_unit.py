@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from dataclasses import dataclass
 
 import pytest
 from pathlib import Path
@@ -16,6 +17,7 @@ from omnibenchmark.cli.run import (
     _run_snakemake,
     _substitute_params_in_path,
     _build_template_context,
+    _module_capabilities_met,
     run,
 )
 from omnibenchmark.core._lineage import (
@@ -299,6 +301,47 @@ class TestBuildTemplateContext:
         stage = _make_stage("data", provides=None)
         ctx = _build_template_context(stage, "D1", module_name="Dataset 1")
         assert ctx.substitute("{module.name}_output.txt") == "Dataset 1_output.txt"
+
+
+# ---------------------------------------------------------------------------
+# _module_capabilities_met (capability gating)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubModule:
+    id: str
+    requires_capabilities: list = None
+
+
+@pytest.mark.short
+class TestModuleCapabilitiesMet:
+    def test_no_requirements_always_passes(self):
+        m = _StubModule("M1", requires_capabilities=None)
+        assert _module_capabilities_met(m, set()) is True
+        assert _module_capabilities_met(m, {"gpu"}) is True
+
+    def test_empty_requirements_always_passes(self):
+        m = _StubModule("M1", requires_capabilities=[])
+        assert _module_capabilities_met(m, set()) is True
+
+    def test_required_capability_absent_is_pruned(self):
+        m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
+        assert _module_capabilities_met(m, set()) is False
+        assert _module_capabilities_met(m, {"large_mem"}) is False
+
+    def test_required_capability_present_passes(self):
+        m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
+        assert _module_capabilities_met(m, {"gpu"}) is True
+
+    def test_all_of_several_required(self):
+        m = _StubModule("heavy", requires_capabilities=["gpu", "large_mem"])
+        assert _module_capabilities_met(m, {"gpu"}) is False
+        assert _module_capabilities_met(m, {"gpu", "large_mem"}) is True
+
+    def test_none_available_treated_as_empty(self):
+        m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
+        assert _module_capabilities_met(m, None) is False
 
 
 # ---------------------------------------------------------------------------
