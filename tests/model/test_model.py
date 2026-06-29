@@ -314,6 +314,14 @@ class TestCoreEntities:
         assert len(module.outputs) == 2
         assert module.outputs[0].id == "out1"
 
+    def test_module_requires_capabilities(self):
+        """Module accepts requires_capabilities and defaults it to None."""
+        gated = make_module(id="gpu_pca", requires_capabilities=["gpu", "large_mem"])
+        assert gated.requires_capabilities == ["gpu", "large_mem"]
+
+        plain = make_module(id="cpu_pca")
+        assert plain.requires_capabilities is None
+
     def test_has_environment_reference(self):
         """Test has_environment_reference method."""
         module = make_module(software_environment="env1")
