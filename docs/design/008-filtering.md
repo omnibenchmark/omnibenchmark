@@ -1,17 +1,17 @@
 # 008: Filtering and gating mechanisms
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 2](https://img.shields.io/badge/Version-2-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | Field           | Value                                                                                                               |
 |-----------------|---------------------------------------------------------------------------------------------------------------------|
 | Authors         | btraven00, atchox                                                                                                   |
 | Date            | 2026-05-07                                                                                                          |
 | Status          | Draft                                                                                                               |
-| Version         | 2                                                                                                                   |
+| Version         | 3                                                                                                                   |
 | Supersedes      | N/A                                                                                                                 |
 | Reviewed-by     | TBD                                                                                                                 |
-| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
+| Related Issues  | [#360](https://github.com/omnibenchmark/omnibenchmark/issues/360) (umbrella: filtering & slicing of the execution graph), [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331) (conditional execution), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
 
 ## Changes
 
@@ -19,6 +19,7 @@
 |---------|------------|---------------|-----------|
 | 1       | 2026-05-07 | Initial draft | btraven00 |
 | 2       | 2026-06-12 | Two-level label resolution (param-name fallback rejected); reserved builtin labels; diagnostics promoted to phase scope; phases reordered — lineage gating lands before capability gating | btraven00 |
+| 3       | 2026-06-29 | Add #360 as the umbrella issue; develop reusable `.obfilter` filters and the drifting-parent re-application case (§3.6); rebut "Snakemake already filters" (§4, Alt 4) | btraven00 |
 
 ## 1. Problem Statement
 
@@ -452,6 +453,41 @@ included. `exclude` is removed after `include`. The wizard may emit this spec
 verbatim or transport it as base64-JSON (`.obfilter`); both forms must
 round-trip.
 
+#### Reusable filters and the drifting parent
+
+The filter spec is a *value*, not a one-shot CLI invocation: it can be written
+to a file, version-controlled, and **re-applied** to a benchmark plan that has
+since changed. This is the third use case in #360 — a user maintains a stable,
+named slice ("just my two methods on the small dataset") across an *evolving*
+parent plan, instead of hand-editing a forked YAML and re-syncing it every time
+the parent gains a stage, module, or parameter.
+
+A reusable filter is exactly the spec above, optionally transported as a single
+opaque token (`.obfilter` = base64-JSON) for embedding in URLs or chat-ops
+commands. The transparent YAML is the source of truth; the token is only a
+transport (§2, "Transparent specs"). Both must round-trip to the same node set.
+
+`obeditor` already implements this end-to-end today: the web wizard emits an
+`.obfilter`, and a later run re-hydrates it against the current plan. See the
+[obeditor `.obfilter` implementation][obfilter-impl]. When native support
+lands, the on-disk format must stay compatible with obeditor's so the two
+remain interchangeable — obeditor is the reference producer; this design is the
+consumer it must match.
+
+[obfilter-impl]: https://github.com/btraven00/obeditor
+
+**Drift semantics.** Because a filter selects by `stage_id` / `module_id` /
+`param` rather than by a frozen list of fully-expanded nodes, re-applying it to
+a grown plan is well-defined: a newly added module that matches an `include`
+selector joins the slice; one that does not stays out. The empty-stage and
+pruned-combinations diagnostics (§3.5) are what make drift *visible* — if the
+parent renamed a stage the filter names, the user gets `selector matched 0
+nodes` instead of a silently empty run. A filter that selects by frozen node
+identity (rather than by contract) would silently rot the moment the parent
+re-expands; selecting by typed selector is what keeps re-application honest.
+This is also why the spec must be transparent and not only an opaque blob: a
+drifted `.obfilter` has to be *diffable* against the plan it no longer fits.
+
 ### 3.7 Provenance hooks
 
 Every applied filter (including `--until` and `--capability`) is recorded
@@ -494,6 +530,44 @@ provenance:
   evolves; teaches users a thing they can't read.
 - **Reason for rejection**: kept as a *transport* for the underlying
   transparent spec, not as the source of truth.
+
+### Alternative 4: rely on Snakemake's native filtering
+
+- **Description**: Snakemake already exposes `--until` / `--omit-from` (by
+  rule name), explicit file targets, and wildcard/target-pattern selection.
+  Why not let users filter at the Snakemake layer instead of building a
+  selector vocabulary in omnibenchmark?
+- **Reason for rejection**: it cannot express the cases in §1, for two
+  structural reasons rooted in *how omnibenchmark uses Snakemake today*:
+
+  1. **The stage / module / contract hierarchy is gone by the time it is a
+     Snakefile.** Omnibenchmark resolves a plan (stages → modules → parameter
+     expansions, plus the `provides` / `requires` lineage contracts) into a
+     flat list of concrete rules. The semantic layer a filter needs to select
+     *on* — "this rule belongs to the `methods` stage", "this node carries
+     `dataset_size: lg`", "this is module `M1`" — is not encoded in the
+     generated Snakefile; only rule names and output paths survive.
+     Snakemake's `--until RULE` operates on that residue, so the natural
+     selectors (`stage_id`, `capability`, lineage label) have nothing to bind
+     to at the Snakemake layer. Filtering must happen *above* the lowering
+     step, where the hierarchy still exists — which is precisely the layer
+     this design targets.
+
+  2. **The generated Snakefiles are explicit, not wildcard-driven.** Snakemake's
+     filtering leverage (DAG pruning by wildcard, target patterns, inference
+     back from a requested output) assumes rules parameterized by wildcards
+     that Snakemake expands. Omnibenchmark currently emits one fully-expanded
+     rule per resolved node with materialized paths; there are no wildcards
+     for Snakemake's pattern machinery to act on. So even the filtering
+     Snakemake *could* do has no surface to grip. Until/unless the generated
+     Snakefiles move to wildcard expansion, native filtering is not an
+     available lever — and even then, reason (1) keeps the semantic selectors
+     above the Snakemake boundary.
+
+  Net: Snakemake filtering and omnibenchmark filtering are at different
+  altitudes. We resolve and prune the benchmark DAG *before* lowering to
+  Snakemake; Snakemake then schedules whatever survived. The two compose; one
+  does not replace the other.
 
 ## 5. Implementation Plan
 
@@ -550,7 +624,10 @@ host-heterogeneity case.
 
 ## 6. References
 
-1. [Issue #331 — conditional execution of modules](https://github.com/omnibenchmark/omnibenchmark/issues/331)
-2. [PR #330 — provenance metadata tracking](https://github.com/omnibenchmark/omnibenchmark/pull/330)
-3. [PR #323 — `{name}` resolves to the current module id](https://github.com/omnibenchmark/omnibenchmark/pull/323)
-4. [Snakemake `--until` semantics](https://snakemake.readthedocs.io/en/stable/executing/cli.html)
+1. [Issue #360 — filtering of the execution graph (umbrella)](https://github.com/omnibenchmark/omnibenchmark/issues/360)
+2. [Issue #331 — conditional execution of modules](https://github.com/omnibenchmark/omnibenchmark/issues/331)
+3. [PR #330 — provenance metadata tracking](https://github.com/omnibenchmark/omnibenchmark/pull/330)
+4. [PR #323 — `{name}` resolves to the current module id](https://github.com/omnibenchmark/omnibenchmark/pull/323)
+5. [Snakemake `--until` semantics](https://snakemake.readthedocs.io/en/stable/executing/cli.html)
+6. [obeditor — `.obfilter` reference implementation](https://github.com/btraven00/obeditor)
+7. [obflow — Go chat-ops automation over benchmark plans](https://github.com/btraven00/obflow)
