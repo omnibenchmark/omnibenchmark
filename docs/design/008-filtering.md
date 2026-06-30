@@ -1,14 +1,14 @@
 # 008: Filtering and gating mechanisms
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 4](https://img.shields.io/badge/Version-4-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | Field           | Value                                                                                                               |
 |-----------------|---------------------------------------------------------------------------------------------------------------------|
 | Authors         | btraven00, atchox                                                                                                   |
 | Date            | 2026-05-07                                                                                                          |
 | Status          | Draft                                                                                                               |
-| Version         | 3                                                                                                                   |
+| Version         | 4                                                                                                                   |
 | Supersedes      | N/A                                                                                                                 |
 | Reviewed-by     | TBD                                                                                                                 |
 | Related Issues  | [#360](https://github.com/omnibenchmark/omnibenchmark/issues/360) (umbrella: filtering & slicing of the execution graph), [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331) (conditional execution), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
@@ -20,11 +20,12 @@
 | 1       | 2026-05-07 | Initial draft | btraven00 |
 | 2       | 2026-06-12 | Two-level label resolution (param-name fallback rejected); reserved builtin labels; diagnostics promoted to phase scope; phases reordered — lineage gating lands before capability gating | btraven00 |
 | 3       | 2026-06-29 | Add #360 as the umbrella issue; develop reusable `.obfilter` filters and the drifting-parent re-application case (§3.6); rebut "Snakemake already filters" (§4, Alt 4) | btraven00 |
+| 4       | 2026-06-30 | §3.6 rephrased for simplicity; changed drift behaviour to match the prototype in #363; §3.7 marked planned-not-built and grounded on the actual `out/.metadata/manifest.json` | btraven00 |
 
 ## 1. Problem Statement
 
 A benchmark plan describes the full universe of stages, modules, and parameter
-combinations. In practice users want to run a *subset* of that universe for
+combinations. In practice users might want to run a *subset* of that universe for
 several distinct reasons:
 
 - **Capability gating** — a module needs a GPU, large memory, or a network
@@ -35,12 +36,12 @@ several distinct reasons:
   subset of a "parent" plan (e.g. one dataset out of ten, two methods out of
   twenty), produced by tooling such as the `obeditor` web wizard.
 - **Ad-hoc skipping** — a known-broken module that should not block the rest
-  of a run.
+  of a run (just commenting out is a way of getting this, but then we have a different hash
+  of the plan and we need to diff what was left out vs. previous versions).
 
 Today, the only mechanism that approaches this is `excludes:` (and `requires:`)
-on modules. `excludes:` is *defined by absence*: to exclude a combination, you
-must enumerate it. This is brittle for any non-trivial benchmark and does not
-help with the four cases above.
+on modules. To exclude a combination, you must enumerate it. This is noisy and brittle
+for any non-trivial benchmark and does not help with the four cases above.
 
 ## 2. Design Goals
 
@@ -53,13 +54,13 @@ help with the four cases above.
   provenance metadata (#330) so that a child run can be reproduced from
   *parent + filter*.
 - **Additive, not subtractive**: prefer mechanisms that say "include if X"
-  over "exclude when Y".
-- **No silent absence**: every pruned node must be observable — per-prune log
+  over "exclude when Y" (needs changes in less places as the benchmark evolves).
+- **No silent absence**: every pruned node must be observable: per-prune log
   lines plus an end-of-expansion summary. In a benchmark, a silently missing
   result cell is worse than a crash: it corrupts the conclusion without
   failing the run.
-- **Cheap to start**: this design is rolled out feature-by-feature; no
-  big-bang migration.
+- **Easy to start**: this design is rolled out feature-by-feature; no
+  big migration needed.
 
 ### Non-Goals
 
@@ -433,9 +434,21 @@ These are conventions, not enforced names. Encouraging consistency lets the
 filter wizard offer fixed checkboxes and a benchmarker can pick a tier
 without reinventing one per benchmark.
 
-### 3.6 Filter spec (deferred to v2)
+### 3.6 Filter spec
 
-Sketch only; do not implement in v1.
+A filter says which parts of a benchmark to run. There are two ways to write
+one, and they suit different needs.
+
+**A pick list — name the exact parts to keep.** For each stage, you list which
+modules to keep, and for each module which parameter combinations to keep (`all`
+of them, just the `first`, or specific ones). Writing `"*"` in place of a module
+name means "every module in this stage". This is what the obeditor web wizard
+exports today, and what a native `ob run --filter` reads. It is exact and
+reproducible. Its trade-off: it is tied to the exact benchmark it was made from
+(see "Reusing a saved filter"). This is the form being prototyped first.
+
+**A rule-based filter — describe the parts to keep (sketch only, not built).**
+Instead of naming exact parts, you match them by rule:
 
 ```yaml
 filter:
@@ -448,62 +461,74 @@ filter:
     - capability: gpu
 ```
 
-Rules: `include` is a positive selector set; if absent, all nodes are
-included. `exclude` is removed after `include`. The wizard may emit this spec
-verbatim or transport it as base64-JSON (`.obfilter`); both forms must
-round-trip.
+`include` lists what to keep (if omitted, everything is kept); `exclude` then
+removes from that result. This style keeps working as the benchmark grows —
+"every GPU module" still means the right thing after new modules are added — but
+it is less exact than a pick list. It is a possible future addition, not part of
+the first version.
 
-#### Reusable filters and the drifting parent
+#### Reusing a saved filter
 
-The filter spec is a *value*, not a one-shot CLI invocation: it can be written
-to a file, version-controlled, and **re-applied** to a benchmark plan that has
-since changed. This is the third use case in #360 — a user maintains a stable,
-named slice ("just my two methods on the small dataset") across an *evolving*
-parent plan, instead of hand-editing a forked YAML and re-syncing it every time
-the parent gains a stage, module, or parameter.
+A filter is a value you can save to a file, commit to git, and apply again
+later — even after the benchmark it came from has changed. This is the third use
+case in #360: keeping a stable slice ("just my two methods on the small
+dataset") as the parent benchmark keeps evolving, instead of hand-editing a
+forked copy every time the parent gains a stage, module, or parameter.
 
-A reusable filter is exactly the spec above, optionally transported as a single
-opaque token (`.obfilter` = base64-JSON) for embedding in URLs or chat-ops
-commands. The transparent YAML is the source of truth; the token is only a
-transport (§2, "Transparent specs"). Both must round-trip to the same node set.
-
-`obeditor` already implements this end-to-end today: the web wizard emits an
-`.obfilter`, and a later run re-hydrates it against the current plan. See the
-[obeditor `.obfilter` implementation][obfilter-impl]. When native support
-lands, the on-disk format must stay compatible with obeditor's so the two
-remain interchangeable — obeditor is the reference producer; this design is the
-consumer it must match.
+obeditor does this today: the wizard exports a saved filter (a small compressed
+text token), and a later run applies it to the current benchmark. See the
+[obeditor implementation][obfilter-impl]. When native support lands,
+omnibenchmark must read the same format so the two stay interchangeable —
+obeditor produces it, omnibenchmark consumes it.
 
 [obfilter-impl]: https://github.com/btraven00/obeditor
 
-**Drift semantics.** Because a filter selects by `stage_id` / `module_id` /
-`param` rather than by a frozen list of fully-expanded nodes, re-applying it to
-a grown plan is well-defined: a newly added module that matches an `include`
-selector joins the slice; one that does not stays out. The empty-stage and
-pruned-combinations diagnostics (§3.5) are what make drift *visible* — if the
-parent renamed a stage the filter names, the user gets `selector matched 0
-nodes` instead of a silently empty run. A filter that selects by frozen node
-identity (rather than by contract) would silently rot the moment the parent
-re-expands; selecting by typed selector is what keeps re-application honest.
-This is also why the spec must be transparent and not only an opaque blob: a
-drifted `.obfilter` has to be *diffable* against the plan it no longer fits.
+**What happens when the benchmark has changed since the filter was made.** A
+saved pick list names exact parts, and also records a short fingerprint of the
+benchmark it was made from. When you apply it, three things can happen:
 
-### 3.7 Provenance hooks
+- *Benchmark unchanged* (same fingerprint): it runs exactly as picked.
+- *Benchmark changed, but everything the filter names still exists*: it runs the
+  slice and prints one note saying the benchmark has moved on.
+- *Something the filter names is gone* (a stage or module was renamed or
+  removed, or a chosen parameter combination no longer exists): it stops with an
+  error listing exactly what is missing — never a silently smaller run. You can
+  pass an override to run the parts that still match instead.
 
-Every applied filter (including `--until` and `--capability`) is recorded
-under a `provenance.filters` block in the run metadata (#330). A child run
-declares its parent benchmark by canonical URL plus the applied filter spec.
-This is what makes a sliced run reproducible.
+Two things keep this honest: the fingerprint, which flags any change so nothing
+slips by unnoticed, and the `"*"` form, which keeps matching modules that are
+added to a stage later.
 
-Concretely:
+### 3.7 Provenance hooks (planned — not yet built)
+
+This section describes intended behaviour, not current behaviour. It depends on
+the provenance-metadata work in #330.
+
+Today, each run writes a `.metadata/` folder next to its outputs
+(`out/.metadata/`): `manifest.json` (a run ID, a timestamp, and host details),
+a copy of the benchmark YAML, and the list of resolved modules. None of these
+records which filter was applied.
+
+The plan is to add, to that same `manifest.json`, a record of every filter that
+was applied to the run (`--until`, `--capability`, or a saved pick list) plus a
+fingerprint of the benchmark it ran against. Together these would let the same
+slice be reproduced later: take the parent benchmark, apply the recorded filter,
+get the same run.
+
+The intended shape:
 
 ```yaml
 provenance:
   parent: https://example.org/benchmarks/foo@v1.2.3
+  parent_fingerprint: 3fd5c5ca…          # of the parent benchmark
   filters:
     until: methods
     capabilities: [gpu]
+    pick_list: <saved filter token>      # the obeditor-style pick list, if used
 ```
+
+This is a small, isolated addition to the manifest writer; the fingerprint is
+already computed at run time, so it does not block on #330 if we want it sooner.
 
 ## 4. Alternatives Considered
 
@@ -607,7 +632,7 @@ host-heterogeneity case.
 
 ### Phase 4 — Provenance plumbing
 - After #330 lands, emit applied filters into the provenance block,
-  reusing the pruned-combinations record from Phase 2.
+  reusing the pruned-picks record from Phase 2.
 - Round-trip test: serialize → load → re-run produces the same node set.
 
 ### Phase 5 — Filter spec (deferred)
@@ -624,7 +649,7 @@ host-heterogeneity case.
 
 ## 6. References
 
-1. [Issue #360 — filtering of the execution graph (umbrella)](https://github.com/omnibenchmark/omnibenchmark/issues/360)
+1. [Issue #360 — filtering of the execution graph (umbrella ticket)](https://github.com/omnibenchmark/omnibenchmark/issues/360)
 2. [Issue #331 — conditional execution of modules](https://github.com/omnibenchmark/omnibenchmark/issues/331)
 3. [PR #330 — provenance metadata tracking](https://github.com/omnibenchmark/omnibenchmark/pull/330)
 4. [PR #323 — `{name}` resolves to the current module id](https://github.com/omnibenchmark/omnibenchmark/pull/323)
