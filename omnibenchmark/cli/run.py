@@ -132,6 +132,27 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=None,
     help="Write telemetry to file instead of stdout. Allows Rich progress to remain active. Implies --telemetry.",
 )
+@click.option(
+    "--filter",
+    "filter_arg",
+    default=None,
+    metavar="FILE|BLOB",
+    help=(
+        "Run a slice of the benchmark defined by an obfilter selection: a path to a "
+        "file containing a packed blob, or an inline packed blob. Prunes the DAG to "
+        "the picked stages/modules/param-combos. Incompatible with -m/--module."
+    ),
+)
+@click.option(
+    "--allow-drift",
+    is_flag=True,
+    default=False,
+    help=(
+        "With --filter: if the benchmark has changed since the filter was made and "
+        "some selected stages/modules/parameters no longer exist, run the part that "
+        "still matches instead of erroring. Skipped selections are listed as warnings."
+    ),
+)
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
@@ -148,6 +169,8 @@ def run(
     module_filter,
     telemetry,
     telemetry_output,
+    filter_arg,
+    allow_drift,
     snakemake_args,
 ):
     """Run a benchmark.
@@ -192,6 +215,27 @@ def run(
             f"-m {module_filter}: single execution path, first param expansion only."
         )
 
+    if module_filter and filter_arg:
+        log_error_and_quit(
+            logger,
+            "--filter and -m/--module cannot be combined: both define the execution "
+            "selection (-m is dev mode, --filter is a curated slice).",
+        )
+        return
+
+    filter_blob = None
+    if filter_arg:
+        from omnibenchmark.filter import unpack_blob, FilterError
+
+        packed = filter_arg
+        if Path(filter_arg).exists():
+            packed = Path(filter_arg).read_text().strip()
+        try:
+            filter_blob = unpack_blob(packed)
+        except FilterError as e:
+            log_error_and_quit(logger, f"--filter: {e}")
+            return
+
     _run_benchmark(
         benchmark_path=benchmark,
         cores=cores,
@@ -205,6 +249,8 @@ def run(
         module_filter=module_filter,
         telemetry=telemetry,
         telemetry_output=telemetry_output,
+        filter_blob=filter_blob,
+        allow_drift=allow_drift,
         snakemake_args=list(snakemake_args),
     )
 
@@ -222,6 +268,8 @@ def _run_benchmark(
     module_filter=None,
     telemetry=None,
     telemetry_output=None,
+    filter_blob=None,
+    allow_drift=False,
     snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
@@ -284,6 +332,8 @@ def _run_benchmark(
         dirty=dirty,
         unpinned=unpinned,
         module_filter=module_filter,
+        filter_blob=filter_blob,
+        allow_drift=allow_drift,
     )
 
     # Initialize telemetry with resolved nodes and emit module-resolution span
@@ -986,6 +1036,8 @@ def _generate_explicit_snakefile(
     dirty: bool = False,
     unpinned: bool = False,
     module_filter: Optional[str] = None,
+    filter_blob: Optional[dict] = None,
+    allow_drift: bool = False,
 ):
     """Generate explicit Snakefile from resolved modules."""
     from omnibenchmark.progress import ProgressDisplay
@@ -997,6 +1049,35 @@ def _generate_explicit_snakefile(
 
     if not quiet:
         logger.info("\nGenerating explicit Snakefile...")
+
+    # obfilter: resolve picks + drift-check against the benchmark's summary_hash.
+    from omnibenchmark import filter as obfilter
+
+    picks = None
+    if filter_blob is not None:
+        picks = filter_blob.get("picks") or {}
+        parent_hash = (filter_blob.get("parent") or {}).get("sha256")
+        current_hash = benchmark.model.summary_hash()
+        orphans = obfilter.find_orphans(picks, benchmark.model)
+        if orphans:
+            summary = "; ".join(orphans)
+            if allow_drift:
+                logger.warning(
+                    f"--filter: {len(orphans)} pick(s) no longer resolve (parent drifted), "
+                    f"running the surviving subset: {summary}"
+                )
+            else:
+                logger.error(
+                    f"--filter: {len(orphans)} pick(s) do not resolve against this benchmark "
+                    f"(parent drifted from {parent_hash} to {current_hash}): {summary}. "
+                    "Re-export the filter, or pass --allow-drift to run the surviving subset."
+                )
+                sys.exit(1)
+        elif parent_hash and parent_hash != current_hash:
+            logger.info(
+                f"--filter: benchmark drifted from blob parent {parent_hash[:8]} to "
+                f"{current_hash[:8]}; all picks still resolve."
+            )
 
     work_dir = out_dir / ".modules"
     benchmark_dir = benchmark_yaml_path.parent
@@ -1012,6 +1093,10 @@ def _generate_explicit_snakefile(
     unique_modules = {}
     for stage in benchmark.model.stages:
         for module in stage.modules:
+            if picks is not None and not obfilter.keeps_module(
+                picks, stage.id, module.id
+            ):
+                continue
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
                 unique_modules[cache_key] = (module, module.software_environment)
@@ -1190,6 +1275,10 @@ def _generate_explicit_snakefile(
                 modules_to_expand = [m for m in stage.modules if m.id == module_filter]
             else:
                 modules_to_expand = stage.modules[:1]
+        elif picks is not None:
+            modules_to_expand = [
+                m for m in stage.modules if obfilter.keeps_module(picks, stage.id, m.id)
+            ]
         else:
             modules_to_expand = stage.modules
 
@@ -1210,6 +1299,13 @@ def _generate_explicit_snakefile(
                         params_list.extend(Params.expand_from_parameter(param))
                 else:
                     params_list = [None]
+
+                # obfilter: prune param combos per the module's pick spec (applies
+                # across all lineage branches, before the input × param product).
+                if picks is not None:
+                    params_list = obfilter.filter_params(
+                        params_list, obfilter.module_spec(picks, stage.id, module_id)
+                    )
 
                 if stage.inputs and previous_stage_nodes:
                     from itertools import product
