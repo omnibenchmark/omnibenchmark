@@ -15,6 +15,7 @@ and owns the progress reporting around it.
 from itertools import product
 from typing import Optional
 
+from omnibenchmark import filter as obfilter
 from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
     build_template_context,
@@ -43,6 +44,7 @@ def expand_gather_stage(
     module_filter=None,
     target_stage=None,
     available_capabilities=None,
+    picks=None,
 ) -> list:
     """Expand a gather stage into ResolvedNodes (design 010 MVP).
 
@@ -99,6 +101,10 @@ def expand_gather_stage(
             modules_to_expand = [m for m in stage.modules if m.id == module_filter]
         else:
             modules_to_expand = stage.modules[:1]
+    elif picks is not None:
+        modules_to_expand = [
+            m for m in stage.modules if obfilter.keeps_module(picks, stage.id, m.id)
+        ]
     else:
         modules_to_expand, _ = select_capable_modules(
             stage.modules, module_filter, available_capabilities
@@ -118,6 +124,13 @@ def expand_gather_stage(
                 params_list.extend(Params.expand_from_parameter(param))
         else:
             params_list = [None]
+
+        # obfilter: prune param combos per the module's pick spec, before the
+        # input × param product.
+        if picks is not None:
+            params_list = obfilter.filter_params(
+                params_list, obfilter.module_spec(picks, stage.id, module_id)
+            )
 
         combos = [(gval, params) for gval in grouped for params in params_list]
         if module_filter:
@@ -267,6 +280,7 @@ def expand_scatter_stage(
     prune_counts: dict,
     quiet: bool,
     available_capabilities: Optional[set] = None,
+    picks: Optional[dict] = None,
 ) -> list:
     """Expand one ordinary (scatter/chain) stage into ResolvedNodes.
 
@@ -292,6 +306,10 @@ def expand_scatter_stage(
             modules_to_expand = [m for m in stage.modules if m.id == module_filter]
         else:
             modules_to_expand = stage.modules[:1]
+    elif picks is not None:
+        modules_to_expand = [
+            m for m in stage.modules if obfilter.keeps_module(picks, stage.id, m.id)
+        ]
     else:
         modules_to_expand, _ = select_capable_modules(
             stage.modules, module_filter, available_capabilities
@@ -338,6 +356,13 @@ def expand_scatter_stage(
                     params_list.extend(Params.expand_from_parameter(param))
             else:
                 params_list = [None]
+
+            # obfilter: prune param combos per the module's pick spec, before the
+            # input × param product.
+            if picks is not None:
+                params_list = obfilter.filter_params(
+                    params_list, obfilter.module_spec(picks, stage.id, module_id)
+                )
 
             if input_bundles is not None:
                 node_combinations = list(product(input_bundles, params_list))
