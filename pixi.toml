@@ -140,6 +140,5 @@ git = "*"
 omnibenchmark = { path = ".", editable = true }
 
 [feature.py313.tasks]
-pip = "pip"
 # Test task for Python 3.13 environment
 test-py313 = "pytest -m 'short and not e2e' --ignore=tests/e2e --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_S3Storage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"

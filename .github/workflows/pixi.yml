@@ -111,7 +111,7 @@ jobs:
       - name: Run Python 3.13 tests with wheel
         run: |
           WHEEL_FILE=$(ls dist/*.whl)
-          pixi run -e py313 pip install "$WHEEL_FILE[test]"
+          pixi run -e py313 python -m pip install "$WHEEL_FILE[test]"
           pixi run -e py313 test-py313
 
   test-integration:
