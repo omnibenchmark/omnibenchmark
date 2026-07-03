@@ -2,7 +2,7 @@
 name: pixi
 
 env:
-  PIXI_VERSION: v0.65.0
+  PIXI_VERSION: v0.71.2
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
