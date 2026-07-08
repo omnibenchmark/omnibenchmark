@@ -4,17 +4,27 @@ Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/proje
 
 ### Supported platforms
 
-Even if Omnibenchmark installs, there are limitations of running benchmarks on some operating systems.
+The package installs on Linux, Windows and macOS. Running a benchmark needs a software backend, and support depends on the operating system. In the table, yes means supported, partial means limited, no means unsupported.
 
-| Backend      | Linux | MacOS | Windows |
-|--------------|-------|-------|---------|
-| Conda        | ✅    | ✅    | ⚠️       |
-| Apptainer    | ✅    | ❌    | ❌       |
-| Easybuild    | ✅    | ⚠️    | ❌       |
-| Lmod         | ✅    | ⚠️    | ❌       |
+| Strategy                | Linux | Windows | macOS |
+|-------------------------|-------|---------|-------|
+| Conda                   | yes   | yes     | yes   |
+| EasyBuild               | yes   | partial | no    |
+| Apptainer (Singularity) | yes   | no      | no    |
 
+For Conda, a benchmark also needs its packages to exist for that operating system and CPU architecture in the configured conda channel. Packages built for amd64 do not run on arm64.
 
-Similarly, the system architecture matters. Conda packages built for amd64 do not run on arm64 machines.
+### Software backends
+
+A benchmark plan picks one backend using the `software_backend` field:
+
+- `conda`: builds environments from conda specifications.
+- `apptainer`: runs Apptainer (formerly Singularity) images.
+- `docker`: runs `docker://` images through Apptainer rather than a Docker daemon, so no Docker install is needed and platform support matches `apptainer`.
+- `envmodules`: loads environment modules, for example EasyBuild-built ones.
+- `host`: runs modules directly in the current environment. There is no isolation and no reproducibility guarantee, so it suits quick local tests and needs nothing beyond the package itself.
+
+The table covers Conda, EasyBuild and Apptainer, the strategies that build reproducible environments. `docker` uses Apptainer, so it has the same support, and `host` runs wherever the package installs.
 
 ### Quick start using conda
 
@@ -37,7 +47,7 @@ Start a new benchmark:
 ob create benchmark ~/my_benchmark
 ```
 
-Creat a new module:
+Create a new module:
 
 ```bash
 ob create module ~/my_new_module
@@ -124,25 +134,26 @@ If you want to become a contributor, then you need to install omnibenchmark from
 
 ## Install Additional Dependencies
 
-Omnibenchmark aims to faciltate benchmarking using different software backends, including `conda`, `apptainer` (formerly `singularity`), or `easybuild`-built envmodules. Hence, extra steps to install some requirements (e.g., `apptainer`, `envmodules`, and so on) are required.
+The `apptainer` and `envmodules` backends need extra system packages. `conda` and `host` do not.
 
 ### Installation on Linux
 
-To support custom backends like `conda`, `apptainer` (formerly `singularity`), or `easybuild`-built environment modules, you'll need a few system-wide dependencies. These are all readily available on most Linux distributions.
+Package names and commands depend on your distribution. On HPC clusters these are often already installed; check with `apptainer --version` and `module --version` first.
 
 #### 1. Install Apptainer
 
-Follow the [installation guide for Apptainer](https://apptainer.org/docs/admin/main/installation.html).
+Follow the [Apptainer installation guide](https://apptainer.org/docs/admin/main/installation.html). It ships prebuilt deb and rpm packages.
 
-#### 2. Install Required System Dependencies
+#### 2. Install the system dependencies
 
-- **debootstrap**
-  Required for building Debian-based containers — this is needed even on non-Debian Linux distributions.
+- `debootstrap`: builds Debian-based Apptainer containers. Needed even on non-Debian distributions.
+- `fakeroot`: lets a non-root user act as root inside a container build. After installing it, run [`apptainer config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot).
+- Lua, Tcl (with development headers) and `wget`: needed by EasyBuild and Lmod.
+- OpenMPI: only if you build MPI software.
 
-- **fakeroot**
-  Allows users to simulate root privileges without actual root access. This is especially useful for unprivileged container builds.
+Install these with your package manager, such as `apt`, `dnf`, `pacman` or `zypper`. You need root to do so, so ask an administrator if you cannot.
 
-After installing `fakeroot`, configure it for apptainer with [`apptainer config fakeroot`](https://docs.sylabs.io/guides/3.5/admin-guide/user_namespace.html#config-fakeroot) to allow non-root users to simulate root privileges while managing containers.
+Example for Debian and Ubuntu:
 
 ```shell
 sudo apt install lua5.2 liblua5.2-dev lua-filesystem lua-posix tcl tcl-dev wget debootstrap software-properties-common
@@ -371,7 +382,7 @@ Module `M1` won't use inputs from module `D2`.
 ```yaml
 [snip]
 stages:
-- id: methods
+  - id: methods
     modules:
       - id: M1
         software_environment: "python"

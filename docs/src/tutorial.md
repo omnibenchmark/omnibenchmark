@@ -50,7 +50,7 @@ version: "1.0"
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
 
-## Storage flavour for sharing results: currently only S3
+## Storage flavour for sharing results: S3-compatible object storage
 storage_api: S3
 
 ## S3 endpoint to share our benchmark results.
@@ -143,7 +143,7 @@ This stage is not initial: its modules have both inputs and outputs.
         repository:
           url: https://github.com/omnibenchmark-example/method2.git
           commit: 10sg4cdd
-    ## input identifiers, refering to the `data stage` outputs
+    ## input identifiers, referring to the `data` stage outputs
     inputs:
       - entries: data.image
     ## stage-specific outputs
@@ -183,7 +183,7 @@ Finally, we add the metrics stage containing modules `m1` and `m2`.
         repository:
           url: https://github.com/omnibenchmark-example/metric2.git
           commit: 7sg4cdd
-    ## input identifiers, refering to the `data stage` outputs
+    ## input identifiers, referring to the `methods` stage outputs
     inputs:
       - entries: methods.matrix
     ## stage specific-outputs
@@ -218,7 +218,7 @@ version: "1.0"
 ## Benchmark builder/contact person
 benchmarker: "Mary the Benchmarker, mary@uzh.ch"
 
-## Storage flavour for sharing results: currently only S3
+## Storage flavour for sharing results: S3-compatible object storage
 storage_api: S3
 
 ## S3 endpoint to share our benchmark results.
@@ -364,11 +364,11 @@ Let's save the benchmark above as a file named `benchmark_test.yaml`. Then we va
 
 ## Create a module suitable to be used in omnibenchmark
 
-Any accesible git repository can host an omnibenchmark module. If it's convenient, you might want to push them to a remote in GitHub, Bitbucket, GitLab, etc. In reality, `omnibenchmark` just needs to be able to access the remote (clone or fetch), and be able to checkout your specified commit (so anything that works for your global git config should work for `omnibenchmark`).
+Any accessible git repository can host an omnibenchmark module. If it's convenient, you might want to push them to a remote in GitHub, Bitbucket, GitLab, etc. In reality, `omnibenchmark` just needs to be able to access the remote (clone or fetch), and be able to checkout your specified commit (so anything that works for your global git config should work for `omnibenchmark`).
 
 We provide an example set of modules for the benchmark example file at [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml).
 
-As shown below, module D1 points to the GitHub repository [example data](https://github.com/omnibenchmark-example/data.git) at the commit `63b7b36`. (Incidentally, in theory you should also be able to specify any valid dynamic git reference, like `HEAD` or a `tag` or `branch` name).
+As shown below, module D1 points to the GitHub repository [example data](https://github.com/omnibenchmark-example/data.git) at the commit `41aaa0a`. The commit shown is a 7-character prefix of the full SHA. You can also specify any valid dynamic git reference, like `HEAD` or a `tag` or `branch` name.
 
 ```yaml
 stages:
@@ -379,7 +379,7 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 63b7b36
+          commit: 41aaa0a
     outputs:
         ## output id
       - id: data.image
@@ -427,7 +427,7 @@ stages:
         path: "{dataset}.txt.gz"
 ```
 
-So, in this case, the module `process` is likely to be implemented in R, receive three inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [omnibenchmark.yaml file](https://github.com/omnibenchmark-example/process/blob/main/omnibenchmark.yaml) indicates:
+So, in this case, the module `process` is likely to be implemented in R, receive two inputs, and produce one output. A dummy implementation is available at [https://github.com/omnibenchmark-example/process.git](https://github.com/omnibenchmark-example/process.git). There, the [omnibenchmark.yaml file](https://github.com/omnibenchmark-example/process/blob/main/omnibenchmark.yaml) indicates:
 
 ```yaml
 entrypoints:
@@ -447,7 +447,7 @@ parser$add_argument("--data.counts", dest="data_counts", type="character", help=
 parser$add_argument("--data.meta", dest="data_meta", type="character", help="input file #2")
 ```
 
-Notice these argument names **must match** the YAML's input ids: `data.counts` and `data.meta` are specified as inputs in the benchmark YAML; as before, `name` refers to the dataset name and `output_dir` to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and write outputs in a way compatible to the benchmark YAML specification.
+Notice these argument names **must match** the YAML's input ids: `data.counts` and `data.meta` are specified as inputs in the benchmark YAML; as before, `name` refers to the dataset name and `output_dir` to the path where outputs will be generated. As before, the script is free in structure - it implements some functionality, and can import other scripts as well, as long as it reads inputs and writes outputs in a way compatible to the benchmark YAML specification.
 
 ## Run a benchmark
 
@@ -573,7 +573,7 @@ $ ls out/data/D1/default/
 D1.meta.json  D1_params.txt  D1.txt.gz
 ```
 
-If not, run the whole benchmark first (with [`ob run`](https://omnibenchmark.org/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
+If not, run the whole benchmark first (with [`ob run`](https://docs.omnibenchmark.org/latest/tutorial/#run-a-benchmark)). Once the input files are at `out/data/D1/default/`,
 run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
 
 === "Shell"
@@ -619,28 +619,23 @@ run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
     ```
 
 
-## Remote storage - S3 (AWS or MinIO)
+## Remote storage - S3-compatible object storage
 
-To restrict access to a dedicated bucket an access key with a specific policy have to generated.
+Omnibenchmark stores results in S3-compatible object storage, which covers Amazon S3 as well as free software servers such as RustFS. Because storage goes through Snakemake storage plugins, you can also use other backends from the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/), among them http, ftp and azure. Either way you choose the storage provider yourself, Amazon or other.
 
-### Create policy
+To restrict access to a bucket, generate an access key with a specific policy.
 
-Create new policy with
+### Create an access policy
+
+Create an access policy restricted to the benchmark's bucket using your storage provider's IAM tooling (for example the AWS console or CLI). Omnibenchmark ships a helper that prints a matching policy JSON:
 ```
 ob remote policy create --benchmark tests/data/Benchmark_001.yaml
 ```
-The output of this command needs to be added to either MinIO or AWS as described below.
+This command is deprecated, so prefer the provider's IAM tooling. Add the resulting policy to your storage provider as described below.
 
 ### Create new access key
 
-#### MinIO
-
-In the MinIO Console navigate to 'Access Keys' and click 'Create access key'. Set 'Restrict beyond user policy' to 'ON'. Replace the displayed policy with the output of the above command.
-Optionally enter a name and a description. Click on `Create` and copy the access key and secret key.
-
-#### AWS
-
-Create a new user. Create a new policy with the output of the above command. Attach policy to user. Create access key for user.
+The steps depend on the provider. For Amazon S3, create a user, create a policy from the output above, attach the policy to the user, and create an access key for the user. For a self-hosted S3-compatible server, use its console or client to create an access key restricted to the same policy, then copy the access key and secret key.
 
 ### Save access key information locally (Optional)
 
