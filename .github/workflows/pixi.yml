@@ -242,6 +242,9 @@ jobs:
           # Install miniconda for conda backend (Snakemake subprocess needs real conda)
           wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
           bash ~/miniconda.sh -b -p $HOME/miniconda
+          # Miniconda 'latest' now ships Python 3.14 in base, which is outside the
+          # package's requires-python (>=3.12,<3.14). Pin base to a supported version.
+          $HOME/miniconda/bin/conda install -n base -y "python=3.13"
           echo "$HOME/miniconda/bin" >> $GITHUB_PATH
           
       - name: Install wheel
@@ -322,6 +325,9 @@ jobs:
       - name: Install micromamba
         run: |
           pixi add micromamba
+          # Pin base to a supported Python (requires-python is >=3.12,<3.14);
+          # the default base env may otherwise provision Python 3.14.
+          pixi run micromamba install -n base -y "python=3.13"
 
       - name: Install wheel with micromamba
         run: |
