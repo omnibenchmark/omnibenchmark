@@ -93,6 +93,27 @@ def test_local(tmp_path):
         assert_in_output(result.stdout, expected)
 
 
+def test_out_of_order_stages(tmp_path):
+    # Regression guard for omnibenchmark#289: stage 'D' (metric) is declared before
+    # the stages that produce its inputs, but every producer is genuinely upstream
+    # on a single linear chain (A -> B -> C -> D). The resolver expands stages
+    # topologically, so this must run to completion rather than fail with
+    # "Could not resolve input".
+    expected = "Benchmark run completed successfully."
+
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "run",
+                str(data / "benchmark_out_of_order_stages.yaml"),
+            ],
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert_in_output(result.stdout, expected)
+
+
 def test_custom_out_dir(tmp_path):
     # Check that benchmark runs successfully with custom output directory
     expected = "Benchmark run completed successfully."
