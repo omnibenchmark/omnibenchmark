@@ -1360,6 +1360,39 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"populated by the runtime; choose another name."
                     )
 
+        # A module can only bind a label its stage advertises. A `provides` key
+        # absent from `stage.provides` is never consulted at resolution time
+        # (`_resolve_label_value` iterates the stage's labels), so it would
+        # silently fall through to the module_id default and break a downstream
+        # `requires:` gate with no diagnostic. See 008 §2 (no silent absence).
+        for stage in self.stages:
+            declared = set(stage.provides or [])
+            for module in stage.modules:
+                for label in module.provides or {}:
+                    if label not in declared:
+                        raise ValueError(
+                            f"Module '{module.id}' binds label '{label}' in "
+                            f"`provides`, but stage '{stage.id}' does not "
+                            f"declare it. Add '{label}' to the stage's "
+                            f"`provides` list or fix the key."
+                        )
+
+        # A `requires:` gate matches against the upstream lineage. An initial
+        # stage has no inputs, so its modules have no upstream context and the
+        # gate can never be satisfied — flag it rather than silently running the
+        # module unconditionally. See 008 §2 (no silent absence).
+        for stage in self.stages:
+            if not self.is_initial(stage):
+                continue
+            for module in stage.modules:
+                if module.requires:
+                    raise ValueError(
+                        f"Module '{module.id}' in initial stage '{stage.id}' "
+                        f"declares `requires`, but an initial stage has no "
+                        f"upstream lineage to match against. Remove the "
+                        f"`requires` gate or move the module to a later stage."
+                    )
+
         # Call the pure model validation from the validator base class
         self.validate_model_structure()
         return self

@@ -947,6 +947,11 @@ def _generate_explicit_snakefile(
 
     for stage in stages_to_expand:
         current_stage_nodes = []
+        # How many (input, params) combinations this stage actually attempted.
+        # Zero means nothing was generated to prune (an input id resolved to no
+        # upstream node); >0 with an empty stage means a filter rejected them
+        # all. The empty-stage warning below distinguishes the two.
+        combinations_seen = 0
 
         # Module-filter: which modules to expand per stage
         if module_filter:
@@ -1003,6 +1008,8 @@ def _generate_explicit_snakefile(
 
                 if module_filter:
                     node_combinations = node_combinations[:1]
+
+                combinations_seen += len(node_combinations)
 
                 for input_node, params in node_combinations:
                     # Exclusions are transitive over the full lineage, not just
@@ -1171,16 +1178,25 @@ def _generate_explicit_snakefile(
                 if logger.level <= 10:
                     traceback.print_exc()
 
-        # A stage that had modules to expand but produced no nodes was pruned
-        # to empty by a filter (requires / exclude). Without this the empty set
-        # cascades downstream and looks like "nothing happened" — usually a
-        # typo in a label value or an over-broad exclusion.
+        # A stage that had modules to expand but produced no nodes should not
+        # cascade an empty set downstream silently. Two distinct causes, two
+        # distinct messages: a filter rejected every generated combination, vs.
+        # no combination was generated at all (a declared input id matched no
+        # upstream output — usually a misspelled output id).
         if modules_to_expand and not current_stage_nodes:
-            logger.warning(
-                f"Stage '{stage.id}' produced no nodes: every module/input "
-                f"combination was pruned by a filter (requires/exclude). "
-                f"Downstream stages depending on it will also be empty."
-            )
+            if combinations_seen:
+                logger.warning(
+                    f"Stage '{stage.id}' produced no nodes: every module/input "
+                    f"combination was pruned by a filter (requires/exclude). "
+                    f"Downstream stages depending on it will also be empty."
+                )
+            else:
+                logger.warning(
+                    f"Stage '{stage.id}' produced no nodes: no upstream output "
+                    f"matched its declared inputs (check for a misspelled "
+                    f"output id or a skipped upstream stage). Downstream stages "
+                    f"depending on it will also be empty."
+                )
 
         previous_stage_nodes = current_stage_nodes
 
@@ -1213,15 +1229,25 @@ def _generate_explicit_snakefile(
     # Resolve metric collectors (skip in -m module mode)
     if not module_filter:
         collectors_to_resolve = benchmark.model.get_metric_collectors()
-        if until_stage is not None:
-            included_ids = {s.id for s in stages_to_expand}
-            collectors_to_resolve, dropped = _filter_collectors_by_stages(
-                collectors_to_resolve, included_ids, benchmark.model
-            )
-            for cid in dropped:
+        # Drop collectors that reference a stage which produced no nodes —
+        # whether truncated by --until or emptied by requires/exclude filters.
+        # Filtering on stages that actually yielded nodes covers both, where
+        # `stages_to_expand` alone would keep a collector on an organically
+        # emptied stage and hand the resolver zero matches (a confusing error).
+        stages_with_nodes = {n.stage_id for n in resolved_nodes}
+        collectors_to_resolve, dropped = _filter_collectors_by_stages(
+            collectors_to_resolve, stages_with_nodes, benchmark.model
+        )
+        for cid in dropped:
+            if until_stage is not None:
                 logger.info(
                     f"--until {until_stage}: skipping metric collector "
                     f"'{cid}' (references pruned stages)."
+                )
+            else:
+                logger.warning(
+                    f"Skipping metric collector '{cid}': it references a stage "
+                    f"that produced no nodes (pruned by requires/exclude)."
                 )
         try:
             collector_nodes = resolve_metric_collectors(
