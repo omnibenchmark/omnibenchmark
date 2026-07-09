@@ -1,0 +1,60 @@
+id: exclude_zero_nodes
+description: >
+  Regression fixture for omnibenchmark#289 -- exclude reachability. The DATA stage
+  offers two collections (dA, dB). FEAT's module excludes dB, so FEAT only produces
+  'feat.out' on the dA lineage. PCA's module excludes dA, so PCA can only run on the
+  dB lineage -- but 'feat.out' (its input) never exists there. PCA therefore expands
+  to zero nodes, and its output can never be produced, so any downstream consumer
+  fails at run time with "Could not resolve input". Plan validation must REJECT this.
+version: "1.0"
+benchmarker: "Daniel Incicau, daniel.incicau@gmail.com"
+api_version: "0.3.0"
+software_backend: host
+software_environments:
+  python:
+    description: "py"
+    envmodule: "none"
+stages:
+  - id: DATA
+    modules:
+      - id: dA
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+      - id: dB
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: raw
+        path: "{dataset}.txt.gz"
+  - id: FEAT
+    inputs:
+      - raw
+    modules:
+      - id: fe
+        software_environment: python
+        exclude:
+          - dB
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: 3b17081
+    outputs:
+      - id: feat.out
+        path: "{dataset}.feat.tsv"
+  - id: PCA
+    inputs:
+      - feat.out
+    modules:
+      - id: pc
+        software_environment: python
+        exclude:
+          - dA
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: 3b17081
+    outputs:
+      - id: pca.out
+        path: "{dataset}.pca.tsv"

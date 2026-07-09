@@ -242,6 +242,171 @@ class BenchmarkValidator:
 
         return errors
 
+    def detect_unsatisfiable_excludes(self) -> List[str]:
+        """Return an error per module that can never produce a node because its
+        ``exclude`` rules leave no valid upstream lineage.
+
+        ``exclude`` makes two module ids mutually incompatible within a lineage
+        (see ``core._paths.is_lineage_excluded``). Combined with the data-flow
+        dependencies, a module's excludes -- or those of the stages producing its
+        inputs -- can eliminate every root ("initial"-stage) lineage that would
+        supply its inputs. The module then expands to **zero nodes**, and every
+        downstream consumer of its outputs fails at run time with the opaque
+        "Could not resolve input <id>". Detect that here instead.
+
+        Method: propagate, per module, the set of root-stage module ids from which
+        a valid lineage to that module exists -- compatible under ``exclude``, with
+        every declared input satisfiable by some compatible producer sharing that
+        root. A module whose reachable-root set is empty can never run.
+
+        The reachable set is an over-approximation (it does not track pairwise
+        incompatibilities between two *different* producer modules on the same
+        lineage), so an empty set is a **sound** signal: it always means zero
+        nodes, never a false positive.
+        """
+        errors: List[str] = []
+        stages = list(self.stages)  # type: ignore
+        if not stages:
+            return errors
+
+        # exclude relation (symmetric in effect, matching is_lineage_excluded)
+        excludes: Dict[str, set] = {}
+        for stage in stages:
+            for module in stage.modules:  # type: ignore
+                declared = self.get_module_excludes(module.id)  # type: ignore
+                if declared:
+                    excludes[module.id] = set(declared)
+
+        def incompatible(a: str, b: str) -> bool:
+            return b in excludes.get(a, ()) or a in excludes.get(b, ())
+
+        # output id -> producing stage id (first declarer)
+        output_stage: Dict[str, str] = {}
+        for stage in stages:
+            for output in stage.outputs:  # type: ignore
+                output_stage.setdefault(output.id, stage.id)  # type: ignore
+
+        stage_by_id = {stage.id: stage for stage in stages}  # type: ignore
+
+        def input_groups(stage) -> List[List[str]]:
+            return [ic.entries for ic in (stage.inputs or [])]  # type: ignore
+
+        def producer_stage_ids(stage) -> set:
+            result: set = set()
+            for group in input_groups(stage):
+                for input_id in group:
+                    producer = output_stage.get(input_id)
+                    if producer is not None and producer != stage.id:  # type: ignore
+                        result.add(producer)
+            return result
+
+        # Topologically order stages (producers before consumers). Kahn-style;
+        # bail out on a cycle (reported elsewhere) to avoid spurious errors.
+        deps = {stage.id: producer_stage_ids(stage) for stage in stages}  # type: ignore
+        order: List[str] = []
+        placed: set = set()
+        while len(order) < len(stages):
+            progressed = False
+            for stage in stages:  # declaration order → deterministic
+                if stage.id not in placed and deps[stage.id] <= placed:  # type: ignore
+                    order.append(stage.id)  # type: ignore
+                    placed.add(stage.id)  # type: ignore
+                    progressed = True
+            if not progressed:
+                return errors
+
+        # reachable roots per module id (over-approximation)
+        reachable: Dict[str, set] = {}
+        for stage_id in order:
+            stage = stage_by_id[stage_id]
+            groups = input_groups(stage)
+            for module in stage.modules:  # type: ignore
+                if not groups:
+                    # initial stage: the module is itself a root
+                    reachable[module.id] = {module.id}  # type: ignore
+                    continue
+
+                all_roots: set = (
+                    set().union(*reachable.values()) if reachable else set()
+                )
+                module_roots: set = set()
+                for root in all_roots:
+                    if incompatible(module.id, root):  # type: ignore
+                        continue
+                    for group in groups:
+                        if all(
+                            output_stage.get(input_id) is not None
+                            and any(
+                                not incompatible(module.id, pm.id)  # type: ignore
+                                and root in reachable.get(pm.id, ())
+                                for pm in stage_by_id[output_stage[input_id]].modules  # type: ignore
+                            )
+                            for input_id in group
+                        ):
+                            module_roots.add(root)
+                            break
+                reachable[module.id] = module_roots  # type: ignore
+
+                if module_roots:
+                    continue
+
+                culprit = self._first_unsatisfiable_input(
+                    module.id,  # type: ignore
+                    groups,
+                    all_roots,
+                    output_stage,
+                    stage_by_id,
+                    reachable,
+                    incompatible,
+                )
+
+                # Suppress downstream cascades: if the blocking input's producer
+                # stage cannot run *at all* (every module there is itself zero-node),
+                # this failure is a consequence of that upstream module, which is
+                # reported as its own primary cause. Only report primary causes —
+                # where the input is genuinely produced somewhere but this module's
+                # excludes keep it off every compatible lineage.
+                if culprit is not None:
+                    producers = stage_by_id[culprit[1]].modules  # type: ignore
+                    if all(not reachable.get(pm.id) for pm in producers):  # type: ignore
+                        continue
+
+                detail = (
+                    f" Input '{culprit[0]}' (produced by stage '{culprit[1]}') "
+                    f"is only available on lineages excluded here."
+                    if culprit
+                    else ""
+                )
+                errors.append(
+                    f"Module '{stage_id}/{module.id}' can never run: its "  # type: ignore
+                    f"`exclude` rules (with those of its input-producing modules) "
+                    f"leave no valid upstream lineage, so it expands to zero nodes "
+                    f"and downstream consumers fail with 'Could not resolve input'."
+                    f"{detail} Reconcile the `exclude` lists on this module and the "
+                    f"stages producing its inputs."
+                )
+        return errors
+
+    @staticmethod
+    def _first_unsatisfiable_input(
+        module_id, groups, all_roots, output_stage, stage_by_id, reachable, incompatible
+    ):
+        """Name the first declared input with no exclude-compatible producer lineage."""
+        own_roots = {r for r in all_roots if not incompatible(module_id, r)}
+        for group in groups:
+            for input_id in group:
+                producer_stage_id = output_stage.get(input_id)
+                if producer_stage_id is None:
+                    continue
+                producers = stage_by_id[producer_stage_id].modules
+                satisfiable_roots: set = set()
+                for pm in producers:
+                    if not incompatible(module_id, pm.id):
+                        satisfiable_roots |= reachable.get(pm.id, set())
+                if not (own_roots & satisfiable_roots):
+                    return (input_id, producer_stage_id)
+        return None
+
     def _validate_software_environments(self, errors: List[str]) -> None:
         """Validate software environment references without checking file paths."""
         env_ids = {env.id for env in self.software_environments}  # type: ignore
