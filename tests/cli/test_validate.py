@@ -190,6 +190,26 @@ class TestValidatePlanCLI:
         assert "divergent branches" in output
         assert "issues/289" in output
 
+    @pytest.mark.short
+    def test_validate_plan_rejects_exclude_zero_nodes(self, cli_setup, temp_dir):
+        """Regression test for omnibenchmark#289 (exclude reachability).
+
+        A module whose `exclude` rules leave no valid upstream lineage expands to
+        zero nodes; consumers of its outputs then fail at run time with the opaque
+        "Could not resolve input". Plan validation must reject it up front, naming
+        the module that can never run and the input that is unavailable.
+        """
+        result = cli_setup.call(
+            ["validate", "plan", str(data / "benchmark_exclude_zero_nodes.yaml")],
+            cwd=str(temp_dir),
+        )
+
+        assert result.returncode != 0
+        output = result.stdout + result.stderr
+        assert "PCA/pc" in output
+        assert "can never run" in output
+        assert "feat.out" in output
+
 
 class TestValidateModuleCLI:
     """Test suite for the validate module command."""
