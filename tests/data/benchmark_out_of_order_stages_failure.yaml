@@ -1,0 +1,91 @@
+id: out_of_order_stages_failure
+description: >
+  Regression fixture for omnibenchmark#289 -- the UNSUPPORTED case (a diamond), built
+  from the same omnibenchmark-example modules as benchmark_out_of_order_stages.yaml.
+  Stage 'B' (process) fans out to two parallel 'method' stages 'C1' and 'C2', and
+  stage 'E' (metric) joins them by declaring inputs from both. 'C1' and 'C2' are on
+  divergent branches (neither is upstream of the other), so the resolver -- which
+  linearises each stage onto a single upstream lineage -- can only keep one branch;
+  if it were run it would fail with "Could not resolve input" for the other branch.
+  No stage reordering can fix this. Plan validation must REJECT it up front.
+version: "1.0"
+benchmarker: "Daniel Incicau, daniel.incicau@example.com"
+api_version: "0.3.0"
+software_backend: host
+software_environments:
+  python:
+    description: "python test env"
+    envmodule: "none"
+stages:
+  - id: A
+    modules:
+      - id: A1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{dataset}.txt.gz"
+      - id: data.meta
+        path: "{dataset}.meta.json"
+      - id: data.data_specific_params
+        path: "{dataset}_params.txt"
+  - id: B
+    inputs:
+      - data.counts
+      - data.meta
+    modules:
+      - id: B1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: 3b17081
+    outputs:
+      - id: process.filtered
+        path: "{dataset}.txt.gz"
+  # C1 and C2 both consume process.filtered -> two divergent sibling branches off B.
+  - id: C1
+    inputs:
+      - process.filtered
+      - data.meta
+      - data.data_specific_params
+    modules:
+      - id: C1m
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+    outputs:
+      - id: methods.mapping
+        path: "{dataset}.model.out.gz"
+  - id: C2
+    inputs:
+      - process.filtered
+      - data.meta
+      - data.data_specific_params
+    modules:
+      - id: C2m
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+    outputs:
+      - id: methods.mapping2
+        path: "{dataset}.model.out.gz"
+  # E joins the two divergent branches C1 and C2 -> the unsupported diamond.
+  - id: E
+    inputs:
+      - methods.mapping
+      - methods.mapping2
+      - data.meta
+      - data.data_specific_params
+    modules:
+      - id: E1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+    outputs:
+      - id: metrics.mapping
+        path: "{dataset}.results.txt"

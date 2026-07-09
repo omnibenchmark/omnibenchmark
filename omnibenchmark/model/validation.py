@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import List, TYPE_CHECKING, Any, Optional
+from typing import Dict, List, TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
@@ -152,6 +152,77 @@ class BenchmarkValidator:
 
         # 4. Validate that software environment references exist
         self._validate_software_environments(errors)
+
+        # 5. Reject stages that join two divergent branches (a "diamond").
+        # The execution resolver linearises each stage onto a single upstream
+        # lineage -- the deepest stage producing one of its inputs -- and can
+        # only resolve inputs found among that lineage's ancestors. This is fine
+        # whenever a stage's input-producing stages lie on ONE chain (each is an
+        # ancestor of the next), even if the stage is declared before them: the
+        # resolver expands stages in topological order, so declaration order does
+        # not matter. It CANNOT satisfy a stage whose inputs come from two stages
+        # on divergent branches (neither is upstream of the other) -- one branch
+        # always falls outside the chosen lineage and fails at run time with the
+        # opaque "Could not resolve input <id>". Reject that here instead. See
+        # https://github.com/omnibenchmark/omnibenchmark/issues/289.
+        #
+        # TODO(#289): remove this entire block (step 5) once the resolver
+        # supports arbitrary multi-stage input collection (gather/scatter), at
+        # which point joining branches in one stage becomes legal. Keep the
+        # general "input references a valid output" check in step 3.
+        output_producer: Dict[str, str] = {}
+        for stage in self.stages:  # type: ignore
+            for output in stage.outputs:  # type: ignore
+                output_producer.setdefault(output.id, stage.id)  # type: ignore
+
+        # Direct input-producing stages for each stage (deduplicated, order kept).
+        direct_producers: Dict[str, List[str]] = {}
+        for stage in self.stages:  # type: ignore
+            producers: List[str] = []
+            for input_collection in stage.inputs or []:  # type: ignore
+                for input_id in input_collection.entries:  # type: ignore
+                    producer = output_producer.get(input_id)
+                    if (
+                        producer is not None
+                        and producer != stage.id  # type: ignore
+                        and producer not in producers
+                    ):
+                        producers.append(producer)
+            direct_producers[stage.id] = producers  # type: ignore
+
+        def _is_upstream(ancestor: str, descendant: str) -> bool:
+            """True if *ancestor* produces (transitively) an input of *descendant*."""
+            seen: set = set()
+            stack = list(direct_producers.get(descendant, []))
+            while stack:
+                current = stack.pop()
+                if current == ancestor:
+                    return True
+                if current in seen:
+                    continue
+                seen.add(current)
+                stack.extend(direct_producers.get(current, []))
+            return False
+
+        for stage in self.stages:  # type: ignore
+            producers = direct_producers[stage.id]  # type: ignore
+            reported = False
+            for i in range(len(producers)):
+                for j in range(i + 1, len(producers)):
+                    left, right = producers[i], producers[j]
+                    if not (_is_upstream(left, right) or _is_upstream(right, left)):
+                        errors.append(
+                            f"Stage '{stage.id}' collects inputs from stages "  # type: ignore
+                            f"'{left}' and '{right}', which are on divergent branches "
+                            f"(neither is upstream of the other). Joining multiple "
+                            f"branches in a single stage is not supported yet; route "
+                            f"the inputs through a shared upstream stage instead. "
+                            f"See https://github.com/omnibenchmark/omnibenchmark/issues/289."
+                        )
+                        reported = True
+                        break
+                if reported:
+                    break
 
         # Raise error if any validation failed
         if errors:

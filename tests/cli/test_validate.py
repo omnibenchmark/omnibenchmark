@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 from tests.cli.cli_setup import OmniCLISetup
+from tests.cli.path import data
 
 
 @pytest.fixture
@@ -140,6 +141,54 @@ class TestValidatePlanCLI:
         # The command should execute without errors
         # It may fail for other reasons (like missing modules), but YAML parsing should work
         assert "YAML file format error" not in result.stderr
+
+    @pytest.mark.short
+    def test_validate_plan_accepts_out_of_order_but_linear_stages(
+        self, cli_setup, temp_dir
+    ):
+        """Regression test for omnibenchmark#289 (the supported case).
+
+        A stage may be declared before a stage that produces one of its inputs, as
+        long as every producing stage is genuinely upstream on a single chain. The
+        resolver expands stages topologically, so declaration order alone must NOT
+        be a validation error.
+        """
+        result = cli_setup.call(
+            ["validate", "plan", str(data / "benchmark_out_of_order_stages.yaml")],
+            cwd=str(temp_dir),
+        )
+
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "validation passed" in output
+        assert "divergent branches" not in output
+
+    @pytest.mark.short
+    def test_validate_plan_rejects_diamond_input_collection(self, cli_setup, temp_dir):
+        """Regression test for omnibenchmark#289 (the unsupported case).
+
+        A stage that collects inputs from two stages on divergent branches (neither
+        upstream of the other) is a diamond the resolver cannot satisfy; at run time
+        it surfaced only as an opaque "Could not resolve input" warning. Plan
+        validation must reject it up front with an actionable message that names both
+        offending branch stages and references the tracking issue.
+        """
+        result = cli_setup.call(
+            [
+                "validate",
+                "plan",
+                str(data / "benchmark_out_of_order_stages_failure.yaml"),
+            ],
+            cwd=str(temp_dir),
+        )
+
+        assert result.returncode != 0
+        output = result.stdout + result.stderr
+        assert "Stage 'E'" in output
+        assert "'C1'" in output
+        assert "'C2'" in output
+        assert "divergent branches" in output
+        assert "issues/289" in output
 
 
 class TestValidateModuleCLI:

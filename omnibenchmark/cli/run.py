@@ -918,7 +918,20 @@ def _select_input_nodes(
     stage_ids_in_order: list[str],
     previous_stage_nodes: list,
 ) -> list:
-    """Return the node list to use as the cartesian expansion base for a stage."""
+    """Return the node list to use as the cartesian expansion base for a stage.
+
+    NOTE(#289): this collapses a stage's inputs down to a *single* parent stage
+    (the deepest already-expanded producer). It therefore assumes every declared
+    input is reachable along one linear ancestry chain from that parent. When a
+    stage joins two sibling branches (a "diamond"), the other branch's outputs are
+    not in that lineage and later fail to resolve. This is the crux of the
+    multi-stage input-collection limitation.
+
+    TODO(#289): once arbitrary multi-stage input collection is supported, this
+    single-parent selection (and the linear-ancestor walk in the resolution loop
+    below, `get_ancestor_nodes`) must be generalised to gather inputs from *all*
+    producing stages, not just the deepest one on a single chain.
+    """
     if not declared_input_ids:
         return previous_stage_nodes
 
@@ -1144,15 +1157,36 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info("\nBuilding execution graph...")
 
+    # Expand stages in topological (dependency) order rather than declaration
+    # order. _select_input_nodes can only pick a parent among already-expanded
+    # stages, so a stage must be expanded after every stage producing its inputs.
+    # Sorting here makes declaration order irrelevant: a plan that declares a
+    # stage before an upstream producer still resolves, as long as that producer
+    # is genuinely upstream (not on a divergent branch -- see the diamond guard
+    # in model/validation.py). The sort is stable for already-ordered plans, so
+    # well-formed benchmarks are unaffected. See
+    # https://github.com/omnibenchmark/omnibenchmark/issues/289.
+    from omnibenchmark.core._graph import build_stage_dag, compute_stage_order
+
+    topo_order = compute_stage_order(build_stage_dag(benchmark.model))
+    topo_index = {stage_id: i for i, stage_id in enumerate(topo_order)}
+    topo_sorted_stages = sorted(
+        benchmark.model.stages,
+        key=lambda s: topo_index.get(s.id, len(topo_index)),
+    )
+
     # Module-filter pruning (ob run -m <module_id>)
     if module_filter:
-        target_stage_idx = None
-        for idx, stage in enumerate(benchmark.model.stages):
-            if any(m.id == module_filter for m in stage.modules):
-                target_stage_idx = idx
-                break
+        target_stage = next(
+            (
+                stage
+                for stage in benchmark.model.stages
+                if any(m.id == module_filter for m in stage.modules)
+            ),
+            None,
+        )
 
-        if target_stage_idx is None:
+        if target_stage is None:
             logger.error(
                 f"Module '{module_filter}' not found in benchmark. "
                 f"Available modules: "
@@ -1160,15 +1194,19 @@ def _generate_explicit_snakefile(
             )
             sys.exit(1)
 
-        target_stage = benchmark.model.stages[target_stage_idx]
-        stages_to_expand = benchmark.model.stages[: target_stage_idx + 1]
+        target_pos = topo_index.get(target_stage.id, len(topo_index))
+        stages_to_expand = [
+            stage
+            for stage in topo_sorted_stages
+            if topo_index.get(stage.id, len(topo_index)) <= target_pos
+        ]
         logger.info(
             f"Module mode: expanding {len(stages_to_expand)} stage(s) "
             f"(up to and including '{target_stage.id}'), "
             "first expansion only."
         )
     else:
-        stages_to_expand = benchmark.model.stages
+        stages_to_expand = topo_sorted_stages
 
     resolved_nodes = []
     nodes_by_id = {}
@@ -1290,6 +1328,13 @@ def _generate_explicit_snakefile(
 
                         output_id_to_path.update(get_output_ids_for_node(input_node))
 
+                        # TODO(#289): this only collects outputs from the node's
+                        # *linear* ancestors (nodes whose id is a prefix of this
+                        # one). Inputs produced on a sibling branch that re-joins
+                        # here are invisible and warn "Could not resolve input"
+                        # below. Generalise this (and _select_input_nodes above)
+                        # to gather from all producing lineages once multi-stage
+                        # input collection lands.
                         def get_ancestor_nodes(node):
                             ancestors = []
                             for prev_node in resolved_nodes:

@@ -1,0 +1,75 @@
+id: out_of_order_stages
+description: >
+  Regression fixture for omnibenchmark#289 -- the SUPPORTED case, and a runnable one.
+  The dependency chain is linear: A (data) -> B (process) -> C (method) -> D (metric).
+  Stage 'D' is declared *before* its producers 'B' and 'C', but every stage producing
+  one of D's inputs is genuinely upstream of it on that single chain, so the resolver --
+  which expands stages in topological order -- wires the inputs correctly and the
+  benchmark runs to completion. Plan validation must ACCEPT this: declaration order
+  alone is not an error. Modules reuse the omnibenchmark-example repos (see
+  Benchmark_001.yaml) so the stages actually link and execute on the host backend.
+version: "1.0"
+benchmarker: "Daniel Incicau, daniel.incicau@example.com"
+api_version: "0.3.0"
+software_backend: host
+software_environments:
+  python:
+    description: "python test env"
+    envmodule: "none"
+stages:
+  - id: A
+    modules:
+      - id: A1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: data.counts
+        path: "{dataset}.txt.gz"
+      - id: data.meta
+        path: "{dataset}.meta.json"
+      - id: data.data_specific_params
+        path: "{dataset}_params.txt"
+  # Declared out of order: D depends on C (methods.mapping) and A, both upstream.
+  - id: D
+    inputs:
+      - methods.mapping
+      - data.meta
+      - data.data_specific_params
+    modules:
+      - id: D1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 579c643
+    outputs:
+      - id: metrics.mapping
+        path: "{dataset}.results.txt"
+  - id: B
+    inputs:
+      - data.counts
+      - data.meta
+    modules:
+      - id: B1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/process.git
+          commit: 3b17081
+    outputs:
+      - id: process.filtered
+        path: "{dataset}.txt.gz"
+  - id: C
+    inputs:
+      - process.filtered
+      - data.meta
+      - data.data_specific_params
+    modules:
+      - id: C1
+        software_environment: python
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 8f2f835
+    outputs:
+      - id: methods.mapping
+        path: "{dataset}.model.out.gz"
