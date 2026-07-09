@@ -1313,6 +1313,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         """
         errors: List[str] = []
 
+        errors.extend(self.detect_diamond_input_joins())
+
         # Validate software environment paths (if benchmark_dir provided)
         if self.software_backend != SoftwareBackendEnum.host:
             for env in self.software_environments:

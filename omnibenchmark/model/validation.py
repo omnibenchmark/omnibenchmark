@@ -153,23 +153,39 @@ class BenchmarkValidator:
         # 4. Validate that software environment references exist
         self._validate_software_environments(errors)
 
-        # 5. Reject stages that join two divergent branches (a "diamond").
-        # The execution resolver linearises each stage onto a single upstream
-        # lineage -- the deepest stage producing one of its inputs -- and can
-        # only resolve inputs found among that lineage's ancestors. This is fine
-        # whenever a stage's input-producing stages lie on ONE chain (each is an
-        # ancestor of the next), even if the stage is declared before them: the
-        # resolver expands stages in topological order, so declaration order does
-        # not matter. It CANNOT satisfy a stage whose inputs come from two stages
-        # on divergent branches (neither is upstream of the other) -- one branch
-        # always falls outside the chosen lineage and fails at run time with the
-        # opaque "Could not resolve input <id>". Reject that here instead. See
-        # https://github.com/omnibenchmark/omnibenchmark/issues/289.
-        #
-        # TODO(#289): remove this entire block (step 5) once the resolver
-        # supports arbitrary multi-stage input collection (gather/scatter), at
-        # which point joining branches in one stage becomes legal. Keep the
-        # general "input references a valid output" check in step 3.
+        # NOTE: the "diamond" input-join check lives in detect_diamond_input_joins()
+        # and runs from validate_execution_context(), not here. It is an *execution*
+        # constraint, so ``ob validate plan`` and ``ob run`` enforce it, while
+        # loading a model purely to inspect or render it (mermaid/dot exporters,
+        # ``ob describe``) stays permissive and can visualise any topology.
+
+        # Raise error if any validation failed
+        if errors:
+            raise ValidationError(errors)
+
+    def detect_diamond_input_joins(self) -> List[str]:
+        """Return an error per stage that joins two divergent branches (a "diamond").
+
+        The execution resolver linearises each stage onto a single upstream lineage
+        -- the deepest stage producing one of its inputs -- and can only resolve
+        inputs found among that lineage's ancestors. This is fine whenever a stage's
+        input-producing stages lie on ONE chain (each is an ancestor of the next),
+        even if the stage is declared before them: the resolver expands stages in
+        topological order, so declaration order does not matter. It CANNOT satisfy a
+        stage whose inputs come from two stages on divergent branches (neither is
+        upstream of the other) -- one branch always falls outside the chosen lineage
+        and fails at run time with the opaque "Could not resolve input <id>".
+
+        This is an execution constraint only; callers wire it into
+        validate_execution_context so model loading for inspection/rendering stays
+        permissive. See https://github.com/omnibenchmark/omnibenchmark/issues/289.
+
+        TODO(#289): drop this method (and its call site) once the resolver supports
+        arbitrary multi-stage input collection (gather/scatter), at which point
+        joining branches in one stage becomes legal.
+        """
+        errors: List[str] = []
+
         output_producer: Dict[str, str] = {}
         for stage in self.stages:  # type: ignore
             for output in stage.outputs:  # type: ignore
@@ -224,9 +240,7 @@ class BenchmarkValidator:
                 if reported:
                     break
 
-        # Raise error if any validation failed
-        if errors:
-            raise ValidationError(errors)
+        return errors
 
     def _validate_software_environments(self, errors: List[str]) -> None:
         """Validate software environment references without checking file paths."""
