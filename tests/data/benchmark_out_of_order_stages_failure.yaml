@@ -1,16 +1,13 @@
 id: out_of_order_stages_failure
 description: >
-  Regression fixture for omnibenchmark#289 -- the UNSUPPORTED case (a diamond), built
-  from the same omnibenchmark-example modules as benchmark_out_of_order_stages.yaml.
+  Regression fixture for omnibenchmark#289 -- the diamond input join, now SUPPORTED.
   Stage 'B' (process) fans out to two parallel 'method' stages 'C1' and 'C2', and
   stage 'E' (metric) joins them by declaring inputs from both. 'C1' and 'C2' are on
-  divergent branches (neither is upstream of the other), so the resolver -- which
-  linearises each stage onto a single upstream lineage -- can only keep one branch;
-  if it were run it would fail with "Could not resolve input" for the other branch.
-  No stage reordering can fix this. Plan validation must REJECT it up front.
+  divergent branches, but share a lineage root ('A'/'B'), so the resolver pairs them
+  into a fan-in join (design 010 §3.9). Plan validation must ACCEPT it.
 version: "1.0"
 benchmarker: "Daniel Incicau, daniel.incicau@example.com"
-api_version: "0.3.0"
+api_version: "0.6.0"
 software_backend: host
 software_environments:
   python:
