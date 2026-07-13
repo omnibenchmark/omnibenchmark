@@ -107,8 +107,21 @@ def build_stage_dag(model: Benchmark) -> DiGraph:
             for input_id in input_ids
             for dep in model.get_stages_by_output(input_id)
         ]
+        # A stage may legally re-declare an output id it consumes (shared
+        # output ids, design 010 §3.1) — never add a self-edge, it would make
+        # the topological sort reject a valid plan.
         for dep in dep_stages:
-            g.add_edge(dep.id, stage.id)
+            if dep.id != stage.id:
+                g.add_edge(dep.id, stage.id)
+
+        # A gather stage (design 010) consumes its `from` output ids without
+        # declaring them as `inputs`, so add its producer edges here too —
+        # otherwise topological expansion order could expand the gather before
+        # its members exist.
+        for spec in getattr(stage, "gather", None) or []:
+            for dep in model.get_stages_by_output(spec.from_):
+                if dep.id != stage.id:
+                    g.add_edge(dep.id, stage.id)
 
     return g
 

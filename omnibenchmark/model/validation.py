@@ -160,8 +160,8 @@ class BenchmarkValidator:
         self._validate_software_environments(errors)
 
         # NOTE: the "diamond" input-join check is api-gated in detect_diamond_input_joins()
-        # and called (only for api < 0.6.0) from validate_execution_context(). From
-        # api 0.6.0 a diamond is resolved as a fan-in join (`_select_input_bundles`
+        # and called (only for api < 0.7.0) from validate_execution_context(). From
+        # api 0.7.0 a diamond is resolved as a fan-in join (`_select_input_bundles`
         # in cli/run.py, design 010 §3.9); older benchmarks are rejected up front.
 
         # Raise error if any validation failed
@@ -172,12 +172,12 @@ class BenchmarkValidator:
         """Return an error per stage that joins two divergent branches (a "diamond").
 
         Fan-in — a stage collecting inputs from two stages on divergent branches
-        (neither upstream of the other) — is an api 0.6.0 capability (design 010
+        (neither upstream of the other) — is gated on api ≥ 0.7.0 (design 010
         §3.9, issue #289), resolved by `_select_input_bundles`. Benchmarks below
-        0.6.0 keep the old semantics, where the resolver linearises each stage
+        0.7.0 keep the old semantics, where the resolver linearises each stage
         onto a single upstream lineage and one branch falls out, surfacing only as
         an opaque "Could not resolve input <id>" at run time. This detects that
-        case so the gate (validate_execution_context, api < 0.6.0) can reject it
+        case so the gate (validate_execution_context, api < 0.7.0) can reject it
         up front with an actionable message instead.
         """
         errors: List[str] = []
@@ -227,7 +227,7 @@ class BenchmarkValidator:
                             f"Stage '{stage.id}' collects inputs from stages "  # type: ignore
                             f"'{left}' and '{right}', which are on divergent branches "
                             f"(neither is upstream of the other). Joining branches in "
-                            f"one stage requires api_version ≥ 0.6.0; bump the "
+                            f"one stage requires api_version ≥ 0.7.0; bump the "
                             f"benchmark, or route the inputs through a shared upstream "
                             f"stage. See "
                             f"https://github.com/omnibenchmark/omnibenchmark/issues/289."

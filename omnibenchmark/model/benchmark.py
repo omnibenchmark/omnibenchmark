@@ -130,7 +130,9 @@ class APIVersion(str, Enum):
     V0_3_0 = "0.3.0"
     V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
-    V0_6_0 = "0.6.0"  # gather (design 010); not yet `latest` until fully landed
+    # 0.6.0 is left unminted; 008 (filtering/lineage labels), 009 (named
+    # outputs), and 010 (gather + fan-in join) all land on 0.7.0.
+    V0_7_0 = "0.7.0"  # gather + fan-in join (design 010); not yet `latest` until fully landed
 
     @classmethod
     def latest(cls) -> "APIVersion":
@@ -625,7 +627,7 @@ class Stage(DescribableEntity):
             "Fan-in specs (design 010). Each collects every node producing a "
             "shared output id, grouped by a stage they descend from. A gather "
             "cuts the lineage chain, so `prefix` is required. Requires "
-            "api_version ≥ 0.6.0."
+            "api_version ≥ 0.7.0."
         ),
     )
     prefix: Optional[str] = Field(
@@ -1223,15 +1225,23 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         return {module.id: module for module in stage.modules}
 
     def get_stage_implicit_inputs(self, stage: Union[str, Stage]) -> List[List[str]]:
-        """Get implicit inputs of a stage by stage/stage_id."""
+        """Get implicit inputs of a stage by stage/stage_id.
+
+        A gather stage consumes its `gather.from` output ids without declaring
+        them under `inputs:` (design 010); they are included here as one extra
+        entries group so every topology consumer (stage_adjacency → mermaid/
+        dot/obeditor, the legacy DAGBuilder) sees the dependency.
+        """
         if isinstance(stage, str):
             stage_obj = self.get_stage(stage)
-            if not stage_obj or not stage_obj.inputs:
+            if stage_obj is None:
                 return []
-            return [input_col.entries for input_col in stage_obj.inputs]
-        if not stage.inputs:
-            return []
-        return [input_col.entries for input_col in stage.inputs]
+            stage = stage_obj
+        groups = [input_col.entries for input_col in (stage.inputs or [])]
+        gather_ids = [spec.from_ for spec in (stage.gather or [])]
+        if gather_ids:
+            groups.append(gather_ids)
+        return groups
 
     def get_explicit_inputs(self, input_ids: List[str]) -> Dict[str, str]:
         """Get explicit inputs of a stage by input_id(s)."""
@@ -1364,13 +1374,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     if collector.software_environment is None:
                         collector.software_environment = sole_env_id
 
-        # `gather` (design 010) is an api 0.6.0 feature.
-        if self.api_version < APIVersion.V0_6_0:
+        # `gather` (design 010) is gated on api >= 0.7.0.
+        if self.api_version < APIVersion.V0_7_0:
             for stage in self.stages:
                 if stage.gather:
                     raise ValueError(
                         f"Stage '{stage.id}' uses `gather`, which requires "
-                        f"api_version ≥ 0.6.0 (this benchmark declares "
+                        f"api_version ≥ 0.7.0 (this benchmark declares "
                         f"{self.api_version.value})."
                     )
 
@@ -1400,12 +1410,12 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         """
         errors: List[str] = []
 
-        # Fan-in (diamond) input joins are an api 0.6.0 capability (design 010
-        # §3.9). Below 0.6.0 the resolver linearises each stage onto one lineage
+        # Fan-in (diamond) input joins are gated on api >= 0.7.0 (design 010
+        # §3.9). Below 0.7.0 the resolver linearises each stage onto one lineage
         # and one branch silently falls out, so reject up front with an
-        # actionable message. From 0.6.0 the join is resolved by
+        # actionable message. From 0.7.0 the join is resolved by
         # _select_input_bundles and the diamond is legal.
-        if self.api_version < APIVersion.V0_6_0:
+        if self.api_version < APIVersion.V0_7_0:
             errors.extend(self.detect_diamond_input_joins())
 
         # Validate software environment paths (if benchmark_dir provided)

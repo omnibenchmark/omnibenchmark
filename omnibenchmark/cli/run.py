@@ -1,5 +1,6 @@
 """cli commands related to benchmark/module execution and start"""
 
+import hashlib
 import logging
 import os
 import subprocess
@@ -906,10 +907,15 @@ def _build_template_context(
                 else:
                     provides[label] = module_id
 
-        if params is not None and "dataset" in params:
-            provides.setdefault("dataset", str(params["dataset"]))
-        else:
-            provides.setdefault("dataset", module_id)
+        if extra_provides is None:
+            # Builtin `dataset` is an entrypoint concept. A gather node (the
+            # only caller passing extra_provides) binds exactly its group key;
+            # leaking `dataset=<gather module id>` would silently shadow the
+            # real dataset downstream (design 010 §3.3).
+            if params is not None and "dataset" in params:
+                provides.setdefault("dataset", str(params["dataset"]))
+            else:
+                provides.setdefault("dataset", module_id)
 
     if extra_provides:
         provides.update(extra_provides)
@@ -920,15 +926,57 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
+def _iter_ancestors(node, nodes_by_id, through_gather: bool = True):
+    """Yield every distinct ancestor of `node`, nearest-first, walking the
+    `parent_id` chain plus explicit `parents` edges (fan-in branches), so a
+    node downstream of a join sees every branch (design 010 §3.9).
+
+    `through_gather=False` is the GATING walk: it does not expand a gather
+    node's members — the cut deliberately forgets (design 010 §3.3), so e.g.
+    one excluded member among hundreds gathered must not poison every
+    downstream node. Resolution/provenance walks use the default and fan
+    through the cut.
+    """
+    seen = {node.id}
+    queue: deque = deque()
+
+    def _push(n):
+        if not through_gather and getattr(n, "is_gather", False):
+            return
+        if n.parent_id:
+            queue.append(n.parent_id)
+        for pid in getattr(n, "parents", None) or []:
+            queue.append(pid)
+
+    _push(node)
+    while queue:
+        node_id = queue.popleft()
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+        ancestor = nodes_by_id.get(node_id)
+        if ancestor is None:
+            continue
+        yield ancestor
+        _push(ancestor)
+
+
 def _ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
-    """Walk a member's parent chain to the node of `group_stage` it descends
-    from; return that node's module id (the group value), or None if the member
-    has no ancestor in that stage."""
-    cur = nodes_by_id.get(member_id)
-    while cur is not None:
-        if cur.stage_id == group_stage:
-            return cur.module_id
-        cur = nodes_by_id.get(cur.parent_id) if cur.parent_id else None
+    """The module id of the `group_stage` node a member descends from (the
+    group value). Parents-aware: sees through joins and prior gathers. Returns
+    None when the member has no ancestor in that stage, or when the ancestry
+    crosses a fan-in that yields several distinct modules of that stage —
+    grouping would be ambiguous."""
+    node = nodes_by_id.get(member_id)
+    if node is None:
+        return None
+    found = {
+        n.module_id
+        for n in (node, *_iter_ancestors(node, nodes_by_id))
+        if n.stage_id == group_stage
+    }
+    if len(found) == 1:
+        return found.pop()
     return None
 
 
@@ -938,6 +986,9 @@ def _expand_gather_stage(
     resolved_modules_cache: dict,
     output_to_nodes: dict,
     nodes_by_id: dict,
+    path_exclusions=None,
+    module_filter=None,
+    target_stage=None,
 ) -> list:
     """Expand a gather stage into ResolvedNodes (design 010 MVP).
 
@@ -947,13 +998,18 @@ def _expand_gather_stage(
     is emitted per (group value × module × parameter). The chain is cut
     (`parent_id=None`); outputs are written under `stage.prefix` and registered
     in `output_to_nodes` so downstream stages consume them normally.
+
+    Cross-cutting contracts honoured like the scatter sibling: `module_filter`
+    prunes to a single execution path (`ob run -m`), and an exclusion rule
+    pairing this stage's module with a member's lineage drops that member from
+    that module's gather (transitive exclude at member level).
     """
     nodes: list = []
 
-    # group value -> {from_id: [paths]} and group value -> [member ids].
-    # Insertion order is producer expansion order — deterministic.
-    grouped_inputs: dict = {}
-    grouped_members: dict = {}
+    # group value -> [(member id, from id, path)]. Insertion order is producer
+    # expansion order — deterministic; entries are grouped by from id because
+    # the outer loop runs per spec.
+    grouped: dict = {}
     # The group-key label: the single group_by stage. Stage.validate_gather
     # guarantees all entries share one axis, so [0] is authoritative. Used to
     # bind the template variable (design 010 §3.3).
@@ -971,16 +1027,25 @@ def _expand_gather_stage(
             if gval is None:
                 logger.warning(
                     f"      Gather '{stage.id}': member {member_id} has no "
-                    f"ancestor in stage '{spec.group_by}'; dropped from grouping."
+                    f"unambiguous ancestor in stage '{spec.group_by}'; dropped "
+                    f"from grouping."
                 )
                 continue
-            grouped_inputs.setdefault(gval, {}).setdefault(spec.from_, []).append(path)
-            grouped_members.setdefault(gval, []).append(member_id)
+            grouped.setdefault(gval, []).append((member_id, spec.from_, path))
 
-    if not grouped_inputs:
+    if not grouped:
         logger.warning(f"Stage '{stage.id}' gathered no members into any group.")
 
-    for module in stage.modules:
+    # Module-filter: same single-execution-path contract as the scatter path.
+    if module_filter:
+        if target_stage is not None and stage.id == target_stage.id:
+            modules_to_expand = [m for m in stage.modules if m.id == module_filter]
+        else:
+            modules_to_expand = stage.modules[:1]
+    else:
+        modules_to_expand = stage.modules
+
+    for module in modules_to_expand:
         module_id = module.id
         cache_key = (stage.id, module_id)
         if cache_key not in resolved_modules_cache:
@@ -995,74 +1060,99 @@ def _expand_gather_stage(
         else:
             params_list = [None]
 
-        for gval, inputs_by_name in grouped_inputs.items():
-            for params in params_list:
-                param_id = f".{params.hash_short()}" if params else ".default"
-                node_id = f"{stage.id}-{module_id}-{gval}{param_id}"
+        combos = [(gval, params) for gval in grouped for params in params_list]
+        if module_filter:
+            combos = combos[:1]
 
-                # Enumerated keys + name mapping: same shape metric collectors
-                # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
-                inputs: dict = {}
-                input_name_mapping: dict = {}
-                idx = 0
-                for from_id, paths in inputs_by_name.items():
-                    for path in paths:
-                        key = f"input_{idx}"
-                        inputs[key] = path
-                        input_name_mapping[key] = from_id
-                        idx += 1
+        for gval, params in combos:
+            members = grouped[gval]
+            if path_exclusions:
+                kept = []
+                for member_id, from_id, path in members:
+                    member = nodes_by_id.get(member_id)
+                    lineage = {module_id}
+                    if member is not None:
+                        lineage |= _lineage_module_ids(member, nodes_by_id)
+                    if is_lineage_excluded(lineage, path_exclusions):
+                        logger.debug(
+                            f"      Gather '{stage.id}': dropping member "
+                            f"{member_id} for module {module_id} "
+                            f"(exclusion rule)"
+                        )
+                        continue
+                    kept.append((member_id, from_id, path))
+            else:
+                kept = members
+            if not kept:
+                logger.warning(
+                    f"      Gather '{stage.id}': group '{gval}' has no "
+                    f"members left for module {module_id}; skipping node."
+                )
+                continue
 
-                ctx = _build_template_context(
-                    stage=stage,
+            param_id = f".{params.hash_short()}" if params else ".default"
+            node_id = f"{stage.id}-{module_id}-{gval}{param_id}"
+
+            # Enumerated keys + name mapping: same shape metric collectors
+            # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
+            inputs: dict = {}
+            input_name_mapping: dict = {}
+            for idx, (_mid, from_id, path) in enumerate(kept):
+                inputs[f"input_{idx}"] = path
+                input_name_mapping[f"input_{idx}"] = from_id
+            member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
+
+            ctx = _build_template_context(
+                stage=stage,
+                module_id=module_id,
+                module_name=getattr(module, "name", None),
+                input_node=None,
+                params=params,
+                extra_provides={group_label: gval},
+            )
+
+            outputs = []
+            for output_spec in stage.outputs:
+                # Only the group label is bound: a template referencing any
+                # other lineage label raises in substitute() — the plan-time
+                # error design 010 §3.3 wants, never a silent empty sub.
+                tmpl = ctx.substitute(output_spec.path, params=params)
+                output_path = truncate_path_filename(
+                    f"{stage.prefix}/{gval}/{stage.id}/{module_id}/{param_id}/{tmpl}"
+                )
+                outputs.append(output_path)
+                output_to_nodes.setdefault(output_spec.id, []).append(
+                    (node_id, output_path)
+                )
+
+            node_resources = None
+            if getattr(module, "resources", None):
+                node_resources = module.resources
+            elif getattr(stage, "resources", None):
+                node_resources = stage.resources
+
+            nodes.append(
+                ResolvedNode(
+                    id=node_id,
+                    stage_id=stage.id,
                     module_id=module_id,
-                    module_name=getattr(module, "name", None),
-                    input_node=None,
-                    params=params,
-                    extra_provides={group_label: gval},
+                    param_id=param_id,
+                    module=resolved_module,
+                    parameters=params,
+                    parent_id=None,
+                    inputs=inputs,
+                    outputs=outputs,
+                    input_name_mapping=input_name_mapping,
+                    benchmark_name=benchmark.model.get_name(),
+                    benchmark_version=benchmark.model.get_version(),
+                    benchmark_author=benchmark.model.get_author(),
+                    resources=node_resources,
+                    template_context=ctx,
+                    is_gather=True,
+                    gathered_from=member_ids,
+                    parents=list(member_ids),
                 )
-
-                outputs = []
-                for output_spec in stage.outputs:
-                    # Only the group label is bound: a template referencing any
-                    # other lineage label raises in substitute() — the plan-time
-                    # error design 010 §3.3 wants, never a silent empty sub.
-                    tmpl = ctx.substitute(output_spec.path, params=params)
-                    output_path = truncate_path_filename(
-                        f"{stage.prefix}/{gval}/{stage.id}/{module_id}/{param_id}/{tmpl}"
-                    )
-                    outputs.append(output_path)
-                    output_to_nodes.setdefault(output_spec.id, []).append(
-                        (node_id, output_path)
-                    )
-
-                node_resources = None
-                if getattr(module, "resources", None):
-                    node_resources = module.resources
-                elif getattr(stage, "resources", None):
-                    node_resources = stage.resources
-
-                nodes.append(
-                    ResolvedNode(
-                        id=node_id,
-                        stage_id=stage.id,
-                        module_id=module_id,
-                        param_id=param_id,
-                        module=resolved_module,
-                        parameters=params,
-                        parent_id=None,
-                        inputs=inputs,
-                        outputs=outputs,
-                        input_name_mapping=input_name_mapping,
-                        benchmark_name=benchmark.model.get_name(),
-                        benchmark_version=benchmark.model.get_version(),
-                        benchmark_author=benchmark.model.get_author(),
-                        resources=node_resources,
-                        template_context=ctx,
-                        is_gather=True,
-                        gathered_from=grouped_members[gval],
-                        parents=grouped_members[gval],
-                    )
-                )
+            )
 
     return nodes
 
@@ -1079,29 +1169,12 @@ def _get_output_ids_for_node(node, benchmark) -> dict:
     return result
 
 
-def _get_ancestor_nodes(node, resolved_nodes, nodes_by_id) -> list:
-    """All ancestors of `node`: the id-prefix chain (linear lineage) UNION
-    explicit `parents` edges (fan-in branches). So a node downstream of a
-    join/gather sees every branch, not just the primary spine (design 010 §3.9,
-    issue #289)."""
-    ancestors: list = []
-    seen: set = set()
-
-    def _walk(n):
-        for prev_node in resolved_nodes:
-            if n.id.startswith(prev_node.id + "-") and prev_node.id not in seen:
-                seen.add(prev_node.id)
-                ancestors.append(prev_node)
-                _walk(prev_node)
-        for pid in getattr(n, "parents", []) or []:
-            p = nodes_by_id.get(pid)
-            if p is not None and p.id not in seen:
-                seen.add(p.id)
-                ancestors.append(p)
-                _walk(p)
-
-    _walk(node)
-    return ancestors
+def _get_ancestor_nodes(node, nodes_by_id) -> list:
+    """All ancestors of `node`, nearest-first: the `parent_id` chain (linear
+    lineage — identical to the id-prefix chain, but O(depth) and immune to id
+    separators) UNION explicit `parents` edges (fan-in branches). A node
+    downstream of a join/gather sees every branch (design 010 §3.9, #289)."""
+    return list(_iter_ancestors(node, nodes_by_id))
 
 
 def _expand_scatter_stage(
@@ -1124,8 +1197,10 @@ def _expand_scatter_stage(
 
     Appends created nodes to `resolved_nodes`/`nodes_by_id` as it builds (the
     ancestry walk reads them mid-expansion) and registers outputs in
-    `output_to_nodes`; returns this stage's nodes. Extracted verbatim from the
-    former inline expansion loop — no behaviour change; the gather sibling is
+    `output_to_nodes`; returns this stage's nodes. Extracted from the former
+    inline expansion loop, plus one addition: inputs come as *bundles*
+    (`_select_input_bundles`), so a diamond join (#289, api ≥ 0.7.0) expands to
+    one node per bundle instead of dropping a branch. The gather sibling is
     `_expand_gather_stage`.
     """
     from itertools import product
@@ -1141,6 +1216,30 @@ def _expand_scatter_stage(
             modules_to_expand = stage.modules[:1]
     else:
         modules_to_expand = stage.modules
+
+    # Input bundles depend only on stage-level state — compute once, not per
+    # module. None (vs []) distinguishes "no inputs declared" from "inputs
+    # declared but nothing resolvable".
+    input_bundles = None
+    if stage.inputs and previous_stage_nodes:
+        declared_input_ids = [
+            entry
+            for input_col in stage.inputs
+            if hasattr(input_col, "entries")
+            for entry in input_col.entries
+        ]
+        input_bundles = _select_input_bundles(
+            declared_input_ids=declared_input_ids,
+            output_to_nodes=output_to_nodes,
+            resolved_nodes=resolved_nodes,
+            stage_ids_in_order=[s.id for s in stages_to_expand],
+            previous_stage_nodes=previous_stage_nodes,
+            nodes_by_id=nodes_by_id,
+        )
+
+    # Input resolution depends only on the bundle (never on module/params):
+    # cache (inputs, name mapping, base_path) per member-id tuple.
+    resolution_cache: dict = {}
 
     for module in modules_to_expand:
         module_id = module.id
@@ -1160,24 +1259,7 @@ def _expand_scatter_stage(
             else:
                 params_list = [None]
 
-            if stage.inputs and previous_stage_nodes:
-                declared_input_ids = [
-                    entry
-                    for input_col in stage.inputs
-                    if hasattr(input_col, "entries")
-                    for entry in input_col.entries
-                ]
-
-                stage_ids_in_order = [s.id for s in stages_to_expand]
-                input_bundles = _select_input_bundles(
-                    declared_input_ids=declared_input_ids,
-                    output_to_nodes=output_to_nodes,
-                    resolved_nodes=resolved_nodes,
-                    stage_ids_in_order=stage_ids_in_order,
-                    previous_stage_nodes=previous_stage_nodes,
-                    nodes_by_id=nodes_by_id,
-                )
-
+            if input_bundles is not None:
                 node_combinations = list(product(input_bundles, params_list))
             else:
                 node_combinations = [(None, params) for params in params_list]
@@ -1222,8 +1304,6 @@ def _expand_scatter_stage(
                 if is_join:
                     # No single prefix chain: id is a readable stem plus a
                     # short hash of the (sorted) parents (design 010 §3.9).
-                    import hashlib
-
                     h = hashlib.sha1(
                         "|".join(sorted(m.id for m in members)).encode()
                     ).hexdigest()[:8]
@@ -1238,42 +1318,60 @@ def _expand_scatter_stage(
                 base_path = None
 
                 if input_node:
-                    output_id_to_path = {}
+                    bundle_key = tuple(m.id for m in members)
+                    cached = resolution_cache.get(bundle_key)
+                    if cached is None:
+                        output_id_to_path = {}
 
-                    # Collect resolvable outputs from every branch's producer
-                    # node and its ancestors (union across the join).
-                    for member in members:
-                        output_id_to_path.update(
-                            _get_output_ids_for_node(member, benchmark)
-                        )
-                        for ancestor in _get_ancestor_nodes(
-                            member, resolved_nodes, nodes_by_id
-                        ):
+                        # Collect resolvable outputs from every branch's
+                        # producer node and its ancestors (union across the
+                        # join). Farthest ancestors first so the NEAREST
+                        # producer of a shared output id wins (design 010
+                        # §3.1).
+                        for member in members:
+                            for ancestor in reversed(
+                                _get_ancestor_nodes(member, nodes_by_id)
+                            ):
+                                output_id_to_path.update(
+                                    _get_output_ids_for_node(ancestor, benchmark)
+                                )
                             output_id_to_path.update(
-                                _get_output_ids_for_node(ancestor, benchmark)
+                                _get_output_ids_for_node(member, benchmark)
                             )
 
-                    if stage.inputs:
-                        for input_collection in stage.inputs:
-                            if not hasattr(input_collection, "entries"):
-                                continue
-                            for input_id in input_collection.entries:
-                                if input_id in output_id_to_path:
-                                    sanitized_id = input_id.replace(".", "_")
-                                    inputs[sanitized_id] = output_id_to_path[input_id]
-                                    input_name_mapping[sanitized_id] = input_id
-                                else:
-                                    logger.warning(
-                                        f"      Could not resolve input {input_id} for node {node_id}"
-                                    )
+                        if stage.inputs:
+                            for input_collection in stage.inputs:
+                                if not hasattr(input_collection, "entries"):
+                                    continue
+                                for input_id in input_collection.entries:
+                                    if input_id in output_id_to_path:
+                                        sanitized_id = input_id.replace(".", "_")
+                                        inputs[sanitized_id] = output_id_to_path[
+                                            input_id
+                                        ]
+                                        input_name_mapping[sanitized_id] = input_id
+                                    else:
+                                        logger.warning(
+                                            f"      Could not resolve input {input_id} for node {node_id}"
+                                        )
 
-                    if inputs:
-                        from pathlib import Path as PathLib
+                        if inputs:
+                            from pathlib import Path as PathLib
 
-                        deepest_input = max(
-                            inputs.values(), key=lambda p: len(PathLib(p).parts)
+                            deepest_input = max(
+                                inputs.values(), key=lambda p: len(PathLib(p).parts)
+                            )
+                            base_path = str(PathLib(deepest_input).parent)
+                        resolution_cache[bundle_key] = (
+                            inputs,
+                            input_name_mapping,
+                            base_path,
                         )
-                        base_path = str(PathLib(deepest_input).parent)
+                    else:
+                        inputs, input_name_mapping, base_path = cached
+                    # Fresh dicts per node — cached ones must stay pristine.
+                    inputs = dict(inputs)
+                    input_name_mapping = dict(input_name_mapping)
 
                 ctx = _build_template_context(
                     stage=stage,
@@ -1410,21 +1508,25 @@ def _select_input_nodes(
     return [n for n in resolved_nodes if n.stage_id == deepest_stage_id]
 
 
-def _prefix_ancestor_ids(node, resolved_nodes) -> set:
-    """Ids of a node's linear (id-prefix) ancestors — nodes whose id is a
-    strict prefix of this node's id. This is the pre-fan-in lineage encoded in
-    the id string; it finds all transitive ancestors directly."""
-    return {n.id for n in resolved_nodes if node.id.startswith(n.id + "-")}
+def _stage_ancestry(node, nodes_by_id) -> dict:
+    """Map stage_id → node ids over `node` and its full (parents-aware)
+    ancestry. The per-stage sets are the join-compatibility fingerprint."""
+    out: dict = {node.stage_id: {node.id}}
+    for ancestor in _iter_ancestors(node, nodes_by_id):
+        out.setdefault(ancestor.stage_id, set()).add(ancestor.id)
+    return out
 
 
-def _node_root_id(node, nodes_by_id) -> str:
-    """Walk the `parent_id` chain to the lineage root (e.g. the dataset node).
-    Used to decide which producers are join-compatible — they must descend from
-    the same root."""
-    cur = node
-    while cur.parent_id and cur.parent_id in nodes_by_id:
-        cur = nodes_by_id[cur.parent_id]
-    return cur.id
+def _lineages_consistent(a: dict, b: dict) -> bool:
+    """Two ancestries may be joined iff they agree wherever they overlap: for
+    every stage present in both, they share at least one node. Divergence at
+    any common stage (different nodes of the same stage) is a cross-lineage
+    pairing and must not be joined — sharing a root is not enough (#289)."""
+    for stage_id, ids in a.items():
+        other = b.get(stage_id)
+        if other is not None and ids.isdisjoint(other):
+            return False
+    return True
 
 
 def _select_input_bundles(
@@ -1441,9 +1543,11 @@ def _select_input_bundles(
     Fast path (linear / single producing stage): every bundle is a 1-tuple and
     the result is identical to wrapping `_select_input_nodes` — no behaviour
     change for existing benchmarks. Join path (a declared input is produced only
-    on a divergent branch): the anchor is paired with a compatible producer of
-    each missing input — one sharing the anchor's lineage root — and the
-    cartesian product of those partners yields one bundle per emitted node.
+    on a divergent branch): the anchor is paired with every producer of each
+    missing input whose ancestry is *consistent* with the anchor's (and with
+    the other partners') — they agree at every shared stage, not merely at the
+    root — and the cartesian product of those partners yields one bundle per
+    emitted node.
     """
     anchors = _select_input_nodes(
         declared_input_ids,
@@ -1465,32 +1569,60 @@ def _select_input_bundles(
 
     from itertools import product as _product
 
+    ancestry_cache: dict = {}
+
+    def _ancestry(n):
+        cached = ancestry_cache.get(n.id)
+        if cached is None:
+            cached = _stage_ancestry(n, nodes_by_id)
+            ancestry_cache[n.id] = cached
+        return cached
+
     bundles: list = []
     for anchor in anchors:
-        anchor_lineage = {anchor.id} | _prefix_ancestor_ids(anchor, resolved_nodes)
+        anchor_map = _ancestry(anchor)
+        anchor_ids = {nid for ids in anchor_map.values() for nid in ids}
         missing = [
             input_id
             for input_id in declared_input_ids
-            if not any(p.id in anchor_lineage for p in producers.get(input_id, []))
+            if not any(p.id in anchor_ids for p in producers.get(input_id, []))
         ]
         if not missing:
             bundles.append((anchor,))  # linear / covered — fast path
             continue
-        # Join: for each uncovered input, take partners sharing the anchor's root.
-        root = _node_root_id(anchor, nodes_by_id)
+        # Join: for each uncovered input, take lineage-consistent partners.
         partner_lists = []
         for input_id in missing:
             partners = [
-                p for p in producers[input_id] if _node_root_id(p, nodes_by_id) == root
+                p
+                for p in producers[input_id]
+                if _lineages_consistent(anchor_map, _ancestry(p))
             ]
             partner_lists.append(partners)
         if not all(partner_lists):
-            # A branch has no compatible producer; leave the anchor alone and let
-            # the resolution loop warn "Could not resolve input" as before.
+            unmatched = [i for i, pl in zip(missing, partner_lists) if not pl]
+            logger.warning(
+                f"      No lineage-compatible producer for input(s) {unmatched} "
+                f"of {anchor.id}; the input will not resolve."
+            )
             bundles.append((anchor,))
             continue
+        emitted = 0
         for combo in _product(*partner_lists):
-            bundles.append((anchor,) + combo)
+            # Partners must also be consistent with EACH OTHER (3-way joins).
+            if all(
+                _lineages_consistent(_ancestry(x), _ancestry(y))
+                for i, x in enumerate(combo)
+                for y in combo[i + 1 :]
+            ):
+                bundles.append((anchor,) + combo)
+                emitted += 1
+        if not emitted:
+            logger.warning(
+                f"      No mutually consistent partner combination for "
+                f"{anchor.id}; the inputs will not resolve."
+            )
+            bundles.append((anchor,))
     return bundles
 
 
@@ -1506,17 +1638,16 @@ def _satisfies_requires(requires: dict, input_node) -> bool:
 
 
 def _lineage_module_ids(input_node, nodes_by_id) -> set:
-    """Return the module_ids along input_node's full lineage, inclusive.
+    """Return the module_ids along input_node's GATING lineage, inclusive.
 
-    Walks the explicit ``parent_id`` chain rather than matching node-ID string
-    prefixes, so it is unaffected by module/stage ids that contain the id
-    separator. ``nodes_by_id`` maps node id → node.
+    Walks the explicit ``parent_id`` chain plus join ``parents`` edges (so
+    exclusions see every branch of a diamond, #289), but does NOT cross a
+    gather cut — the partition forgets (design 010 §3.3), and one excluded
+    member among hundreds gathered must not poison every downstream node.
     """
-    lineage = set()
-    node = input_node
-    while node is not None:
-        lineage.add(node.module_id)
-        node = nodes_by_id.get(node.parent_id) if node.parent_id else None
+    lineage = {input_node.module_id}
+    for ancestor in _iter_ancestors(input_node, nodes_by_id, through_gather=False):
+        lineage.add(ancestor.module_id)
     return lineage
 
 
@@ -1752,14 +1883,24 @@ def _generate_explicit_snakefile(
 
     for stage in stages_to_expand:
         if stage.gather:
-            # Gather stages fan in instead of chaining (design 010).
-            current_stage_nodes = _expand_gather_stage(
-                stage=stage,
-                benchmark=benchmark,
-                resolved_modules_cache=resolved_modules_cache,
-                output_to_nodes=output_to_nodes,
-                nodes_by_id=nodes_by_id,
-            )
+            # Gather stages fan in instead of chaining (design 010). Plan-time
+            # errors (zero-producer `from`, unbound template label) feed the
+            # same dag_errors report as scatter failures, not a raw traceback.
+            try:
+                current_stage_nodes = _expand_gather_stage(
+                    stage=stage,
+                    benchmark=benchmark,
+                    resolved_modules_cache=resolved_modules_cache,
+                    output_to_nodes=output_to_nodes,
+                    nodes_by_id=nodes_by_id,
+                    path_exclusions=path_exclusions,
+                    module_filter=module_filter,
+                    target_stage=target_stage if module_filter else None,
+                )
+            except ValueError as e:
+                logger.error(f"      Failed to expand gather stage {stage.id}: {e}")
+                dag_errors.append((stage.id, "<gather>", str(e)))
+                current_stage_nodes = []
             for node in current_stage_nodes:
                 resolved_nodes.append(node)
                 nodes_by_id[node.id] = node

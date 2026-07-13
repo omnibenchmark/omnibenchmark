@@ -7,7 +7,7 @@ description: >
   into a fan-in join (design 010 §3.9). Plan validation must ACCEPT it.
 version: "1.0"
 benchmarker: "Daniel Incicau, daniel.incicau@example.com"
-api_version: "0.6.0"
+api_version: "0.7.0"
 software_backend: host
 software_environments:
   python:

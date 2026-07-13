@@ -168,7 +168,7 @@ class TestValidatePlanCLI:
         """Regression test for omnibenchmark#289 (now the SUPPORTED case).
 
         A stage that collects inputs from two stages on divergent branches (a
-        diamond) used to be rejected. It is now resolved as a fan-in join
+        diamond) used to be rejected. At api > 0.7.0 it is resolved as a fan-in join
         (`_select_input_bundles`, design 010 §3.9): the two branches share a
         lineage root, so the join pairs them. Plan validation must accept it and
         must NOT emit the old "divergent branches" rejection.
@@ -188,15 +188,15 @@ class TestValidatePlanCLI:
         assert "divergent branches" not in output
 
     @pytest.mark.short
-    def test_validate_plan_rejects_diamond_below_api_0_6(self, cli_setup, temp_dir):
-        """The fan-in join is gated on api >= 0.6.0 (design 010 §3.9). The SAME
+    def test_validate_plan_rejects_diamond_below_api_0_7(self, cli_setup, temp_dir):
+        """The fan-in join is gated on api >= 0.7.0 (design 010 §3.9). The SAME
         diamond fixture at api 0.5.0 must be rejected up front with the actionable
-        "divergent branches" message, since the pre-0.6 resolver can't satisfy it.
+        "divergent branches" message, since the pre-0.7 resolver can't satisfy it.
         """
         src = (data / "benchmark_out_of_order_stages_failure.yaml").read_text()
         downgraded = temp_dir / "diamond_0_5.yaml"
         downgraded.write_text(
-            src.replace('api_version: "0.6.0"', 'api_version: "0.5.0"')
+            src.replace('api_version: "0.7.0"', 'api_version: "0.5.0"')
         )
 
         result = cli_setup.call(
@@ -207,7 +207,7 @@ class TestValidatePlanCLI:
         assert result.returncode != 0
         output = result.stdout + result.stderr
         assert "divergent branches" in output
-        assert "0.6.0" in output
+        assert "0.7.0" in output
 
 
 class TestValidateModuleCLI:
