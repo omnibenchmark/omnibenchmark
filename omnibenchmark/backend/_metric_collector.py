@@ -317,23 +317,27 @@ def _gather_collector_inputs(
         # Handle both string and IOFile inputs
         input_id = input_ref if isinstance(input_ref, str) else input_ref.id
 
-        # Find the stage that produces this output
-        stage = benchmark.get_stage_by_output(input_id)
+        # Find every stage that produces this output (an id may be a shared
+        # contract across stages — design 010 §3.1).
+        stages = benchmark.get_stages_by_output(input_id)
 
-        if stage:
-            # Gather ALL outputs from this stage across all resolved nodes
-            # Output paths are already fully resolved (no wildcards)
-            stage_outputs = []
-            for node in resolved_nodes:
-                if node.stage_id == stage.id:
-                    for output in node.outputs:
-                        stage_outputs.append(output)
+        if stages:
+            # Gather ALL outputs from those stages across all resolved nodes.
+            # Output paths are already fully resolved (no wildcards).
+            stage_ids = {s.id for s in stages}
+            stage_outputs = [
+                output
+                for node in resolved_nodes
+                if node.stage_id in stage_ids
+                for output in node.outputs
+            ]
 
             if stage_outputs:
                 inputs_by_name[input_id] = stage_outputs
             else:
                 logger.warning(
-                    f"Collector {collector.id} references stage {stage.id} but found no outputs"
+                    f"Collector {collector.id} references stage(s) "
+                    f"{sorted(stage_ids)} but found no outputs"
                 )
         else:
             logger.warning(
