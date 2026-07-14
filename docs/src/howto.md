@@ -142,7 +142,7 @@ Package names and commands depend on your distribution. On HPC clusters these ar
 
 #### 1. Install Apptainer
 
-Follow the [Apptainer installation guide](https://apptainer.org/docs/admin/main/installation.html). It ships prebuilt deb and rpm packages.
+Follow the [Apptainer installation guide](https://apptainer.org/docs/admin/main/installation.html). Apptainer ships prebuilt deb and rpm packages.
 
 #### 2. Install the system dependencies
 

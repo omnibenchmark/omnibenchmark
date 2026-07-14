@@ -364,7 +364,7 @@ Let's save the benchmark above as a file named `benchmark_test.yaml`. Then we va
 
 ## Create a module suitable to be used in omnibenchmark
 
-Any accessible git repository can host an omnibenchmark module. If it's convenient, you might want to push them to a remote in GitHub, Bitbucket, GitLab, etc. In reality, `omnibenchmark` just needs to be able to access the remote (clone or fetch), and be able to checkout your specified commit (so anything that works for your global git config should work for `omnibenchmark`).
+Any accessible git repository can host an omnibenchmark module. If it's convenient, you might want to push them to a remote in GitHub, Bitbucket, GitLab, etc. In reality, `omnibenchmark` just needs to be able to access the remote (clone or fetch), and be able to checkout your specified reference, whether a commit, branch, or tag (so anything that works for your global git config should work for `omnibenchmark`).
 
 We provide an example set of modules for the benchmark example file at [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml).
 
@@ -621,7 +621,18 @@ run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
 
 ## Remote storage - S3-compatible object storage
 
-Omnibenchmark stores results in S3-compatible object storage, which covers Amazon S3 as well as free software servers such as RustFS. Because storage goes through Snakemake storage plugins, you can also use other backends from the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/), among them http, ftp and azure. Either way you choose the storage provider yourself, Amazon or other.
+Remote storage is optional. When enabled, omnibenchmark can store results in S3-compatible object storage, which covers Amazon S3 as well as free software servers such as RustFS. This is the only backend omnibenchmark supports natively: setting `storage_api` to `S3` in the benchmark YAML makes `ob run` inject the right Snakemake storage flags for you, and the `ob remote` subcommands (bucket creation, versioning, policy) also assume S3.
+
+Other backends from the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/), such as fs, http, or azure, are not wired into omnibenchmark, but you can still use them indirectly. Because `ob run` forwards anything after `--` straight to Snakemake, you can install the relevant Snakemake storage plugin and pass its flags yourself. Snakemake then handles the transfers during the run. For example, to route storage through an alternative provider:
+
+```
+ob run tests/data/Benchmark_003.yaml -- \
+    --default-storage-provider <provider> \
+    --default-storage-prefix <prefix> \
+    --storage-<provider>-<option> <value>
+```
+
+Leave `storage_api` out of the YAML in this case. Otherwise omnibenchmark injects its own S3 flags (`--default-storage-provider s3` and `--default-storage-prefix s3://<bucket>`, plus the S3 endpoint and key flags), which would clash with the provider you set by hand.
 
 To restrict access to a bucket, generate an access key with a specific policy.
 
