@@ -621,7 +621,7 @@ run `ob run [benchmark.yaml] --module [MODULE_ID]` with:
 
 ## Remote storage - S3-compatible object storage
 
-Remote storage is optional. When enabled, omnibenchmark can store results in S3-compatible object storage, which covers Amazon S3 as well as free software servers such as RustFS. This is the only backend omnibenchmark supports natively: setting `storage_api` to `S3` in the benchmark YAML makes `ob run` inject the right Snakemake storage flags for you, and the `ob remote` subcommands (bucket creation, versioning, policy) also assume S3.
+Remote storage is optional. When enabled, omnibenchmark can store results in S3-compatible object storage, which covers Amazon S3 as well as free software servers such as RustFS. This is the only backend omnibenchmark supports natively: setting `storage.api` to `S3` in the benchmark YAML (the flat `storage_api: S3` key still works but is deprecated) makes `ob run` inject the right Snakemake storage flags for you, and the `ob remote` subcommands (bucket creation, versioning, policy) also assume S3.
 
 Other backends from the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/), such as fs, http, or azure, are not wired into omnibenchmark, but you can still use them indirectly. Because `ob run` forwards anything after `--` straight to Snakemake, you can install the relevant Snakemake storage plugin and pass its flags yourself. Snakemake then handles the transfers during the run. For example, to route storage through an alternative provider:
 
@@ -632,7 +632,7 @@ ob run benchmark.yaml -- \
     --storage-<provider>-<option> <value>
 ```
 
-Omit the storage configuration from the YAML in this case, both the nested `storage:` block (`storage.api`, `storage.bucket_name`, `storage.endpoint`) and the legacy flat keys (`storage_api`, `storage_bucket_name`). Otherwise omnibenchmark injects its own S3 flags (`--default-storage-provider s3` and `--default-storage-prefix s3://<bucket>`, plus the S3 endpoint and key flags), which would clash with the provider you set by hand. The bundled `tests/data/Benchmark_003.yaml` sets `storage.api: S3`, so it is not a suitable starting point for a non-S3 backend.
+Omit all storage configuration from the YAML in this case: the nested `storage:` block, the legacy flat keys (`storage_api`, `storage_bucket_name`), and any top-level `storage:` endpoint string. Otherwise omnibenchmark injects its own S3 flags (`--default-storage-provider s3` and `--default-storage-prefix s3://<bucket>`, plus the S3 endpoint and key flags), which would clash with the provider you set by hand. The bundled `tests/data/Benchmark_003.yaml` sets `storage.api: S3`, so it is not a suitable starting point for a non-S3 backend.
 
 To restrict access to a bucket, generate an access key with a specific policy.
 

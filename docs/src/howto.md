@@ -4,13 +4,15 @@ Omnibenchmark is a pip-installable python package ([PyPI](https://pypi.org/proje
 
 ### Supported platforms
 
-The package installs on Linux, Windows and macOS. Running a benchmark needs a software backend, and support depends on the operating system. In the table, yes means supported, partial means limited, no means unsupported.
+The package installs on Linux, Windows and macOS. Running a benchmark needs a software backend, and support depends on the operating system.
 
-| Strategy                | Linux | Windows | macOS |
-|-------------------------|-------|---------|-------|
-| Conda                   | yes   | yes     | yes   |
-| EasyBuild               | yes   | partial | no    |
-| Apptainer (Singularity) | yes   | no      | no    |
+| Strategy                | Linux | Windows       | macOS        |
+|-------------------------|-------|---------------|--------------|
+| Conda                   | yes   | yes           | yes          |
+| EasyBuild               | yes   | partial (WSL) | no (partial) |
+| Apptainer (Singularity) | yes   | no            | no           |
+
+EasyBuild runs on Linux. On Windows it works only through WSL, and on macOS most prebuilt easyconfigs fail to resolve their dependencies because EasyBuild targets GNU/Linux, so it is limited to custom module builds (see the macOS section).
 
 For Conda, a benchmark also needs its packages to exist for that operating system and CPU architecture in the configured conda channel. Packages built for amd64 do not run on arm64.
 
@@ -189,7 +191,7 @@ Check everything works with:
 
 ### Installation on Mac
 
-Mac devices only support `conda` and `easybuild`-built environment modules as custom backends.
+On macOS, `conda` is the main backend, and on Apple Silicon (arm64) it only runs packages built for that architecture. EasyBuild also runs on macOS, but because it targets GNU/Linux most prebuilt easyconfigs fail to resolve their dependencies. It stays useful for developing or testing easyconfigs and for automating module creation for your own software.
 
 #### 1. Install required prerequisites
 
@@ -231,6 +233,12 @@ Check everything works with:
         by Robert McLay mclay@tacc.utexas.edu
 
     ```
+
+When installing software manually with `eb`, pass `--modules-tool=Lmod` if it does not detect Lmod automatically:
+
+```shell
+eb --modules-tool=Lmod <path-to-easyconfig>
+```
 
 #### 2. Persist Lmod setup
 
