@@ -115,7 +115,7 @@ stages:
         ## the git-compatible remote, and a particular pinned commit
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 41aaa0a
+          commit: 63b7b36
     ## output file paths for this stage members. In this simple case, the output from D1.
     outputs:
         ## output id
@@ -252,7 +252,7 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 41aaa0a
+          commit: 63b7b36
     outputs:
       - id: data.image
         path: "{dataset}.png"
@@ -368,7 +368,7 @@ Any accessible git repository can host an omnibenchmark module. If it's convenie
 
 We provide an example set of modules for the benchmark example file at [`tests/data/Benchmark_001.yaml`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/Benchmark_001.yaml).
 
-As shown below, module D1 points to the GitHub repository [example data](https://github.com/omnibenchmark-example/data.git) at the commit `41aaa0a`. The commit shown is a 7-character prefix of the full SHA. You can also specify any valid dynamic git reference, like `HEAD` or a `tag` or `branch` name.
+As shown below, module D1 points to the GitHub repository [example data](https://github.com/omnibenchmark-example/data.git) at the commit `63b7b36`. The commit shown is a 7-character prefix of the full SHA. You can also specify any valid dynamic git reference, like `HEAD` or a `tag` or `branch` name.
 
 ```yaml
 stages:
@@ -379,7 +379,7 @@ stages:
         software_environment: "python"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 41aaa0a
+          commit: 63b7b36
     outputs:
         ## output id
       - id: data.image
@@ -626,13 +626,13 @@ Remote storage is optional. When enabled, omnibenchmark can store results in S3-
 Other backends from the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/), such as fs, http, or azure, are not wired into omnibenchmark, but you can still use them indirectly. Because `ob run` forwards anything after `--` straight to Snakemake, you can install the relevant Snakemake storage plugin and pass its flags yourself. Snakemake then handles the transfers during the run. For example, to route storage through an alternative provider:
 
 ```
-ob run tests/data/Benchmark_003.yaml -- \
+ob run benchmark.yaml -- \
     --default-storage-provider <provider> \
     --default-storage-prefix <prefix> \
     --storage-<provider>-<option> <value>
 ```
 
-Leave `storage_api` out of the YAML in this case. Otherwise omnibenchmark injects its own S3 flags (`--default-storage-provider s3` and `--default-storage-prefix s3://<bucket>`, plus the S3 endpoint and key flags), which would clash with the provider you set by hand.
+Omit the storage configuration from the YAML in this case, both the nested `storage:` block (`storage.api`, `storage.bucket_name`, `storage.endpoint`) and the legacy flat keys (`storage_api`, `storage_bucket_name`). Otherwise omnibenchmark injects its own S3 flags (`--default-storage-provider s3` and `--default-storage-prefix s3://<bucket>`, plus the S3 endpoint and key flags), which would clash with the provider you set by hand. The bundled `tests/data/Benchmark_003.yaml` sets `storage.api: S3`, so it is not a suitable starting point for a non-S3 backend.
 
 To restrict access to a bucket, generate an access key with a specific policy.
 
