@@ -11,11 +11,15 @@ def select_input_nodes(
     declared_input_ids: list[str],
     output_to_nodes: dict,
     resolved_nodes: list,
-    nodes_by_id: dict,
     stage_ids_in_order: list[str],
     previous_stage_nodes: list,
+    nodes_by_id: dict | None = None,
 ) -> list:
     """Return the node list to use as the cartesian expansion base for a stage.
+
+    ``nodes_by_id`` (id → node) is an optional prebuilt index for the O(1) node
+    lookup; it is built from ``resolved_nodes`` when omitted, so callers that
+    already keep the index (the run loop) avoid the O(N) rebuild.
 
     NOTE(#289): this collapses a stage's inputs down to a *single* parent stage
     (the deepest already-expanded producer). It therefore assumes every declared
@@ -31,6 +35,9 @@ def select_input_nodes(
     """
     if not declared_input_ids:
         return previous_stage_nodes
+
+    if nodes_by_id is None:
+        nodes_by_id = {n.id: n for n in resolved_nodes}
 
     providing_stage_id_to_depth: dict[str, int] = {}
     for input_id in declared_input_ids:

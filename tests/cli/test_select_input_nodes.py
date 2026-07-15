@@ -1,13 +1,13 @@
-"""Unit tests for _select_input_nodes and the dag_errors abort path in run.py."""
+"""Unit tests for select_input_nodes and the dag_errors abort path in run.py."""
 
 from dataclasses import dataclass
 
-from omnibenchmark.cli.run import _select_input_nodes
+from omnibenchmark.core._lineage import select_input_nodes
 
 
 # ---------------------------------------------------------------------------
 # Minimal stub that satisfies the .id / .stage_id duck-typing used by
-# _select_input_nodes.  Using a plain dataclass avoids importing heavy
+# select_input_nodes.  Using a plain dataclass avoids importing heavy
 # ResolvedNode infrastructure.
 # ---------------------------------------------------------------------------
 
@@ -38,12 +38,12 @@ def _reg(*pairs):
 
 
 class TestSelectInputNodes:
-    """Tests for _select_input_nodes pure function."""
+    """Tests for select_input_nodes pure function."""
 
     def test_no_declared_inputs_returns_previous(self):
         """When declared_input_ids is empty fall back to previous_stage_nodes."""
         prev = [_StubNode("n1", "stage_a")]
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=[],
             output_to_nodes={},
             resolved_nodes=[],
@@ -55,7 +55,7 @@ class TestSelectInputNodes:
     def test_unresolvable_inputs_return_previous(self):
         """When no declared input exists in the registry fall back to previous."""
         prev = [_StubNode("n1", "stage_a")]
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["unknown_output"],
             output_to_nodes={},
             resolved_nodes=[],
@@ -69,7 +69,7 @@ class TestSelectInputNodes:
         n1 = _StubNode("n1", "stage_a")
         reg = _reg(("pca.csv", "n1"))
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["pca.csv"],
             output_to_nodes=reg,
             resolved_nodes=[n1],
@@ -83,7 +83,7 @@ class TestSelectInputNodes:
         Skip-dependency scenario:
           data → pca → (leiden) → umap
         umap declares inputs produced by *pca*, not leiden.
-        _select_input_nodes must return pca nodes even though leiden is the
+        select_input_nodes must return pca nodes even though leiden is the
         most recent previous stage.
         """
         n_pca = _StubNode("pca-M1-default", "pca")
@@ -92,7 +92,7 @@ class TestSelectInputNodes:
         # umap declares "neighbors.h5ad" which was produced by pca
         reg = _reg(("neighbors.h5ad", "pca-M1-default"))
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["neighbors.h5ad"],
             output_to_nodes=reg,
             resolved_nodes=[n_pca, n_leiden],
@@ -114,7 +114,7 @@ class TestSelectInputNodes:
             ("pca.csv", "pca-M1-default"),
         )
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["data.h5ad", "pca.csv"],
             output_to_nodes=reg,
             resolved_nodes=[n_data, n_pca],
@@ -130,7 +130,7 @@ class TestSelectInputNodes:
         n2 = _StubNode("pca-M2-default", "pca")
         reg = _reg(("pca.csv", "pca-M1-default"), ("pca.csv", "pca-M2-default"))
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["pca.csv"],
             output_to_nodes=reg,
             resolved_nodes=[n1, n2],
@@ -147,7 +147,7 @@ class TestSelectInputNodes:
             ("pca.csv", "ghost-node"),  # ghost not in resolved_nodes
         )
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["pca.csv"],
             output_to_nodes=reg,
             resolved_nodes=[n1],
@@ -169,7 +169,7 @@ class TestSelectInputNodes:
             ("output.csv", "pca-M1-default"),
         )
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["output.csv"],
             output_to_nodes=reg,
             resolved_nodes=[n_orphan, n_real],
@@ -198,7 +198,7 @@ class TestSelectInputNodes:
         stage_order = ["data", "pca", "harmony", "leiden", "umap"]
         previous = [n_leiden_s, n_leiden_r]
 
-        result = _select_input_nodes(
+        result = select_input_nodes(
             declared_input_ids=["harmony.csv", "neighbors.h5ad"],
             output_to_nodes=reg,
             resolved_nodes=[n_pca, n_harmony, n_leiden_s, n_leiden_r],

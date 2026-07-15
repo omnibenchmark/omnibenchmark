@@ -1087,7 +1087,7 @@ def _generate_explicit_snakefile(
         logger.info("\nBuilding execution graph...")
 
     # Expand stages in topological (dependency) order rather than declaration
-    # order. _select_input_nodes can only pick a parent among already-expanded
+    # order. select_input_nodes can only pick a parent among already-expanded
     # stages, so a stage must be expanded after every stage producing its inputs.
     # Sorting here makes declaration order irrelevant: a plan that declares a
     # stage before an upstream producer still resolves, as long as that producer
@@ -1264,7 +1264,7 @@ def _generate_explicit_snakefile(
                         # *linear* ancestors (nodes whose id is a prefix of this
                         # one). Inputs produced on a sibling branch that re-joins
                         # here are invisible and warn "Could not resolve input"
-                        # below. Generalise this (and _select_input_nodes above)
+                        # below. Generalise this (and select_input_nodes)
                         # to gather from all producing lineages once multi-stage
                         # input collection lands.
                         for ancestor in lineage_ancestors(input_node, nodes_by_id):

@@ -16,10 +16,13 @@ from omnibenchmark.cli.run import (
     _run_snakemake,
     _substitute_params_in_path,
     _build_template_context,
-    _select_input_nodes,
-    _satisfies_requires,
-    _lineage_module_ids,
     run,
+)
+from omnibenchmark.core._lineage import (
+    select_input_nodes,
+    satisfies_requires,
+    lineage_module_ids,
+    lineage_ancestors,
 )
 from omnibenchmark.core.prefetch import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
@@ -299,7 +302,7 @@ class TestBuildTemplateContext:
 
 
 # ---------------------------------------------------------------------------
-# _satisfies_requires
+# satisfies_requires
 # ---------------------------------------------------------------------------
 
 
@@ -307,7 +310,7 @@ class TestBuildTemplateContext:
 class TestSatisfiesRequires:
     def test_no_template_context_returns_false(self):
         node = _make_input_node("D1", "data", template_context=None)
-        assert _satisfies_requires({"dataset": "pbmc3k"}, node) is False
+        assert satisfies_requires({"dataset": "pbmc3k"}, node) is False
 
     def test_matching_single_constraint(self):
         ctx = TemplateContext(
@@ -315,7 +318,7 @@ class TestSatisfiesRequires:
             module_attrs={"id": "D1", "stage": "data"},
         )
         node = _make_input_node("D1", "data", template_context=ctx)
-        assert _satisfies_requires({"dataset": "pbmc3k"}, node) is True
+        assert satisfies_requires({"dataset": "pbmc3k"}, node) is True
 
     def test_mismatched_constraint(self):
         ctx = TemplateContext(
@@ -323,7 +326,7 @@ class TestSatisfiesRequires:
             module_attrs={"id": "D1", "stage": "data"},
         )
         node = _make_input_node("D1", "data", template_context=ctx)
-        assert _satisfies_requires({"dataset": "other"}, node) is False
+        assert satisfies_requires({"dataset": "other"}, node) is False
 
     def test_missing_label_returns_false(self):
         ctx = TemplateContext(
@@ -331,7 +334,7 @@ class TestSatisfiesRequires:
             module_attrs={"id": "D1", "stage": "data"},
         )
         node = _make_input_node("D1", "data", template_context=ctx)
-        assert _satisfies_requires({"dataset": "pbmc3k"}, node) is False
+        assert satisfies_requires({"dataset": "pbmc3k"}, node) is False
 
     def test_empty_requires_returns_true(self):
         ctx = TemplateContext(
@@ -339,7 +342,7 @@ class TestSatisfiesRequires:
             module_attrs={"id": "D1", "stage": "data"},
         )
         node = _make_input_node("D1", "data", template_context=ctx)
-        assert _satisfies_requires({}, node) is True
+        assert satisfies_requires({}, node) is True
 
     def test_multiple_constraints_all_match(self):
         ctx = TemplateContext(
@@ -348,8 +351,7 @@ class TestSatisfiesRequires:
         )
         node = _make_input_node("D1", "data", template_context=ctx)
         assert (
-            _satisfies_requires({"dataset": "pbmc3k", "treatment": "ctrl"}, node)
-            is True
+            satisfies_requires({"dataset": "pbmc3k", "treatment": "ctrl"}, node) is True
         )
 
     def test_multiple_constraints_partial_mismatch(self):
@@ -359,13 +361,13 @@ class TestSatisfiesRequires:
         )
         node = _make_input_node("D1", "data", template_context=ctx)
         assert (
-            _satisfies_requires({"dataset": "pbmc3k", "treatment": "stim"}, node)
+            satisfies_requires({"dataset": "pbmc3k", "treatment": "stim"}, node)
             is False
         )
 
 
 # ---------------------------------------------------------------------------
-# _lineage_module_ids
+# lineage_module_ids
 # ---------------------------------------------------------------------------
 
 
@@ -385,12 +387,12 @@ def _by_id(*nodes):
 class TestLineageModuleIds:
     def test_root_node_lineage_is_self(self):
         root = _make_lineage_node("adamson")
-        assert _lineage_module_ids(root, _by_id(root)) == {"adamson"}
+        assert lineage_module_ids(root, _by_id(root)) == {"adamson"}
 
     def test_immediate_predecessor_in_lineage(self):
         root = _make_lineage_node("adamson")
         child = _make_lineage_node("prep", parent_id=root.id)
-        assert _lineage_module_ids(child, _by_id(root, child)) == {"adamson", "prep"}
+        assert lineage_module_ids(child, _by_id(root, child)) == {"adamson", "prep"}
 
     def test_transitive_lineage_across_non_adjacent_stages(self):
         """Regression: a download module several stages upstream must appear in
@@ -400,7 +402,7 @@ class TestLineageModuleIds:
         split = _make_lineage_node("sim", parent_id=preprocess.id)
         # split is the immediate predecessor of a `methods` node; its lineage
         # must still include the non-adjacent `adamson` download module.
-        assert _lineage_module_ids(split, _by_id(download, preprocess, split)) == {
+        assert lineage_module_ids(split, _by_id(download, preprocess, split)) == {
             "adamson",
             "prep",
             "sim",
@@ -410,7 +412,7 @@ class TestLineageModuleIds:
         download = _make_lineage_node("adamson")
         other = _make_lineage_node("norman")  # sibling root, not an ancestor
         child = _make_lineage_node("prep", parent_id=download.id)
-        assert _lineage_module_ids(child, _by_id(download, other, child)) == {
+        assert lineage_module_ids(child, _by_id(download, other, child)) == {
             "adamson",
             "prep",
         }
@@ -426,14 +428,62 @@ class TestLineageModuleIds:
             parent_id=download.id,
             node_id="download-adamson-v2.default-methods-my-method.default",
         )
-        assert _lineage_module_ids(method, _by_id(download, method)) == {
+        assert lineage_module_ids(method, _by_id(download, method)) == {
             "adamson-v2",
             "my-method",
         }
 
 
 # ---------------------------------------------------------------------------
-# _select_input_nodes
+# lineage_ancestors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestLineageAncestors:
+    def test_root_node_has_no_ancestors(self):
+        root = _make_lineage_node("adamson")
+        assert lineage_ancestors(root, _by_id(root)) == []
+
+    def test_ancestors_returned_shallowest_first(self):
+        # deepest-wins on output-id collisions relies on shallow -> deep order.
+        download = _make_lineage_node("adamson", node_id="d")
+        prep = _make_lineage_node("prep", parent_id="d", node_id="d-p")
+        method = _make_lineage_node("m", parent_id="d-p", node_id="d-p-m")
+        by_id = _by_id(download, prep, method)
+        assert lineage_ancestors(method, by_id) == [download, prep]
+
+    def test_only_own_chain_not_sibling_branch(self):
+        download = _make_lineage_node("adamson", node_id="d")
+        sibling = _make_lineage_node("norman", node_id="n")  # different root
+        child = _make_lineage_node("prep", parent_id="d", node_id="d-p")
+        assert lineage_ancestors(child, _by_id(download, sibling, child)) == [download]
+
+    @pytest.mark.timeout(5)
+    def test_deep_chain_is_linear_not_exponential(self):
+        # Regression guard for the O(2^depth) ancestor recursion that hung
+        # Snakefile generation (get_ancestor_nodes). The old prefix-scan re-
+        # recursed on every match: for a chain of depth 200 it would visit
+        # ~2^200 nodes and never return. The parent_id walk is O(depth), so this
+        # completes instantly; a reintroduced exponential version hangs CI.
+        chain = []
+        parent_id = None
+        for i in range(200):
+            node_id = "n0" if i == 0 else f"{chain[-1].id}-n{i}"
+            chain.append(
+                _make_lineage_node(f"m{i}", parent_id=parent_id, node_id=node_id)
+            )
+            parent_id = node_id
+        by_id = _by_id(*chain)
+
+        ancestors = lineage_ancestors(chain[-1], by_id)
+
+        assert ancestors == chain[:-1]  # every strict ancestor, shallowest first
+        assert len(ancestors) == 199
+
+
+# ---------------------------------------------------------------------------
+# select_input_nodes
 # ---------------------------------------------------------------------------
 
 
@@ -448,12 +498,12 @@ def _make_node(node_id, stage_id):
 class TestSelectInputNodes:
     def test_empty_declared_inputs_returns_previous(self):
         prev = [_make_node("n1", "data")]
-        result = _select_input_nodes([], {}, [], [], prev)
+        result = select_input_nodes([], {}, [], [], prev)
         assert result is prev
 
     def test_no_matching_outputs_returns_previous(self):
         prev = [_make_node("n1", "data")]
-        result = _select_input_nodes(["data.raw"], {}, [], ["data"], prev)
+        result = select_input_nodes(["data.raw"], {}, [], ["data"], prev)
         assert result is prev
 
     def test_single_input_selects_correct_stage(self):
@@ -463,7 +513,7 @@ class TestSelectInputNodes:
         output_to_nodes = {"data.raw": [("data-D1", "data/D1/out.json")]}
         stage_ids = ["data", "methods"]
         prev = []
-        result = _select_input_nodes(
+        result = select_input_nodes(
             ["data.raw"], output_to_nodes, resolved, stage_ids, prev
         )
         assert all(n.stage_id == "data" for n in result)
@@ -478,7 +528,7 @@ class TestSelectInputNodes:
         }
         stage_ids = ["data", "preprocessing", "methods"]
         prev = []
-        result = _select_input_nodes(
+        result = select_input_nodes(
             ["data.raw", "prep.out"], output_to_nodes, resolved, stage_ids, prev
         )
         assert all(n.stage_id == "preprocessing" for n in result)
@@ -486,7 +536,7 @@ class TestSelectInputNodes:
     def test_node_not_in_resolved_skipped(self):
         output_to_nodes = {"data.raw": [("ghost-node", "p.json")]}
         prev = [_make_node("fallback", "data")]
-        result = _select_input_nodes(["data.raw"], output_to_nodes, [], ["data"], prev)
+        result = select_input_nodes(["data.raw"], output_to_nodes, [], ["data"], prev)
         assert result is prev
 
 
