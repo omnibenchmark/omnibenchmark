@@ -15,7 +15,7 @@ from typing import List, Optional, Dict, Any
 
 from dulwich import porcelain
 from dulwich.errors import NotGitRepository
-from dulwich.objects import Commit
+from dulwich.objects import Blob, Commit, Tree
 from dulwich.repo import Repo
 from typing import cast as _cast
 
@@ -128,21 +128,21 @@ class GitAwareBenchmarkVersionManager(BenchmarkVersionManager):
             )
             commit = _cast(Commit, self.repo[commit_id])
             # Walk the tree to find the blob
-            tree = self.repo[commit.tree]
+            tree = _cast(Tree, self.repo[commit.tree])
             parts = str(self.relative_yaml_path).split("/")
-            obj = tree
+            obj: Tree | Blob = tree
             for part in parts:
                 part_bytes = part.encode()
                 # tree items: (mode, name, sha)
                 found = False
-                for item in obj.items():  # type: ignore[union-attr]
+                for item in _cast(Tree, obj).items():
                     if item.path == part_bytes:
-                        obj = self.repo[item.sha]
+                        obj = _cast(Tree, self.repo[item.sha])
                         found = True
                         break
                 if not found:
                     return None
-            return obj.data.decode("utf-8")  # type: ignore[union-attr]
+            return _cast(Blob, obj).data.decode("utf-8")
         except Exception:
             return None
 
