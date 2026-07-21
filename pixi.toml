@@ -95,7 +95,6 @@ test-software = { cmd = "pytest -v -x --show-capture=stderr tests/software/", de
 dev-install = "pip install -e ."
 build = "python -m build ."
 clean = "rm -rf dist/ build/ *.egg-info/ .pytest_cache/ .coverage"
-pip = "pip"
 
 # Python version testing
 # Tox for comprehensive testing (with library interactions like snakemake)
