@@ -3,7 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## [0.6.0](UNRELEASED)
+## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 
 - feat: add opentelemetry support
 - feat: output path templates now support `{name}`, `{module.name}`, `{module.stage}`, and `{params.KEY}`; `{name}` always resolves to the current module's own ID (never inherited)
