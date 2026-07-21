@@ -24,6 +24,12 @@ from omnibenchmark.core._paths import (
     collect_path_exclusions,
     is_lineage_excluded,
 )
+from omnibenchmark.core._lineage import (
+    lineage_ancestors,
+    lineage_module_ids,
+    satisfies_requires,
+    select_input_nodes,
+)
 from omnibenchmark.model.params import Params
 from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
@@ -911,83 +917,6 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
-def _select_input_nodes(
-    declared_input_ids: list[str],
-    output_to_nodes: dict,
-    resolved_nodes: list,
-    stage_ids_in_order: list[str],
-    previous_stage_nodes: list,
-) -> list:
-    """Return the node list to use as the cartesian expansion base for a stage.
-
-    NOTE(#289): this collapses a stage's inputs down to a *single* parent stage
-    (the deepest already-expanded producer). It therefore assumes every declared
-    input is reachable along one linear ancestry chain from that parent. When a
-    stage joins two sibling branches (a "diamond"), the other branch's outputs are
-    not in that lineage and later fail to resolve. This is the crux of the
-    multi-stage input-collection limitation.
-
-    TODO(#289): once arbitrary multi-stage input collection is supported, this
-    single-parent selection (and the linear-ancestor walk in the resolution loop
-    below, `get_ancestor_nodes`) must be generalised to gather inputs from *all*
-    producing stages, not just the deepest one on a single chain.
-    """
-    if not declared_input_ids:
-        return previous_stage_nodes
-
-    providing_stage_id_to_depth: dict[str, int] = {}
-    for input_id in declared_input_ids:
-        for node_id, _path in output_to_nodes.get(input_id, []):
-            node_obj = next(
-                (n for n in resolved_nodes if n.id == node_id),
-                None,
-            )
-            if node_obj is not None:
-                depth = (
-                    stage_ids_in_order.index(node_obj.stage_id)
-                    if node_obj.stage_id in stage_ids_in_order
-                    else -1
-                )
-                existing = providing_stage_id_to_depth.get(node_obj.stage_id, -1)
-                if depth > existing:
-                    providing_stage_id_to_depth[node_obj.stage_id] = depth
-
-    if not providing_stage_id_to_depth:
-        return previous_stage_nodes
-
-    deepest_stage_id = max(
-        providing_stage_id_to_depth,
-        key=providing_stage_id_to_depth.__getitem__,
-    )
-    return [n for n in resolved_nodes if n.stage_id == deepest_stage_id]
-
-
-def _satisfies_requires(requires: dict, input_node) -> bool:
-    """Return True if the input_node's lineage satisfies all requires constraints."""
-    if not input_node.template_context:
-        return False
-    for label, required_value in requires.items():
-        actual_value = input_node.template_context.provides.get(label)
-        if actual_value != required_value:
-            return False
-    return True
-
-
-def _lineage_module_ids(input_node, nodes_by_id) -> set:
-    """Return the module_ids along input_node's full lineage, inclusive.
-
-    Walks the explicit ``parent_id`` chain rather than matching node-ID string
-    prefixes, so it is unaffected by module/stage ids that contain the id
-    separator. ``nodes_by_id`` maps node id → node.
-    """
-    lineage = set()
-    node = input_node
-    while node is not None:
-        lineage.add(node.module_id)
-        node = nodes_by_id.get(node.parent_id) if node.parent_id else None
-    return lineage
-
-
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -1158,7 +1087,7 @@ def _generate_explicit_snakefile(
         logger.info("\nBuilding execution graph...")
 
     # Expand stages in topological (dependency) order rather than declaration
-    # order. _select_input_nodes can only pick a parent among already-expanded
+    # order. select_input_nodes can only pick a parent among already-expanded
     # stages, so a stage must be expanded after every stage producing its inputs.
     # Sorting here makes declaration order irrelevant: a plan that declares a
     # stage before an upstream producer still resolves, as long as that producer
@@ -1214,6 +1143,11 @@ def _generate_explicit_snakefile(
     previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
 
+    # stage_id -> ordered output ids. Precomputed once so per-node output lookup
+    # is O(1) instead of scanning every stage and doing an O(outputs) pydantic
+    # `.index()` (was ~180k __eq__ calls during generation).
+    stage_output_ids = {s.id: [o.id for o in s.outputs] for s in benchmark.model.stages}
+
     # Lineage-wide exclusion rules, shared with execution-path pruning so the
     # two code paths agree (see core._paths.is_lineage_excluded).
     path_exclusions = collect_path_exclusions(benchmark.model)
@@ -1260,10 +1194,11 @@ def _generate_explicit_snakefile(
                     ]
 
                     stage_ids_in_order = [s.id for s in stages_to_expand]
-                    input_node_combinations = _select_input_nodes(
+                    input_node_combinations = select_input_nodes(
                         declared_input_ids=declared_input_ids,
                         output_to_nodes=output_to_nodes,
                         resolved_nodes=resolved_nodes,
+                        nodes_by_id=nodes_by_id,
                         stage_ids_in_order=stage_ids_in_order,
                         previous_stage_nodes=previous_stage_nodes,
                     )
@@ -1282,7 +1217,7 @@ def _generate_explicit_snakefile(
                     # the immediate predecessor: prune if any exclusion rule has
                     # both endpoints present along this node's lineage.
                     if input_node:
-                        lineage = _lineage_module_ids(input_node, nodes_by_id) | {
+                        lineage = lineage_module_ids(input_node, nodes_by_id) | {
                             module_id
                         }
                         if is_lineage_excluded(lineage, path_exclusions):
@@ -1293,7 +1228,7 @@ def _generate_explicit_snakefile(
                             continue
 
                     if input_node and module.requires:
-                        if not _satisfies_requires(module.requires, input_node):
+                        if not satisfies_requires(module.requires, input_node):
                             logger.debug(
                                 f"      Skipping combination: requires not satisfied for {module_id} "
                                 f"(upstream context: {input_node.template_context.provides})"
@@ -1315,16 +1250,13 @@ def _generate_explicit_snakefile(
                         output_id_to_path = {}
 
                         def get_output_ids_for_node(node):
-                            result = {}
-                            for s in benchmark.model.stages:
-                                if s.id == node.stage_id:
-                                    for output_spec in s.outputs:
-                                        output_index = s.outputs.index(output_spec)
-                                        if output_index < len(node.outputs):
-                                            result[output_spec.id] = node.outputs[
-                                                output_index
-                                            ]
-                            return result
+                            return {
+                                output_id: node.outputs[i]
+                                for i, output_id in enumerate(
+                                    stage_output_ids.get(node.stage_id, [])
+                                )
+                                if i < len(node.outputs)
+                            }
 
                         output_id_to_path.update(get_output_ids_for_node(input_node))
 
@@ -1332,18 +1264,10 @@ def _generate_explicit_snakefile(
                         # *linear* ancestors (nodes whose id is a prefix of this
                         # one). Inputs produced on a sibling branch that re-joins
                         # here are invisible and warn "Could not resolve input"
-                        # below. Generalise this (and _select_input_nodes above)
+                        # below. Generalise this (and select_input_nodes)
                         # to gather from all producing lineages once multi-stage
                         # input collection lands.
-                        def get_ancestor_nodes(node):
-                            ancestors = []
-                            for prev_node in resolved_nodes:
-                                if node.id.startswith(prev_node.id + "-"):
-                                    ancestors.append(prev_node)
-                                    ancestors.extend(get_ancestor_nodes(prev_node))
-                            return ancestors
-
-                        for ancestor in get_ancestor_nodes(input_node):
+                        for ancestor in lineage_ancestors(input_node, nodes_by_id):
                             output_id_to_path.update(get_output_ids_for_node(ancestor))
 
                         if stage.inputs:
