@@ -19,6 +19,7 @@ from omnibenchmark.cli.run import (
     _build_template_context,
     _module_capabilities_met,
     _select_capable_modules,
+    _resolve_label_value,
     _apply_until_filter,
     _filter_collectors_by_stages,
     run,
@@ -180,6 +181,26 @@ class TestSubstituteParamsInPath:
 
 
 # ---------------------------------------------------------------------------
+# _resolve_label_value
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestResolveLabelValue:
+    def test_module_binding_wins(self):
+        assert _resolve_label_value("size", {"size": "lg"}, "M1") == "lg"
+
+    def test_defaults_to_module_id_when_no_binding(self):
+        assert _resolve_label_value("size", None, "M1") == "M1"
+
+    def test_defaults_to_module_id_when_label_absent_from_binding(self):
+        assert _resolve_label_value("size", {"other": "x"}, "M1") == "M1"
+
+    def test_non_string_binding_coerced(self):
+        assert _resolve_label_value("n", {"n": 3}, "M1") == "3"
+
+
+# ---------------------------------------------------------------------------
 # _build_template_context
 # ---------------------------------------------------------------------------
 
@@ -214,11 +235,20 @@ class TestBuildTemplateContext:
         ctx = _build_template_context(stage, "D1", params=p)
         assert ctx.provides["dataset"] == "pbmc3k"
 
-    def test_root_node_provides_label_from_params(self):
+    def test_root_node_provides_label_from_module_binding(self):
+        stage = _make_stage("data", provides=["treatment"])
+        ctx = _build_template_context(
+            stage, "D1", module_provides={"treatment": "ctrl"}
+        )
+        assert ctx.provides["treatment"] == "ctrl"
+
+    def test_root_node_provides_label_ignores_same_named_param(self):
+        # The parameter-name fallback was cut: a same-named param must NOT
+        # become the label value (see 008 §3.5). Falls through to module id.
         stage = _make_stage("data", provides=["treatment"])
         p = Params({"treatment": "ctrl"})
         ctx = _build_template_context(stage, "D1", params=p)
-        assert ctx.provides["treatment"] == "ctrl"
+        assert ctx.provides["treatment"] == "D1"
 
     def test_root_node_provides_label_defaults_to_module_id(self):
         stage = _make_stage("data", provides=["treatment"])
@@ -254,16 +284,19 @@ class TestBuildTemplateContext:
         ctx = _build_template_context(stage, "M1", input_node=input_node)
         assert ctx.provides["method"] == "M1"
 
-    def test_child_node_provides_label_from_params(self):
+    def test_child_node_provides_label_from_module_binding(self):
         parent_ctx = TemplateContext(
             provides={"dataset": "pbmc3k"},
             module_attrs={"id": "D1", "stage": "data"},
         )
         input_node = _make_input_node("D1", "data", template_context=parent_ctx)
         stage = _make_stage("methods", provides=["method"])
-        p = Params({"method": "kmeans"})
-        ctx = _build_template_context(stage, "M1", input_node=input_node, params=p)
+        ctx = _build_template_context(
+            stage, "M1", input_node=input_node, module_provides={"method": "kmeans"}
+        )
         assert ctx.provides["method"] == "kmeans"
+        # parent lineage labels still inherited
+        assert ctx.provides["dataset"] == "pbmc3k"
 
     # --- {name} template variable: always the current module's own ID ---
 

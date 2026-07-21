@@ -129,14 +129,21 @@ class APIVersion(str, Enum):
     V0_3_0 = "0.3.0"
     V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
+    V0_6_0 = "0.6.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_5_0
+        return cls.V0_6_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
         return {version.value for version in cls}
+
+
+# Labels the runtime populates on every node; a stage may not advertise these
+# via `Stage.provides` (it would silently clobber the builtin value). See
+# docs/design/008-filtering.md §3.5.
+_RESERVED_PROVIDES_LABELS = frozenset({"name", "dataset"})
 
 
 class SoftwareBackendEnum(str, Enum):
@@ -528,6 +535,18 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "named label."
         ),
     )
+    provides: Optional[Dict[str, str]] = Field(
+        None,
+        description=(
+            "Explicit benchmark-local label bindings for this module. Maps "
+            "label name → value, for labels its stage advertises via "
+            "`Stage.provides`. This is the recommended way to source a label "
+            "value: it keeps routing out of the module's CLI parameter "
+            "contract, so the same module stays reusable across benchmarks "
+            "with different label vocabularies. When a label has no binding "
+            "here, it defaults to the module id. Requires api_version ≥ 0.6.0."
+        ),
+    )
     resources: Optional[Resources] = Field(
         None,
         description="Resource requirements (overrides stage-level resources)",
@@ -595,6 +614,18 @@ class Stage(DescribableEntity):
     modules: List[Module] = Field(..., description="Modules in this stage")
     inputs: Optional[List[InputCollection]] = Field(None, description="Stage inputs")
     outputs: List[IOFile] = Field(..., description="Stage outputs")
+    provides: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Lineage labels this stage advertises to downstream modules. For "
+            "each label, every node of this stage carries a value, taken from "
+            "the module's `provides` binding if present, otherwise the module "
+            "id. Downstream modules gate on these labels via `requires:`; "
+            "non-matching execution paths prune at DAG-construction time. The "
+            "builtin labels `name` and `dataset` are reserved and may not be "
+            "declared here. Requires api_version ≥ 0.6.0."
+        ),
+    )
     resources: Optional[Resources] = Field(
         None, description="Resource requirements for rules in this stage"
     )
@@ -1304,6 +1335,71 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 for collector in self.metric_collectors:
                     if collector.software_environment is None:
                         collector.software_environment = sole_env_id
+
+        # Gate api_version-introduced fields. `Stage.provides` and
+        # `Module.provides` were introduced in 0.6.0 and must not be used by
+        # older specs.
+        if self.api_version < APIVersion.V0_6_0:
+            for stage in self.stages:
+                if stage.provides:
+                    raise ValueError(
+                        f"Stage '{stage.id}' uses `provides`, which requires "
+                        f"api_version ≥ 0.6.0 (this benchmark declares "
+                        f"{self.api_version.value})."
+                    )
+                for module in stage.modules:
+                    if module.provides:
+                        raise ValueError(
+                            f"Module '{module.id}' uses `provides`, which "
+                            f"requires api_version ≥ 0.6.0 (this benchmark "
+                            f"declares {self.api_version.value})."
+                        )
+
+        # The runtime auto-populates `name` (current module id) and `dataset`
+        # (root dataset identity) on every node; letting a stage advertise
+        # either would silently clobber the user's value and make a downstream
+        # `requires:` gate on an accident of propagation. See 008 §3.5.
+        for stage in self.stages:
+            for label in stage.provides or []:
+                if label in _RESERVED_PROVIDES_LABELS:
+                    raise ValueError(
+                        f"Stage '{stage.id}' declares reserved label "
+                        f"'{label}' in `provides`. '{label}' is a builtin "
+                        f"populated by the runtime; choose another name."
+                    )
+
+        # A module can only bind a label its stage advertises. A `provides` key
+        # absent from `stage.provides` is never consulted at resolution time
+        # (`_resolve_label_value` iterates the stage's labels), so it would
+        # silently fall through to the module_id default and break a downstream
+        # `requires:` gate with no diagnostic. See 008 §2 (no silent absence).
+        for stage in self.stages:
+            declared = set(stage.provides or [])
+            for module in stage.modules:
+                for label in module.provides or {}:
+                    if label not in declared:
+                        raise ValueError(
+                            f"Module '{module.id}' binds label '{label}' in "
+                            f"`provides`, but stage '{stage.id}' does not "
+                            f"declare it. Add '{label}' to the stage's "
+                            f"`provides` list or fix the key."
+                        )
+
+        # A `requires:` gate matches against the upstream lineage. An initial
+        # stage has no inputs, so its modules have no upstream context and the
+        # gate can never be satisfied — flag it rather than silently running the
+        # module unconditionally. See 008 §2 (no silent absence).
+        for stage in self.stages:
+            if not self.is_initial(stage):
+                continue
+            for module in stage.modules:
+                if module.requires:
+                    raise ValueError(
+                        f"Module '{module.id}' in initial stage '{stage.id}' "
+                        f"declares `requires`, but an initial stage has no "
+                        f"upstream lineage to match against. Remove the "
+                        f"`requires` gate or move the module to a later stage."
+                    )
 
         # Call the pure model validation from the validator base class
         self.validate_model_structure()

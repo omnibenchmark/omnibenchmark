@@ -961,14 +961,37 @@ def _substitute_params_in_path(template: str, params) -> str:
     return re.sub(r"\{params\.([^}]+)\}", _replace, template)
 
 
+def _resolve_label_value(label: str, module_provides, module_id: str) -> str:
+    """Resolve a single `Stage.provides` label's value for one node.
+
+    Two-level chain, most specific first:
+      1. ``module.provides[label]`` — explicit benchmark-local binding.
+      2. ``module_id`` — default for the "label = module identity" pattern.
+
+    The parameter-name fallback prototyped earlier is intentionally absent:
+    sourcing a label from a same-named CLI parameter couples the module's CLI
+    contract to the benchmark's routing across repositories. See
+    docs/design/008-filtering.md §3.5.
+    """
+    if module_provides and label in module_provides:
+        return str(module_provides[label])
+    return module_id
+
+
 def _build_template_context(
     stage,
     module_id: str,
     module_name: Optional[str] = None,
     input_node=None,
     params=None,
+    module_provides=None,
 ) -> TemplateContext:
-    """Build a TemplateContext for a node during expansion."""
+    """Build a TemplateContext for a node during expansion.
+
+    `module_provides` is the optional `Module.provides` dict (label → value);
+    it sources the values for the labels this stage advertises via
+    `Stage.provides`, defaulting to the module id.
+    """
     provides: dict[str, str] = {}
     module_attrs: dict[str, str] = {
         "id": module_id,
@@ -978,27 +1001,19 @@ def _build_template_context(
 
     stage_provides = getattr(stage, "provides", None)
 
+    # Inherit the upstream lineage labels first, then layer this stage's own.
+    if input_node is not None and input_node.template_context is not None:
+        provides.update(input_node.template_context.provides)
+
+    if stage_provides:
+        for label in stage_provides:
+            provides[label] = _resolve_label_value(label, module_provides, module_id)
+
     if input_node is not None:
-        if input_node.template_context is not None:
-            provides.update(input_node.template_context.provides)
-
-        if stage_provides:
-            for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
-
         module_attrs["parent.id"] = input_node.module_id
         module_attrs["parent.stage"] = input_node.stage_id
     else:
-        if stage_provides:
-            for label in stage_provides:
-                if params is not None and label in params:
-                    provides[label] = str(params[label])
-                else:
-                    provides[label] = module_id
-
+        # Builtin `dataset` label: root identity, propagated downstream.
         if params is not None and "dataset" in params:
             provides.setdefault("dataset", str(params["dataset"]))
         else:
@@ -1385,6 +1400,9 @@ def _generate_explicit_snakefile(
     output_to_nodes = {}
     previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
+    # Count pruned combinations by reason, so a silently absent result cell is
+    # observable (see docs/design/008-filtering.md, "No silent absence").
+    prune_counts = {"requires": 0, "exclude": 0}
 
     # stage_id -> ordered output ids. Precomputed once so per-node output lookup
     # is O(1) instead of scanning every stage and doing an O(outputs) pydantic
@@ -1397,6 +1415,11 @@ def _generate_explicit_snakefile(
 
     for stage in stages_to_expand:
         current_stage_nodes = []
+        # How many (input, params) combinations this stage actually attempted.
+        # Zero means nothing was generated to prune (an input id resolved to no
+        # upstream node); >0 with an empty stage means a filter rejected them
+        # all. The empty-stage warning below distinguishes the two.
+        combinations_seen = 0
 
         # Module-filter: which modules to expand per stage
         if module_filter:
@@ -1471,6 +1494,8 @@ def _generate_explicit_snakefile(
                 if module_filter:
                     node_combinations = node_combinations[:1]
 
+                combinations_seen += len(node_combinations)
+
                 for input_node, params in node_combinations:
                     # Exclusions are transitive over the full lineage, not just
                     # the immediate predecessor: prune if any exclusion rule has
@@ -1480,6 +1505,7 @@ def _generate_explicit_snakefile(
                             module_id
                         }
                         if is_lineage_excluded(lineage, path_exclusions):
+                            prune_counts["exclude"] += 1
                             logger.debug(
                                 f"      Excluding combination: lineage {lineage} "
                                 f"violates an exclusion rule"
@@ -1488,6 +1514,7 @@ def _generate_explicit_snakefile(
 
                     if input_node and module.requires:
                         if not satisfies_requires(module.requires, input_node):
+                            prune_counts["requires"] += 1
                             logger.debug(
                                 f"      Skipping combination: requires not satisfied for {module_id} "
                                 f"(upstream context: {input_node.template_context.provides})"
@@ -1559,6 +1586,7 @@ def _generate_explicit_snakefile(
                         module_name=getattr(module, "name", None),
                         input_node=input_node,
                         params=params,
+                        module_provides=module.provides,
                     )
 
                     outputs = []
@@ -1631,7 +1659,35 @@ def _generate_explicit_snakefile(
                 if logger.level <= 10:
                     traceback.print_exc()
 
+        # A stage that had modules to expand but produced no nodes should not
+        # cascade an empty set downstream silently. Two distinct causes, two
+        # distinct messages: a filter rejected every generated combination, vs.
+        # no combination was generated at all (a declared input id matched no
+        # upstream output — usually a misspelled output id).
+        if modules_to_expand and not current_stage_nodes:
+            if combinations_seen:
+                logger.warning(
+                    f"Stage '{stage.id}' produced no nodes: every module/input "
+                    f"combination was pruned by a filter (requires/exclude). "
+                    f"Downstream stages depending on it will also be empty."
+                )
+            else:
+                logger.warning(
+                    f"Stage '{stage.id}' produced no nodes: no upstream output "
+                    f"matched its declared inputs (check for a misspelled "
+                    f"output id or a skipped upstream stage). Downstream stages "
+                    f"depending on it will also be empty."
+                )
+
         previous_stage_nodes = current_stage_nodes
+
+    total_pruned = sum(prune_counts.values())
+    if total_pruned:
+        logger.info(
+            f"Pruned {total_pruned} combination(s): "
+            f"{prune_counts['requires']} by requires, "
+            f"{prune_counts['exclude']} by exclude."
+        )
 
     if not quiet:
         logger.info(f"Created {len(resolved_nodes)} nodes")
@@ -1654,15 +1710,25 @@ def _generate_explicit_snakefile(
     # Resolve metric collectors (skip in -m module mode)
     if not module_filter:
         collectors_to_resolve = benchmark.model.get_metric_collectors()
-        if until_stage is not None:
-            included_ids = {s.id for s in stages_to_expand}
-            collectors_to_resolve, dropped = _filter_collectors_by_stages(
-                collectors_to_resolve, included_ids, benchmark.model
-            )
-            for cid in dropped:
+        # Drop collectors that reference a stage which produced no nodes —
+        # whether truncated by --until or emptied by requires/exclude filters.
+        # Filtering on stages that actually yielded nodes covers both, where
+        # `stages_to_expand` alone would keep a collector on an organically
+        # emptied stage and hand the resolver zero matches (a confusing error).
+        stages_with_nodes = {n.stage_id for n in resolved_nodes}
+        collectors_to_resolve, dropped = _filter_collectors_by_stages(
+            collectors_to_resolve, stages_with_nodes, benchmark.model
+        )
+        for cid in dropped:
+            if until_stage is not None:
                 logger.info(
                     f"--until {until_stage}: skipping metric collector "
                     f"'{cid}' (references pruned stages)."
+                )
+            else:
+                logger.warning(
+                    f"Skipping metric collector '{cid}': it references a stage "
+                    f"that produced no nodes (pruned by requires/exclude)."
                 )
         try:
             collector_nodes = resolve_metric_collectors(
