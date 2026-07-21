@@ -138,6 +138,17 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=None,
     help="Write telemetry to file instead of stdout. Allows Rich progress to remain active. Implies --telemetry.",
 )
+@click.option(
+    "--with-capability",
+    "with_capability",
+    multiple=True,
+    metavar="NAME",
+    help=(
+        "Declare a host capability available on this machine (repeatable). "
+        "Modules whose requires_capabilities are not all provided are pruned. "
+        "Example: --with-capability gpu --with-capability large_mem"
+    ),
+)
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def run(
@@ -154,6 +165,7 @@ def run(
     module_filter,
     telemetry,
     telemetry_output,
+    with_capability,
     snakemake_args,
 ):
     """Run a benchmark.
@@ -211,6 +223,7 @@ def run(
         module_filter=module_filter,
         telemetry=telemetry,
         telemetry_output=telemetry_output,
+        available_capabilities=set(with_capability),
         snakemake_args=list(snakemake_args),
     )
 
@@ -228,6 +241,7 @@ def _run_benchmark(
     module_filter=None,
     telemetry=None,
     telemetry_output=None,
+    available_capabilities=None,
     snakemake_args=None,
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
@@ -290,6 +304,7 @@ def _run_benchmark(
         dirty=dirty,
         unpinned=unpinned,
         module_filter=module_filter,
+        available_capabilities=available_capabilities,
     )
 
     # Initialize telemetry with resolved nodes and emit module-resolution span
@@ -917,6 +932,35 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
+def _module_capabilities_met(module, available_capabilities) -> bool:
+    """True unless the module declares a capability the host did not provide.
+
+    Modules with no `requires_capabilities` always pass. `available_capabilities`
+    of None is treated as the empty set (no host facts declared).
+    """
+    required = getattr(module, "requires_capabilities", None)
+    if not required:
+        return True
+    return set(required).issubset(available_capabilities or set())
+
+
+def _select_capable_modules(modules, module_filter, available_capabilities):
+    """Partition modules into (kept, pruned) by the host-capability gate.
+
+    A module is pruned when its `requires_capabilities` are not all provided.
+    `-m/--module` (dev mode) bypasses the gate entirely — the user asked for a
+    specific module explicitly, so nothing is silently dropped from under them.
+    """
+    if module_filter:
+        return list(modules), []
+    kept, pruned = [], []
+    for module in modules:
+        (
+            kept if _module_capabilities_met(module, available_capabilities) else pruned
+        ).append(module)
+    return kept, pruned
+
+
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -928,6 +972,7 @@ def _generate_explicit_snakefile(
     dirty: bool = False,
     unpinned: bool = False,
     module_filter: Optional[str] = None,
+    available_capabilities: Optional[set] = None,
 ):
     """Generate explicit Snakefile from resolved modules."""
     from omnibenchmark.progress import ProgressDisplay
@@ -951,9 +996,20 @@ def _generate_explicit_snakefile(
         benchmark_dir=benchmark_dir,
     )
 
+    # Capability gate: drop modules whose required host capabilities are not all
+    # provided, before any checkout/env resolution. -m/--module bypasses it.
     unique_modules = {}
     for stage in benchmark.model.stages:
-        for module in stage.modules:
+        kept, pruned = _select_capable_modules(
+            stage.modules, module_filter, available_capabilities
+        )
+        for module in pruned:
+            logger.info(
+                f"Pruning module '{module.id}': requires capabilities "
+                f"{module.requires_capabilities}, host provides "
+                f"{sorted(available_capabilities or [])}."
+            )
+        for module in kept:
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
                 unique_modules[cache_key] = (module, module.software_environment)
@@ -1163,7 +1219,9 @@ def _generate_explicit_snakefile(
             else:
                 modules_to_expand = stage.modules[:1]
         else:
-            modules_to_expand = stage.modules
+            modules_to_expand, _ = _select_capable_modules(
+                stage.modules, module_filter, available_capabilities
+            )
 
         for module in modules_to_expand:
             module_id = module.id

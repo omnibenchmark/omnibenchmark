@@ -532,6 +532,14 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
         None,
         description="Resource requirements (overrides stage-level resources)",
     )
+    requires_capabilities: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Host capabilities this module needs (e.g. gpu, large_mem). The "
+            "module is pruned unless every listed capability is passed at run "
+            "time via --with-capability. Host facts only — not lineage labels."
+        ),
+    )
 
     @field_validator("parameters")
     @classmethod

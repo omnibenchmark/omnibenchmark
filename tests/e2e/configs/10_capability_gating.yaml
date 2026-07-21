@@ -1,0 +1,54 @@
+id: CapabilityGatingBenchmark
+description: >-
+  A methods stage with one plain module (M_cpu) and one that declares
+  requires_capabilities: [gpu] (M_gpu). M_gpu is pruned unless the host
+  declares the gpu capability via --with-capability gpu.
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.5.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M_cpu
+        name: "CPU method - no host requirements"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+10", "--input", "data.raw", "--kind", "method"]
+
+      - id: M_gpu
+        name: "GPU method - requires the gpu capability"
+        software_environment: "host"
+        requires_capabilities: [gpu]
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input*5", "--input", "data.raw", "--kind", "method"]
+    inputs:
+      - data.raw
+    outputs:
+      - id: methods.result
+        path: "{dataset}_method.json"
