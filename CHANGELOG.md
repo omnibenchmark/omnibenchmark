@@ -3,6 +3,12 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [0.7.0](UNRELEASED)
+
+- feat: named outputs — modules receive one `--output` flag per declared stage output (positional path for single-output stages, `id=path` otherwise), decoupling module code from benchmark filenames (#329)
+- feat(breaking)!: `--output` paths are absolute; previously the workflow-relative path was passed after the shell had already `cd`'d into the module checkout, so modules wrote outside the output tree
+- deprecate: `{dataset}` in output path templates now warns at load time, naming the offending path; prefer `{name}` or `{params.KEY}`
+
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 
 - feat: add opentelemetry support
@@ -31,11 +37,6 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: correctly mark all entrypoints as executable (Closes: #346)
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
-
-- fix: raise warning for disjoint keys (Closes: #313)
-- fix: clearer error on missing entrypoint (Closes: #321)
-- fix: truncate filename to avoid hitting filesystem limits (#334)
-- chore(pkg): unpin snakemake dependency (#269)
 
 ## [0.5.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.0) (Apr 23th 2026)
 

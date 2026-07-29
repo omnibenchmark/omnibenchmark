@@ -1250,13 +1250,15 @@ def _generate_explicit_snakefile(
                         output_id_to_path = {}
 
                         def get_output_ids_for_node(node):
-                            return {
-                                output_id: node.outputs[i]
-                                for i, output_id in enumerate(
-                                    stage_output_ids.get(node.stage_id, [])
-                                )
-                                if i < len(node.outputs)
-                            }
+                            result = {}
+                            for s in benchmark.model.stages:
+                                if s.id == node.stage_id:
+                                    for output_spec in s.outputs:
+                                        if output_spec.id in node.outputs:
+                                            result[output_spec.id] = node.outputs[
+                                                output_spec.id
+                                            ]
+                            return result
 
                         output_id_to_path.update(get_output_ids_for_node(input_node))
 
@@ -1302,7 +1304,9 @@ def _generate_explicit_snakefile(
                         params=params,
                     )
 
-                    outputs = []
+                    outputs = {}
+                    output_name_mapping = {}
+                    seen_sanitized = set()
                     for output_spec in stage.outputs:
                         output_path_template = ctx.substitute(
                             output_spec.path, params=params
@@ -1322,7 +1326,16 @@ def _generate_explicit_snakefile(
 
                         output_path = truncate_path_filename(output_path)
 
-                        outputs.append(output_path)
+                        sanitized_id = output_spec.id.replace(".", "_")
+                        if sanitized_id in seen_sanitized:
+                            raise ValueError(
+                                f"Output ids '{output_spec.id}' and another output in stage "
+                                f"'{stage.id}' both sanitize to '{sanitized_id}'. "
+                                f"Rename one to avoid collision."
+                            )
+                        seen_sanitized.add(sanitized_id)
+                        outputs[output_spec.id] = output_path
+                        output_name_mapping[sanitized_id] = output_spec.id
                         if output_spec.id not in output_to_nodes:
                             output_to_nodes[output_spec.id] = []
                         output_to_nodes[output_spec.id].append((node_id, output_path))
@@ -1344,6 +1357,7 @@ def _generate_explicit_snakefile(
                         inputs=inputs,
                         outputs=outputs,
                         input_name_mapping=input_name_mapping,
+                        output_name_mapping=output_name_mapping,
                         benchmark_name=benchmark.model.get_name(),
                         benchmark_version=benchmark.model.get_version(),
                         benchmark_author=benchmark.model.get_author(),

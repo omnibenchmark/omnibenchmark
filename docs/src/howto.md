@@ -453,7 +453,7 @@ stages:
           commit: main # pointing to the latest commit in branch main
     outputs:
       - id: data.image
-        path: "{dataset}.png"
+        path: "{name}.png"
 ```
 
 
@@ -495,7 +495,7 @@ Output `path` fields in the benchmark YAML accept template variables that are re
 
 | Variable | Resolves to | Notes |
 |----------|-------------|-------|
-| `{dataset}` | Root dataset ID (e.g. `D1`) | Inherited from the first stage; see deprecation note below |
+| `{dataset}` | Root dataset ID (e.g. `D1`) | **Deprecated** — inherited from the first stage; warns on load, see below |
 | `{name}` | Current module's own ID (e.g. `M1`) | Always the *current* module — never inherited |
 | `{module.id}` | Current module's own ID | Same as `{name}` |
 | `{module.name}` | Module's human-readable `name` attribute | Falls back to the module ID if `name` is not set |
@@ -508,7 +508,7 @@ Use **`{name}`** when you want the filename to reflect *which module produced th
 
 Use **`{dataset}`** when the first-stage module IDs are themselves meaningful dataset identifiers (e.g. `D1`, `pbmc3k`) and you want that identity to propagate through the whole pipeline. **`{dataset}` is only useful if the first-stage module `id` values are semantically meaningful.** If the first stage uses a single dispatcher module with a fixed ID (e.g. `id: loader`) and instead varies datasets via parameters, `{dataset}` will always resolve to `"loader"` — which is not useful. In that case use `{params.dataset}` or `{name}` instead.
 
-> **Deprecation notice:** `{dataset}` is a legacy variable that couples output filenames to first-stage module IDs. It will be deprecated in a future release. Prefer `{name}` for new benchmarks.
+> **Deprecated:** `{dataset}` couples output filenames to first-stage module IDs. Loading a benchmark that uses it prints a warning naming the offending path, and it will be removed in a future release. Prefer `{name}`, or `{params.KEY}` to name outputs after a parameter.
 
 ```yaml
 stages:
@@ -612,5 +612,5 @@ stages:
           commit: 41aaa0a            # note the commit is still needed
     outputs:
       - id: data.image
-        path: "{dataset}.png"
+        path: "{name}.png"
 ```

@@ -26,7 +26,7 @@ Resolution Process:
 
 import logging
 import warnings
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.model.params import Params
@@ -136,6 +136,8 @@ def resolve_metric_collectors(
                 if hasattr(collector, "resources") and collector.resources:
                     node_resources = collector.resources
 
+                output_name_mapping = {oid.replace(".", "_"): oid for oid in outputs}
+
                 node = ResolvedNode(
                     id=node_id,
                     stage_id=f"_collector_{collector.id}",  # Synthetic stage ID
@@ -146,6 +148,7 @@ def resolve_metric_collectors(
                     inputs=inputs_dict,
                     outputs=outputs,
                     input_name_mapping=input_name_mapping,
+                    output_name_mapping=output_name_mapping,
                     benchmark_name=benchmark.get_name(),
                     benchmark_version=benchmark.get_version(),
                     benchmark_author=benchmark.get_author(),
@@ -207,7 +210,6 @@ def _resolve_collector_module(
         name=collector.name or collector.id,
         repository=collector.repository,
         software_environment=collector.software_environment,
-        outputs=[],  # Collectors define outputs directly, not via module
     )
 
     # Suppress resolver logging when quiet=True (same as regular module resolution)
@@ -326,7 +328,7 @@ def _gather_collector_inputs(
             stage_outputs = []
             for node in resolved_nodes:
                 if node.stage_id == stage.id:
-                    for output in node.outputs:
+                    for output in node.outputs.values():
                         stage_outputs.append(output)
 
             if stage_outputs:
@@ -347,65 +349,25 @@ def _resolve_collector_outputs(
     collector: MetricCollector,
     param_id: str,
     inputs_by_name: Optional[dict] = None,
-) -> List[str]:
-    """
-    Resolve collector output paths by handling template variables.
-
-    Template variables in collector outputs:
-    - {name}: Replaced with collector.id
-    - {input}: Should map to the base output directory (typically "out")
-                For now, we strip it since outputs are relative to Snakefile location
-
-    Path structure:
-    - Without parameters: {collector.id}/output_file.html
-    - With parameters: {collector.id}/{param_id}/output_file.html
-
-    Args:
-        collector: MetricCollector definition
-        param_id: Parameter hash ID (or "default")
-        inputs_by_name: Optional dict of input paths (not currently used)
-
-    Returns:
-        List of resolved output paths
-
-    Corner Cases:
-    - Empty path after stripping {input}
-    - Multiple consecutive slashes
-    - Path that is just {input} or {name}
-    """
-    outputs = []
+) -> Dict[str, str]:
+    """Resolve collector output paths. Returns {output_id: resolved_path}."""
+    outputs: Dict[str, str] = {}
 
     for output_spec in collector.outputs:
-        # Start with the path template
         output_path = output_spec.path
-
-        # Replace {name} with collector id
         output_path = output_path.replace("{name}", collector.id)
-
-        # Strip {input}/ prefix - outputs are relative to Snakefile (in out/ dir)
-        # So {input}/plotting/report.html becomes plotting/report.html
         output_path = output_path.replace("{input}/", "")
         output_path = output_path.replace("{input}", "")
-
-        # Clean up any double slashes that might result
         while "//" in output_path:
             output_path = output_path.replace("//", "/")
-
-        # Strip leading slash if present
         output_path = output_path.lstrip("/")
-
-        # If there are parameters, insert param_id into the path
         if param_id != "default":
-            # Insert param_id before the filename
-            # e.g., "plotting/report.html" -> "plotting/abc123/report.html"
             parts = output_path.rsplit("/", 1)
             if len(parts) == 2:
                 output_path = f"{parts[0]}/{param_id}/{parts[1]}"
             else:
-                # No directory structure, just filename
                 output_path = f"{param_id}/{output_path}"
-
-        outputs.append(output_path)
+        outputs[output_spec.id] = output_path
 
     return outputs
 
