@@ -508,7 +508,11 @@ class TestV06NamedOutputs:
             output_name_mapping={"rawdata_h5ad": "rawdata.h5ad"},
         )
         out = _capture(_gen(api_version=APIVersion.V0_6_0)._write_node_rule, node)
-        assert "--output {output.rawdata_h5ad}" in out
+        # absolutised before the shell cds into the module dir
+        assert (
+            "OUTPUT_rawdata_h5ad=$(cd $(dirname {output.rawdata_h5ad}) && pwd)" in out
+        )
+        assert "--output $OUTPUT_rawdata_h5ad" in out
         assert "--output rawdata" not in out  # no id= for single output
 
     def test_multi_output_shell_flags_with_ids(self):
@@ -524,8 +528,8 @@ class TestV06NamedOutputs:
             },
         )
         out = _capture(_gen(api_version=APIVersion.V0_6_0)._write_node_rule, node)
-        assert "--output rawdata.h5ad={output.rawdata_h5ad}" in out
-        assert "--output rawdata.clusters={output.rawdata_clusters}" in out
+        assert "--output rawdata.h5ad=$OUTPUT_rawdata_h5ad" in out
+        assert "--output rawdata.clusters=$OUTPUT_rawdata_clusters" in out
 
     def test_v06_still_passes_output_dir_and_name(self):
         """v0.6: --output_dir and --name still passed for back-compat."""

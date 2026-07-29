@@ -268,6 +268,18 @@ class SnakemakeGenerator:
                 f"/$(basename {{input.{key}}})"
             )
 
+        # Same for each declared output: the shell cds into the module directory
+        # below, so a workflow-relative --output would land inside the module
+        # checkout. Spec §3.2 promises absolute paths.
+        if self.api_version >= APIVersion.V0_6_0:
+            for sanitized in node.output_name_mapping:
+                var = _bash_var(sanitized)
+                lines += [
+                    f"mkdir -p $(dirname {{output.{sanitized}}})",
+                    f"OUTPUT{var}=$(cd $(dirname {{output.{sanitized}}}) && pwd)"
+                    f"/$(basename {{output.{sanitized}}})",
+                ]
+
         # Redirect stdout/stderr through tee so both the terminal and the log
         # file receive all output.
         lines += [
@@ -333,11 +345,11 @@ class SnakemakeGenerator:
             if len(output_items) == 1:
                 original_id, _ = output_items[0]
                 sanitized = orig_to_san.get(original_id, original_id)
-                cmd.append(f"--output {{output.{sanitized}}}")
+                cmd.append(f"--output $OUTPUT{_bash_var(sanitized)}")
             else:
                 for original_id, _ in output_items:
                     sanitized = orig_to_san.get(original_id, original_id)
-                    cmd.append(f"--output {original_id}={{output.{sanitized}}}")
+                    cmd.append(f"--output {original_id}=$OUTPUT{_bash_var(sanitized)}")
 
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
