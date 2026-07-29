@@ -47,5 +47,5 @@ def test_named_outputs_snakefile_syntax(
     )
     # v0.6 shell contract: single output → --output path (no id= prefix)
     assert (
-        "--output {output.data_raw}" in content
-    ), "Expected '--output {output.data_raw}' in Snakefile shell block"
+        "--output $OUTPUT_data_raw" in content
+    ), "Expected '--output $OUTPUT_data_raw' in Snakefile shell block"
