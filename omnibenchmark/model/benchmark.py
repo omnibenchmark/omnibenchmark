@@ -379,7 +379,9 @@ class IOFile(IdentifiableEntity):
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: str) -> str:
-        return validate_non_empty_string(v)
+        v = validate_non_empty_string(v)
+        _warn_if_deprecated_dataset_var(v)
+        return v
 
 
 class InputCollection(BaseModel):
@@ -500,6 +502,36 @@ def _warn_if_disjoint_parameter_keys(
         f"{indent}Did you mean to combine them under one item?\n"
         f"{indent}  Use:  - {' / '.join(all_keys)}: ...\n"
         f"{indent}  Instead of separate '- ' entries.{RESET}\n"
+    )
+
+
+_warned_dataset_paths: set = set()
+
+
+def _warn_if_deprecated_dataset_var(path: str) -> None:
+    """Warn when an output path still templates on the legacy ``{dataset}``.
+
+    ``{dataset}`` resolves to the *first stage's* module id, which couples every
+    downstream filename to it and degenerates to a constant as soon as the first
+    stage is a single dispatcher module varying datasets by parameter. ``{name}``
+    resolves to the current module's own id and has no such coupling.
+    """
+    if "{dataset}" not in path or path in _warned_dataset_paths:
+        return
+    _warned_dataset_paths.add(path)
+
+    YELLOW = "\033[33m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+    indent = "      "
+    sys.stderr.write(
+        f"{BOLD}{YELLOW}WARN{RESET}{YELLOW}: output path '{path}' uses the "
+        f"deprecated '{{dataset}}' template variable.\n"
+        f"{indent}It resolves to the first stage's module id, so it is a constant "
+        f"whenever that stage\n"
+        f"{indent}dispatches datasets by parameter. Prefer '{{name}}' (this module's "
+        f"own id), or\n"
+        f"{indent}'{{params.KEY}}' to name outputs after a parameter.{RESET}\n"
     )
 
 
