@@ -961,6 +961,24 @@ def _select_capable_modules(modules, module_filter, available_capabilities):
     return kept, pruned
 
 
+def _capability_prune_summary(pruned_modules, available_capabilities) -> str:
+    """One-line warning naming what the capability gate dropped and how to keep it."""
+    ids = sorted({m.id for m in pruned_modules})
+    missing = sorted(
+        {
+            cap
+            for m in pruned_modules
+            for cap in m.requires_capabilities
+            if cap not in (available_capabilities or set())
+        }
+    )
+    flags = " ".join(f"--with-capability {cap}" for cap in missing)
+    return (
+        f"{len(ids)} module(s) pruned by capability gate: {', '.join(ids)}. "
+        f"Rerun with {flags} to include them."
+    )
+
+
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -999,12 +1017,14 @@ def _generate_explicit_snakefile(
     # Capability gate: drop modules whose required host capabilities are not all
     # provided, before any checkout/env resolution. -m/--module bypasses it.
     unique_modules = {}
+    pruned_modules = []
     for stage in benchmark.model.stages:
         kept, pruned = _select_capable_modules(
             stage.modules, module_filter, available_capabilities
         )
+        pruned_modules.extend(pruned)
         for module in pruned:
-            logger.info(
+            logger.warning(
                 f"Pruning module '{module.id}': requires capabilities "
                 f"{module.requires_capabilities}, host provides "
                 f"{sorted(available_capabilities or [])}."
@@ -1013,6 +1033,11 @@ def _generate_explicit_snakefile(
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
                 unique_modules[cache_key] = (module, module.software_environment)
+
+    if pruned_modules:
+        logger.warning(
+            _capability_prune_summary(pruned_modules, available_capabilities)
+        )
 
     if not quiet:
         logger.info(f"\nResolving {len(unique_modules)} modules...")

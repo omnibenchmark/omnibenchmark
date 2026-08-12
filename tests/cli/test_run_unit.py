@@ -18,6 +18,7 @@ from omnibenchmark.cli.run import (
     _substitute_params_in_path,
     _build_template_context,
     _module_capabilities_met,
+    _capability_prune_summary,
     _select_capable_modules,
     run,
 )
@@ -374,6 +375,21 @@ class TestSelectCapableModules:
         kept, pruned = _select_capable_modules(self._modules(), None, None)
         assert [m.id for m in kept] == ["M_cpu"]
         assert [m.id for m in pruned] == ["M_gpu"]
+
+
+@pytest.mark.short
+class TestCapabilityPruneSummary:
+    def test_names_modules_and_missing_flags(self):
+        pruned = [
+            _StubModule("M_gpu", requires_capabilities=["gpu"]),
+            _StubModule("M_heavy", requires_capabilities=["gpu", "large_mem"]),
+        ]
+        msg = _capability_prune_summary(pruned, {"large_mem"})
+        assert "2 module(s) pruned" in msg
+        assert "M_gpu, M_heavy" in msg
+        assert "--with-capability gpu" in msg
+        # already-provided capabilities are not re-suggested
+        assert "--with-capability large_mem" not in msg
 
 
 @pytest.mark.short
