@@ -188,6 +188,37 @@ class TestValidatePlanCLI:
         assert "divergent branches" not in output
 
     @pytest.mark.short
+    def test_validate_plan_accepts_shared_output_contract(self, cli_setup, temp_dir):
+        """Two stages on parallel branches may declare the SAME output id.
+
+        That is a contract (design 010 §3.1) — the files are interchangeable for
+        any consumer referencing the id — so the plan must validate, at any api
+        version, and must NOT be mistaken for a divergent-branch join. It is not
+        one: a join needs inputs from both branches *at once*, whereas these are
+        alternatives and each yields its own downstream node.
+
+        Guards `detect_diamond_input_joins`: it currently records one producer
+        per output id (`setdefault`), so the second producer is invisible to it.
+        Making it multi-producer-aware without teaching it this distinction would
+        turn every shared contract into a false rejection.
+        """
+        config = (
+            Path(__file__).parent.parent
+            / "e2e"
+            / "configs"
+            / "11_shared_output_contract.yaml"
+        )
+        result = cli_setup.call(
+            ["validate", "plan", str(config)],
+            cwd=str(temp_dir),
+        )
+
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "validation passed" in output
+        assert "divergent branches" not in output
+
+    @pytest.mark.short
     def test_validate_plan_rejects_diamond_below_api_0_7(self, cli_setup, temp_dir):
         """The fan-in join is gated on api >= 0.7.0 (design 010 §3.9). The SAME
         diamond fixture at api 0.5.0 must be rejected up front with the actionable
