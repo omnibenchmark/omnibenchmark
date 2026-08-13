@@ -26,6 +26,7 @@ from omnibenchmark.core._paths import (
     is_lineage_excluded,
 )
 from omnibenchmark.core._lineage import (
+    iter_ancestors,
     satisfies_requires,
     select_input_nodes,
 )
@@ -986,41 +987,6 @@ def _build_template_context(
     return TemplateContext(provides=provides, module_attrs=module_attrs)
 
 
-def _iter_ancestors(node, nodes_by_id, through_gather: bool = True):
-    """Yield every distinct ancestor of `node`, nearest-first, walking the
-    `parent_id` chain plus explicit `parents` edges (fan-in branches), so a
-    node downstream of a join sees every branch (design 010 §3.9).
-
-    `through_gather=False` is the GATING walk: it does not expand a gather
-    node's members — the cut deliberately forgets (design 010 §3.3), so e.g.
-    one excluded member among hundreds gathered must not poison every
-    downstream node. Resolution/provenance walks use the default and fan
-    through the cut.
-    """
-    seen = {node.id}
-    queue: deque = deque()
-
-    def _push(n):
-        if not through_gather and getattr(n, "is_gather", False):
-            return
-        if n.parent_id:
-            queue.append(n.parent_id)
-        for pid in getattr(n, "parents", None) or []:
-            queue.append(pid)
-
-    _push(node)
-    while queue:
-        node_id = queue.popleft()
-        if node_id in seen:
-            continue
-        seen.add(node_id)
-        ancestor = nodes_by_id.get(node_id)
-        if ancestor is None:
-            continue
-        yield ancestor
-        _push(ancestor)
-
-
 def _ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
     """The module id of the `group_stage` node a member descends from (the
     group value). Parents-aware: sees through joins and prior gathers. Returns
@@ -1032,7 +998,7 @@ def _ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
         return None
     found = {
         n.module_id
-        for n in (node, *_iter_ancestors(node, nodes_by_id))
+        for n in (node, *iter_ancestors(node, nodes_by_id))
         if n.stage_id == group_stage
     }
     if len(found) == 1:
@@ -1237,7 +1203,7 @@ def _get_ancestor_nodes(node, nodes_by_id) -> list:
     lineage — identical to the id-prefix chain, but O(depth) and immune to id
     separators) UNION explicit `parents` edges (fan-in branches). A node
     downstream of a join/gather sees every branch (design 010 §3.9, #289)."""
-    return list(_iter_ancestors(node, nodes_by_id))
+    return list(iter_ancestors(node, nodes_by_id))
 
 
 def _expand_scatter_stage(
@@ -1543,7 +1509,7 @@ def _stage_ancestry(node, nodes_by_id) -> dict:
     """Map stage_id → node ids over `node` and its full (parents-aware)
     ancestry. The per-stage sets are the join-compatibility fingerprint."""
     out: dict = {node.stage_id: {node.id}}
-    for ancestor in _iter_ancestors(node, nodes_by_id):
+    for ancestor in iter_ancestors(node, nodes_by_id):
         out.setdefault(ancestor.stage_id, set()).add(ancestor.id)
     return out
 
@@ -1586,6 +1552,7 @@ def _select_input_bundles(
         resolved_nodes,
         stage_ids_in_order,
         previous_stage_nodes,
+        nodes_by_id,
     )
     if not declared_input_ids:
         return [(a,) for a in anchors]
@@ -1666,7 +1633,7 @@ def _lineage_module_ids(input_node, nodes_by_id) -> set:
     member among hundreds gathered must not poison every downstream node.
     """
     lineage = {input_node.module_id}
-    for ancestor in _iter_ancestors(input_node, nodes_by_id, through_gather=False):
+    for ancestor in iter_ancestors(input_node, nodes_by_id, through_gather=False):
         lineage.add(ancestor.module_id)
     return lineage
 
