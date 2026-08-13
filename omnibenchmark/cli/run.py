@@ -1,6 +1,5 @@
 """cli commands related to benchmark/module execution and start"""
 
-import hashlib
 import logging
 import os
 import subprocess
@@ -27,6 +26,7 @@ from omnibenchmark.core._paths import (
 )
 from omnibenchmark.core._lineage import (
     iter_ancestors,
+    join_hash,
     satisfies_requires,
     select_input_nodes,
 )
@@ -1206,6 +1206,21 @@ def _get_ancestor_nodes(node, nodes_by_id) -> list:
     return list(iter_ancestors(node, nodes_by_id))
 
 
+def _expansion_segment(param_id: str, members) -> str:
+    """The directory segment identifying one expansion of a (stage, module).
+
+    For a linear node the parameter hash is enough: its ancestry is already in
+    the path prefix. A fan-in node's prefix carries only ONE branch — the
+    deepest input, which is what `base_path` resolves to — so two joins sharing
+    that branch but differing in another parent would land on the same path and
+    Snakemake would reject them as ambiguous. Append the parent-set digest so
+    the segment distinguishes them, exactly as the node id already does.
+    """
+    if len(members) > 1:
+        return f"{param_id}-{join_hash(m.id for m in members)}"
+    return param_id
+
+
 def _expand_scatter_stage(
     stage,
     benchmark,
@@ -1346,10 +1361,7 @@ def _expand_scatter_stage(
                 if is_join:
                     # No single prefix chain: id is a readable stem plus a
                     # short hash of the (sorted) parents (design 010 §3.9).
-                    h = hashlib.sha1(
-                        "|".join(sorted(m.id for m in members)).encode()
-                    ).hexdigest()[:8]
-                    node_id = f"{stage.id}-{module_id}-{h}{param_id}"
+                    node_id = f"{stage.id}-{module_id}-{join_hash(m.id for m in members)}{param_id}"
                 elif input_node:
                     node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"
                 else:
@@ -1430,14 +1442,17 @@ def _expand_scatter_stage(
                         output_spec.path, params=params
                     )
 
+                    seg = _expansion_segment(param_id, members)
                     if nesting_strategy == "nested":
                         if base_path:
-                            output_path = f"{base_path}/{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                            output_path = f"{base_path}/{stage.id}/{module_id}/{seg}/{output_path_template}"
                         else:
-                            output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                            output_path = (
+                                f"{stage.id}/{module_id}/{seg}/{output_path_template}"
+                            )
                     elif nesting_strategy == "flat":
                         output_path = (
-                            f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                            f"{stage.id}/{module_id}/{seg}/{output_path_template}"
                         )
                     else:
                         raise ValueError(

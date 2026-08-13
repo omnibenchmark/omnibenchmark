@@ -6,7 +6,18 @@ These operate on the ``parent_id`` chain of resolved nodes (see
 in isolation.
 """
 
+import hashlib
 from collections import deque
+
+
+def join_hash(node_ids) -> str:
+    """Short, order-independent digest of a fan-in node's parent set.
+
+    Keys on the *set*, so bundle order never leaks into a name or a path.
+    Shared by the resolver (which has the member nodes) and the backend (which
+    has `ResolvedNode.parents`), so both derive the same string from one rule.
+    """
+    return hashlib.sha1("|".join(sorted(node_ids)).encode()).hexdigest()[:8]
 
 
 def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
