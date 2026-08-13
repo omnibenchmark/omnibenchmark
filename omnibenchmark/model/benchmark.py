@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 import yaml
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     field_validator,
     model_validator,
@@ -422,6 +423,33 @@ class InputCollection(BaseModel):
     entries: List[str] = Field(..., description="List of input file IDs")
 
 
+class GatherSpec(BaseModel):
+    """A single fan-in: collect nodes producing a shared output id, grouped by
+    a stage they descend from (design 010).
+
+    MVP: `from` + `group_by`. `group_by` is a single **stage id** (not a tuple,
+    not a label): members are partitioned by which node of that stage they
+    descend from — structural grouping over the existing lineage chain, no
+    `provides` labels needed. `where` is deferred.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: str = Field(
+        ...,
+        alias="from",
+        description="Output id to collect. Every node producing it is a member.",
+    )
+    group_by: str = Field(
+        ...,
+        description=(
+            "Stage id to group members by. One gather node is created per "
+            "distinct ancestor module of that stage among the members. A single "
+            "stage id, not a list."
+        ),
+    )
+
+
 class Resources(BaseModel):
     """Resource requirements for Snakemake rules."""
 
@@ -658,6 +686,40 @@ class Stage(DescribableEntity):
     resources: Optional[Resources] = Field(
         None, description="Resource requirements for rules in this stage"
     )
+    gather: Optional[List[GatherSpec]] = Field(
+        None,
+        description=(
+            "Fan-in specs (design 010). Each collects every node producing a "
+            "shared output id, grouped by a stage they descend from. A gather "
+            "cuts the lineage chain, so `prefix` is required. Requires "
+            "api_version ≥ 0.7.0."
+        ),
+    )
+    prefix: Optional[str] = Field(
+        None,
+        description=(
+            "Filesystem prefix for a gather stage's cut chain (design 010 "
+            "§3.3). Required when `gather` is set; ignored otherwise."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_gather(self) -> "Stage":
+        if self.gather and not self.prefix:
+            raise ValueError(
+                f"Stage '{self.id}' uses `gather` but has no `prefix`. A gather "
+                f"cuts the lineage chain, so it must declare a filesystem "
+                f"prefix for its outputs (design 010 §3.3)."
+            )
+        if self.gather:
+            axes = {spec.group_by for spec in self.gather}
+            if len(axes) > 1:
+                raise ValueError(
+                    f"Stage '{self.id}' has gather entries with differing "
+                    f"group_by {sorted(axes)}. A gather stage has one grouping "
+                    f"axis; multiple axes are deferred (design 010 §3.3)."
+                )
+        return self
 
     @field_validator("outputs")
     @classmethod
@@ -1202,13 +1264,21 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         stages = self.get_stages()
         return stages.get(stage_id)
 
-    def get_stage_by_output(self, output_id: str) -> Optional[Stage]:
-        """Get stage that returns output with output_id."""
+    def get_stages_by_output(self, output_id: str) -> List[Stage]:
+        """All stages declaring an output with output_id, in declaration order.
+
+        Multiple stages may share an output id (the shared-output-id contract,
+        design 010): a `gather.from` collects every producer. Returns every
+        producing stage, deduped by stage id, declaration order preserved.
+        Empty list if none produce it — the caller's "unknown output" signal.
+        """
+        seen: set = set()
+        result: List[Stage] = []
         for stage in self.stages:
-            for output in stage.outputs:
-                if output.id == output_id:
-                    return stage
-        return None
+            if stage.id not in seen and any(o.id == output_id for o in stage.outputs):
+                seen.add(stage.id)
+                result.append(stage)
+        return result
 
     def get_modules_by_stage(self, stage: Union[str, Stage]) -> Dict[str, Module]:
         """Get modules by stage/stage_id."""
@@ -1220,15 +1290,23 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         return {module.id: module for module in stage.modules}
 
     def get_stage_implicit_inputs(self, stage: Union[str, Stage]) -> List[List[str]]:
-        """Get implicit inputs of a stage by stage/stage_id."""
+        """Get implicit inputs of a stage by stage/stage_id.
+
+        A gather stage consumes its `gather.from` output ids without declaring
+        them under `inputs:` (design 010); they are included here as one extra
+        entries group so every topology consumer (stage_adjacency → mermaid/
+        dot/obeditor, the legacy DAGBuilder) sees the dependency.
+        """
         if isinstance(stage, str):
             stage_obj = self.get_stage(stage)
-            if not stage_obj or not stage_obj.inputs:
+            if stage_obj is None:
                 return []
-            return [input_col.entries for input_col in stage_obj.inputs]
-        if not stage.inputs:
-            return []
-        return [input_col.entries for input_col in stage.inputs]
+            stage = stage_obj
+        groups = [input_col.entries for input_col in (stage.inputs or [])]
+        gather_ids = [spec.from_ for spec in (stage.gather or [])]
+        if gather_ids:
+            groups.append(gather_ids)
+        return groups
 
     def get_explicit_inputs(self, input_ids: List[str]) -> Dict[str, str]:
         """Get explicit inputs of a stage by input_id(s)."""
@@ -1268,10 +1346,6 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             stage = stage_obj
 
         return {output.id: expand_output_path(output) for output in stage.outputs}
-
-    def get_output_stage(self, output_id: str) -> Optional[Stage]:
-        """Get stage that returns output with output_id."""
-        return self.get_stage_by_output(output_id)
 
     def _resolve_module_attr(self, module: Union[str, Module], attr: str):
         """Resolve a module attribute by module/module_id."""
@@ -1365,14 +1439,20 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     if collector.software_environment is None:
                         collector.software_environment = sole_env_id
 
-        # Gate api_version-introduced fields. `Stage.provides` and
-        # `Module.provides` were introduced in 0.7.0 and must not be used by
+        # Gate api_version-introduced fields. `Stage.provides`, `Module.provides`
+        # and `Stage.gather` were introduced in 0.7.0 and must not be used by
         # older specs.
         if self.api_version < APIVersion.V0_7_0:
             for stage in self.stages:
                 if stage.provides:
                     raise ValueError(
                         f"Stage '{stage.id}' uses `provides`, which requires "
+                        f"api_version ≥ 0.7.0 (this benchmark declares "
+                        f"{self.api_version.value})."
+                    )
+                if stage.gather:
+                    raise ValueError(
+                        f"Stage '{stage.id}' uses `gather`, which requires "
                         f"api_version ≥ 0.7.0 (this benchmark declares "
                         f"{self.api_version.value})."
                     )
@@ -1430,6 +1510,16 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"`requires` gate or move the module to a later stage."
                     )
 
+        # A gather's `group_by` must name a real stage to partition members by.
+        stage_ids = {s.id for s in self.stages}
+        for stage in self.stages:
+            for spec in stage.gather or []:
+                if spec.group_by not in stage_ids:
+                    raise ValueError(
+                        f"Stage '{stage.id}' gathers with `group_by: "
+                        f"{spec.group_by}`, which is not a known stage id."
+                    )
+
         # Call the pure model validation from the validator base class
         self.validate_model_structure()
         return self
@@ -1446,7 +1536,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         """
         errors: List[str] = []
 
-        errors.extend(self.detect_diamond_input_joins())
+        # Fan-in (diamond) input joins are gated on api >= 0.7.0 (design 010
+        # §3.9). Below 0.7.0 the resolver linearises each stage onto one lineage
+        # and one branch silently falls out, so reject up front with an
+        # actionable message. From 0.7.0 the join is resolved by
+        # _select_input_bundles and the diamond is legal.
+        if self.api_version < APIVersion.V0_7_0:
+            errors.extend(self.detect_diamond_input_joins())
 
         errors.extend(self.detect_unsatisfiable_excludes())
 

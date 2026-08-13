@@ -37,11 +37,8 @@ def simple_benchmark():
     )
     benchmark.get_modules_by_stage.side_effect = lambda s: {m.id: m for m in s.modules}
     benchmark.get_module_parameters.return_value = [Params({"param": "value"})]
-    benchmark.get_output_stage.side_effect = (
-        lambda x: stage1 if x == "data_output" else None
-    )
-    benchmark.get_stage_by_output.side_effect = (
-        lambda x: stage1 if x == "data_output" else None
+    benchmark.get_stages_by_output.side_effect = (
+        lambda x: [stage1] if x == "data_output" else []
     )
     benchmark.get_explicit_inputs.return_value = {"input": "data_output"}
 
@@ -189,8 +186,8 @@ class TestDAGBuilder:
         stage2.inputs = [Mock(entries=["output1"])]
 
         benchmark.get_stages.return_value = {"stage1": stage1, "stage2": stage2}
-        benchmark.get_output_stage.side_effect = (
-            lambda x: stage1 if x == "output1" else stage2
+        benchmark.get_stages_by_output.side_effect = (
+            lambda x: [stage1] if x == "output1" else [stage2]
         )
 
         builder = DAGBuilder(benchmark, out_dir)

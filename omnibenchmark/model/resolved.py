@@ -255,6 +255,19 @@ class ResolvedNode:
     is_gather: bool = False  # True for gather-stage nodes (collect multiple inputs)
     is_collector: bool = False  # True for metric-collector nodes (0.4 compat)
 
+    # Provenance for gather nodes: the member node ids this node gathered, in
+    # plan order. The chain is cut (parent_id is None), so this is how the full
+    # upstream closure is recovered (design 010 §3.3).
+    gathered_from: List[str] = field(default_factory=list)
+
+    # Explicit lineage EDGES — the direct parent node ids. The general
+    # multi-parent representation (design 010 §3.9): empty for a linear node
+    # (its single parent is `parent_id`, recoverable via the id prefix), and the
+    # full producer set for a fan-in node (diamond join #289, or gather) whose id
+    # does NOT encode its lineage. Ancestry recovery walks `parents` in addition
+    # to the id-prefix chain, so a stage downstream of a fan-in sees every branch.
+    parents: List[str] = field(default_factory=list)
+
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
         return not self.inputs or len(self.inputs) == 0
@@ -325,6 +338,8 @@ class ResolvedNode:
             "param_dir_template": self.param_dir_template,
             "param_symlink_template": self.param_symlink_template,
             "parent_id": self.parent_id,
+            "parents": self.parents,
+            "gathered_from": self.gathered_from,
             "inputs": self.inputs,
             "outputs": self.outputs,
             "input_name_mapping": self.input_name_mapping,
