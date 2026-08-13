@@ -84,9 +84,11 @@ class SnakemakeGenerator:
         self.benchmark_version = benchmark_version
         self.benchmark_author = benchmark_author
         self.api_version = api_version
+        self._nodes_by_id: dict = {}
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
+        self._nodes_by_id = {n.id: n for n in nodes}
         with open(output_path, "w") as f:
             self._write_header(f)
             for node in nodes:
@@ -262,6 +264,67 @@ class SnakemakeGenerator:
     # Shell writers — override in subclasses to change generated commands
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Fan-in provenance sidecar (design 010 §3.3/§3.9)
+    # ------------------------------------------------------------------
+
+    def _lineage_record(self, node: ResolvedNode):
+        """Provenance record for a node whose path cannot encode its ancestry.
+
+        A linear node needs none: its directory prefix *is* its lineage. A
+        fan-in node (join or gather) has several parents and only one path
+        prefix, so the other branches are recoverable from the filesystem only
+        if written down. Returns None when the path already says it.
+        """
+        parents = list(getattr(node, "parents", None) or [])
+        is_gather = bool(getattr(node, "is_gather", False))
+        if not is_gather and len(parents) < 2:
+            return None
+
+        member_ids = list(getattr(node, "gathered_from", None) or []) or parents
+        members = []
+        for member_id in member_ids:
+            member = self._nodes_by_id.get(member_id)
+            if member is None:
+                members.append({"node_id": member_id})
+                continue
+            members.append(
+                {
+                    "node_id": member.id,
+                    "stage": member.stage_id,
+                    "module": member.module_id,
+                    "commit": member.module.commit,
+                    "params": member.get_parameter_hash(),
+                    "dir": os.path.dirname(member.outputs[0])
+                    if member.outputs
+                    else None,
+                }
+            )
+        return {
+            "node_id": node.id,
+            "stage": node.stage_id,
+            "module": node.module_id,
+            "kind": "gather" if is_gather else "join",
+            "members": members,
+        }
+
+    def _lineage_sidecar_lines(self, node: ResolvedNode) -> list:
+        """Shell lines writing lineage.json, or [] when the node needs none.
+
+        Single-line echo, exactly as parameters.json is written: every line of
+        a shell block is indented, and an indented heredoc terminator would not
+        close the heredoc. Braces are doubled because Snakemake formats the
+        block before bash sees it, and single quotes are escaped for the
+        surrounding shell quoting.
+        """
+        record = self._lineage_record(node)
+        if record is None:
+            return []
+        body = json.dumps(record)
+        body = body.replace("{", "{{").replace("}", "}}")
+        body = body.replace("'", "'\\''")
+        return [f"echo '{body}' > $OUTPUT_DIR/lineage.json"]
+
     def _write_shell_lines(self, f: TextIO, lines: list) -> None:
         """Write a shell: block from a list of content lines.
 
@@ -304,6 +367,9 @@ class SnakemakeGenerator:
             "echo 'Started:' $(date -Iseconds)",
             "echo '---'",
         ]
+
+        # Fan-in nodes: record the parents the path prefix cannot carry.
+        lines += self._lineage_sidecar_lines(node)
 
         # Write parameters.json and a human-readable symlink to the hash folder.
         if node.parameters:
@@ -385,6 +451,9 @@ class SnakemakeGenerator:
             "MODULE_DIR={params.module_dir}",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
+
+        # A gather cuts the chain, so its members exist nowhere in the path.
+        lines += self._lineage_sidecar_lines(node)
 
         # Resolve each input group to absolute paths into a bash array.
         # One loop per distinct flag name — no matter how many files per flag.

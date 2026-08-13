@@ -713,3 +713,91 @@ class TestEntrypointInvocationContract:
         )
         out = _capture(_gen()._write_node_rule, node)
         assert "Rscript $MODULE_DIR/{params.entrypoint}" in out
+
+
+# ---------------------------------------------------------------------------
+# lineage.json — provenance for nodes whose path cannot encode their ancestry
+# (design 010 §3.3/§3.9).
+# ---------------------------------------------------------------------------
+
+
+def _gen_with(nodes):
+    gen = SnakemakeGenerator("b", "1.0", "me")
+    gen._nodes_by_id = {n.id: n for n in nodes}
+    return gen
+
+
+@pytest.mark.short
+def test_no_lineage_sidecar_for_linear_nodes():
+    """A linear node's directory prefix already IS its lineage — writing a
+    sidecar there would restate the path for every node in the plan."""
+    node = _make_node(node_id="s-m-default")
+    gen = _gen_with([node])
+
+    assert gen._lineage_record(node) is None
+    assert gen._lineage_sidecar_lines(node) == []
+
+
+@pytest.mark.short
+def test_join_lineage_sidecar_records_every_branch():
+    """A join's path follows only its deepest input, so the other branches are
+    recoverable from the filesystem only if written down."""
+    deep = _make_node(
+        node_id="root-deep",
+        stage_id="deep",
+        module_id="D1",
+        outputs=["root/R1/deep/D1/.h1/d.json"],
+    )
+    shallow = _make_node(
+        node_id="root-shallow",
+        stage_id="shallow",
+        module_id="S1",
+        outputs=["root/R1/shallow/S1/.h2/s.json"],
+    )
+    join = _make_node(node_id="join-J1-abcd1234", stage_id="join", module_id="J1")
+    object.__setattr__(join, "parents", [deep.id, shallow.id])
+
+    record = _gen_with([deep, shallow, join])._lineage_record(join)
+
+    assert record["kind"] == "join"
+    assert [m["stage"] for m in record["members"]] == ["deep", "shallow"]
+    # the branch the path drops must be present, with enough to locate it
+    shallow_member = record["members"][1]
+    assert shallow_member["module"] == "S1"
+    assert shallow_member["dir"] == "root/R1/shallow/S1/.h2"
+    assert shallow_member["commit"] == "abc1234"
+
+
+@pytest.mark.short
+def test_gather_lineage_sidecar_uses_gathered_from():
+    """A gather cuts the chain entirely: its members appear nowhere in the
+    path, and `gathered_from` is the only record of them."""
+    m1 = _make_node(node_id="m1", stage_id="methods", module_id="M1")
+    m2 = _make_node(node_id="m2", stage_id="methods", module_id="M2")
+    g = _make_node(node_id="agg-G1", stage_id="agg", module_id="G1", is_gather=True)
+    object.__setattr__(g, "gathered_from", [m1.id, m2.id])
+
+    record = _gen_with([m1, m2, g])._lineage_record(g)
+
+    assert record["kind"] == "gather"
+    assert [m["module"] for m in record["members"]] == ["M1", "M2"]
+
+
+@pytest.mark.short
+def test_lineage_sidecar_is_one_shell_line_with_escaped_braces():
+    """Every line of a shell block is indented, so an indented heredoc
+    terminator would not close the heredoc — the record goes out as a single
+    echo, with braces doubled for Snakemake's own formatting pass."""
+    a = _make_node(node_id="a", stage_id="a", module_id="A")
+    b = _make_node(node_id="b", stage_id="b", module_id="B")
+    join = _make_node(node_id="j", stage_id="j", module_id="J")
+    object.__setattr__(join, "parents", [a.id, b.id])
+
+    lines = _gen_with([a, b, join])._lineage_sidecar_lines(join)
+
+    assert len(lines) == 1
+    assert lines[0].endswith("> $OUTPUT_DIR/lineage.json")
+    assert "{{" in lines[0] and "}}" in lines[0]
+    # round-trips once Snakemake collapses the doubled braces
+    payload = lines[0].split("echo '", 1)[1].rsplit("' >", 1)[0]
+    assert json.loads(payload.replace("{{", "{").replace("}}", "}"))["kind"] == "join"
