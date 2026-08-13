@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from dataclasses import dataclass
 
 import pytest
 from pathlib import Path
@@ -16,6 +17,9 @@ from omnibenchmark.cli.run import (
     _run_snakemake,
     _substitute_params_in_path,
     _build_template_context,
+    _module_capabilities_met,
+    _capability_prune_summary,
+    _select_capable_modules,
     run,
 )
 from omnibenchmark.core._lineage import (
@@ -299,6 +303,123 @@ class TestBuildTemplateContext:
         stage = _make_stage("data", provides=None)
         ctx = _build_template_context(stage, "D1", module_name="Dataset 1")
         assert ctx.substitute("{module.name}_output.txt") == "Dataset 1_output.txt"
+
+
+# ---------------------------------------------------------------------------
+# _module_capabilities_met (capability gating)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _StubModule:
+    id: str
+    requires_capabilities: list = None
+
+
+@pytest.mark.short
+class TestModuleCapabilitiesMet:
+    def test_no_requirements_always_passes(self):
+        m = _StubModule("M1", requires_capabilities=None)
+        assert _module_capabilities_met(m, set()) is True
+        assert _module_capabilities_met(m, {"gpu"}) is True
+
+    def test_empty_requirements_always_passes(self):
+        m = _StubModule("M1", requires_capabilities=[])
+        assert _module_capabilities_met(m, set()) is True
+
+    def test_required_capability_absent_is_pruned(self):
+        m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
+        assert _module_capabilities_met(m, set()) is False
+        assert _module_capabilities_met(m, {"large_mem"}) is False
+
+    def test_required_capability_present_passes(self):
+        m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
+        assert _module_capabilities_met(m, {"gpu"}) is True
+
+    def test_all_of_several_required(self):
+        m = _StubModule("heavy", requires_capabilities=["gpu", "large_mem"])
+        assert _module_capabilities_met(m, {"gpu"}) is False
+        assert _module_capabilities_met(m, {"gpu", "large_mem"}) is True
+
+    def test_none_available_treated_as_empty(self):
+        m = _StubModule("gpu_pca", requires_capabilities=["gpu"])
+        assert _module_capabilities_met(m, None) is False
+
+
+@pytest.mark.short
+class TestSelectCapableModules:
+    def _modules(self):
+        return [
+            _StubModule("M_cpu", requires_capabilities=None),
+            _StubModule("M_gpu", requires_capabilities=["gpu"]),
+        ]
+
+    def test_prunes_module_missing_capability(self):
+        kept, pruned = _select_capable_modules(self._modules(), None, set())
+        assert [m.id for m in kept] == ["M_cpu"]
+        assert [m.id for m in pruned] == ["M_gpu"]
+
+    def test_keeps_all_when_capability_provided(self):
+        kept, pruned = _select_capable_modules(self._modules(), None, {"gpu"})
+        assert [m.id for m in kept] == ["M_cpu", "M_gpu"]
+        assert pruned == []
+
+    def test_module_filter_bypasses_gate(self):
+        # -m/--module set: nothing is pruned, even the gpu module on a host
+        # without gpu — the user asked for it explicitly.
+        kept, pruned = _select_capable_modules(self._modules(), "M_gpu", set())
+        assert [m.id for m in kept] == ["M_cpu", "M_gpu"]
+        assert pruned == []
+
+    def test_none_available_prunes_requirers(self):
+        kept, pruned = _select_capable_modules(self._modules(), None, None)
+        assert [m.id for m in kept] == ["M_cpu"]
+        assert [m.id for m in pruned] == ["M_gpu"]
+
+
+@pytest.mark.short
+class TestCapabilityPruneSummary:
+    def test_names_modules_and_missing_flags(self):
+        pruned = [
+            _StubModule("M_gpu", requires_capabilities=["gpu"]),
+            _StubModule("M_heavy", requires_capabilities=["gpu", "large_mem"]),
+        ]
+        msg = _capability_prune_summary(pruned, {"large_mem"})
+        assert "2 module(s) pruned" in msg
+        assert "M_gpu, M_heavy" in msg
+        assert "--with-capability gpu" in msg
+        # already-provided capabilities are not re-suggested
+        assert "--with-capability large_mem" not in msg
+
+
+@pytest.mark.short
+def test_run_with_capability_threads_set():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(
+            run,
+            [
+                "tests/data/mock_benchmark.yaml",
+                "--with-capability",
+                "gpu",
+                "--with-capability",
+                "large_mem",
+            ],
+        )
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("available_capabilities") == {
+            "gpu",
+            "large_mem",
+        }
+
+
+@pytest.mark.short
+def test_run_without_capability_threads_empty_set():
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        runner.invoke(run, ["tests/data/mock_benchmark.yaml"])
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs.get("available_capabilities") == set()
 
 
 # ---------------------------------------------------------------------------

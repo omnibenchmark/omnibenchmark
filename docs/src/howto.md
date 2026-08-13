@@ -416,6 +416,45 @@ Semantics worth knowing:
   D3" as two independent rules: a path is pruned if it contains M1 together with
   D2 **or** with D3. There is no "exclude only when both are present" (AND) form.
 
+## Filter modules by what the machine has
+
+Some modules only work on machines with a particular resource — a GPU, lots of
+memory, a licensed tool. List what a module needs with `requires_capabilities`,
+then tell `ob run` what the current machine has; modules whose needs aren't met
+are filtered out.
+
+```yaml
+stages:
+  - id: dimred
+    modules:
+      - id: pca_cpu
+        software_environment: "python"
+        repository: { url: ..., commit: ... }
+      - id: pca_gpu
+        software_environment: "python"
+        requires_capabilities: [gpu]   # runs only where a GPU is present
+        repository: { url: ..., commit: ... }
+```
+
+```bash
+ob run benchmark.yaml                       # no gpu → pca_gpu is filtered out
+ob run benchmark.yaml --with-capability gpu # gpu present → pca_gpu runs too
+ob run benchmark.yaml --with-capability gpu --with-capability large_mem  # repeatable
+```
+
+Semantics worth knowing:
+
+- **About the machine, not the data.** These names describe the *host*, not the
+  dataset. A module runs only if *every* name it lists was passed with
+  `--with-capability`. The names are free-form — pick your own vocabulary.
+- **Filtered early and for free.** A module the machine can't satisfy is dropped
+  before any checkout or environment setup, its outputs are never produced, and
+  the paths that depended on it fall away too. A line is logged for each one so
+  you can see it happen.
+- **`-m/--module` overrides this.** When you ask for one module by name in
+  development mode, nothing is filtered out from under you — it runs (and fails
+  plainly at run time if the machine really lacks the resource).
+
 ## Use a custom apptainer container to run methods
 
 We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.
