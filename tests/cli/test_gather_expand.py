@@ -8,7 +8,12 @@ outputs registered downstream.
 
 from types import SimpleNamespace
 
-from omnibenchmark.cli.run import _expand_gather_stage
+import pytest
+
+from omnibenchmark.backend.snakemake import _human_link_name
+from omnibenchmark.cli.run import _expand_gather_stage, _expansion_segment
+from omnibenchmark.core._lineage import join_hash
+from omnibenchmark.core._paths import make_human_name as _make_human_name
 from omnibenchmark.model.benchmark import GatherSpec, Stage
 
 
@@ -704,3 +709,75 @@ def test_stage_adjacency_includes_gather_edges():
 
     bench = Benchmark.from_yaml(_GATHER_YAML.format(api="0.7.0", group_by="data"))
     assert ("data", "metrics", ["clustering"]) in stage_adjacency(bench)
+
+
+# ---------------------------------------------------------------------------
+# Fan-in output paths must distinguish parent sets.
+#
+# A join's path prefix (`base_path`) is the parent of its DEEPEST input, i.e.
+# one branch only. Two joins sharing that branch but differing in another
+# parent therefore landed on the same output path, and Snakemake rejected the
+# pair with AmbiguousRuleException. Reproduced with an asymmetric diamond:
+# root -> shallow (two modules) and root -> mid -> deep, joined together.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_join_expansion_segment_distinguishes_parent_sets():
+    """Same anchor, different partner => different directory segment."""
+    deep = _member("root-R1-mid-M1-deep-D1", "root-R1-mid-M1", "deep", "D1")
+    s1 = _member("root-R1-shallow-S1", "root-R1", "shallow", "S1")
+    s2 = _member("root-R1-shallow-S2", "root-R1", "shallow", "S2")
+
+    seg1 = _expansion_segment(".abc12345", (deep, s1))
+    seg2 = _expansion_segment(".abc12345", (deep, s2))
+
+    assert seg1 != seg2, (
+        "two joins sharing their deepest input must not share an output "
+        "directory; base_path is identical for both, so the segment is the "
+        "only thing that can separate them"
+    )
+    assert seg1.startswith(".abc12345-") and seg2.startswith(".abc12345-")
+
+
+@pytest.mark.short
+def test_linear_expansion_segment_is_just_the_parameter_hash():
+    """Non-join nodes keep the plain parameter segment — their ancestry is
+    already carried by the path prefix, so nothing may change for them."""
+    only = _member("root-R1-stage-M1", "root-R1", "stage", "M1")
+
+    assert _expansion_segment(".abc12345", (only,)) == ".abc12345"
+    assert _expansion_segment(".default", (only,)) == ".default"
+    assert _expansion_segment(".default", ()) == ".default"
+
+
+@pytest.mark.short
+def test_join_hash_is_order_independent():
+    """The digest keys on the parent *set*: bundle order must not leak into
+    the path, or the same join would get two directories."""
+    a = _member("root-A", None, "a", "A")
+    b = _member("root-B", None, "b", "B")
+
+    assert join_hash((a.id, b.id)) == join_hash((b.id, a.id))
+    assert _expansion_segment(".p", (a, b)) == _expansion_segment(".p", (b, a))
+
+
+@pytest.mark.short
+def test_human_link_name_is_unique_per_join():
+    """The readable sibling symlink must not collide either.
+
+    `ln -sfn` overwrites, so two joins sharing a module and parameters — they
+    differ only in parents — would leave a single link pointing at whichever
+    job happened to run last, silently hiding the other branch.
+    """
+    params = SimpleNamespace(
+        items=lambda: {"evaluate": "input+10"}.items(),
+        hash_short=lambda: "abc12345",
+    )
+    left = SimpleNamespace(parameters=params, parents=["deep-D1", "shallow-S1"])
+    right = SimpleNamespace(parameters=params, parents=["deep-D1", "shallow-S2"])
+    linear = SimpleNamespace(parameters=params, parents=[])
+
+    assert _human_link_name(left) != _human_link_name(right)
+    # Non-join nodes keep the plain readable name.
+    assert _human_link_name(linear) == _make_human_name(params)

@@ -30,6 +30,7 @@ from omnibenchmark.core._paths import (
     truncate_filename,
 )
 from omnibenchmark.model.benchmark import APIVersion
+from omnibenchmark.core._lineage import join_hash
 from omnibenchmark.model.resolved import ResolvedModule, ResolvedNode
 
 __all__ = ["SnakemakeGenerator", "_make_human_name", "_UNSAFE_CHARS"]
@@ -47,6 +48,21 @@ def _bash_var(name: str) -> str:
     '_data_raw'
     """
     return "_" + name.replace(".", "_").replace("-", "_")
+
+
+def _human_link_name(node: ResolvedNode) -> str:
+    """Name of the readable sibling symlink for a node's output directory.
+
+    Parameters alone are not unique for a fan-in node: joins sharing a module
+    and parameters differ only in their parents, so every one of them would
+    claim the same link and `ln -sfn` would leave only whichever ran last.
+    Suffix the parent-set digest — the same one the directory segment uses.
+    """
+    name = _make_human_name(node.parameters)
+    parents = getattr(node, "parents", None) or []
+    if len(parents) > 1:
+        return f"{name}-{join_hash(parents)}"
+    return name
 
 
 class SnakemakeGenerator:
@@ -273,8 +289,11 @@ class SnakemakeGenerator:
             params_json_escaped = params_json_escaped.replace("'", "'\\''")
             lines += [
                 f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json",
-                f"ln -sfn .{node.parameters.hash_short()}"
-                f" $OUTPUT_DIR/../{_make_human_name(node.parameters)}",
+                # Link to the real directory name rather than re-deriving it:
+                # a fan-in node's segment carries the parent-set digest as well
+                # as the parameter hash, so recomputing it here would dangle.
+                f'ln -sfn "$(basename $OUTPUT_DIR)"'
+                f" $OUTPUT_DIR/../{_human_link_name(node)}",
             ]
 
         lines.append("cd {params.module_dir}")
