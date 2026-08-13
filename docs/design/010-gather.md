@@ -1,14 +1,14 @@
 # 010: Generic Gather
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 2](https://img.shields.io/badge/Version-2-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | | |
 |---|---|
 | **Authors** | btraven00 |
 | **Date** | 2026-07-07 |
 | **Status** | Draft |
-| **Version** | 1 |
+| **Version** | 2 |
 | **Supersedes** | N/A |
 | **Reviewed-by** | daninci (TBD) |
 | **Related Issues** | [#289](https://github.com/omnibenchmark/omnibenchmark/issues/289) (multi-stage outputs), [#291](https://github.com/omnibenchmark/omnibenchmark/pull/291) (earlier gather proposal, held back) |
@@ -19,6 +19,7 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 1       | 2026-07-07 | Initial draft | btraven00 |
+| 2       | 2026-08-13 | §3.1 rule 1 split into shadowing (1a) and alternatives (1b); define *producer* / *maximal*; rule 1b ungated on api_version | btraven00 |
 
 ## 1. Problem Statement
 
@@ -117,12 +118,39 @@ stages:
         path: "{name}_labels.tsv"
 ```
 
+A stage that declares an output id is a **producer** of it. For a given
+consumer, ancestry is a partial order over the producers of its declared
+inputs; a producer is **maximal** when no other producer descends from it.
+Shadowed producers — an upstream stage that also declares the id — are exactly
+the non-maximal ones. (Ancestry is read off the resolved nodes, i.e. the
+`parent_id` chain plus fan-in `parents` edges, not off the declared stage DAG.)
+
 Resolution rules for an output id with multiple producers:
 
-1. **Plain (chain) input** — nearest ancestor on the lineage wins. (The
-   current implementation already resolves duplicates nearest-ancestor-wins,
-   silently; emitting a shadowing warning is planned work, not in this PR.)
+1. **Plain (chain) input** — depends on how the producers relate to each other:
+   - **a. Shadowing — producers on one chain.** All but the deepest are
+     ancestors of it, so the maximal set is a singleton and the nearest
+     ancestor wins. The current implementation already does this, silently;
+     emitting a shadowing warning is planned work, not in this PR.
+   - **b. Alternatives — producers on parallel branches**, neither an ancestor
+     of the other. *Every maximal producer is used*: each becomes its own
+     expansion base, so the consumer runs once per producer. There is no
+     "nearest" between parallel branches, and picking one by topological index
+     silently drops the other — yet the files are interchangeable by the
+     definition above, so both belong in the plan.
 2. **Gather input** — *all* producers, from any stage, post-pruning (§3.4).
+
+Rule 1b is scoped to producers of the **same** id. Several maximal producers of
+*different* ids that a consumer needs together are a fan-in, not alternatives,
+and are resolved as one node with several parents (§3.9) — anchoring each branch
+separately would emit that join once per branch.
+
+Unlike `gather` and the fan-in join, rule 1b is **not gated on api_version**:
+with one producer per id the maximal set is a singleton and the resolved plan is
+byte-identical, so no existing benchmark can shift under it. Gating it would
+also force benchmarks pinned at 0.4.0 (by the `--name`/`{dataset}`
+path-position workaround) into an unrelated module migration to get a resolver
+fix.
 
 ### 3.2 DSL
 
