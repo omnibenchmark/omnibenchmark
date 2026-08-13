@@ -1,5 +1,6 @@
 """cli commands related to benchmark/module execution and start"""
 
+import hashlib
 import logging
 import os
 import subprocess
@@ -25,8 +26,6 @@ from omnibenchmark.core._paths import (
     is_lineage_excluded,
 )
 from omnibenchmark.core._lineage import (
-    lineage_ancestors,
-    lineage_module_ids,
     satisfies_requires,
     select_input_nodes,
 )
@@ -889,8 +888,14 @@ def _build_template_context(
     module_name: Optional[str] = None,
     input_node=None,
     params=None,
+    extra_provides=None,
 ) -> TemplateContext:
-    """Build a TemplateContext for a node during expansion."""
+    """Build a TemplateContext for a node during expansion.
+
+    `extra_provides` is an optional dict layered on top (authoritative) — gather
+    nodes use it to bind their group-key label (the `group_by` stage → group
+    value) so output templates can reference it (design 010 §3.3).
+    """
     provides: dict[str, str] = {}
     module_attrs: dict[str, str] = {
         "id": module_id,
@@ -921,15 +926,692 @@ def _build_template_context(
                 else:
                     provides[label] = module_id
 
-        if params is not None and "dataset" in params:
-            provides.setdefault("dataset", str(params["dataset"]))
-        else:
-            provides.setdefault("dataset", module_id)
+        if extra_provides is None:
+            # Builtin `dataset` is an entrypoint concept. A gather node (the
+            # only caller passing extra_provides) binds exactly its group key;
+            # leaking `dataset=<gather module id>` would silently shadow the
+            # real dataset downstream (design 010 §3.3).
+            if params is not None and "dataset" in params:
+                provides.setdefault("dataset", str(params["dataset"]))
+            else:
+                provides.setdefault("dataset", module_id)
+
+    if extra_provides:
+        provides.update(extra_provides)
 
     # {name} always resolves to the current module's own ID, never inherited
     provides["name"] = module_id
 
     return TemplateContext(provides=provides, module_attrs=module_attrs)
+
+
+def _iter_ancestors(node, nodes_by_id, through_gather: bool = True):
+    """Yield every distinct ancestor of `node`, nearest-first, walking the
+    `parent_id` chain plus explicit `parents` edges (fan-in branches), so a
+    node downstream of a join sees every branch (design 010 §3.9).
+
+    `through_gather=False` is the GATING walk: it does not expand a gather
+    node's members — the cut deliberately forgets (design 010 §3.3), so e.g.
+    one excluded member among hundreds gathered must not poison every
+    downstream node. Resolution/provenance walks use the default and fan
+    through the cut.
+    """
+    seen = {node.id}
+    queue: deque = deque()
+
+    def _push(n):
+        if not through_gather and getattr(n, "is_gather", False):
+            return
+        if n.parent_id:
+            queue.append(n.parent_id)
+        for pid in getattr(n, "parents", None) or []:
+            queue.append(pid)
+
+    _push(node)
+    while queue:
+        node_id = queue.popleft()
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+        ancestor = nodes_by_id.get(node_id)
+        if ancestor is None:
+            continue
+        yield ancestor
+        _push(ancestor)
+
+
+def _ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
+    """The module id of the `group_stage` node a member descends from (the
+    group value). Parents-aware: sees through joins and prior gathers. Returns
+    None when the member has no ancestor in that stage, or when the ancestry
+    crosses a fan-in that yields several distinct modules of that stage —
+    grouping would be ambiguous."""
+    node = nodes_by_id.get(member_id)
+    if node is None:
+        return None
+    found = {
+        n.module_id
+        for n in (node, *_iter_ancestors(node, nodes_by_id))
+        if n.stage_id == group_stage
+    }
+    if len(found) == 1:
+        return found.pop()
+    return None
+
+
+def _expand_gather_stage(
+    stage,
+    benchmark,
+    resolved_modules_cache: dict,
+    output_to_nodes: dict,
+    nodes_by_id: dict,
+    path_exclusions=None,
+    module_filter=None,
+    target_stage=None,
+    available_capabilities=None,
+) -> list:
+    """Expand a gather stage into ResolvedNodes (design 010 MVP).
+
+    For each `gather` entry, collect every node producing its `from` output id
+    and partition them by the ancestor module of the entry's `group_by` stage —
+    structural grouping over the lineage chain, no `provides` labels. One node
+    is emitted per (group value × module × parameter). The chain is cut
+    (`parent_id=None`); outputs are written under `stage.prefix` and registered
+    in `output_to_nodes` so downstream stages consume them normally.
+
+    Cross-cutting contracts honoured like the scatter sibling: `module_filter`
+    prunes to a single execution path (`ob run -m`), and an exclusion rule
+    pairing this stage's module with a member's lineage drops that member from
+    that module's gather (transitive exclude at member level).
+    """
+    nodes: list = []
+
+    # group value -> [(member id, from id, path)]. Insertion order is producer
+    # expansion order — deterministic; entries are grouped by from id because
+    # the outer loop runs per spec.
+    grouped: dict = {}
+    # The group-key label: the single group_by stage. Stage.validate_gather
+    # guarantees all entries share one axis, so [0] is authoritative. Used to
+    # bind the template variable (design 010 §3.3).
+    group_label = stage.gather[0].group_by
+
+    for spec in stage.gather:
+        producers = output_to_nodes.get(spec.from_, [])
+        if not producers:
+            raise ValueError(
+                f"Stage '{stage.id}' gathers from output id '{spec.from_}', "
+                f"which no stage produces (design 010 §3.2)."
+            )
+        for member_id, path in producers:
+            gval = _ancestor_module_at_stage(member_id, spec.group_by, nodes_by_id)
+            if gval is None:
+                logger.warning(
+                    f"      Gather '{stage.id}': member {member_id} has no "
+                    f"unambiguous ancestor in stage '{spec.group_by}'; dropped "
+                    f"from grouping."
+                )
+                continue
+            grouped.setdefault(gval, []).append((member_id, spec.from_, path))
+
+    if not grouped:
+        logger.warning(f"Stage '{stage.id}' gathered no members into any group.")
+
+    # Module-filter: same single-execution-path contract as the scatter path.
+    if module_filter:
+        if target_stage is not None and stage.id == target_stage.id:
+            modules_to_expand = [m for m in stage.modules if m.id == module_filter]
+        else:
+            modules_to_expand = stage.modules[:1]
+    else:
+        modules_to_expand, _ = _select_capable_modules(
+            stage.modules, module_filter, available_capabilities
+        )
+
+    for module in modules_to_expand:
+        module_id = module.id
+        cache_key = (stage.id, module_id)
+        if cache_key not in resolved_modules_cache:
+            logger.warning(f"      Module {module_id} not in cache, skipping")
+            continue
+        resolved_module = resolved_modules_cache[cache_key]
+
+        if module.parameters:
+            params_list = []
+            for param in module.parameters:
+                params_list.extend(Params.expand_from_parameter(param))
+        else:
+            params_list = [None]
+
+        combos = [(gval, params) for gval in grouped for params in params_list]
+        if module_filter:
+            combos = combos[:1]
+
+        for gval, params in combos:
+            members = grouped[gval]
+            if path_exclusions:
+                kept = []
+                for member_id, from_id, path in members:
+                    member = nodes_by_id.get(member_id)
+                    lineage = {module_id}
+                    if member is not None:
+                        lineage |= _lineage_module_ids(member, nodes_by_id)
+                    if is_lineage_excluded(lineage, path_exclusions):
+                        logger.debug(
+                            f"      Gather '{stage.id}': dropping member "
+                            f"{member_id} for module {module_id} "
+                            f"(exclusion rule)"
+                        )
+                        continue
+                    kept.append((member_id, from_id, path))
+            else:
+                kept = members
+            if not kept:
+                logger.warning(
+                    f"      Gather '{stage.id}': group '{gval}' has no "
+                    f"members left for module {module_id}; skipping node."
+                )
+                continue
+
+            param_id = f".{params.hash_short()}" if params else ".default"
+            node_id = f"{stage.id}-{module_id}-{gval}{param_id}"
+
+            # Enumerated keys + name mapping: same shape metric collectors
+            # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
+            inputs: dict = {}
+            input_name_mapping: dict = {}
+            for idx, (_mid, from_id, path) in enumerate(kept):
+                inputs[f"input_{idx}"] = path
+                input_name_mapping[f"input_{idx}"] = from_id
+            member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
+
+            ctx = _build_template_context(
+                stage=stage,
+                module_id=module_id,
+                module_name=getattr(module, "name", None),
+                input_node=None,
+                params=params,
+                extra_provides={group_label: gval},
+            )
+
+            outputs = []
+            for output_spec in stage.outputs:
+                # Only the group label is bound: a template referencing any
+                # other lineage label raises in substitute() — the plan-time
+                # error design 010 §3.3 wants, never a silent empty sub.
+                tmpl = ctx.substitute(output_spec.path, params=params)
+                output_path = truncate_path_filename(
+                    f"{stage.prefix}/{gval}/{stage.id}/{module_id}/{param_id}/{tmpl}"
+                )
+                outputs.append(output_path)
+                output_to_nodes.setdefault(output_spec.id, []).append(
+                    (node_id, output_path)
+                )
+
+            node_resources = None
+            if getattr(module, "resources", None):
+                node_resources = module.resources
+            elif getattr(stage, "resources", None):
+                node_resources = stage.resources
+
+            nodes.append(
+                ResolvedNode(
+                    id=node_id,
+                    stage_id=stage.id,
+                    module_id=module_id,
+                    param_id=param_id,
+                    module=resolved_module,
+                    parameters=params,
+                    parent_id=None,
+                    inputs=inputs,
+                    outputs=outputs,
+                    input_name_mapping=input_name_mapping,
+                    benchmark_name=benchmark.model.get_name(),
+                    benchmark_version=benchmark.model.get_version(),
+                    benchmark_author=benchmark.model.get_author(),
+                    resources=node_resources,
+                    template_context=ctx,
+                    is_gather=True,
+                    gathered_from=member_ids,
+                    parents=list(member_ids),
+                )
+            )
+
+    return nodes
+
+
+def _get_output_ids_for_node(node, benchmark) -> dict:
+    """Map each output id declared by `node`'s stage to that node's resolved
+    path (index-matched). Used to resolve a downstream stage's declared inputs."""
+    result: dict = {}
+    for s in benchmark.model.stages:
+        if s.id == node.stage_id:
+            for output_index, output_spec in enumerate(s.outputs):
+                if output_index < len(node.outputs):
+                    result[output_spec.id] = node.outputs[output_index]
+    return result
+
+
+def _get_ancestor_nodes(node, nodes_by_id) -> list:
+    """All ancestors of `node`, nearest-first: the `parent_id` chain (linear
+    lineage — identical to the id-prefix chain, but O(depth) and immune to id
+    separators) UNION explicit `parents` edges (fan-in branches). A node
+    downstream of a join/gather sees every branch (design 010 §3.9, #289)."""
+    return list(_iter_ancestors(node, nodes_by_id))
+
+
+def _expand_scatter_stage(
+    stage,
+    benchmark,
+    resolved_modules_cache: dict,
+    resolved_nodes: list,
+    nodes_by_id: dict,
+    output_to_nodes: dict,
+    previous_stage_nodes: list,
+    stages_to_expand: list,
+    path_exclusions,
+    nesting_strategy: str,
+    module_filter,
+    target_stage,
+    dag_errors: list,
+    quiet: bool,
+    available_capabilities: Optional[set] = None,
+) -> list:
+    """Expand one ordinary (scatter/chain) stage into ResolvedNodes.
+
+    Appends created nodes to `resolved_nodes`/`nodes_by_id` as it builds (the
+    ancestry walk reads them mid-expansion) and registers outputs in
+    `output_to_nodes`; returns this stage's nodes. Extracted from the former
+    inline expansion loop, plus one addition: inputs come as *bundles*
+    (`_select_input_bundles`), so a diamond join (#289, api ≥ 0.7.0) expands to
+    one node per bundle instead of dropping a branch. The gather sibling is
+    `_expand_gather_stage`.
+    """
+    from itertools import product
+
+    current_stage_nodes: list = []
+
+    # Module-filter: which modules to expand per stage
+    if module_filter:
+        is_target_stage = stage.id == target_stage.id
+        if is_target_stage:
+            modules_to_expand = [m for m in stage.modules if m.id == module_filter]
+        else:
+            modules_to_expand = stage.modules[:1]
+    else:
+        modules_to_expand, _ = _select_capable_modules(
+            stage.modules, module_filter, available_capabilities
+        )
+
+    # Input bundles depend only on stage-level state — compute once, not per
+    # module. None (vs []) distinguishes "no inputs declared" from "inputs
+    # declared but nothing resolvable".
+    input_bundles = None
+    if stage.inputs and previous_stage_nodes:
+        declared_input_ids = [
+            entry
+            for input_col in stage.inputs
+            if hasattr(input_col, "entries")
+            for entry in input_col.entries
+        ]
+        input_bundles = _select_input_bundles(
+            declared_input_ids=declared_input_ids,
+            output_to_nodes=output_to_nodes,
+            resolved_nodes=resolved_nodes,
+            stage_ids_in_order=[s.id for s in stages_to_expand],
+            previous_stage_nodes=previous_stage_nodes,
+            nodes_by_id=nodes_by_id,
+        )
+
+    # Input resolution depends only on the bundle (never on module/params):
+    # cache (inputs, name mapping, base_path) per member-id tuple.
+    resolution_cache: dict = {}
+
+    for module in modules_to_expand:
+        module_id = module.id
+        cache_key = (stage.id, module_id)
+
+        try:
+            if cache_key not in resolved_modules_cache:
+                logger.warning(f"      Module {module_id} not in cache, skipping")
+                continue
+
+            resolved_module = resolved_modules_cache[cache_key]
+
+            if module.parameters:
+                params_list = []
+                for param in module.parameters:
+                    params_list.extend(Params.expand_from_parameter(param))
+            else:
+                params_list = [None]
+
+            if input_bundles is not None:
+                node_combinations = list(product(input_bundles, params_list))
+            else:
+                node_combinations = [(None, params) for params in params_list]
+
+            if module_filter:
+                node_combinations = node_combinations[:1]
+
+            for input_bundle, params in node_combinations:
+                # A bundle is the producer node(s) feeding this node: a
+                # 1-tuple for a linear node, several for a diamond join
+                # (#289). `input_node` is the primary (deepest) branch, kept
+                # for the id spine, requires-check and template context.
+                members = input_bundle if input_bundle else ()
+                input_node = members[0] if members else None
+                is_join = len(members) > 1
+
+                # Exclusions are transitive over the full lineage, not just
+                # the immediate predecessor: prune if any exclusion rule has
+                # both endpoints present along this node's lineage. For a join
+                # the lineage is the union over every branch.
+                if members:
+                    lineage = {module_id}
+                    for member in members:
+                        lineage |= _lineage_module_ids(member, nodes_by_id)
+                    if is_lineage_excluded(lineage, path_exclusions):
+                        logger.debug(
+                            f"      Excluding combination: lineage {lineage} "
+                            f"violates an exclusion rule"
+                        )
+                        continue
+
+                if input_node and module.requires:
+                    if not satisfies_requires(module.requires, input_node):
+                        logger.debug(
+                            f"      Skipping combination: requires not satisfied for {module_id} "
+                            f"(upstream context: {input_node.template_context.provides})"
+                        )
+                        continue
+
+                param_id = f".{params.hash_short()}" if params else ".default"
+
+                if is_join:
+                    # No single prefix chain: id is a readable stem plus a
+                    # short hash of the (sorted) parents (design 010 §3.9).
+                    h = hashlib.sha1(
+                        "|".join(sorted(m.id for m in members)).encode()
+                    ).hexdigest()[:8]
+                    node_id = f"{stage.id}-{module_id}-{h}{param_id}"
+                elif input_node:
+                    node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"
+                else:
+                    node_id = f"{stage.id}-{module_id}{param_id}"
+
+                inputs = {}
+                input_name_mapping = {}
+                base_path = None
+
+                if input_node:
+                    bundle_key = tuple(m.id for m in members)
+                    cached = resolution_cache.get(bundle_key)
+                    if cached is None:
+                        output_id_to_path = {}
+
+                        # Collect resolvable outputs from every branch's
+                        # producer node and its ancestors (union across the
+                        # join). Farthest ancestors first so the NEAREST
+                        # producer of a shared output id wins (design 010
+                        # §3.1).
+                        for member in members:
+                            for ancestor in reversed(
+                                _get_ancestor_nodes(member, nodes_by_id)
+                            ):
+                                output_id_to_path.update(
+                                    _get_output_ids_for_node(ancestor, benchmark)
+                                )
+                            output_id_to_path.update(
+                                _get_output_ids_for_node(member, benchmark)
+                            )
+
+                        if stage.inputs:
+                            for input_collection in stage.inputs:
+                                if not hasattr(input_collection, "entries"):
+                                    continue
+                                for input_id in input_collection.entries:
+                                    if input_id in output_id_to_path:
+                                        sanitized_id = input_id.replace(".", "_")
+                                        inputs[sanitized_id] = output_id_to_path[
+                                            input_id
+                                        ]
+                                        input_name_mapping[sanitized_id] = input_id
+                                    else:
+                                        logger.warning(
+                                            f"      Could not resolve input {input_id} for node {node_id}"
+                                        )
+
+                        if inputs:
+                            from pathlib import Path as PathLib
+
+                            deepest_input = max(
+                                inputs.values(), key=lambda p: len(PathLib(p).parts)
+                            )
+                            base_path = str(PathLib(deepest_input).parent)
+                        resolution_cache[bundle_key] = (
+                            inputs,
+                            input_name_mapping,
+                            base_path,
+                        )
+                    else:
+                        inputs, input_name_mapping, base_path = cached
+                    # Fresh dicts per node — cached ones must stay pristine.
+                    inputs = dict(inputs)
+                    input_name_mapping = dict(input_name_mapping)
+
+                ctx = _build_template_context(
+                    stage=stage,
+                    module_id=module_id,
+                    module_name=getattr(module, "name", None),
+                    input_node=input_node,
+                    params=params,
+                )
+
+                outputs = []
+                for output_spec in stage.outputs:
+                    output_path_template = ctx.substitute(
+                        output_spec.path, params=params
+                    )
+
+                    if nesting_strategy == "nested":
+                        if base_path:
+                            output_path = f"{base_path}/{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                        else:
+                            output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                    elif nesting_strategy == "flat":
+                        output_path = (
+                            f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unknown nesting strategy: {nesting_strategy}"
+                        )
+
+                    output_path = truncate_path_filename(output_path)
+
+                    outputs.append(output_path)
+                    if output_spec.id not in output_to_nodes:
+                        output_to_nodes[output_spec.id] = []
+                    output_to_nodes[output_spec.id].append((node_id, output_path))
+
+                node_resources = None
+                if hasattr(module, "resources") and module.resources:
+                    node_resources = module.resources
+                elif hasattr(stage, "resources") and stage.resources:
+                    node_resources = stage.resources
+
+                node = ResolvedNode(
+                    id=node_id,
+                    stage_id=stage.id,
+                    module_id=module_id,
+                    param_id=param_id,
+                    module=resolved_module,
+                    parameters=params,
+                    parent_id=input_node.id if input_node else None,
+                    parents=[m.id for m in members] if is_join else [],
+                    inputs=inputs,
+                    outputs=outputs,
+                    input_name_mapping=input_name_mapping,
+                    benchmark_name=benchmark.model.get_name(),
+                    benchmark_version=benchmark.model.get_version(),
+                    benchmark_author=benchmark.model.get_author(),
+                    resources=node_resources,
+                    template_context=ctx,
+                )
+
+                resolved_nodes.append(node)
+                nodes_by_id[node.id] = node
+                current_stage_nodes.append(node)
+
+            if not quiet:
+                logger.info(
+                    f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
+                )
+
+        except ValueError as e:
+            msg = str(e)
+            logger.error(f"      Failed to resolve {module_id}: {msg}")
+            dag_errors.append((stage.id, module_id, msg))
+
+        except Exception as e:
+            logger.error(f"      Failed to resolve {module_id}: {e}")
+            import traceback
+
+            if logger.level <= 10:
+                traceback.print_exc()
+
+    return current_stage_nodes
+
+
+def _stage_ancestry(node, nodes_by_id) -> dict:
+    """Map stage_id → node ids over `node` and its full (parents-aware)
+    ancestry. The per-stage sets are the join-compatibility fingerprint."""
+    out: dict = {node.stage_id: {node.id}}
+    for ancestor in _iter_ancestors(node, nodes_by_id):
+        out.setdefault(ancestor.stage_id, set()).add(ancestor.id)
+    return out
+
+
+def _lineages_consistent(a: dict, b: dict) -> bool:
+    """Two ancestries may be joined iff they agree wherever they overlap: for
+    every stage present in both, they share at least one node. Divergence at
+    any common stage (different nodes of the same stage) is a cross-lineage
+    pairing and must not be joined — sharing a root is not enough (#289)."""
+    for stage_id, ids in a.items():
+        other = b.get(stage_id)
+        if other is not None and ids.isdisjoint(other):
+            return False
+    return True
+
+
+def _select_input_bundles(
+    declared_input_ids: list,
+    output_to_nodes: dict,
+    resolved_nodes: list,
+    stage_ids_in_order: list,
+    previous_stage_nodes: list,
+    nodes_by_id: dict,
+) -> list:
+    """Return input *bundles* — each a tuple of producer nodes to join into one
+    downstream node (issue #289).
+
+    Fast path (linear / single producing stage): every bundle is a 1-tuple and
+    the result is identical to wrapping `select_input_nodes` — no behaviour
+    change for existing benchmarks. Join path (a declared input is produced only
+    on a divergent branch): the anchor is paired with every producer of each
+    missing input whose ancestry is *consistent* with the anchor's (and with
+    the other partners') — they agree at every shared stage, not merely at the
+    root — and the cartesian product of those partners yields one bundle per
+    emitted node.
+    """
+    anchors = select_input_nodes(
+        declared_input_ids,
+        output_to_nodes,
+        resolved_nodes,
+        stage_ids_in_order,
+        previous_stage_nodes,
+    )
+    if not declared_input_ids:
+        return [(a,) for a in anchors]
+
+    producers: dict = {}
+    for input_id in declared_input_ids:
+        producers[input_id] = [
+            nodes_by_id[node_id]
+            for node_id, _path in output_to_nodes.get(input_id, [])
+            if node_id in nodes_by_id
+        ]
+
+    from itertools import product as _product
+
+    ancestry_cache: dict = {}
+
+    def _ancestry(n):
+        cached = ancestry_cache.get(n.id)
+        if cached is None:
+            cached = _stage_ancestry(n, nodes_by_id)
+            ancestry_cache[n.id] = cached
+        return cached
+
+    bundles: list = []
+    for anchor in anchors:
+        anchor_map = _ancestry(anchor)
+        anchor_ids = {nid for ids in anchor_map.values() for nid in ids}
+        missing = [
+            input_id
+            for input_id in declared_input_ids
+            if not any(p.id in anchor_ids for p in producers.get(input_id, []))
+        ]
+        if not missing:
+            bundles.append((anchor,))  # linear / covered — fast path
+            continue
+        # Join: for each uncovered input, take lineage-consistent partners.
+        partner_lists = []
+        for input_id in missing:
+            partners = [
+                p
+                for p in producers[input_id]
+                if _lineages_consistent(anchor_map, _ancestry(p))
+            ]
+            partner_lists.append(partners)
+        if not all(partner_lists):
+            unmatched = [i for i, pl in zip(missing, partner_lists) if not pl]
+            logger.warning(
+                f"      No lineage-compatible producer for input(s) {unmatched} "
+                f"of {anchor.id}; the input will not resolve."
+            )
+            bundles.append((anchor,))
+            continue
+        emitted = 0
+        for combo in _product(*partner_lists):
+            # Partners must also be consistent with EACH OTHER (3-way joins).
+            if all(
+                _lineages_consistent(_ancestry(x), _ancestry(y))
+                for i, x in enumerate(combo)
+                for y in combo[i + 1 :]
+            ):
+                bundles.append((anchor,) + combo)
+                emitted += 1
+        if not emitted:
+            logger.warning(
+                f"      No mutually consistent partner combination for "
+                f"{anchor.id}; the inputs will not resolve."
+            )
+            bundles.append((anchor,))
+    return bundles
+
+
+def _lineage_module_ids(input_node, nodes_by_id) -> set:
+    """Return the module_ids along input_node's GATING lineage, inclusive.
+
+    Walks the explicit ``parent_id`` chain plus join ``parents`` edges (so
+    exclusions see every branch of a diamond, #289), but does NOT cross a
+    gather cut — the partition forgets (design 010 §3.3), and one excluded
+    member among hundreds gathered must not poison every downstream node.
+    """
+    lineage = {input_node.module_id}
+    for ancestor in _iter_ancestors(input_node, nodes_by_id, through_gather=False):
+        lineage.add(ancestor.module_id)
+    return lineage
 
 
 def _module_capabilities_met(module, available_capabilities) -> bool:
@@ -1224,236 +1906,52 @@ def _generate_explicit_snakefile(
     previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
 
-    # stage_id -> ordered output ids. Precomputed once so per-node output lookup
-    # is O(1) instead of scanning every stage and doing an O(outputs) pydantic
-    # `.index()` (was ~180k __eq__ calls during generation).
-    stage_output_ids = {s.id: [o.id for o in s.outputs] for s in benchmark.model.stages}
-
     # Lineage-wide exclusion rules, shared with execution-path pruning so the
     # two code paths agree (see core._paths.is_lineage_excluded).
     path_exclusions = collect_path_exclusions(benchmark.model)
 
     for stage in stages_to_expand:
-        current_stage_nodes = []
-
-        # Module-filter: which modules to expand per stage
-        if module_filter:
-            is_target_stage = stage.id == target_stage.id
-            if is_target_stage:
-                modules_to_expand = [m for m in stage.modules if m.id == module_filter]
-            else:
-                modules_to_expand = stage.modules[:1]
-        else:
-            modules_to_expand, _ = _select_capable_modules(
-                stage.modules, module_filter, available_capabilities
-            )
-
-        for module in modules_to_expand:
-            module_id = module.id
-            cache_key = (stage.id, module_id)
-
+        if stage.gather:
+            # Gather stages fan in instead of chaining (design 010). Plan-time
+            # errors (zero-producer `from`, unbound template label) feed the
+            # same dag_errors report as scatter failures, not a raw traceback.
             try:
-                if cache_key not in resolved_modules_cache:
-                    logger.warning(f"      Module {module_id} not in cache, skipping")
-                    continue
-
-                resolved_module = resolved_modules_cache[cache_key]
-
-                if module.parameters:
-                    params_list = []
-                    for param in module.parameters:
-                        params_list.extend(Params.expand_from_parameter(param))
-                else:
-                    params_list = [None]
-
-                if stage.inputs and previous_stage_nodes:
-                    from itertools import product
-
-                    declared_input_ids = [
-                        entry
-                        for input_col in stage.inputs
-                        if hasattr(input_col, "entries")
-                        for entry in input_col.entries
-                    ]
-
-                    stage_ids_in_order = [s.id for s in stages_to_expand]
-                    input_node_combinations = select_input_nodes(
-                        declared_input_ids=declared_input_ids,
-                        output_to_nodes=output_to_nodes,
-                        resolved_nodes=resolved_nodes,
-                        nodes_by_id=nodes_by_id,
-                        stage_ids_in_order=stage_ids_in_order,
-                        previous_stage_nodes=previous_stage_nodes,
-                    )
-
-                    node_combinations = list(
-                        product(input_node_combinations, params_list)
-                    )
-                else:
-                    node_combinations = [(None, params) for params in params_list]
-
-                if module_filter:
-                    node_combinations = node_combinations[:1]
-
-                for input_node, params in node_combinations:
-                    # Exclusions are transitive over the full lineage, not just
-                    # the immediate predecessor: prune if any exclusion rule has
-                    # both endpoints present along this node's lineage.
-                    if input_node:
-                        lineage = lineage_module_ids(input_node, nodes_by_id) | {
-                            module_id
-                        }
-                        if is_lineage_excluded(lineage, path_exclusions):
-                            logger.debug(
-                                f"      Excluding combination: lineage {lineage} "
-                                f"violates an exclusion rule"
-                            )
-                            continue
-
-                    if input_node and module.requires:
-                        if not satisfies_requires(module.requires, input_node):
-                            logger.debug(
-                                f"      Skipping combination: requires not satisfied for {module_id} "
-                                f"(upstream context: {input_node.template_context.provides})"
-                            )
-                            continue
-
-                    param_id = f".{params.hash_short()}" if params else ".default"
-
-                    if input_node:
-                        node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"
-                    else:
-                        node_id = f"{stage.id}-{module_id}{param_id}"
-
-                    inputs = {}
-                    input_name_mapping = {}
-                    base_path = None
-
-                    if input_node:
-                        output_id_to_path = {}
-
-                        def get_output_ids_for_node(node):
-                            return {
-                                output_id: node.outputs[i]
-                                for i, output_id in enumerate(
-                                    stage_output_ids.get(node.stage_id, [])
-                                )
-                                if i < len(node.outputs)
-                            }
-
-                        output_id_to_path.update(get_output_ids_for_node(input_node))
-
-                        # TODO(#289): this only collects outputs from the node's
-                        # *linear* ancestors (nodes whose id is a prefix of this
-                        # one). Inputs produced on a sibling branch that re-joins
-                        # here are invisible and warn "Could not resolve input"
-                        # below. Generalise this (and select_input_nodes)
-                        # to gather from all producing lineages once multi-stage
-                        # input collection lands.
-                        for ancestor in lineage_ancestors(input_node, nodes_by_id):
-                            output_id_to_path.update(get_output_ids_for_node(ancestor))
-
-                        if stage.inputs:
-                            for input_collection in stage.inputs:
-                                if not hasattr(input_collection, "entries"):
-                                    continue
-                                for input_id in input_collection.entries:
-                                    if input_id in output_id_to_path:
-                                        sanitized_id = input_id.replace(".", "_")
-                                        inputs[sanitized_id] = output_id_to_path[
-                                            input_id
-                                        ]
-                                        input_name_mapping[sanitized_id] = input_id
-                                    else:
-                                        logger.warning(
-                                            f"      Could not resolve input {input_id} for node {node_id}"
-                                        )
-
-                        if inputs:
-                            from pathlib import Path as PathLib
-
-                            deepest_input = max(
-                                inputs.values(), key=lambda p: len(PathLib(p).parts)
-                            )
-                            base_path = str(PathLib(deepest_input).parent)
-
-                    ctx = _build_template_context(
-                        stage=stage,
-                        module_id=module_id,
-                        module_name=getattr(module, "name", None),
-                        input_node=input_node,
-                        params=params,
-                    )
-
-                    outputs = []
-                    for output_spec in stage.outputs:
-                        output_path_template = ctx.substitute(
-                            output_spec.path, params=params
-                        )
-
-                        if nesting_strategy == "nested":
-                            if base_path:
-                                output_path = f"{base_path}/{stage.id}/{module_id}/{param_id}/{output_path_template}"
-                            else:
-                                output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
-                        elif nesting_strategy == "flat":
-                            output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
-                        else:
-                            raise ValueError(
-                                f"Unknown nesting strategy: {nesting_strategy}"
-                            )
-
-                        output_path = truncate_path_filename(output_path)
-
-                        outputs.append(output_path)
-                        if output_spec.id not in output_to_nodes:
-                            output_to_nodes[output_spec.id] = []
-                        output_to_nodes[output_spec.id].append((node_id, output_path))
-
-                    node_resources = None
-                    if hasattr(module, "resources") and module.resources:
-                        node_resources = module.resources
-                    elif hasattr(stage, "resources") and stage.resources:
-                        node_resources = stage.resources
-
-                    node = ResolvedNode(
-                        id=node_id,
-                        stage_id=stage.id,
-                        module_id=module_id,
-                        param_id=param_id,
-                        module=resolved_module,
-                        parameters=params,
-                        parent_id=input_node.id if input_node else None,
-                        inputs=inputs,
-                        outputs=outputs,
-                        input_name_mapping=input_name_mapping,
-                        benchmark_name=benchmark.model.get_name(),
-                        benchmark_version=benchmark.model.get_version(),
-                        benchmark_author=benchmark.model.get_author(),
-                        resources=node_resources,
-                        template_context=ctx,
-                    )
-
-                    resolved_nodes.append(node)
-                    nodes_by_id[node.id] = node
-                    current_stage_nodes.append(node)
-
-                if not quiet:
-                    logger.info(
-                        f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
-                    )
-
+                current_stage_nodes = _expand_gather_stage(
+                    stage=stage,
+                    benchmark=benchmark,
+                    resolved_modules_cache=resolved_modules_cache,
+                    output_to_nodes=output_to_nodes,
+                    nodes_by_id=nodes_by_id,
+                    path_exclusions=path_exclusions,
+                    module_filter=module_filter,
+                    target_stage=target_stage if module_filter else None,
+                    available_capabilities=available_capabilities,
+                )
             except ValueError as e:
-                msg = str(e)
-                logger.error(f"      Failed to resolve {module_id}: {msg}")
-                dag_errors.append((stage.id, module_id, msg))
-
-            except Exception as e:
-                logger.error(f"      Failed to resolve {module_id}: {e}")
-                import traceback
-
-                if logger.level <= 10:
-                    traceback.print_exc()
+                logger.error(f"      Failed to expand gather stage {stage.id}: {e}")
+                dag_errors.append((stage.id, "<gather>", str(e)))
+                current_stage_nodes = []
+            for node in current_stage_nodes:
+                resolved_nodes.append(node)
+                nodes_by_id[node.id] = node
+        else:
+            current_stage_nodes = _expand_scatter_stage(
+                stage=stage,
+                benchmark=benchmark,
+                resolved_modules_cache=resolved_modules_cache,
+                resolved_nodes=resolved_nodes,
+                nodes_by_id=nodes_by_id,
+                output_to_nodes=output_to_nodes,
+                previous_stage_nodes=previous_stage_nodes,
+                stages_to_expand=stages_to_expand,
+                path_exclusions=path_exclusions,
+                nesting_strategy=nesting_strategy,
+                module_filter=module_filter,
+                target_stage=target_stage if module_filter else None,
+                dag_errors=dag_errors,
+                quiet=quiet,
+                available_capabilities=available_capabilities,
+            )
 
         previous_stage_nodes = current_stage_nodes
 

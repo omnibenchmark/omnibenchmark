@@ -497,6 +497,8 @@ def _make_lineage_node(module_id, parent_id=None, node_id=None):
     n.id = node_id if node_id is not None else module_id
     n.module_id = module_id
     n.parent_id = parent_id
+    n.parents = []
+    n.is_gather = False
     return n
 
 

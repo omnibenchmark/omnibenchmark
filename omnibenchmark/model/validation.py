@@ -123,6 +123,12 @@ class BenchmarkValidator:
                 f"Found duplicate module ids: {', '.join(duplicate_module_ids)}"
             )
 
+        # NB: output ids may intentionally repeat across stages — that is the
+        # gather shared-output-id contract (design 010 §3.1): a `gather.from`
+        # collects every producer of the id. `get_outputs()` returns a dict
+        # keyed by id, so cross-stage duplicates are collapsed here and this
+        # check only ever sees unique keys. Do not "fix" it into a real
+        # uniqueness check — it would break gather.
         all_outputs = self.get_outputs()  # type: ignore
         output_ids = list(all_outputs.keys())  # type: ignore
         duplicate_output_ids = _find_duplicate_ids(output_ids)  # type: ignore
@@ -153,11 +159,10 @@ class BenchmarkValidator:
         # 4. Validate that software environment references exist
         self._validate_software_environments(errors)
 
-        # NOTE: the "diamond" input-join check lives in detect_diamond_input_joins()
-        # and runs from validate_execution_context(), not here. It is an *execution*
-        # constraint, so ``ob validate plan`` and ``ob run`` enforce it, while
-        # loading a model purely to inspect or render it (mermaid/dot exporters,
-        # ``ob describe``) stays permissive and can visualise any topology.
+        # NOTE: the "diamond" input-join check is api-gated in detect_diamond_input_joins()
+        # and called (only for api < 0.7.0) from validate_execution_context(). From
+        # api 0.7.0 a diamond is resolved as a fan-in join (`_select_input_bundles`
+        # in cli/run.py, design 010 §3.9); older benchmarks are rejected up front.
 
         # Raise error if any validation failed
         if errors:
@@ -166,23 +171,14 @@ class BenchmarkValidator:
     def detect_diamond_input_joins(self) -> List[str]:
         """Return an error per stage that joins two divergent branches (a "diamond").
 
-        The execution resolver linearises each stage onto a single upstream lineage
-        -- the deepest stage producing one of its inputs -- and can only resolve
-        inputs found among that lineage's ancestors. This is fine whenever a stage's
-        input-producing stages lie on ONE chain (each is an ancestor of the next),
-        even if the stage is declared before them: the resolver expands stages in
-        topological order, so declaration order does not matter. It CANNOT satisfy a
-        stage whose inputs come from two stages on divergent branches (neither is
-        upstream of the other) -- one branch always falls outside the chosen lineage
-        and fails at run time with the opaque "Could not resolve input <id>".
-
-        This is an execution constraint only; callers wire it into
-        validate_execution_context so model loading for inspection/rendering stays
-        permissive. See https://github.com/omnibenchmark/omnibenchmark/issues/289.
-
-        TODO(#289): drop this method (and its call site) once the resolver supports
-        arbitrary multi-stage input collection (gather/scatter), at which point
-        joining branches in one stage becomes legal.
+        Fan-in — a stage collecting inputs from two stages on divergent branches
+        (neither upstream of the other) — is gated on api ≥ 0.7.0 (design 010
+        §3.9, issue #289), resolved by `_select_input_bundles`. Benchmarks below
+        0.7.0 keep the old semantics, where the resolver linearises each stage
+        onto a single upstream lineage and one branch falls out, surfacing only as
+        an opaque "Could not resolve input <id>" at run time. This detects that
+        case so the gate (validate_execution_context, api < 0.7.0) can reject it
+        up front with an actionable message instead.
         """
         errors: List[str] = []
 
@@ -230,10 +226,11 @@ class BenchmarkValidator:
                         errors.append(
                             f"Stage '{stage.id}' collects inputs from stages "  # type: ignore
                             f"'{left}' and '{right}', which are on divergent branches "
-                            f"(neither is upstream of the other). Joining multiple "
-                            f"branches in a single stage is not supported yet; route "
-                            f"the inputs through a shared upstream stage instead. "
-                            f"See https://github.com/omnibenchmark/omnibenchmark/issues/289."
+                            f"(neither is upstream of the other). Joining branches in "
+                            f"one stage requires api_version ≥ 0.7.0; bump the "
+                            f"benchmark, or route the inputs through a shared upstream "
+                            f"stage. See "
+                            f"https://github.com/omnibenchmark/omnibenchmark/issues/289."
                         )
                         reported = True
                         break
