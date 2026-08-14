@@ -12,7 +12,6 @@ import pytest
 
 from omnibenchmark.backend.snakemake import _human_link_name
 from omnibenchmark.cli.run import _expand_gather_stage, _expansion_segment
-from omnibenchmark.core._lineage import join_hash
 from omnibenchmark.core._paths import make_human_name as _make_human_name
 from omnibenchmark.model.benchmark import GatherSpec, Stage
 
@@ -738,6 +737,9 @@ def test_join_expansion_segment_distinguishes_parent_sets():
         "only thing that can separate them"
     )
     assert seg1.startswith(".abc12345-") and seg2.startswith(".abc12345-")
+    # keyed on the parent *set*: bundle order must not leak into the path,
+    # or the same join would land in two directories across runs.
+    assert seg1 == _expansion_segment(".abc12345", (s1, deep))
 
 
 @pytest.mark.short
@@ -749,17 +751,6 @@ def test_linear_expansion_segment_is_just_the_parameter_hash():
     assert _expansion_segment(".abc12345", (only,)) == ".abc12345"
     assert _expansion_segment(".default", (only,)) == ".default"
     assert _expansion_segment(".default", ()) == ".default"
-
-
-@pytest.mark.short
-def test_join_hash_is_order_independent():
-    """The digest keys on the parent *set*: bundle order must not leak into
-    the path, or the same join would get two directories."""
-    a = _member("root-A", None, "a", "A")
-    b = _member("root-B", None, "b", "B")
-
-    assert join_hash((a.id, b.id)) == join_hash((b.id, a.id))
-    assert _expansion_segment(".p", (a, b)) == _expansion_segment(".p", (b, a))
 
 
 @pytest.mark.short
