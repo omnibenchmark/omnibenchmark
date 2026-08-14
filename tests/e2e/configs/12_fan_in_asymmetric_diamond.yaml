@@ -1,0 +1,106 @@
+id: FanInAsymmetricDiamond
+description: >-
+  Regression fixture for fan-in output-path collisions.
+
+  The `deep` branch is one stage longer than the `shallow` branch, and
+  `shallow` has TWO modules. The join anchors on `deep` (its deepest input),
+  then pairs that anchor with each shallow module -- so both bundles share a
+  deepest input and therefore the same `base_path`. Before the fix they
+  resolved to one output path and Snakemake refused the plan with
+  AmbiguousRuleException.
+
+  Symmetric diamonds do not catch this: the max()-by-depth tie resolves to the
+  partner, so their paths differ by accident of declaration order.
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.7.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host"
+
+stages:
+  - id: root
+    modules:
+      - id: R1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+    outputs:
+      - id: root.out
+        path: "{name}_data.json"
+
+  # --- shallow branch: root -> shallow (TWO modules) ---
+  - id: shallow
+    inputs:
+      - root.out
+    modules:
+      - id: S1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+1", "--input", "root.out", "--kind", "s"]
+      - id: S2
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+2", "--input", "root.out", "--kind", "s"]
+    outputs:
+      - id: shallow.out
+        path: "{name}_s.json"
+
+  # --- deep branch: root -> mid -> deep (one stage longer) ---
+  - id: mid
+    inputs:
+      - root.out
+    modules:
+      - id: M1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+3", "--input", "root.out", "--kind", "m"]
+    outputs:
+      - id: mid.out
+        path: "{name}_m.json"
+
+  - id: deep
+    inputs:
+      - mid.out
+    modules:
+      - id: D1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+4", "--input", "mid.out", "--kind", "d"]
+    outputs:
+      - id: deep.out
+        path: "{name}_d.json"
+
+  # --- the join ---
+  - id: join
+    inputs:
+      - shallow.out
+      - deep.out
+    modules:
+      - id: J1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+10", "--input", "deep.out", "--kind", "j"]
+    outputs:
+      - id: join.out
+        path: "{name}_j.json"
