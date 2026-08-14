@@ -1,16 +1,9 @@
 id: FanInAsymmetricDiamond
 description: >-
-  Regression fixture for fan-in output-path collisions.
-
-  The `deep` branch is one stage longer than the `shallow` branch, and
-  `shallow` has TWO modules. The join anchors on `deep` (its deepest input),
-  then pairs that anchor with each shallow module -- so both bundles share a
-  deepest input and therefore the same `base_path`. Before the fix they
-  resolved to one output path and Snakemake refused the plan with
-  AmbiguousRuleException.
-
-  Symmetric diamonds do not catch this: the max()-by-depth tie resolves to the
-  partner, so their paths differ by accident of declaration order.
+  Fan-in path-collision fixture. `deep` is one stage longer than `shallow`,
+  and `shallow` has TWO modules, so both join bundles share a deepest input
+  and therefore a base_path. Must stay asymmetric: symmetric diamonds pass by
+  accident, the max()-by-depth tie resolving to the partner.
 version: "1.0"
 benchmarker: "E2E Test Suite"
 api_version: "0.7.0"

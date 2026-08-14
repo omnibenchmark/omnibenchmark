@@ -11,25 +11,19 @@ from collections import deque
 
 
 def join_hash(node_ids) -> str:
-    """Short, order-independent digest of a fan-in node's parent set.
-
-    Keys on the *set*, so bundle order never leaks into a name or a path.
-    Shared by the resolver (which has the member nodes) and the backend (which
-    has `ResolvedNode.parents`), so both derive the same string from one rule.
-    """
+    """Order-independent digest of a fan-in node's parent *set*, so bundle
+    order never leaks into a name or path. Shared by resolver and backend."""
     return hashlib.sha1("|".join(sorted(node_ids)).encode()).hexdigest()[:8]
 
 
 def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
-    """Yield every distinct ancestor of `node`, nearest-first, walking the
-    `parent_id` chain plus explicit `parents` edges (fan-in branches), so a
-    node downstream of a join sees every branch (design 010 §3.9).
+    """Every distinct ancestor of `node`, nearest-first: the `parent_id` chain
+    plus explicit `parents` edges, so a node downstream of a join sees every
+    branch (010 §3.9).
 
-    `through_gather=False` is the GATING walk: it does not expand a gather
-    node's members — the cut deliberately forgets (design 010 §3.3), so e.g.
-    one excluded member among hundreds gathered must not poison every
-    downstream node. Resolution/provenance walks use the default and fan
-    through the cut.
+    `through_gather=False` is the GATING walk — it stops at a gather, whose
+    partition deliberately forgets (010 §3.3), so one excluded member among
+    hundreds must not poison everything downstream.
     """
     seen = {node.id}
     queue: deque = deque()
@@ -117,24 +111,15 @@ def select_input_nodes(
 ) -> list:
     """Return the node list to use as the cartesian expansion base for a stage.
 
-    ``nodes_by_id`` (id → node) is an optional prebuilt index for the O(1) node
-    lookup; it is built from ``resolved_nodes`` when omitted, so callers that
-    already keep the index (the run loop) avoid the O(N) rebuild.
+    Per design 010 §3.1: producers on one chain collapse to the deepest
+    (rule 1a); producers on parallel branches declaring the *same* id are
+    alternatives, each its own base (rule 1b); parallel producers of
+    *different* ids are a fan-in, left to ``_select_input_bundles``.
 
-    Producers on one chain collapse to the deepest — nearest-ancestor-wins
-    (design 010 §3.1 rule 1a). Producers on *parallel* branches that declare
-    the same input id are alternatives (rule 1b): each becomes its own
-    expansion base, so the consumer runs once per producer. Producers of
-    *different* ids on parallel branches are a fan-in and are left to
-    ``_select_input_bundles``.
-
-    Deliberately NOT gated on api_version, unlike `gather` and the fan-in join
-    (both 0.7.0). It needs no gate — with one producer per id the maximal set
-    is a singleton, so existing plans are byte-identical — and a gate would
-    hurt: benchmarks pinned to 0.4.0 by the `--name`/`{dataset}` workaround
-    (see backend/snakemake.py) would have to migrate their modules to get a
-    resolver fix. Gating later is cheap if a reason appears: thread a flag from
-    `_expand_scatter_stage`, which already has the `benchmark`.
+    Ungated on api_version, unlike gather and fan-in: with one producer per id
+    the maximal set is a singleton, so existing plans are byte-identical, and a
+    gate would force benchmarks pinned at 0.4.0 to migrate modules for a
+    resolver fix. To gate later, thread a flag from ``_expand_scatter_stage``.
     """
     if not declared_input_ids:
         return previous_stage_nodes
