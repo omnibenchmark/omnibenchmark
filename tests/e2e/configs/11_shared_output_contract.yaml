@@ -1,12 +1,8 @@
 id: SharedOutputContractBenchmark
 description: >-
-  Two stages on parallel branches declare the SAME output id. That id is a
-  contract (design 010 §3.1): the files are interchangeable for any consumer
-  referencing it, so the downstream stage must expand once per producer
-  instead of silently binding to whichever sorts deepest.
-
-  Deliberately api_version 0.5.0: consuming inputs from any stage satisfying
-  the contract is not gated on an api bump.
+  Two stages on parallel branches declare the same output id, so the consumer
+  must expand once per producer (design 010 §3.1 rule 1b). api_version is
+  deliberately low: this is not gated on an api bump.
 version: "1.0"
 benchmarker: "E2E Test Suite"
 api_version: "0.5.0"

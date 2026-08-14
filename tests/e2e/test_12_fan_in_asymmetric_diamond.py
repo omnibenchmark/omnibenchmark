@@ -55,39 +55,26 @@ def _declared_outputs(snakefile: str) -> list:
 
 
 @pytest.mark.e2e
-def test_no_two_rules_declare_the_same_output(
+def test_each_join_gets_its_own_output_path(
     fan_in_diamond_config, tmp_path, bundled_repos, keep_files
 ):
-    """The direct assertion: no output path is claimed twice."""
+    """Both bundles survive with distinct paths — disambiguated, not deduped."""
     runner = _generate(fan_in_diamond_config, tmp_path, keep_files)
     snakefile = (runner.out_dir / "Snakefile").read_text()
+    outputs = _declared_outputs(snakefile)
 
-    duplicates = [p for p, n in Counter(_declared_outputs(snakefile)).items() if n > 1]
-
+    duplicates = [p for p, n in Counter(outputs).items() if n > 1]
     assert not duplicates, (
         "two rules declare the same output file; a fan-in node's path must "
         f"carry its parent-set digest. Duplicated: {duplicates}"
     )
 
+    joins = [p for p in outputs if "/join/J1/" in p]
+    assert len(joins) == 2, f"expected one join per shallow module: {joins}"
 
-@pytest.mark.e2e
-def test_both_joins_are_emitted_with_distinct_paths(
-    fan_in_diamond_config, tmp_path, bundled_repos, keep_files
-):
-    """Both bundles survive — the fix must disambiguate, not deduplicate."""
-    runner = _generate(fan_in_diamond_config, tmp_path, keep_files)
-    snakefile = (runner.out_dir / "Snakefile").read_text()
-
-    join_outputs = [p for p in _declared_outputs(snakefile) if "/join/J1/" in p]
-
-    assert (
-        len(join_outputs) == 2
-    ), f"expected one join per shallow module: {join_outputs}"
-    assert len(set(join_outputs)) == 2, "join outputs collided"
-    # each records the branch its path omits
-    for rule_block in re.split(r"^rule ", snakefile, flags=re.M)[1:]:
-        if "/join/J1/" in rule_block and "lineage.json" in rule_block:
-            assert "shallow" in rule_block, (
+    for block in re.split(r"^rule ", snakefile, flags=re.M)[1:]:
+        if "/join/J1/" in block and "lineage.json" in block:
+            assert "shallow" in block, (
                 "the join's lineage.json must name the shallow branch, which "
                 "its path prefix drops"
             )
