@@ -1168,12 +1168,10 @@ def _get_ancestor_nodes(node, nodes_by_id) -> list:
 def _expansion_segment(param_id: str, members) -> str:
     """The directory segment identifying one expansion of a (stage, module).
 
-    For a linear node the parameter hash is enough: its ancestry is already in
-    the path prefix. A fan-in node's prefix carries only ONE branch — the
-    deepest input, which is what `base_path` resolves to — so two joins sharing
-    that branch but differing in another parent would land on the same path and
-    Snakemake would reject them as ambiguous. Append the parent-set digest so
-    the segment distinguishes them, exactly as the node id already does.
+    A linear node needs only the parameter hash — its ancestry is already in
+    the path prefix. A fan-in node's prefix carries just its deepest input, so
+    two joins sharing that branch would collide (Snakemake: AmbiguousRule);
+    append the parent-set digest, as the node id already does.
     """
     if len(members) > 1:
         return f"{param_id}-{join_hash(m.id for m in members)}"
