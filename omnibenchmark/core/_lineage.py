@@ -151,17 +151,16 @@ def select_input_nodes(
         key=providing_stage_id_to_depth.__getitem__,
     )
 
-    maximal = _maximal_producer_stages(
-        set(providing_stage_id_to_depth), resolved_nodes, nodes_by_id
-    )
-    if len(maximal) < 2:
-        return [n for n in resolved_nodes if n.stage_id == deepest_stage_id]
-
+    # The deepest producer is always maximal — a dominator would be one of its
+    # descendants, hence a higher topo index — so a singleton maximal set is
+    # exactly {deepest} and falls out of the general path below.
     selected = _alternative_producer_stages(
         declared_input_ids,
         output_to_nodes,
         nodes_by_id,
-        maximal,
+        _maximal_producer_stages(
+            set(providing_stage_id_to_depth), resolved_nodes, nodes_by_id
+        ),
         deepest_stage_id,
     )
     return [n for n in resolved_nodes if n.stage_id in selected]
