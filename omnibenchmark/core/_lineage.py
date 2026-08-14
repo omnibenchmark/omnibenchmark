@@ -66,20 +66,14 @@ def _maximal_producer_stages(producing_stage_ids: set, resolved_nodes, nodes_by_
     if len(producing_stage_ids) < 2:
         return set(producing_stage_ids)
 
-    nodes_by_stage: dict = {}
-    for node in resolved_nodes:
-        if node.stage_id in producing_stage_ids:
-            nodes_by_stage.setdefault(node.stage_id, []).append(node)
-
-    dominated: set = set()
-    for stage_id, nodes in nodes_by_stage.items():
-        ancestor_stages = {
-            ancestor.stage_id
-            for node in nodes
-            for ancestor in iter_ancestors(node, nodes_by_id)
-        }
-        dominated |= (ancestor_stages & producing_stage_ids) - {stage_id}
-
+    dominated = {
+        ancestor.stage_id
+        for node in resolved_nodes
+        if node.stage_id in producing_stage_ids
+        for ancestor in iter_ancestors(node, nodes_by_id)
+        if ancestor.stage_id in producing_stage_ids
+        and ancestor.stage_id != node.stage_id
+    }
     return set(producing_stage_ids) - dominated
 
 
@@ -92,22 +86,14 @@ def _alternative_producer_stages(
 ):
     """The maximal producers that are *alternatives* to ``deepest_stage_id``.
 
-    Several maximal producers mean one of two different things, and the
-    discriminator is whether they produce the **same** declared input id:
+    Several maximal producers mean one of two things, told apart by whether
+    they produce the **same** declared input id:
 
-    * **same id — alternatives** (design 010 §3.1 rule 1b). The files are
-      interchangeable for a consumer referencing that id, so each producer is
-      its own expansion base and the consumer runs once per producer.
-    * **different ids — fan-in partners** (010 §3.9, #289). The consumer needs
-      both at once, which is one node with several parents. Those stay out of
-      the anchor set: ``_select_input_bundles`` pairs them with the anchor via
-      the join path. Returning them here instead would anchor the same join
-      once per branch and emit it twice, in both orders.
-
-    A dominated producer must never be an anchor either: the shared id would be
-    missing from its own ancestry, sending it down the join path to be paired
-    with the deeper producer — a bundle carrying the same files, at the same
-    output path, as that producer's own node.
+    * same id — alternatives (010 §3.1 rule 1b): each is its own expansion
+      base, so the consumer runs once per producer.
+    * different ids — fan-in partners (010 §3.9): the consumer needs both at
+      once. Left to ``_select_input_bundles``; returning them here would anchor
+      the same join once per branch and emit it twice.
     """
     alternatives = {deepest_stage_id}
     for input_id in declared_input_ids:

@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: lineage gating — `provides:` labels a lineage, `requires:` runs a module only on matching lineages (api 0.7.0, #354)
 - feat: reject gates that can never fire at parse time (#354)
 - fix: compare `api_version` by components, not lexicographically (#354)
+- feat: explicit `gather:` stages — fan-in by shared output id, grouped by an ancestor stage, with the chain cut at a declared `prefix:` (design 010, #289)
+- feat: a stage now consumes an output id from *every* stage that produces it. Producers on parallel branches are alternatives, so the consumer expands once per producer instead of silently binding to whichever sorted deepest and leaving the others as dead branches. Producers on one chain still resolve nearest-ancestor-first (design 010 §3.1). Not gated on api_version — with a single producer per id the resolved plan is unchanged
+- feat: fan-in nodes write a `lineage.json` sidecar naming every contributing node (id, stage, module, commit, parameter hash, directory). A join's path records only its deepest input and a gather's only its group key, so this is what makes the full closure recoverable from the filesystem alone (design 010 §3.3/§3.9)
+- fix: fan-in output paths now carry a digest of the node's parent set. Two joins sharing their deepest input but differing in another parent resolved to the same output path, and Snakemake rejected the plan with `AmbiguousRuleException`; the readable sibling symlink collided the same way and kept only whichever job ran last
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 

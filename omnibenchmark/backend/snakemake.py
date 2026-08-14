@@ -268,6 +268,20 @@ class SnakemakeGenerator:
     # Fan-in provenance sidecar (design 010 §3.3/§3.9)
     # ------------------------------------------------------------------
 
+    def _member_record(self, member_id: str) -> dict:
+        """Enough to locate one contributing node without the run metadata."""
+        member = self._nodes_by_id.get(member_id)
+        if member is None:
+            return {"node_id": member_id}
+        return {
+            "node_id": member.id,
+            "stage": member.stage_id,
+            "module": member.module_id,
+            "commit": member.module.commit,
+            "params": member.get_parameter_hash(),
+            "dir": os.path.dirname(member.outputs[0]) if member.outputs else None,
+        }
+
     def _lineage_record(self, node: ResolvedNode):
         """Provenance record for a node whose path cannot encode its ancestry.
 
@@ -282,24 +296,7 @@ class SnakemakeGenerator:
             return None
 
         member_ids = list(getattr(node, "gathered_from", None) or []) or parents
-        members = []
-        for member_id in member_ids:
-            member = self._nodes_by_id.get(member_id)
-            if member is None:
-                members.append({"node_id": member_id})
-                continue
-            members.append(
-                {
-                    "node_id": member.id,
-                    "stage": member.stage_id,
-                    "module": member.module_id,
-                    "commit": member.module.commit,
-                    "params": member.get_parameter_hash(),
-                    "dir": os.path.dirname(member.outputs[0])
-                    if member.outputs
-                    else None,
-                }
-            )
+        members = [self._member_record(member_id) for member_id in member_ids]
         return {
             "node_id": node.id,
             "stage": node.stage_id,
