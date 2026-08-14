@@ -773,3 +773,36 @@ def test_lineage_sidecar_is_one_shell_line_with_escaped_braces():
     # round-trips once Snakemake collapses the doubled braces
     payload = lines[0].split("echo '", 1)[1].rsplit("' >", 1)[0]
     assert json.loads(payload.replace("{{", "{").replace("}}", "}"))["kind"] == "join"
+
+
+@pytest.mark.short
+def test_metadata_records_every_module_not_just_every_repo(tmp_path):
+    """One repository commonly hosts several modules, distinguished only by
+    entrypoint (scrapper -> filter/normalize/select/pca). Deduping the record
+    on (repo, commit) dropped all but the first, so modules.txt under-reported
+    what actually ran."""
+    from omnibenchmark.backend._metadata import save_metadata
+
+    shared = dict(repo_url="https://github.com/x/scrapper", commit="18843a7")
+    nodes = [
+        _make_node(
+            node_id="filt-fi",
+            stage_id="FILT",
+            module_id="fi-scrapper",
+            module=_make_module(entrypoint="filter", **shared),
+        ),
+        _make_node(
+            node_id="norm-nr",
+            stage_id="NORM",
+            module_id="nr-scrapper",
+            module=_make_module(entrypoint="normalize", **shared),
+        ),
+    ]
+    yaml_path = tmp_path / "benchmark.yaml"
+    yaml_path.write_text("id: b\n")
+
+    save_metadata(benchmark_yaml_path=yaml_path, output_dir=tmp_path, nodes=nodes)
+    listed = (tmp_path / ".metadata" / "modules.txt").read_text()
+
+    assert "FILT/fi-scrapper" in listed
+    assert "NORM/nr-scrapper" in listed
