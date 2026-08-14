@@ -1198,14 +1198,6 @@ def _get_output_ids_for_node(node, benchmark) -> dict:
     return result
 
 
-def _get_ancestor_nodes(node, nodes_by_id) -> list:
-    """All ancestors of `node`, nearest-first: the `parent_id` chain (linear
-    lineage — identical to the id-prefix chain, but O(depth) and immune to id
-    separators) UNION explicit `parents` edges (fan-in branches). A node
-    downstream of a join/gather sees every branch (design 010 §3.9, #289)."""
-    return list(iter_ancestors(node, nodes_by_id))
-
-
 def _expansion_segment(param_id: str, members) -> str:
     """The directory segment identifying one expansion of a (stage, module).
 
@@ -1382,7 +1374,7 @@ def _expand_scatter_stage(
                         # §3.1).
                         for member in members:
                             for ancestor in reversed(
-                                _get_ancestor_nodes(member, nodes_by_id)
+                                list(iter_ancestors(member, nodes_by_id))
                             ):
                                 output_id_to_path.update(
                                     _get_output_ids_for_node(ancestor, benchmark)
