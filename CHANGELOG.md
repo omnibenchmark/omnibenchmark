@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 ## [0.7.0](UNRELEASED)
 
 - feat: capability filters by --with-capability (#360)
+- feat: a parameter value may reference an upstream one by lineage label — `k: "{dataset.params.ideal_components}"` resolves per lineage, keeping the upstream value's type, so one module declaration expands to different concrete parameters under different datasets
 - feat: explicit `gather:` stages — fan-in by shared output id, grouped by an ancestor stage (design 010, #289)
 - feat: a stage consumes an output id from every stage producing it; parallel producers of the same id are alternatives, so the consumer expands once per producer (design 010 §3.1)
 - feat: fan-in nodes write a `lineage.json` sidecar naming every contributing node (design 010 §3.3)

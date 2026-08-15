@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -866,21 +867,50 @@ def log_error_and_quit(logger, error):
     sys.exit(1)
 
 
-def _substitute_params_in_path(template: str, params) -> str:
-    """Substitute {params.key} placeholders in an output path template."""
-    if params is None or "{params." not in template:
-        return template
+_PARAM_REF_RE = re.compile(r"\{([A-Za-z0-9_-]+)\.params\.([^{}]+)\}")
 
-    import re
 
-    def _replace(match):
-        key = match.group(1)
-        try:
-            return str(params[key])
-        except KeyError:
-            return match.group(0)
+def _resolve_param_refs(parent_ctx, params):
+    """Substitute ``{label.params.key}`` in parameter VALUES from the lineage.
 
-    return re.sub(r"\{params\.([^}]+)\}", _replace, template)
+    Resolved against the PARENT's context, which is already fully resolved, so
+    a node can never reference its own label and no fixpoint is needed. Chained
+    references (C → B → A) work transitively for free, since what lands on each
+    node is the resolved `Params`.
+
+    Only *matched* references are touched — unlike `TemplateContext.substitute`,
+    a leftover brace here is a legal literal, not an error. Returns a new
+    `Params` when anything changed, otherwise `params` itself: `params_list` is
+    built once per module and shared across every input bundle, so it must
+    never be mutated in place.
+    """
+    if params is None:
+        return params
+
+    # An entrypoint has no lineage to read, but a reference there must still
+    # fail loudly rather than reach the shell verbatim — an empty context
+    # raises for every label.
+    ctx = parent_ctx if parent_ctx is not None else TemplateContext()
+    resolved = None
+
+    for key, value in params.items():
+        if not isinstance(value, str) or "{" not in value:
+            continue
+        whole = _PARAM_REF_RE.fullmatch(value)
+        if whole:
+            # Whole-value reference keeps the ancestor's native type.
+            new_value = ctx.lookup_param(*whole.groups())
+        elif _PARAM_REF_RE.search(value):
+            new_value = _PARAM_REF_RE.sub(
+                lambda m: str(ctx.lookup_param(*m.groups())), value
+            )
+        else:
+            continue
+        if resolved is None:
+            resolved = Params(params)
+        resolved[key] = new_value
+
+    return resolved if resolved is not None else params
 
 
 def _build_template_context(
@@ -898,6 +928,9 @@ def _build_template_context(
     value) so output templates can reference it (design 010 §3.3).
     """
     provides: dict[str, str] = {}
+    # {label.params.*}: every label binding above also records the params of the
+    # node that bound it, so a downstream parameter value can read them.
+    provides_params: dict = {}
     module_attrs: dict[str, str] = {
         "id": module_id,
         "stage": stage.id,
@@ -909,6 +942,7 @@ def _build_template_context(
     if input_node is not None:
         if input_node.template_context is not None:
             provides.update(input_node.template_context.provides)
+            provides_params.update(input_node.template_context.provides_params)
 
         if stage_provides:
             for label in stage_provides:
@@ -916,6 +950,7 @@ def _build_template_context(
                     provides[label] = str(params[label])
                 else:
                     provides[label] = module_id
+                provides_params[label] = params
 
         module_attrs["parent.id"] = input_node.module_id
         module_attrs["parent.stage"] = input_node.stage_id
@@ -926,6 +961,7 @@ def _build_template_context(
                     provides[label] = str(params[label])
                 else:
                     provides[label] = module_id
+                provides_params[label] = params
 
         if extra_provides is None:
             # Builtin `dataset` is an entrypoint concept. A gather node (the
@@ -936,14 +972,20 @@ def _build_template_context(
                 provides.setdefault("dataset", str(params["dataset"]))
             else:
                 provides.setdefault("dataset", module_id)
+            provides_params.setdefault("dataset", params)
 
     if extra_provides:
         provides.update(extra_provides)
 
     # {name} always resolves to the current module's own ID, never inherited
     provides["name"] = module_id
+    provides_params["name"] = params
 
-    return TemplateContext(provides=provides, module_attrs=module_attrs)
+    return TemplateContext(
+        provides=provides,
+        module_attrs=module_attrs,
+        provides_params=provides_params,
+    )
 
 
 def _ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
@@ -1294,6 +1336,17 @@ def _expand_scatter_stage(
                             f"(upstream context: {input_node.template_context.provides})"
                         )
                         continue
+
+                # Before the hash: param_id feeds the node id, the output
+                # directory segment and the human-readable symlink, so two
+                # nodes whose `k` really differs must not share one.
+                # ponytail: a bad reference raises out of the per-module `try`
+                # below, skipping this module's remaining combinations. Right
+                # for a misconfigured reference; if a config ever needs
+                # per-combination tolerance, catch here and `continue`.
+                params = _resolve_param_refs(
+                    input_node.template_context if input_node else None, params
+                )
 
                 param_id = f".{params.hash_short()}" if params else ".default"
 

@@ -617,6 +617,43 @@ stages:
 
 This is useful when a single module is run with multiple parameter sweeps and each run's output must be stored at a distinct path.
 
+### Deriving a parameter from the dataset it runs on
+
+Sometimes a downstream parameter is not a free sweep but a property of the data: the number of components to keep depends on which dataset is being processed. Write `{LABEL.params.KEY}` as the parameter *value* and it resolves, per lineage, to the value that lineage's upstream module declared.
+
+```yaml
+stages:
+  - id: data
+    modules:
+      - id: D1
+        parameters:
+          - ideal_components: 10
+      - id: D2
+        parameters:
+          - ideal_components: 25
+    outputs:
+      - id: data.raw
+        path: "{name}_data.json"
+
+  - id: pca
+    modules:
+      - id: PCA
+        parameters:
+          - k: "{dataset.params.ideal_components}"
+    inputs:
+      - data.raw
+    outputs:
+      - id: pca.embedding
+        path: "{name}_embedding.json"
+        # PCA under D1 runs `--k 10`, under D2 `--k 25`
+```
+
+`LABEL` is a lineage label, the same namespace `requires:` matches against. `dataset` is bound automatically to each entrypoint module and inherited by everything downstream, so the reference works at any depth, not just one stage down. The value keeps its type — `ideal_components: 10` arrives as the integer `10`, not `"10"`.
+
+Each resolved value gets its own parameter hash, so the two PCA runs land in separate output directories, exactly as if you had written the numbers by hand.
+
+A reference that cannot be resolved — an unknown label, or an upstream module that declares no such parameter — fails at plan time with a `DAG construction failed` error naming the stage and module. It is not a way to make a module conditional; to skip a combination entirely, use `exclude:`.
+
 ## Collect telemetry from a run
 
 `ob run` can emit OpenTelemetry traces and events covering benchmark setup, DAG construction, and per-job execution. Pass `--telemetry` to enable OTLP/JSON Lines output:

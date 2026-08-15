@@ -29,10 +29,13 @@ class TemplateContext:
     Built during node expansion from the node's lineage.  Used to substitute
     template variables in output paths, parameter values, and other fields.
 
-    Three namespaces:
-      1. ``{label}``       — from ``provides`` dict (ancestor lineage)
-      2. ``{module.attr}`` — from ``module_attrs`` dict (current node)
-      3. ``{params.key}``  — from ``params`` argument (not stored here)
+    Four namespaces:
+      1. ``{label}``             — from ``provides`` dict (ancestor lineage)
+      2. ``{module.attr}``       — from ``module_attrs`` dict (current node)
+      3. ``{params.key}``        — from ``params`` argument (not stored here)
+      4. ``{label.params.key}``  — from ``provides_params``, via
+         :meth:`lookup_param`; resolved in parameter *values*, not by
+         :meth:`substitute` (see that method's note on failure policy)
     """
 
     # {label} -> module_id from provides declarations in lineage
@@ -41,15 +44,50 @@ class TemplateContext:
     # {module.*} -> structural attributes of the current node
     module_attrs: Dict[str, str] = field(default_factory=dict)
 
+    # {label.params.*} -> the Params of the node that bound `label`.
+    # Accumulated alongside `provides`, so nearest-ancestor wins and a lookup
+    # needs neither the node table nor an ancestry walk.
+    provides_params: Dict[str, Any] = field(default_factory=dict)
+
     _MODULE_RE = re.compile(r"\{module\.([^}]+)\}")
     _PARAMS_RE = re.compile(r"\{params\.([^}]+)\}")
 
     _UNRESOLVED_RE = re.compile(r"\{([^}]+)\}")
 
+    def lookup_param(self, label: str, key: str) -> Any:
+        """Value of ``key`` in the params of the node that provided ``label``.
+
+        Returns the value with its original type — an int stays an int, a bool
+        stays a bool — so a resolved reference is indistinguishable from the
+        literal written inline, both as a CLI arg and in the param hash.
+        """
+        if label not in self.provides_params:
+            raise ValueError(
+                f"Unknown lineage label '{label}' in "
+                f"'{{{label}.params.{key}}}'. Available: "
+                f"{', '.join(sorted(self.provides_params)) or '(none)'}"
+            )
+        params = self.provides_params[label]
+        if params is None or key not in params:
+            available = sorted(k for k, _ in params.items()) if params else []
+            raise ValueError(
+                f"'{{{label}.params.{key}}}': the module providing '{label}' "
+                f"declares no parameter '{key}'. Available: "
+                f"{', '.join(available) or '(none)'}"
+            )
+        return params[key]
+
     def substitute(self, template: str, params=None) -> str:
         """Apply all template variables to *template*.
 
         Resolution order: provides → module attrs → params.
+
+        Handles namespaces 1-3 only. ``{label.params.key}`` is deliberately
+        excluded: this raises on any leftover ``{...}``, which is right for an
+        output path but wrong for a parameter value, where an unmatched brace
+        is a legal literal. Parameter values go through
+        ``cli/run.py:_resolve_param_refs``, which touches matched references
+        and nothing else.
 
         Raises:
             ValueError: If any ``{variable}`` placeholders remain unresolved
