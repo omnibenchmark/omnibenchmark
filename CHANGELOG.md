@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 ## [0.7.0](UNRELEASED)
 
 - feat: capability filters by --with-capability (#360)
+- feat: emit threads per rule according if the module requests a number of cores
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 

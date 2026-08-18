@@ -289,6 +289,34 @@ class TestWriteEnvironmentDirective:
 
 
 # ---------------------------------------------------------------------------
+# _write_threads_directive
+# ---------------------------------------------------------------------------
+
+
+class TestWriteThreadsDirective:
+    def test_no_resources_emits_nothing(self):
+        """Default must stay unset: emitting threads would change scheduling
+        for every existing benchmark."""
+        node = _make_node(resources=None)
+        out = _capture(_gen()._write_threads_directive, node)
+        assert out == ""
+
+    def test_cores_emits_threads(self):
+        resources = MagicMock()
+        resources.cores = 8
+        node = _make_node(resources=resources)
+        out = _capture(_gen()._write_threads_directive, node)
+        assert "threads: 8" in out
+
+    def test_zero_cores_emits_nothing(self):
+        resources = MagicMock()
+        resources.cores = 0
+        node = _make_node(resources=resources)
+        out = _capture(_gen()._write_threads_directive, node)
+        assert out == ""
+
+
+# ---------------------------------------------------------------------------
 # _write_resources_directive
 # ---------------------------------------------------------------------------
 
