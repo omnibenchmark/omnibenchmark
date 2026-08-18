@@ -153,6 +153,7 @@ class SnakemakeGenerator:
         f.write(f'        ".logs/{log_filename}"\n')
 
         self._write_environment_directive(f, node.module)
+        self._write_threads_directive(f, node)
         self._write_resources_directive(f, node)
 
         if is_collector or is_gather:
@@ -190,6 +191,28 @@ class SnakemakeGenerator:
         elif env.backend_type.value == "envmodules":
             f.write(f'    envmodules: "{env.reference}"\n')
         # host backend needs no directive
+
+    def _write_threads_directive(self, f: TextIO, node: ResolvedNode):
+        """Write Snakemake's threads: directive when a stage asks for cores.
+
+        Distinct from the `cores` custom resource written below. Two things
+        follow from threads: that the resource alone cannot give:
+
+        * Snakemake exports OMP_NUM_THREADS=<threads> into every shell job, so
+          BLAS/OpenMP libraries in the module actually get more than one
+          thread. Left unset, threads is 1 and every module runs
+          single-threaded no matter what the machine has.
+        * The scheduler reserves that many of --cores for the job, instead of
+          assuming 1 and oversubscribing the box.
+
+        Only emitted when the stage declares resources.cores explicitly.
+        Defaulting it would silently change scheduling for every existing
+        benchmark, so opting in stays deliberate.
+        """
+        r = node.resources
+        cores = r.cores if r is not None else None
+        if cores:
+            f.write(f"    threads: {cores}\n")
 
     def _write_resources_directive(self, f: TextIO, node: ResolvedNode):
         """Write Snakemake resources: directive for a node.
