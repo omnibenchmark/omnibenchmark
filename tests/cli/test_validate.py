@@ -164,14 +164,14 @@ class TestValidatePlanCLI:
         assert "divergent branches" not in output
 
     @pytest.mark.short
-    def test_validate_plan_rejects_diamond_input_collection(self, cli_setup, temp_dir):
-        """Regression test for omnibenchmark#289 (the unsupported case).
+    def test_validate_plan_accepts_diamond_input_collection(self, cli_setup, temp_dir):
+        """Regression test for omnibenchmark#289 (now the SUPPORTED case).
 
-        A stage that collects inputs from two stages on divergent branches (neither
-        upstream of the other) is a diamond the resolver cannot satisfy; at run time
-        it surfaced only as an opaque "Could not resolve input" warning. Plan
-        validation must reject it up front with an actionable message that names both
-        offending branch stages and references the tracking issue.
+        A stage that collects inputs from two stages on divergent branches (a
+        diamond) used to be rejected. At api > 0.7.0 it is resolved as a fan-in join
+        (`_select_input_bundles`, design 010 §3.9): the two branches share a
+        lineage root, so the join pairs them. Plan validation must accept it and
+        must NOT emit the old "divergent branches" rejection.
         """
         result = cli_setup.call(
             [
@@ -182,13 +182,63 @@ class TestValidatePlanCLI:
             cwd=str(temp_dir),
         )
 
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "validation passed" in output
+        assert "divergent branches" not in output
+
+    @pytest.mark.short
+    def test_validate_plan_accepts_shared_output_contract(self, cli_setup, temp_dir):
+        """Two stages on parallel branches may declare the SAME output id.
+
+        That is a contract (design 010 §3.1) — the files are interchangeable for
+        any consumer referencing the id — so the plan must validate, at any api
+        version, and must NOT be mistaken for a divergent-branch join. It is not
+        one: a join needs inputs from both branches *at once*, whereas these are
+        alternatives and each yields its own downstream node.
+
+        Guards `detect_diamond_input_joins`: it currently records one producer
+        per output id (`setdefault`), so the second producer is invisible to it.
+        Making it multi-producer-aware without teaching it this distinction would
+        turn every shared contract into a false rejection.
+        """
+        config = (
+            Path(__file__).parent.parent
+            / "e2e"
+            / "configs"
+            / "11_shared_output_contract.yaml"
+        )
+        result = cli_setup.call(
+            ["validate", "plan", str(config)],
+            cwd=str(temp_dir),
+        )
+
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "validation passed" in output
+        assert "divergent branches" not in output
+
+    @pytest.mark.short
+    def test_validate_plan_rejects_diamond_below_api_0_7(self, cli_setup, temp_dir):
+        """The fan-in join is gated on api >= 0.7.0 (design 010 §3.9). The SAME
+        diamond fixture at api 0.5.0 must be rejected up front with the actionable
+        "divergent branches" message, since the pre-0.7 resolver can't satisfy it.
+        """
+        src = (data / "benchmark_out_of_order_stages_failure.yaml").read_text()
+        downgraded = temp_dir / "diamond_0_5.yaml"
+        downgraded.write_text(
+            src.replace('api_version: "0.7.0"', 'api_version: "0.5.0"')
+        )
+
+        result = cli_setup.call(
+            ["validate", "plan", str(downgraded)],
+            cwd=str(temp_dir),
+        )
+
         assert result.returncode != 0
         output = result.stdout + result.stderr
-        assert "Stage 'E'" in output
-        assert "'C1'" in output
-        assert "'C2'" in output
         assert "divergent branches" in output
-        assert "issues/289" in output
+        assert "0.7.0" in output
 
     @pytest.mark.short
     def test_validate_plan_rejects_exclude_zero_nodes(self, cli_setup, temp_dir):

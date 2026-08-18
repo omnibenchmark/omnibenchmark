@@ -1,0 +1,56 @@
+id: LineageParamRefs
+description: >-
+  A downstream parameter value is a reference to an upstream one,
+  addressed by lineage label. The single `k:` declaration on M1 must
+  expand to a different concrete value under each dataset.
+version: "1.0"
+benchmarker: "E2E Test Suite"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1 - 10 ideal components"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "1+1"
+            ideal_components: 10
+
+      - id: D2
+        name: "Dataset 2 - 25 ideal components"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "2+2"
+            ideal_components: 25
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        name: "Method 1 - k comes from the dataset"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - evaluate: "input+100"
+            input: "data.raw"
+            k: "{dataset.params.ideal_components}"
+    inputs:
+      - data.raw
+    outputs:
+      - id: methods.result
+        path: "{dataset}_result.json"

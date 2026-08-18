@@ -15,7 +15,7 @@ from omnibenchmark.cli.run import (
     _read_rule_log,
     _run_benchmark,
     _run_snakemake,
-    _substitute_params_in_path,
+    _resolve_param_refs,
     _build_template_context,
     _module_capabilities_met,
     _capability_prune_summary,
@@ -141,41 +141,78 @@ class TestReadRuleLog:
 
 
 # ---------------------------------------------------------------------------
-# _substitute_params_in_path
+# _resolve_param_refs
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.short
-class TestSubstituteParamsInPath:
-    def test_no_placeholder_unchanged(self):
-        assert (
-            _substitute_params_in_path("data/D1/out.json", None) == "data/D1/out.json"
+class TestResolveParamRefs:
+    @staticmethod
+    def _ctx(**provides_params):
+        return TemplateContext(provides_params=provides_params)
+
+    def test_none_params(self):
+        assert _resolve_param_refs(self._ctx(), None) is None
+
+    def test_no_ref_returns_same_object(self):
+        # Untouched, and not even copied: params_list is shared across bundles.
+        p = Params({"k": 3, "flag": True})
+        assert _resolve_param_refs(self._ctx(), p) is p
+
+    def test_literal_braces_passed_through(self):
+        p = Params({"pattern": "^{2,3}$", "j": "{not a ref}"})
+        assert _resolve_param_refs(self._ctx(), p) is p
+
+    def test_whole_value_ref_preserves_native_type(self):
+        ctx = self._ctx(dataset=Params({"ideal_components": 10}))
+        result = _resolve_param_refs(
+            ctx, Params({"k": "{dataset.params.ideal_components}"})
         )
+        assert result["k"] == 10
+        assert isinstance(result["k"], int)
 
-    def test_none_params_unchanged(self):
-        assert (
-            _substitute_params_in_path("data/{params.key}/out.json", None)
-            == "data/{params.key}/out.json"
-        )
+    def test_whole_value_ref_preserves_bool(self):
+        # A stringified True would render as `--k True` instead of the flag.
+        ctx = self._ctx(dataset=Params({"scale": True}))
+        result = _resolve_param_refs(ctx, Params({"k": "{dataset.params.scale}"}))
+        assert result["k"] is True
 
-    def test_substitutes_key(self):
-        p = Params({"key": "value123"})
-        result = _substitute_params_in_path("data/{params.key}/out.json", p)
-        assert result == "data/value123/out.json"
+    def test_embedded_ref_interpolates_as_text(self):
+        ctx = self._ctx(dataset=Params({"n": 100}))
+        result = _resolve_param_refs(ctx, Params({"tag": "run-{dataset.params.n}-x"}))
+        assert result["tag"] == "run-100-x"
 
-    def test_missing_key_left_as_is(self):
-        p = Params({"other": "x"})
-        result = _substitute_params_in_path("data/{params.missing}/out.json", p)
-        assert result == "data/{params.missing}/out.json"
+    def test_does_not_mutate_input(self):
+        ctx = self._ctx(dataset=Params({"n": 7}))
+        p = Params({"k": "{dataset.params.n}"})
+        result = _resolve_param_refs(ctx, p)
+        assert result is not p
+        assert p["k"] == "{dataset.params.n}"
 
-    def test_multiple_substitutions(self):
-        p = Params({"a": "1", "b": "2"})
-        result = _substitute_params_in_path("{params.a}_{params.b}.txt", p)
-        assert result == "1_2.txt"
+    def test_other_keys_survive(self):
+        ctx = self._ctx(dataset=Params({"n": 7}))
+        result = _resolve_param_refs(ctx, Params({"k": "{dataset.params.n}", "m": 2}))
+        assert result["k"] == 7 and result["m"] == 2
 
-    def test_no_params_placeholder_skips_regex(self):
-        p = Params({"k": "v"})
-        assert _substitute_params_in_path("plain/path.txt", p) == "plain/path.txt"
+    def test_no_parent_context_raises(self):
+        # An entrypoint has no lineage; the ref must not reach the shell.
+        with pytest.raises(ValueError, match="Unknown lineage label"):
+            _resolve_param_refs(None, Params({"k": "{dataset.params.n}"}))
+
+    def test_unknown_label_raises(self):
+        ctx = self._ctx(dataset=Params({"n": 7}))
+        with pytest.raises(ValueError, match="Unknown lineage label 'treatment'"):
+            _resolve_param_refs(ctx, Params({"k": "{treatment.params.n}"}))
+
+    def test_unknown_key_raises(self):
+        ctx = self._ctx(dataset=Params({"n": 7}))
+        with pytest.raises(ValueError, match="declares no parameter 'missing'"):
+            _resolve_param_refs(ctx, Params({"k": "{dataset.params.missing}"}))
+
+    def test_label_bound_to_paramless_module_raises(self):
+        ctx = self._ctx(dataset=None)
+        with pytest.raises(ValueError, match="declares no parameter 'n'"):
+            _resolve_param_refs(ctx, Params({"k": "{dataset.params.n}"}))
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +300,45 @@ class TestBuildTemplateContext:
         p = Params({"method": "kmeans"})
         ctx = _build_template_context(stage, "M1", input_node=input_node, params=p)
         assert ctx.provides["method"] == "kmeans"
+
+    # --- provides_params: every label binding records the binder's params ---
+
+    def test_root_node_binds_dataset_params(self):
+        stage = _make_stage("data", provides=None)
+        p = Params({"ideal_components": 10})
+        ctx = _build_template_context(stage, "D1", params=p)
+        assert ctx.lookup_param("dataset", "ideal_components") == 10
+
+    def test_root_node_binds_stage_provides_params(self):
+        # Forward-wiring for design 008: the label loop is otherwise dead.
+        stage = _make_stage("data", provides=["treatment"])
+        p = Params({"treatment": "ctrl", "dose": 5})
+        ctx = _build_template_context(stage, "D1", params=p)
+        assert ctx.lookup_param("treatment", "dose") == 5
+
+    def test_child_inherits_parent_provides_params(self):
+        parent_ctx = TemplateContext(
+            provides={"dataset": "D1"},
+            provides_params={"dataset": Params({"ideal_components": 10})},
+        )
+        input_node = _make_input_node("D1", "data", template_context=parent_ctx)
+        stage = _make_stage("pca", provides=None)
+        ctx = _build_template_context(stage, "PCA", input_node=input_node)
+        assert ctx.lookup_param("dataset", "ideal_components") == 10
+
+    def test_child_does_not_rebind_dataset(self):
+        # `dataset` is an entrypoint concept: a downstream node must not
+        # shadow it with its own params.
+        parent_ctx = TemplateContext(
+            provides={"dataset": "D1"},
+            provides_params={"dataset": Params({"ideal_components": 10})},
+        )
+        input_node = _make_input_node("D1", "data", template_context=parent_ctx)
+        stage = _make_stage("pca", provides=None)
+        ctx = _build_template_context(
+            stage, "PCA", input_node=input_node, params=Params({"k": 3})
+        )
+        assert ctx.lookup_param("dataset", "ideal_components") == 10
 
     # --- {name} template variable: always the current module's own ID ---
 
@@ -497,6 +573,8 @@ def _make_lineage_node(module_id, parent_id=None, node_id=None):
     n.id = node_id if node_id is not None else module_id
     n.module_id = module_id
     n.parent_id = parent_id
+    n.parents = []
+    n.is_gather = False
     return n
 
 

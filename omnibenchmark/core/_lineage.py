@@ -6,6 +6,100 @@ These operate on the ``parent_id`` chain of resolved nodes (see
 in isolation.
 """
 
+import hashlib
+from collections import deque
+
+
+def join_hash(node_ids) -> str:
+    """Order-independent digest of a fan-in node's parent *set*, so bundle
+    order never leaks into a name or path. Shared by resolver and backend."""
+    return hashlib.sha1("|".join(sorted(node_ids)).encode()).hexdigest()[:8]
+
+
+def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
+    """Every distinct ancestor of `node`, nearest-first: the `parent_id` chain
+    plus explicit `parents` edges, so a node downstream of a join sees every
+    branch (010 §3.9).
+
+    `through_gather=False` is the GATING walk — it stops at a gather, whose
+    partition deliberately forgets (010 §3.3), so one excluded member among
+    hundreds must not poison everything downstream.
+    """
+    seen = {node.id}
+    queue: deque = deque()
+
+    def _push(n):
+        if not through_gather and getattr(n, "is_gather", False):
+            return
+        parent_id = getattr(n, "parent_id", None)
+        if parent_id:
+            queue.append(parent_id)
+        for pid in getattr(n, "parents", None) or []:
+            queue.append(pid)
+
+    _push(node)
+    while queue:
+        node_id = queue.popleft()
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+        ancestor = nodes_by_id.get(node_id)
+        if ancestor is None:
+            continue
+        yield ancestor
+        _push(ancestor)
+
+
+def _maximal_producer_stages(producing_stage_ids: set, resolved_nodes, nodes_by_id):
+    """Producing stages that are not ancestors of another producing stage.
+
+    Shadowed producers — those on the same chain as a deeper one — drop out
+    here, which is what reproduces nearest-ancestor-wins (design 010 §3.1
+    rule 1a).
+    """
+    if len(producing_stage_ids) < 2:
+        return set(producing_stage_ids)
+
+    dominated = {
+        ancestor.stage_id
+        for node in resolved_nodes
+        if node.stage_id in producing_stage_ids
+        for ancestor in iter_ancestors(node, nodes_by_id)
+        if ancestor.stage_id in producing_stage_ids
+        and ancestor.stage_id != node.stage_id
+    }
+    return set(producing_stage_ids) - dominated
+
+
+def _alternative_producer_stages(
+    declared_input_ids: list,
+    output_to_nodes: dict,
+    nodes_by_id: dict,
+    maximal_stages: set,
+    deepest_stage_id: str,
+):
+    """The maximal producers that are *alternatives* to ``deepest_stage_id``.
+
+    Several maximal producers mean one of two things, told apart by whether
+    they produce the **same** declared input id:
+
+    * same id — alternatives (010 §3.1 rule 1b): each is its own expansion
+      base, so the consumer runs once per producer.
+    * different ids — fan-in partners (010 §3.9): the consumer needs both at
+      once. Left to ``_select_input_bundles``; returning them here would anchor
+      the same join once per branch and emit it twice.
+    """
+    alternatives = {deepest_stage_id}
+    for input_id in declared_input_ids:
+        stages_for_id = {
+            node.stage_id
+            for node_id, _path in output_to_nodes.get(input_id, [])
+            if (node := nodes_by_id.get(node_id)) is not None
+        } & maximal_stages
+        if deepest_stage_id in stages_for_id:
+            alternatives |= stages_for_id
+    return alternatives
+
 
 def select_input_nodes(
     declared_input_ids: list[str],
@@ -17,21 +111,15 @@ def select_input_nodes(
 ) -> list:
     """Return the node list to use as the cartesian expansion base for a stage.
 
-    ``nodes_by_id`` (id → node) is an optional prebuilt index for the O(1) node
-    lookup; it is built from ``resolved_nodes`` when omitted, so callers that
-    already keep the index (the run loop) avoid the O(N) rebuild.
+    Per design 010 §3.1: producers on one chain collapse to the deepest
+    (rule 1a); producers on parallel branches declaring the *same* id are
+    alternatives, each its own base (rule 1b); parallel producers of
+    *different* ids are a fan-in, left to ``_select_input_bundles``.
 
-    NOTE(#289): this collapses a stage's inputs down to a *single* parent stage
-    (the deepest already-expanded producer). It therefore assumes every declared
-    input is reachable along one linear ancestry chain from that parent. When a
-    stage joins two sibling branches (a "diamond"), the other branch's outputs are
-    not in that lineage and later fail to resolve. This is the crux of the
-    multi-stage input-collection limitation.
-
-    TODO(#289): once arbitrary multi-stage input collection is supported, this
-    single-parent selection (and the linear-ancestor walk ``lineage_ancestors``)
-    must be generalised to gather inputs from *all* producing stages, not just the
-    deepest one on a single chain.
+    Ungated on api_version, unlike gather and fan-in: with one producer per id
+    the maximal set is a singleton, so existing plans are byte-identical, and a
+    gate would force benchmarks pinned at 0.4.0 to migrate modules for a
+    resolver fix. To gate later, thread a flag from ``_expand_scatter_stage``.
     """
     if not declared_input_ids:
         return previous_stage_nodes
@@ -62,7 +150,20 @@ def select_input_nodes(
         providing_stage_id_to_depth,
         key=providing_stage_id_to_depth.__getitem__,
     )
-    return [n for n in resolved_nodes if n.stage_id == deepest_stage_id]
+
+    # The deepest producer is always maximal — a dominator would be one of its
+    # descendants, hence a higher topo index — so a singleton maximal set is
+    # exactly {deepest} and falls out of the general path below.
+    selected = _alternative_producer_stages(
+        declared_input_ids,
+        output_to_nodes,
+        nodes_by_id,
+        _maximal_producer_stages(
+            set(providing_stage_id_to_depth), resolved_nodes, nodes_by_id
+        ),
+        deepest_stage_id,
+    )
+    return [n for n in resolved_nodes if n.stage_id in selected]
 
 
 def satisfies_requires(requires: dict, input_node) -> bool:

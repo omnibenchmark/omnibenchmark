@@ -29,10 +29,13 @@ class TemplateContext:
     Built during node expansion from the node's lineage.  Used to substitute
     template variables in output paths, parameter values, and other fields.
 
-    Three namespaces:
-      1. ``{label}``       — from ``provides`` dict (ancestor lineage)
-      2. ``{module.attr}`` — from ``module_attrs`` dict (current node)
-      3. ``{params.key}``  — from ``params`` argument (not stored here)
+    Four namespaces:
+      1. ``{label}``             — from ``provides`` dict (ancestor lineage)
+      2. ``{module.attr}``       — from ``module_attrs`` dict (current node)
+      3. ``{params.key}``        — from ``params`` argument (not stored here)
+      4. ``{label.params.key}``  — from ``provides_params``, via
+         :meth:`lookup_param`; resolved in parameter *values*, not by
+         :meth:`substitute` (see that method's note on failure policy)
     """
 
     # {label} -> module_id from provides declarations in lineage
@@ -41,15 +44,50 @@ class TemplateContext:
     # {module.*} -> structural attributes of the current node
     module_attrs: Dict[str, str] = field(default_factory=dict)
 
+    # {label.params.*} -> the Params of the node that bound `label`.
+    # Accumulated alongside `provides`, so nearest-ancestor wins and a lookup
+    # needs neither the node table nor an ancestry walk.
+    provides_params: Dict[str, Any] = field(default_factory=dict)
+
     _MODULE_RE = re.compile(r"\{module\.([^}]+)\}")
     _PARAMS_RE = re.compile(r"\{params\.([^}]+)\}")
 
     _UNRESOLVED_RE = re.compile(r"\{([^}]+)\}")
 
+    def lookup_param(self, label: str, key: str) -> Any:
+        """Value of ``key`` in the params of the node that provided ``label``.
+
+        Returns the value with its original type — an int stays an int, a bool
+        stays a bool — so a resolved reference is indistinguishable from the
+        literal written inline, both as a CLI arg and in the param hash.
+        """
+        if label not in self.provides_params:
+            raise ValueError(
+                f"Unknown lineage label '{label}' in "
+                f"'{{{label}.params.{key}}}'. Available: "
+                f"{', '.join(sorted(self.provides_params)) or '(none)'}"
+            )
+        params = self.provides_params[label]
+        if params is None or key not in params:
+            available = sorted(k for k, _ in params.items()) if params else []
+            raise ValueError(
+                f"'{{{label}.params.{key}}}': the module providing '{label}' "
+                f"declares no parameter '{key}'. Available: "
+                f"{', '.join(available) or '(none)'}"
+            )
+        return params[key]
+
     def substitute(self, template: str, params=None) -> str:
         """Apply all template variables to *template*.
 
         Resolution order: provides → module attrs → params.
+
+        Handles namespaces 1-3 only. ``{label.params.key}`` is deliberately
+        excluded: this raises on any leftover ``{...}``, which is right for an
+        output path but wrong for a parameter value, where an unmatched brace
+        is a legal literal. Parameter values go through
+        ``cli/run.py:_resolve_param_refs``, which touches matched references
+        and nothing else.
 
         Raises:
             ValueError: If any ``{variable}`` placeholders remain unresolved
@@ -255,6 +293,19 @@ class ResolvedNode:
     is_gather: bool = False  # True for gather-stage nodes (collect multiple inputs)
     is_collector: bool = False  # True for metric-collector nodes (0.4 compat)
 
+    # Provenance for gather nodes: the member node ids this node gathered, in
+    # plan order. The chain is cut (parent_id is None), so this is how the full
+    # upstream closure is recovered (design 010 §3.3).
+    gathered_from: List[str] = field(default_factory=list)
+
+    # Explicit lineage EDGES — the direct parent node ids. The general
+    # multi-parent representation (design 010 §3.9): empty for a linear node
+    # (its single parent is `parent_id`, recoverable via the id prefix), and the
+    # full producer set for a fan-in node (diamond join #289, or gather) whose id
+    # does NOT encode its lineage. Ancestry recovery walks `parents` in addition
+    # to the id-prefix chain, so a stage downstream of a fan-in sees every branch.
+    parents: List[str] = field(default_factory=list)
+
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
         return not self.inputs or len(self.inputs) == 0
@@ -325,6 +376,8 @@ class ResolvedNode:
             "param_dir_template": self.param_dir_template,
             "param_symlink_template": self.param_symlink_template,
             "parent_id": self.parent_id,
+            "parents": self.parents,
+            "gathered_from": self.gathered_from,
             "inputs": self.inputs,
             "outputs": self.outputs,
             "input_name_mapping": self.input_name_mapping,

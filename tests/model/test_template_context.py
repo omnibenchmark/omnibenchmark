@@ -209,6 +209,58 @@ class TestGatherContext:
         assert result == "results.json"
 
 
+class TestLookupParam:
+    """Tests for {label.params.key} lookup against the lineage."""
+
+    def test_resolves(self):
+        ctx = TemplateContext(provides_params={"dataset": Params({"n": 100})})
+        assert ctx.lookup_param("dataset", "n") == 100
+
+    def test_preserves_native_type(self):
+        ctx = TemplateContext(
+            provides_params={"dataset": Params({"n": 100, "scale": True})}
+        )
+        assert isinstance(ctx.lookup_param("dataset", "n"), int)
+        assert ctx.lookup_param("dataset", "scale") is True
+
+    def test_unknown_label_raises(self):
+        ctx = TemplateContext(provides_params={"dataset": Params({"n": 100})})
+        with pytest.raises(ValueError, match="Unknown lineage label 'method'"):
+            ctx.lookup_param("method", "n")
+
+    def test_unknown_label_lists_available(self):
+        ctx = TemplateContext(provides_params={"dataset": Params({"n": 1})})
+        with pytest.raises(ValueError, match="Available: dataset"):
+            ctx.lookup_param("method", "n")
+
+    def test_unknown_key_raises(self):
+        ctx = TemplateContext(provides_params={"dataset": Params({"n": 100})})
+        with pytest.raises(ValueError, match="declares no parameter 'missing'"):
+            ctx.lookup_param("dataset", "missing")
+
+    def test_label_bound_to_paramless_module_raises(self):
+        ctx = TemplateContext(provides_params={"dataset": None})
+        with pytest.raises(ValueError, match="declares no parameter 'n'"):
+            ctx.lookup_param("dataset", "n")
+
+    def test_empty_context_raises(self):
+        with pytest.raises(ValueError, match=r"Available: \(none\)"):
+            TemplateContext().lookup_param("dataset", "n")
+
+    def test_inherited_across_two_levels(self):
+        """A grandchild reads the entrypoint's params through inheritance."""
+        root = TemplateContext(provides_params={"dataset": Params({"n": 100})})
+        child = TemplateContext(provides_params=dict(root.provides_params))
+        grandchild = TemplateContext(provides_params=dict(child.provides_params))
+        assert grandchild.lookup_param("dataset", "n") == 100
+
+    def test_substitute_does_not_handle_label_params(self):
+        """Separate namespace: substitute() raises rather than resolving it."""
+        ctx = TemplateContext(provides_params={"dataset": Params({"n": 100})})
+        with pytest.raises(ValueError, match="Unresolved template variable"):
+            ctx.substitute("{dataset.params.n}.csv")
+
+
 class TestToDict:
     """Tests for TemplateContext serialization."""
 
