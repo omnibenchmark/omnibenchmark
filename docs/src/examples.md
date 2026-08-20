@@ -42,7 +42,7 @@ These are benchmarks organized by the community using Omnibenchmark.
 
 | Git repository | Description | API Version | License | DOI |
 |----------------|-------------|-------------|---------|-----|
-| [OB_GSEA](https://github.com/cphgeno/OB_GSEA-main) | Comparison of 17 single-sample gene set enrichment analysis (GSEA) methods across diverse datasets | 0.3.2 | MIT | — |
+| [OB_GSEA](https://github.com/cphgeno/OB_GSEA-main) | Comparison of 17 single-sample gene set enrichment analysis (GSEA) methods across diverse datasets | 0.3.2 | MIT | [10.1186/s12859-026-06600-2](https://doi.org/10.1186/s12859-026-06600-2) |
 | [scrna-bench](https://github.com/scrna-bench/pipelines-plan) | End-to-end scRNA-seq analysis pipelines, from HDF5 inputs to PCA, clustering, and other outputs | 0.4.0 | MIT | [10.5281/zenodo.19886347](https://zenodo.org/records/19886347), [10.64898/2026.05.01.722166](https://doi.org/10.64898/2026.05.01.722166) |
 | [CyTOF pipelines](https://github.com/kaae-2/ob-pipeline-cytof) | Comparison of CyTOF preprocessing and clustering pipelines | 0.3.2 | MIT | [10.64898/2026.06.02.729500](https://doi.org/10.64898/2026.06.02.729500) |
 | [VarCallBench](https://github.com/Jiayi-Wang-Joey/VarCallBench) | Comparison of variant callers for long read RNA-seq data | 0.5.1 | MIT | [10.5281/zenodo.19857089](https://doi.org/10.5281/zenodo.19857089), [10.64898/2026.04.29.721619](https://doi.org/10.64898/2026.04.29.721619) |
