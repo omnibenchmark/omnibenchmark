@@ -137,3 +137,32 @@ def test_print_logs_off_emits_nothing(tmp_path):
 
     out = print_exec_path_dict({0: ep}, stages, threshold_n_missing=1, logs=False)
     assert "LOG (" not in out
+
+
+def test_print_handles_paths_with_different_terminal_stages():
+    """A branching DAG has several terminal stages (issue #371).
+
+    The last column showed the output of the globally-last stage, which paths
+    ending on another branch never contain -> KeyError.
+    """
+    stages = ["data", "methods", "metrics", "other"]
+    short = _FakeExecPath(
+        [
+            ("data", _FakeStage(_node("data", "D1", "default"), ".", "out/d.txt")),
+            (
+                "methods",
+                _FakeStage(_node("methods", "M1", "default"), ".", "out/m.txt"),
+            ),
+        ]
+    )
+    long = _FakeExecPath(
+        [
+            ("data", _FakeStage(_node("data", "D1", "default"), ".", "out/d.txt")),
+            ("other", _FakeStage(_node("other", "O1", "default"), ".", "out/o.txt")),
+        ]
+    )
+
+    out = print_exec_path_dict({0: short, 1: long}, stages, threshold_n_missing=0)
+
+    assert "m.txt" in out
+    assert "o.txt" in out
