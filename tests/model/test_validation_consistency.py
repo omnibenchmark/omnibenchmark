@@ -53,6 +53,9 @@ class TestValidationConsistency:
         error_msg = str(exc_info.value)
         assert "not valid" in error_msg.lower()
 
+    # An absolute path also contains '/', so it trips the full-path
+    # deprecation on its way to the rejection under test.
+    @pytest.mark.filterwarnings("ignore:Output path")
     def test_validate_absolute_paths(self):
         """Test that absolute paths are rejected."""
         invalid_data = make_invalid_benchmark_for_testing("absolute_path")
@@ -204,6 +207,7 @@ class TestValidationConsistency:
         )
         assert host_benchmark.software_backend.value == "host"
 
+    @pytest.mark.filterwarnings("ignore:Output path")
     def test_file_path_validation(self):
         """Test file path validation rules."""
         # Valid relative paths

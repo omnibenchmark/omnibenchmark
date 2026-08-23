@@ -682,10 +682,10 @@ stages:
           commit: "abc123"
         outputs:
           - id: "cleaned_data"
-            path: "output/cleaned.csv"
+            path: "cleaned.csv"
     outputs:
       - id: "cleaned_data"
-        path: "output/cleaned.csv"
+        path: "cleaned.csv"
 metric_collectors:
   - id: performance_metrics
     name: "Performance Metrics"
@@ -695,7 +695,7 @@ metric_collectors:
       commit: "ghi789"
     inputs:
       - id: "cleaned_data"
-        path: "output/cleaned.csv"
+        path: "cleaned.csv"
     outputs:
       - id: "metrics_report"
         path: "metrics/report.html"
