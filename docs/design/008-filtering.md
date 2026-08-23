@@ -324,6 +324,12 @@ lineage phase:
   `N combinations pruned: X by requires, Y by exclude, Z by capability`.
   This is also the seed of the provenance `filters` block (§3.7): the same
   record, persisted.
+- **Parse-time errors** — a gate that can never fire is rejected before the
+  DAG is built: a `provides` key absent from its stage's list, and a
+  `requires:` on a module in an initial stage (no `inputs:`, hence no
+  upstream lineage to match). The latter is the most natural-looking place
+  to put a gate on a data-stage variant loader, and it would otherwise run
+  unconditionally with no diagnostic at all.
 
 #### Working example
 
