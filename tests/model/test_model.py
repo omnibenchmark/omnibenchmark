@@ -396,6 +396,46 @@ class TestLineageProvides:
                 stages=[make_stage(id="data", provides=[reserved])],
             )
 
+    def test_module_binds_undeclared_label_rejected(self):
+        """A module cannot bind a label its stage does not advertise."""
+        bound = make_module(id="huge", provides={"dataset_size": "lg"})
+        with pytest.raises(ValueError, match="does not"):
+            make_benchmark(
+                api_version=APIVersion.V0_6_0,
+                stages=[make_stage(id="data", modules=[bound])],
+            )
+
+    def test_requires_on_initial_stage_rejected(self):
+        """`requires` in a stage with no inputs has no lineage to match."""
+        gated = make_module(id="pca", requires={"dataset_size": "lg"})
+        with pytest.raises(ValueError, match="initial stage"):
+            make_benchmark(
+                api_version=APIVersion.V0_6_0,
+                stages=[make_stage(id="data", modules=[gated])],
+            )
+
+    def test_requires_on_downstream_stage_accepted(self):
+        """The same gate one stage later, where lineage exists, is fine."""
+        gated = make_module(id="pca", requires={"dataset_size": "lg"})
+        bench = make_benchmark(
+            api_version=APIVersion.V0_6_0,
+            stages=[
+                make_stage(
+                    id="data",
+                    provides=["dataset_size"],
+                    modules=[make_module(id="huge", provides={"dataset_size": "lg"})],
+                    outputs=[make_iofile(id="data.counts", path="counts.txt")],
+                ),
+                make_stage(
+                    id="process",
+                    inputs=[["data.counts"]],
+                    modules=[gated],
+                    outputs=[make_iofile(id="process.out", path="out.txt")],
+                ),
+            ],
+        )
+        assert bench.stages[1].modules[0].requires == {"dataset_size": "lg"}
+
 
 # Test Benchmark
 @pytest.mark.short
