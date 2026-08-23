@@ -65,10 +65,13 @@ def _stage(sid, modules, inputs=None, output_id=None):
     block += [_module(mid, params) for mid, params in modules]
     if inputs is not None:
         block.append("    inputs:")
-        for group in inputs:
-            if len(group) == 1:
-                block.append(f"      - {group[0]}")
-            else:
+        if len(inputs) == 1:
+            # Flat-list form: a single group is just a list of output ids.
+            block += [f"      - {e}" for e in inputs[0]]
+        else:
+            # Several groups have no flat spelling; only `entries:` (deprecated)
+            # can express them.
+            for group in inputs:
                 block.append("      - entries:")
                 block += [f"          - {e}" for e in group]
     block.append("    outputs:")
