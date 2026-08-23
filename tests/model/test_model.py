@@ -96,6 +96,17 @@ class TestEnums:
             "0.6.0",
         }
 
+    def test_api_version_ordering_is_semantic(self):
+        """Version gates order by components, not lexicographically."""
+        assert APIVersion.V0_5_0 < APIVersion.V0_6_0
+        assert APIVersion.V0_6_0 >= APIVersion.V0_5_0
+        assert not APIVersion.V0_6_0 <= APIVersion.V0_5_0
+        # Members are declared ascending. Once a two-digit minor exists
+        # ("0.10.0"), str's lexicographic order sorts it before "0.6.0" and
+        # this breaks; semantic ordering keeps it last.
+        assert sorted(APIVersion) == list(APIVersion)
+        assert APIVersion.latest() == sorted(APIVersion)[-1]
+
     def test_software_backend_enum(self):
         """Test SoftwareBackendEnum."""
         assert SoftwareBackendEnum.host.value == "host"
