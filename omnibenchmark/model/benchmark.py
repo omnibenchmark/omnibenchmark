@@ -20,6 +20,7 @@ from pydantic import (
 )
 
 from omnibenchmark.model._merge import merge_dict_list
+from omnibenchmark.versioning.version import Version
 
 from ._parsing import convert_pydantic_error_to_parse_error
 from .params import Params
@@ -138,6 +139,33 @@ class APIVersion(str, Enum):
     @classmethod
     def supported_versions(cls) -> set[str]:
         return {version.value for version in cls}
+
+    # Version gates compare with <, <=, >=. Inherited from str those are
+    # lexicographic, which would order "0.10.0" before "0.6.0"; delegate to
+    # the semantic Version instead.
+    @property
+    def _semver(self) -> Version:
+        return Version(self.value)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, APIVersion):
+            return NotImplemented
+        return self._semver < other._semver
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, APIVersion):
+            return NotImplemented
+        return self._semver <= other._semver
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, APIVersion):
+            return NotImplemented
+        return self._semver > other._semver
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, APIVersion):
+            return NotImplemented
+        return self._semver >= other._semver
 
 
 # Labels the runtime populates on every node; a stage may not advertise these
