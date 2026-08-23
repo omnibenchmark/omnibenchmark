@@ -3,6 +3,12 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [0.7.0](UNRELEASED)
+
+- feat: capability filters by --with-capability (#360)
+- feat: emit threads per rule according if the module requests a number of cores
+- feat: `ob run benchmark --until STAGE` truncates the DAG to that stage and its transitive ancestors (#361)
+
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 
 - feat: add opentelemetry support

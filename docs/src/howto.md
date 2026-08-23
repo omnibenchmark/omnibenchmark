@@ -455,6 +455,28 @@ Semantics worth knowing:
   development mode, nothing is filtered out from under you — it runs (and fails
   plainly at run time if the machine really lacks the resource).
 
+## Stop a run partway through the benchmark
+
+`--until` runs a benchmark up to one stage and no further — useful to check that
+preprocessing looks right before paying for the methods, or to materialize
+intermediate outputs other people can consume.
+
+```bash
+ob run benchmark benchmark.yaml --until preprocessing
+```
+
+Semantics worth knowing:
+
+- **Ancestors follow automatically.** Everything the named stage transitively
+  depends on is kept; everything downstream or unrelated is pruned. This uses
+  the input/output topology, not the order stages happen to appear in the YAML,
+  so an upstream stage declared *after* the named one is still kept.
+- **Metric collectors that reach past the cut are skipped.** A collector whose
+  inputs reference a pruned stage is dropped with a log line rather than
+  failing.
+- **Not combinable with `-m/--module`**, which already truncates the DAG its own
+  way; passing both is an error.
+
 ## Use a custom apptainer container to run methods
 
 We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.

@@ -156,9 +156,9 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     type=str,
     help=(
         "Stop the pipeline at and including the named stage. "
-        "Stages declared after the named stage in the benchmark YAML are "
-        "pruned from the resolved DAG, and metric collectors whose inputs "
-        "reference pruned stages are skipped."
+        "Only the named stage and its transitive ancestors are kept in the "
+        "resolved DAG, and metric collectors whose inputs reference pruned "
+        "stages are skipped."
     ),
 )
 @click.option(
@@ -1054,6 +1054,24 @@ def _select_capable_modules(modules, module_filter, available_capabilities):
     return kept, pruned
 
 
+def _capability_prune_summary(pruned_modules, available_capabilities) -> str:
+    """One-line warning naming what the capability gate dropped and how to keep it."""
+    ids = sorted({m.id for m in pruned_modules})
+    missing = sorted(
+        {
+            cap
+            for m in pruned_modules
+            for cap in m.requires_capabilities
+            if cap not in (available_capabilities or set())
+        }
+    )
+    flags = " ".join(f"--with-capability {cap}" for cap in missing)
+    return (
+        f"{len(ids)} module(s) pruned by capability gate: {', '.join(ids)}. "
+        f"Rerun with {flags} to include them."
+    )
+
+
 def _apply_until_filter(stages, until_stage, parents):
     """Restrict a stage list to `until_stage` plus its transitive ancestors.
 
@@ -1196,7 +1214,7 @@ def _generate_explicit_snakefile(
         key=lambda s: topo_index.get(s.id, len(topo_index)),
     )
 
-    target_stage = None
+    target_stage_id = None
     if module_filter:
         # ob run -m <module_id>: keep the target stage and its topological ancestors.
         target_stage = next(
@@ -1215,7 +1233,8 @@ def _generate_explicit_snakefile(
             )
             sys.exit(1)
 
-        target_pos = topo_index.get(target_stage.id, len(topo_index))
+        target_stage_id = target_stage.id
+        target_pos = topo_index.get(target_stage_id, len(topo_index))
         stages_to_expand = [
             stage
             for stage in topo_sorted_stages
@@ -1223,7 +1242,7 @@ def _generate_explicit_snakefile(
         ]
         logger.info(
             f"Module mode: expanding {len(stages_to_expand)} stage(s) "
-            f"(up to and including '{target_stage.id}'), "
+            f"(up to and including '{target_stage_id}'), "
             "first expansion only."
         )
     elif until_stage is not None:
@@ -1246,12 +1265,14 @@ def _generate_explicit_snakefile(
     # Capability gate: drop modules whose required host capabilities are not all
     # provided, before any checkout/env resolution. -m/--module bypasses it.
     unique_modules = {}
+    pruned_modules = []
     for stage in stages_to_expand:
         kept, pruned = _select_capable_modules(
             stage.modules, module_filter, available_capabilities
         )
+        pruned_modules.extend(pruned)
         for module in pruned:
-            logger.info(
+            logger.warning(
                 f"Pruning module '{module.id}': requires capabilities "
                 f"{module.requires_capabilities}, host provides "
                 f"{sorted(available_capabilities or [])}."
@@ -1264,6 +1285,11 @@ def _generate_explicit_snakefile(
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
                 unique_modules[cache_key] = (module, module.software_environment)
+
+    if pruned_modules:
+        logger.warning(
+            _capability_prune_summary(pruned_modules, available_capabilities)
+        )
 
     if not quiet:
         logger.info(f"\nResolving {len(unique_modules)} modules...")
@@ -1393,7 +1419,7 @@ def _generate_explicit_snakefile(
     if not quiet:
         logger.info("\nBuilding execution graph...")
 
-    # stages_to_expand / target_stage / topo ordering are computed above, before
+    # stages_to_expand / target_stage_id / topo ordering are computed above, before
     # module resolution, so pruned stages are never checked out.
     resolved_nodes = []
     nodes_by_id = {}
@@ -1423,7 +1449,7 @@ def _generate_explicit_snakefile(
 
         # Module-filter: which modules to expand per stage
         if module_filter:
-            is_target_stage = stage.id == target_stage.id
+            is_target_stage = stage.id == target_stage_id
             if is_target_stage:
                 modules_to_expand = [m for m in stage.modules if m.id == module_filter]
             else:
