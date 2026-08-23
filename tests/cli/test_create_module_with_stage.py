@@ -13,7 +13,7 @@ def sample_benchmark_yaml(tmp_path):
 description: Test benchmark for module creation
 version: "1.0"
 benchmarker: "Test Suite"
-benchmark_yaml_spec: 0.3
+benchmark_yaml_spec: "0.3.0"
 software_backend: host
 
 software_environments:

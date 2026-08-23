@@ -141,8 +141,9 @@ class TestVersionValidation:
             1  # Integer should be converted to "1" and then rejected
         )
 
-        with pytest.raises(ValidationError) as exc_info:
-            Benchmark(**benchmark_data)
+        with pytest.warns(FutureWarning, match="Field 'version' should be a string"):
+            with pytest.raises(ValidationError) as exc_info:
+                Benchmark(**benchmark_data)
         # After conversion to "1", it should fail semantic versioning validation
         assert "does not follow strict semantic versioning" in str(exc_info.value)
 
