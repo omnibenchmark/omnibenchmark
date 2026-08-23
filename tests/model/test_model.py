@@ -107,6 +107,15 @@ class TestEnums:
         assert sorted(APIVersion) == list(APIVersion)
         assert APIVersion.latest() == sorted(APIVersion)[-1]
 
+    def test_api_version_ordering_against_str_raises(self):
+        """A bare str operand would silently fall back to str's order."""
+        with pytest.raises(TypeError, match="lexicographically"):
+            APIVersion.V0_6_0 < "0.10.0"
+        with pytest.raises(TypeError, match="lexicographically"):
+            "0.10.0" > APIVersion.V0_6_0
+        # Equality is unaffected; only ordering is.
+        assert APIVersion.V0_6_0 == "0.6.0"
+
     def test_software_backend_enum(self):
         """Test SoftwareBackendEnum."""
         assert SoftwareBackendEnum.host.value == "host"
