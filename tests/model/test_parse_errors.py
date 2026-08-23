@@ -266,6 +266,21 @@ storage:
         assert error.original_error is not None
 
 
+def _field_warnings(recorded, field: str):
+    """FutureWarnings about *field*, ignoring anything else raised in the block.
+
+    Asserting on the total length of the recorded list makes these tests depend on
+    every warning `from_yaml` happens to trigger, including first-time-import
+    warnings from dependencies -- which are order- and environment-dependent and
+    have failed in CI while passing locally.
+    """
+    return [
+        x
+        for x in recorded
+        if issubclass(x.category, FutureWarning) and field in str(x.message)
+    ]
+
+
 @pytest.mark.short
 class TestDeprecationWarningForNumericFields:
     """Tests for deprecation warnings when version or benchmark_yaml_spec are numeric."""
@@ -293,12 +308,11 @@ outputs: []
             benchmark = Benchmark.from_yaml(yaml_file)
 
             # Verify warning was triggered
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "version" in str(w[0].message)
-            assert "should be a string" in str(w[0].message)
-            assert "1.4" in str(w[0].message)
-            assert "will not be valid in a future release" in str(w[0].message)
+            found = _field_warnings(w, "version")
+            assert len(found) == 1
+            assert "should be a string" in str(found[0].message)
+            assert "1.4" in str(found[0].message)
+            assert "will not be valid in a future release" in str(found[0].message)
 
         # Verify the benchmark loaded with the converted value
         assert benchmark.version == "1.4"
@@ -329,9 +343,7 @@ outputs: []
                 Benchmark.from_yaml(yaml_file)
 
             # Verify deprecation warning was triggered before validation error
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "version" in str(w[0].message)
+            assert len(_field_warnings(w, "version")) == 1
 
             # Verify the error is about semantic versioning format
             assert "does not follow strict semantic versioning format" in str(
@@ -359,10 +371,9 @@ outputs: []
             warnings.simplefilter("always")
             benchmark = Benchmark.from_yaml(yaml_file)
 
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "benchmark_yaml_spec" in str(w[0].message)
-            assert "should be a string" in str(w[0].message)
+            found = _field_warnings(w, "benchmark_yaml_spec")
+            assert len(found) == 1
+            assert "should be a string" in str(found[0].message)
 
         assert benchmark.benchmark_yaml_spec == "0.3"
 
