@@ -1412,6 +1412,13 @@ class TestApplyUntilFilter:
 
     def test_diamond_keeps_both_paths(self):
         # a -> {b, c} -> d ; --until d keeps everything, --until b drops c.
+        #
+        # Algorithm-only: `d` has two divergent direct parents, which
+        # detect_diamond_input_joins rejects at validate/run time (#289), so this
+        # topology never reaches _apply_until_filter in a real benchmark. (Two
+        # parents on ONE chain are legal and do reach it; two on divergent
+        # branches, as here, do not.) Kept because the traversal must stay
+        # correct for when #289 lifts and divergent joins become legal.
         parents = {"b": {"a"}, "c": {"a"}, "d": {"b", "c"}}
         stages = self._stages("a", "b", "c", "d")
         assert [s.id for s in _apply_until_filter(stages, "d", parents)] == [
@@ -1564,3 +1571,41 @@ class TestUntilCliConflict:
                 )
         assert result.exit_code != 0
         assert any("cannot be combined" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# --until does not narrow validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestUntilValidatesWholeModel:
+    def test_diamond_outside_until_subgraph_still_rejected(self, caplog):
+        """--until cuts the DAG, it does not scope validation to the kept stages.
+
+        The fixture's diamond is at stage 'E', which is not an ancestor of 'B', so
+        the subgraph `--until B` actually needs is fine. It must still be rejected:
+        validation of the declared benchmark runs first (BenchmarkExecution's
+        constructor), the cut is applied afterwards, and `-m/--module` behaves the
+        same way. Pins that ordering so a rebase cannot silently move validation
+        behind the pruning.
+        """
+        import logging
+
+        fixture = (
+            Path(__file__).parent.parent
+            / "data"
+            / "benchmark_out_of_order_stages_failure.yaml"
+        )
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            with caplog.at_level(logging.ERROR, logger="omnibenchmark"):
+                result = runner.invoke(
+                    run, [str(fixture), "--until", "B"], catch_exceptions=False
+                )
+
+        assert result.exit_code != 0
+        messages = " ".join(record.message for record in caplog.records)
+        assert "divergent branches" in messages
+        assert "'C1'" in messages and "'C2'" in messages

@@ -156,9 +156,9 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     type=str,
     help=(
         "Stop the pipeline at and including the named stage. "
-        "Stages declared after the named stage in the benchmark YAML are "
-        "pruned from the resolved DAG, and metric collectors whose inputs "
-        "reference pruned stages are skipped."
+        "Only the named stage and its transitive ancestors are kept in the "
+        "resolved DAG, and metric collectors whose inputs reference pruned "
+        "stages are skipped."
     ),
 )
 @click.argument("snakemake_args", nargs=-1, type=click.UNPROCESSED)
