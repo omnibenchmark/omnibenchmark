@@ -20,6 +20,7 @@ from pydantic import (
 )
 
 from omnibenchmark.model._merge import merge_dict_list
+from omnibenchmark.versioning.version import Version
 
 from ._parsing import convert_pydantic_error_to_parse_error
 from .params import Params
@@ -138,6 +139,33 @@ class APIVersion(str, Enum):
     @classmethod
     def supported_versions(cls) -> set[str]:
         return {version.value for version in cls}
+
+    # Version gates compare with <, <=, >=. Inherited from str those are
+    # lexicographic, which would order "0.10.0" before "0.6.0"; delegate to
+    # the semantic Version instead. Returning NotImplemented for a plain str
+    # would hand the comparison back to str and reinstate that bug silently,
+    # so an operand that is not an APIVersion raises instead.
+    @staticmethod
+    def _semver(value: object) -> Version:
+        if not isinstance(value, APIVersion):
+            raise TypeError(
+                f"cannot order APIVersion against {type(value).__name__!r}: "
+                f"{value!r} would compare lexicographically. Convert it with "
+                "APIVersion(...) first."
+            )
+        return Version(value.value)
+
+    def __lt__(self, other: object) -> bool:
+        return self._semver(self) < self._semver(other)
+
+    def __le__(self, other: object) -> bool:
+        return self._semver(self) <= self._semver(other)
+
+    def __gt__(self, other: object) -> bool:
+        return self._semver(self) > self._semver(other)
+
+    def __ge__(self, other: object) -> bool:
+        return self._semver(self) >= self._semver(other)
 
 
 # Labels the runtime populates on every node; a stage may not advertise these

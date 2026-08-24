@@ -96,6 +96,26 @@ class TestEnums:
             "0.6.0",
         }
 
+    def test_api_version_ordering_is_semantic(self):
+        """Version gates order by components, not lexicographically."""
+        assert APIVersion.V0_5_0 < APIVersion.V0_6_0
+        assert APIVersion.V0_6_0 >= APIVersion.V0_5_0
+        assert not APIVersion.V0_6_0 <= APIVersion.V0_5_0
+        # Members are declared ascending. Once a two-digit minor exists
+        # ("0.10.0"), str's lexicographic order sorts it before "0.6.0" and
+        # this breaks; semantic ordering keeps it last.
+        assert sorted(APIVersion) == list(APIVersion)
+        assert APIVersion.latest() == sorted(APIVersion)[-1]
+
+    def test_api_version_ordering_against_str_raises(self):
+        """A bare str operand would silently fall back to str's order."""
+        with pytest.raises(TypeError, match="lexicographically"):
+            APIVersion.V0_6_0 < "0.10.0"
+        with pytest.raises(TypeError, match="lexicographically"):
+            "0.10.0" > APIVersion.V0_6_0
+        # Equality is unaffected; only ordering is.
+        assert APIVersion.V0_6_0 == "0.6.0"
+
     def test_software_backend_enum(self):
         """Test SoftwareBackendEnum."""
         assert SoftwareBackendEnum.host.value == "host"
@@ -396,6 +416,58 @@ class TestLineageProvides:
                 stages=[make_stage(id="data", provides=[reserved])],
             )
 
+    @pytest.mark.parametrize(
+        "stage_provides",
+        [None, ["dataset_size"]],
+        ids=["stage-declares-nothing", "typo-in-module-key"],
+    )
+    def test_module_binds_undeclared_label_rejected(self, stage_provides):
+        """A module cannot bind a label its stage does not advertise.
+
+        The typo case is the dangerous one: `daataset_size` would resolve to
+        the module id instead, and the downstream `requires` gate would prune
+        with no diagnostic.
+        """
+        bound = make_module(id="huge", provides={"daataset_size": "lg"})
+        with pytest.raises(ValueError, match="does not"):
+            make_benchmark(
+                api_version=APIVersion.V0_6_0,
+                stages=[
+                    make_stage(id="data", provides=stage_provides, modules=[bound])
+                ],
+            )
+
+    def test_requires_on_initial_stage_rejected(self):
+        """`requires` in a stage with no inputs has no lineage to match."""
+        gated = make_module(id="pca", requires={"dataset_size": "lg"})
+        with pytest.raises(ValueError, match="initial stage"):
+            make_benchmark(
+                api_version=APIVersion.V0_6_0,
+                stages=[make_stage(id="data", modules=[gated])],
+            )
+
+    def test_requires_on_downstream_stage_accepted(self):
+        """The same gate one stage later, where lineage exists, is fine."""
+        gated = make_module(id="pca", requires={"dataset_size": "lg"})
+        bench = make_benchmark(
+            api_version=APIVersion.V0_6_0,
+            stages=[
+                make_stage(
+                    id="data",
+                    provides=["dataset_size"],
+                    modules=[make_module(id="huge", provides={"dataset_size": "lg"})],
+                    outputs=[make_iofile(id="data.counts", path="counts.txt")],
+                ),
+                make_stage(
+                    id="process",
+                    inputs=[["data.counts"]],
+                    modules=[gated],
+                    outputs=[make_iofile(id="process.out", path="out.txt")],
+                ),
+            ],
+        )
+        assert bench.stages[1].modules[0].requires == {"dataset_size": "lg"}
+
 
 # Test Benchmark
 @pytest.mark.short
@@ -631,10 +703,10 @@ stages:
           commit: "abc123"
         outputs:
           - id: "cleaned_data"
-            path: "output/cleaned.csv"
+            path: "cleaned.csv"
     outputs:
       - id: "cleaned_data"
-        path: "output/cleaned.csv"
+        path: "cleaned.csv"
 metric_collectors:
   - id: performance_metrics
     name: "Performance Metrics"
@@ -644,7 +716,7 @@ metric_collectors:
       commit: "ghi789"
     inputs:
       - id: "cleaned_data"
-        path: "output/cleaned.csv"
+        path: "cleaned.csv"
     outputs:
       - id: "metrics_report"
         path: "metrics/report.html"

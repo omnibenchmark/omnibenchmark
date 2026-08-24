@@ -21,6 +21,7 @@ from omnibenchmark.cli.run import (
     _select_capable_modules,
     _resolve_label_value,
     _capability_prune_summary,
+    _empty_stage_warning,
     _apply_until_filter,
     _filter_collectors_by_stages,
     run,
@@ -1379,6 +1380,26 @@ def test_run_benchmark_remote_storage_true_bool_appended(tmp_path):
         _, kwargs = mock_snakemake.call_args
         extra = kwargs["extra_snakemake_args"]
         assert "--use-conda" in extra
+
+
+# ---------------------------------------------------------------------------
+# _empty_stage_warning
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestEmptyStageWarning:
+    def test_attempted_combinations_blame_the_filters(self):
+        msg = _empty_stage_warning("methods", combinations_seen=4)
+        assert "'methods'" in msg
+        assert "pruned by a filter (requires/exclude)" in msg
+
+    def test_no_combinations_blames_the_input_wiring(self):
+        """Zero combinations means nothing was generated to prune; pointing at
+        requires/exclude would send the user to the wrong part of the YAML."""
+        msg = _empty_stage_warning("methods", combinations_seen=0)
+        assert "no upstream output matched its declared inputs" in msg
+        assert "filter" not in msg
 
 
 # ---------------------------------------------------------------------------

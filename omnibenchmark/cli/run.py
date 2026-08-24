@@ -1072,6 +1072,28 @@ def _capability_prune_summary(pruned_modules, available_capabilities) -> str:
     )
 
 
+def _empty_stage_warning(stage_id: str, combinations_seen: int) -> str:
+    """Message for a stage that had modules to expand but produced no nodes.
+
+    `combinations_seen` is how many (input, params) combinations the stage
+    actually attempted. Zero means none was ever generated — a declared input
+    id matched no upstream output, which is a wiring problem, not a filter one.
+    Blaming requires/exclude there sends the user to the wrong config.
+    """
+    cause = (
+        "every module/input combination was pruned by a filter (requires/exclude)"
+        if combinations_seen
+        else (
+            "no upstream output matched its declared inputs (check for a "
+            "misspelled output id or a skipped upstream stage)"
+        )
+    )
+    return (
+        f"Stage '{stage_id}' produced no nodes: {cause}. Downstream stages "
+        f"depending on it will also be empty."
+    )
+
+
 def _apply_until_filter(stages, until_stage, parents):
     """Restrict a stage list to `until_stage` plus its transitive ancestors.
 
@@ -1686,24 +1708,9 @@ def _generate_explicit_snakefile(
                     traceback.print_exc()
 
         # A stage that had modules to expand but produced no nodes should not
-        # cascade an empty set downstream silently. Two distinct causes, two
-        # distinct messages: a filter rejected every generated combination, vs.
-        # no combination was generated at all (a declared input id matched no
-        # upstream output — usually a misspelled output id).
+        # cascade an empty set downstream silently.
         if modules_to_expand and not current_stage_nodes:
-            if combinations_seen:
-                logger.warning(
-                    f"Stage '{stage.id}' produced no nodes: every module/input "
-                    f"combination was pruned by a filter (requires/exclude). "
-                    f"Downstream stages depending on it will also be empty."
-                )
-            else:
-                logger.warning(
-                    f"Stage '{stage.id}' produced no nodes: no upstream output "
-                    f"matched its declared inputs (check for a misspelled "
-                    f"output id or a skipped upstream stage). Downstream stages "
-                    f"depending on it will also be empty."
-                )
+            logger.warning(_empty_stage_warning(stage.id, combinations_seen))
 
         previous_stage_nodes = current_stage_nodes
 
