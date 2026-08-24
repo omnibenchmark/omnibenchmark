@@ -416,13 +416,25 @@ class TestLineageProvides:
                 stages=[make_stage(id="data", provides=[reserved])],
             )
 
-    def test_module_binds_undeclared_label_rejected(self):
-        """A module cannot bind a label its stage does not advertise."""
-        bound = make_module(id="huge", provides={"dataset_size": "lg"})
+    @pytest.mark.parametrize(
+        "stage_provides",
+        [None, ["dataset_size"]],
+        ids=["stage-declares-nothing", "typo-in-module-key"],
+    )
+    def test_module_binds_undeclared_label_rejected(self, stage_provides):
+        """A module cannot bind a label its stage does not advertise.
+
+        The typo case is the dangerous one: `daataset_size` would resolve to
+        the module id instead, and the downstream `requires` gate would prune
+        with no diagnostic.
+        """
+        bound = make_module(id="huge", provides={"daataset_size": "lg"})
         with pytest.raises(ValueError, match="does not"):
             make_benchmark(
                 api_version=APIVersion.V0_6_0,
-                stages=[make_stage(id="data", modules=[bound])],
+                stages=[
+                    make_stage(id="data", provides=stage_provides, modules=[bound])
+                ],
             )
 
     def test_requires_on_initial_stage_rejected(self):
