@@ -84,6 +84,7 @@ class TestEnums:
         assert APIVersion.V0_3_0.value == "0.3.0"
         assert APIVersion.V0_4_0.value == "0.4.0"
         assert APIVersion.V0_5_0.value == "0.5.0"
+        assert APIVersion.V0_6_0.value == "0.6.0"
         assert APIVersion.V0_7_0.value == "0.7.0"
 
         assert APIVersion.latest() == "0.7.0"
@@ -93,6 +94,7 @@ class TestEnums:
             "0.3.0",
             "0.4.0",
             "0.5.0",
+            "0.6.0",
             "0.7.0",
         }
 
@@ -379,20 +381,22 @@ class TestLineageProvides:
         module = make_module(id="huge", provides={"dataset_size": "lg"})
         assert module.provides == {"dataset_size": "lg"}
 
-    def test_stage_provides_rejected_below_v0_7(self):
+    @pytest.mark.parametrize("older", [APIVersion.V0_5_0, APIVersion.V0_6_0])
+    def test_stage_provides_rejected_below_v0_7(self, older):
         """`Stage.provides` is gated on api_version ≥ 0.7.0."""
         with pytest.raises(ValueError, match="provides"):
             make_benchmark(
-                api_version=APIVersion.V0_5_0,
+                api_version=older,
                 stages=[make_stage(id="data", provides=["dataset_size"])],
             )
 
-    def test_module_provides_rejected_below_v0_7(self):
+    @pytest.mark.parametrize("older", [APIVersion.V0_5_0, APIVersion.V0_6_0])
+    def test_module_provides_rejected_below_v0_7(self, older):
         """`Module.provides` is gated on api_version ≥ 0.7.0."""
         bound = make_module(id="huge", provides={"dataset_size": "lg"})
         with pytest.raises(ValueError, match="provides"):
             make_benchmark(
-                api_version=APIVersion.V0_5_0,
+                api_version=older,
                 stages=[make_stage(id="data", modules=[bound])],
             )
 
