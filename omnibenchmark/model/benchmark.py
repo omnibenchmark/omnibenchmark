@@ -20,7 +20,6 @@ from pydantic import (
 )
 
 from omnibenchmark.model._merge import merge_dict_list
-from omnibenchmark.versioning.version import Version
 
 from ._parsing import convert_pydantic_error_to_parse_error
 from .params import Params
@@ -141,31 +140,32 @@ class APIVersion(str, Enum):
         return {version.value for version in cls}
 
     # Version gates compare with <, <=, >=. Inherited from str those are
-    # lexicographic, which would order "0.10.0" before "0.6.0"; delegate to
-    # the semantic Version instead. Returning NotImplemented for a plain str
-    # would hand the comparison back to str and reinstate that bug silently,
-    # so an operand that is not an APIVersion raises instead.
+    # lexicographic, which would order "0.10.0" before "0.6.0"; order by parsed
+    # components instead. (versioning.Version would do this too, but `model`
+    # cannot import `versioning` — that package imports `model` back.)
+    # Returning NotImplemented for a plain str would hand the comparison back
+    # to str and reinstate the bug silently, so a non-member operand raises.
     @staticmethod
-    def _semver(value: object) -> Version:
+    def _parts(value: object) -> tuple[int, ...]:
         if not isinstance(value, APIVersion):
             raise TypeError(
                 f"cannot order APIVersion against {type(value).__name__!r}: "
                 f"{value!r} would compare lexicographically. Convert it with "
                 "APIVersion(...) first."
             )
-        return Version(value.value)
+        return tuple(int(part) for part in value.value.split("."))
 
     def __lt__(self, other: object) -> bool:
-        return self._semver(self) < self._semver(other)
+        return self._parts(self) < self._parts(other)
 
     def __le__(self, other: object) -> bool:
-        return self._semver(self) <= self._semver(other)
+        return self._parts(self) <= self._parts(other)
 
     def __gt__(self, other: object) -> bool:
-        return self._semver(self) > self._semver(other)
+        return self._parts(self) > self._parts(other)
 
     def __ge__(self, other: object) -> bool:
-        return self._semver(self) >= self._semver(other)
+        return self._parts(self) >= self._parts(other)
 
 
 # Labels the runtime populates on every node; a stage may not advertise these
