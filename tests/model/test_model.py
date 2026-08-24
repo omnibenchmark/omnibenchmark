@@ -84,25 +84,25 @@ class TestEnums:
         assert APIVersion.V0_3_0.value == "0.3.0"
         assert APIVersion.V0_4_0.value == "0.4.0"
         assert APIVersion.V0_5_0.value == "0.5.0"
-        assert APIVersion.V0_6_0.value == "0.6.0"
+        assert APIVersion.V0_7_0.value == "0.7.0"
 
-        assert APIVersion.latest() == "0.6.0"
+        assert APIVersion.latest() == "0.7.0"
         assert set(APIVersion.supported_versions()) == {
             "0.1.0",
             "0.2.0",
             "0.3.0",
             "0.4.0",
             "0.5.0",
-            "0.6.0",
+            "0.7.0",
         }
 
     def test_api_version_ordering_is_semantic(self):
         """Version gates order by components, not lexicographically."""
-        assert APIVersion.V0_5_0 < APIVersion.V0_6_0
-        assert APIVersion.V0_6_0 >= APIVersion.V0_5_0
-        assert not APIVersion.V0_6_0 <= APIVersion.V0_5_0
+        assert APIVersion.V0_5_0 < APIVersion.V0_7_0
+        assert APIVersion.V0_7_0 >= APIVersion.V0_5_0
+        assert not APIVersion.V0_7_0 <= APIVersion.V0_5_0
         # Members are declared ascending. Once a two-digit minor exists
-        # ("0.10.0"), str's lexicographic order sorts it before "0.6.0" and
+        # ("0.10.0"), str's lexicographic order sorts it before "0.7.0" and
         # this breaks; semantic ordering keeps it last.
         assert sorted(APIVersion) == list(APIVersion)
         assert APIVersion.latest() == sorted(APIVersion)[-1]
@@ -110,11 +110,11 @@ class TestEnums:
     def test_api_version_ordering_against_str_raises(self):
         """A bare str operand would silently fall back to str's order."""
         with pytest.raises(TypeError, match="lexicographically"):
-            APIVersion.V0_6_0 < "0.10.0"
+            APIVersion.V0_7_0 < "0.10.0"
         with pytest.raises(TypeError, match="lexicographically"):
-            "0.10.0" > APIVersion.V0_6_0
+            "0.10.0" > APIVersion.V0_7_0
         # Equality is unaffected; only ordering is.
-        assert APIVersion.V0_6_0 == "0.6.0"
+        assert APIVersion.V0_7_0 == "0.7.0"
 
     def test_software_backend_enum(self):
         """Test SoftwareBackendEnum."""
@@ -356,7 +356,7 @@ class TestCoreEntities:
         assert collector.has_environment_reference("env2") is False
 
 
-# Test lineage provides/requires (api 0.6)
+# Test lineage provides/requires (api 0.7)
 @pytest.mark.short
 class TestLineageProvides:
     def test_stage_provides_default_none(self):
@@ -379,16 +379,16 @@ class TestLineageProvides:
         module = make_module(id="huge", provides={"dataset_size": "lg"})
         assert module.provides == {"dataset_size": "lg"}
 
-    def test_stage_provides_rejected_below_v0_6(self):
-        """`Stage.provides` is gated on api_version ≥ 0.6.0."""
+    def test_stage_provides_rejected_below_v0_7(self):
+        """`Stage.provides` is gated on api_version ≥ 0.7.0."""
         with pytest.raises(ValueError, match="provides"):
             make_benchmark(
                 api_version=APIVersion.V0_5_0,
                 stages=[make_stage(id="data", provides=["dataset_size"])],
             )
 
-    def test_module_provides_rejected_below_v0_6(self):
-        """`Module.provides` is gated on api_version ≥ 0.6.0."""
+    def test_module_provides_rejected_below_v0_7(self):
+        """`Module.provides` is gated on api_version ≥ 0.7.0."""
         bound = make_module(id="huge", provides={"dataset_size": "lg"})
         with pytest.raises(ValueError, match="provides"):
             make_benchmark(
@@ -396,11 +396,11 @@ class TestLineageProvides:
                 stages=[make_stage(id="data", modules=[bound])],
             )
 
-    def test_provides_accepted_at_v0_6(self):
-        """At api_version 0.6.0 both producer and binding are accepted."""
+    def test_provides_accepted_at_v0_7(self):
+        """At api_version 0.7.0 both producer and binding are accepted."""
         bound = make_module(id="huge", provides={"dataset_size": "lg"})
         bench = make_benchmark(
-            api_version=APIVersion.V0_6_0,
+            api_version=APIVersion.V0_7_0,
             stages=[make_stage(id="data", provides=["dataset_size"], modules=[bound])],
         )
         data_stage = bench.stages[0]
@@ -412,7 +412,7 @@ class TestLineageProvides:
         """A stage may not advertise the builtin `name`/`dataset` labels."""
         with pytest.raises(ValueError, match="reserved"):
             make_benchmark(
-                api_version=APIVersion.V0_6_0,
+                api_version=APIVersion.V0_7_0,
                 stages=[make_stage(id="data", provides=[reserved])],
             )
 
@@ -431,7 +431,7 @@ class TestLineageProvides:
         bound = make_module(id="huge", provides={"daataset_size": "lg"})
         with pytest.raises(ValueError, match="does not"):
             make_benchmark(
-                api_version=APIVersion.V0_6_0,
+                api_version=APIVersion.V0_7_0,
                 stages=[
                     make_stage(id="data", provides=stage_provides, modules=[bound])
                 ],
@@ -442,7 +442,7 @@ class TestLineageProvides:
         gated = make_module(id="pca", requires={"dataset_size": "lg"})
         with pytest.raises(ValueError, match="initial stage"):
             make_benchmark(
-                api_version=APIVersion.V0_6_0,
+                api_version=APIVersion.V0_7_0,
                 stages=[make_stage(id="data", modules=[gated])],
             )
 
@@ -450,7 +450,7 @@ class TestLineageProvides:
         """The same gate one stage later, where lineage exists, is fine."""
         gated = make_module(id="pca", requires={"dataset_size": "lg"})
         bench = make_benchmark(
-            api_version=APIVersion.V0_6_0,
+            api_version=APIVersion.V0_7_0,
             stages=[
                 make_stage(
                     id="data",

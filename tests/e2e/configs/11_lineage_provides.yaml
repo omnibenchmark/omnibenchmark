@@ -2,7 +2,7 @@ id: LinearArithmeticWithLineageProvides
 description: Lineage gating via Stage.provides + Module.provides + Module.requires
 version: "1.0"
 benchmarker: "E2E Test Suite"
-api_version: "0.6.0"
+api_version: "0.7.0"
 software_backend: host
 
 software_environments:
