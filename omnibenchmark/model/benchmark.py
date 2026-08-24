@@ -129,6 +129,7 @@ class APIVersion(str, Enum):
     V0_3_0 = "0.3.0"
     V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
+    V0_6_0 = "0.6.0"
     V0_7_0 = "0.7.0"
 
     @classmethod
