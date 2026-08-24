@@ -8,10 +8,10 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: capability filters by --with-capability (#360)
 - feat: emit threads per rule according if the module requests a number of cores
 - feat: `ob run benchmark --until STAGE` truncates the DAG to that stage and its transitive ancestors (#361)
-- feat: lineage gating — a stage declares labels via `provides:`, its modules bind values to them via `provides: {label: value}`, and a downstream module runs only on lineages matching its `requires: {label: value}`; labels propagate to every descendant node and are usable in path templates. Requires `api_version: "0.6.0"` (#354)
-- feat: gates that could never fire are rejected at parse time instead of silently pruning — a `provides` key its stage does not declare, and a `requires:` on a module in a stage with no `inputs:` (#354)
-- fix: a stage that expands to zero nodes now says whether a filter rejected every combination or none was generated at all, instead of always blaming `requires`/`exclude` (#354)
-- fix: `api_version` values compare by parsed components, so a future `0.10.0` orders after `0.6.0` instead of before it (#354)
+- feat: lineage gating — `provides:` labels a lineage, `requires:` runs a module only on matching lineages (api 0.6.0, #354)
+- feat: reject gates that can never fire at parse time (#354)
+- fix: empty stage warning names the actual cause: filters or unmatched inputs (#354)
+- fix: compare `api_version` by components, not lexicographically (#354)
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 
