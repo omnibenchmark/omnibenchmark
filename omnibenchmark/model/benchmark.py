@@ -129,11 +129,11 @@ class APIVersion(str, Enum):
     V0_3_0 = "0.3.0"
     V0_4_0 = "0.4.0"
     V0_5_0 = "0.5.0"
-    V0_6_0 = "0.6.0"
+    V0_7_0 = "0.7.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_6_0
+        return cls.V0_7_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -572,7 +572,7 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "value: it keeps routing out of the module's CLI parameter "
             "contract, so the same module stays reusable across benchmarks "
             "with different label vocabularies. When a label has no binding "
-            "here, it defaults to the module id. Requires api_version ≥ 0.6.0."
+            "here, it defaults to the module id. Requires api_version ≥ 0.7.0."
         ),
     )
     resources: Optional[Resources] = Field(
@@ -651,7 +651,7 @@ class Stage(DescribableEntity):
             "id. Downstream modules gate on these labels via `requires:`; "
             "non-matching execution paths prune at DAG-construction time. The "
             "builtin labels `name` and `dataset` are reserved and may not be "
-            "declared here. Requires api_version ≥ 0.6.0."
+            "declared here. Requires api_version ≥ 0.7.0."
         ),
     )
     resources: Optional[Resources] = Field(
@@ -1365,21 +1365,21 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         collector.software_environment = sole_env_id
 
         # Gate api_version-introduced fields. `Stage.provides` and
-        # `Module.provides` were introduced in 0.6.0 and must not be used by
+        # `Module.provides` were introduced in 0.7.0 and must not be used by
         # older specs.
-        if self.api_version < APIVersion.V0_6_0:
+        if self.api_version < APIVersion.V0_7_0:
             for stage in self.stages:
                 if stage.provides:
                     raise ValueError(
                         f"Stage '{stage.id}' uses `provides`, which requires "
-                        f"api_version ≥ 0.6.0 (this benchmark declares "
+                        f"api_version ≥ 0.7.0 (this benchmark declares "
                         f"{self.api_version.value})."
                     )
                 for module in stage.modules:
                     if module.provides:
                         raise ValueError(
                             f"Module '{module.id}' uses `provides`, which "
-                            f"requires api_version ≥ 0.6.0 (this benchmark "
+                            f"requires api_version ≥ 0.7.0 (this benchmark "
                             f"declares {self.api_version.value})."
                         )
 

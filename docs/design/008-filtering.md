@@ -254,7 +254,7 @@ Two axes, composed by AND:
 
 A module is included only when both gates pass for the candidate node.
 
-#### Resolution chain (api ≥ 0.6.0)
+#### Resolution chain (api ≥ 0.7.0)
 
 For each label declared in `Stage.provides`, the per-node value is
 resolved in order, most specific first:
@@ -334,7 +334,7 @@ lineage phase:
 #### Working example
 
 ```yaml
-api_version: "0.6.0"
+api_version: "0.7.0"
 stages:
   - id: data
     provides: [dataset_size]            # stage advertises this label
@@ -515,7 +515,7 @@ host-heterogeneity case.
 
 ### Phase 2 — lineage gates (`Stage.provides` / `Module.provides` / `requires`)
 - Model: `Stage.provides: list[str]`, `Module.provides: dict[str, str]`;
-  both gated on api ≥ 0.6.0. **Mints `APIVersion.V0_6_0`.**
+  both gated on api ≥ 0.7.0. **Mints `APIVersion.V0_7_0`.**
 - Two-level resolution chain (§3.5); no parameter-name fallback.
 - Reserved-label parse error for `name` and `dataset`.
 - Diagnostics: empty-stage warning + pruned-combinations summary (§3.5).
