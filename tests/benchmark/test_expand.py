@@ -32,6 +32,7 @@ def _member(node_id, parent_id, stage_id, module_id):
     )
 
 
+@pytest.mark.short
 def test_group_by_stage_partitions_members():
     # Two datasets (d1, d2), each with two clustering methods → 4 producers.
     # group_by dataset ⇒ 2 gather nodes, one per dataset.
@@ -104,6 +105,7 @@ def test_group_by_stage_partitions_members():
     ]
 
 
+@pytest.mark.short
 def test_gather_collects_across_multiple_stages():
     # Two DIFFERENT stages (method_a, method_b) both produce output id
     # `clustering`, each descending from the same `data` datasets. A single
@@ -163,6 +165,7 @@ def test_gather_collects_across_multiple_stages():
     assert set(d1.inputs.values()) == {"d1/ma/a.tsv", "d1/mb/b.tsv"}
 
 
+@pytest.mark.short
 def test_zero_producer_from_is_plan_time_error():
     stage = SimpleNamespace(
         id="metrics",
@@ -186,6 +189,7 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
+@pytest.mark.short
 def test_gather_requires_prefix():
     """Model validation: gather without prefix is rejected at parse time."""
     try:
@@ -222,6 +226,7 @@ stages:
 """
 
 
+@pytest.mark.short
 def test_gather_benchmark_parses_and_from_alias():
     from omnibenchmark.model.benchmark import Benchmark
 
@@ -231,6 +236,7 @@ def test_gather_benchmark_parses_and_from_alias():
     assert gather_stage.gather[0].group_by == "data"
 
 
+@pytest.mark.short
 def test_gather_gated_on_api_0_7():
     from omnibenchmark.model.benchmark import Benchmark
 
@@ -242,6 +248,7 @@ def test_gather_gated_on_api_0_7():
         raise AssertionError("expected gather to be gated on api >= 0.7.0")
 
 
+@pytest.mark.short
 def test_shared_output_id_across_stages_is_legal():
     """Two stages may declare the same output id (the gather contract, §3.1)."""
     from omnibenchmark.model.benchmark import Benchmark
@@ -267,6 +274,7 @@ stages:
     assert [s.id for s in bench.stages] == ["method_a", "method_b"]
 
 
+@pytest.mark.short
 def test_gather_entries_must_share_one_group_by_axis():
     """Multiple gather entries with differing group_by are rejected; a shared
     axis is accepted (Stage.validate_gather — makes the [0] axis sound)."""
@@ -299,6 +307,7 @@ def test_gather_entries_must_share_one_group_by_axis():
         raise AssertionError("expected rejection of differing group_by axes")
 
 
+@pytest.mark.short
 def test_get_stages_by_output_returns_all_producers_in_order():
     """One-to-many output→stage lookup: every producer, declaration order."""
     from omnibenchmark.model.benchmark import Benchmark
@@ -330,6 +339,7 @@ stages:
     assert bench.get_stages_by_output("nope") == []
 
 
+@pytest.mark.short
 def test_group_by_must_name_a_stage():
     from omnibenchmark.model.benchmark import Benchmark
 
@@ -341,6 +351,7 @@ def test_group_by_must_name_a_stage():
         raise AssertionError("expected group_by to be validated against stage ids")
 
 
+@pytest.mark.short
 def test_select_input_bundles_pairs_diamond_branches_by_root():
     """The fan-in join (design 010 §5.2, #289): a stage declaring inputs from
     two divergent branches gets one bundle per (anchor, partner) pair, and
@@ -393,6 +404,7 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
     assert {b[0].stage_id for b in linear} == {"C2"}
 
 
+@pytest.mark.short
 def test_gather_stage_is_ordered_after_its_producers():
     """A gather stage declares no `inputs:`, so build_stage_dag must derive its
     edges from `gather.from` — otherwise topological expansion (#289/#367)
@@ -427,6 +439,7 @@ stages:
     assert order.index("data") < order.index("metrics")
 
 
+@pytest.mark.short
 def test_gather_context_does_not_bind_builtin_dataset():
     """A gather node binds exactly its group key (+ name) — the builtin
     `dataset` label must NOT leak in as the gather module's own id, or it
@@ -461,6 +474,7 @@ def test_gather_context_does_not_bind_builtin_dataset():
     assert node.template_context.provides["data"] == "d1"
 
 
+@pytest.mark.short
 def test_select_input_bundles_rejects_cross_lineage_partners():
     """Sharing a root is not enough: partners must agree with the anchor at
     EVERY shared stage. data A -> process B (b1, b2) -> divergent C1, C2 ->
@@ -498,6 +512,7 @@ def test_select_input_bundles_rejects_cross_lineage_partners():
     ]
 
 
+@pytest.mark.short
 def test_select_input_bundles_join_anchor_sees_parents_ancestry():
     """An anchor that is itself a fan-in (hash id, ancestry only in .parents)
     must not classify inputs covered by its true ancestry as missing."""
@@ -528,6 +543,7 @@ def test_select_input_bundles_join_anchor_sees_parents_ancestry():
     assert bundles == [(j,)]
 
 
+@pytest.mark.short
 def test_gather_respects_module_filter():
     """`ob run -m X`: gather expands only the target module and one combo."""
     nodes_by_id = {
@@ -588,6 +604,7 @@ def test_gather_respects_module_filter():
     assert [(n.module_id, len(n.gathered_from)) for n in nodes] == [("s1", 1)]
 
 
+@pytest.mark.short
 def test_gather_applies_exclusions_at_member_level():
     """An exclude pairing the gather module with a member's lineage drops that
     member from that module's gather — it must not poison the whole group."""
@@ -631,6 +648,7 @@ def test_gather_applies_exclusions_at_member_level():
     assert set(node.inputs.values()) == {"d1/mb/p"}
 
 
+@pytest.mark.short
 def test_gather_groups_through_join_partner_branch():
     """Grouping must see ancestors on a join's PARTNER branch (parents edges),
     not just the parent_id spine."""
@@ -664,6 +682,7 @@ def test_gather_groups_through_join_partner_branch():
     assert node.template_context.provides["C"] == "mc"
 
 
+@pytest.mark.short
 def test_build_stage_dag_skips_self_edge_for_shared_output_id():
     """A stage re-declaring an output id it consumes must not get a self-edge
     (it would make the topological sort reject a valid plan)."""
@@ -695,6 +714,7 @@ stages:
     assert order.index("raw") < order.index("refine")
 
 
+@pytest.mark.short
 def test_stage_adjacency_includes_gather_edges():
     """Topology viz (mermaid/dot/obeditor via stage_adjacency) must show the
     gather dependency even though gather declares no `inputs:`."""
@@ -769,6 +789,7 @@ def test_human_link_name_is_unique_per_join():
     assert _human_link_name(linear) == _make_human_name(params)
 
 
+@pytest.mark.short
 def test_global_gather_collects_every_producer_into_one_node():
     """No `group_by` is the `metric_collector` shape (design 010 §3.6): one
     node over every producer, and no group segment in the id or the path."""
@@ -822,6 +843,7 @@ def test_global_gather_collects_every_producer_into_one_node():
     assert node.template_context.provides == {"name": "R"}
 
 
+@pytest.mark.short
 def test_global_and_grouped_gather_entries_cannot_mix():
     """One axis per stage, and "no axis" is one of them."""
     with pytest.raises(ValueError, match="differing group_by"):
