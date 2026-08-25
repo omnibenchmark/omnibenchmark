@@ -1645,17 +1645,24 @@ class TestUntilValidatesWholeModel:
         constructor), the cut is applied afterwards, and `-m/--module` behaves the
         same way. Pins that ordering so a rebase cannot silently move validation
         behind the pruning.
+
+        Downgraded to api 0.5.0: from 0.7.0 the diamond is a supported fan-in join
+        (design 010 §3.9), so only the pre-0.7 gate still rejects it.
         """
         import logging
 
-        fixture = (
+        src = (
             Path(__file__).parent.parent
             / "data"
             / "benchmark_out_of_order_stages_failure.yaml"
-        )
+        ).read_text()
 
         runner = CliRunner()
         with runner.isolated_filesystem():
+            fixture = Path("diamond_0_5.yaml")
+            fixture.write_text(
+                src.replace('api_version: "0.7.0"', 'api_version: "0.5.0"')
+            )
             with caplog.at_level(logging.ERROR, logger="omnibenchmark"):
                 result = runner.invoke(
                     run, [str(fixture), "--until", "B"], catch_exceptions=False
