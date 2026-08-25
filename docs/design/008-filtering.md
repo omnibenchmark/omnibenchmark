@@ -110,7 +110,7 @@ named.
 > scoped to the selected stages. Cheap to add once the selected-stages set
 > is threaded into the prefetch step.
 
-### 3.3 `--capability <name>` (repeatable)
+### 3.3 `--with-capability <name>` (repeatable)
 
 Declares a capability available on the current host. Modules may declare
 required capabilities:
