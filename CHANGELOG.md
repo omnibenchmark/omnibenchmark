@@ -16,6 +16,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: fan-in nodes write a `lineage.json` sidecar naming every contributing node (design 010 §3.3)
 - fix: fan-in output paths carry a digest of the parent set, so two joins sharing their deepest input no longer collide (`AmbiguousRuleException`)
 - fix: `modules.txt` listed one module per repository+commit, dropping every module that shares a repo with another
+- feat: a join inherits lineage labels from every branch, not only the one that named it (design 010 §5.2)
+- feat: a `provides` label is owned by one stage; a second stage declaring it is a parse-time error (design 008 §3.5)
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 

@@ -201,7 +201,7 @@ class TestInheritedProvides:
 
     def test_join_unions_every_branch(self):
         """A fan-in node sees every branch's labels, not just the anchor's —
-        the same lineage `exclude` unions over (design 010 §3.9)."""
+        the same lineage `exclude` unions over (design 010 §5.2)."""
         anchor = self._node("log1p", dataset="pbmc3k", normalization="log")
         partner = self._node("umap", dataset="pbmc3k", embedding="umap")
         assert inherited_provides((anchor, partner)) == {

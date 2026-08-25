@@ -1,323 +1,266 @@
-# 010: Generic Gather
+# 010: Generic Gather and Joins on Stage Output Contracts
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 2](https://img.shields.io/badge/Version-2-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | | |
 |---|---|
 | **Authors** | btraven00 |
-| **Date** | 2026-07-07 |
+| **Date** | 2026-08-25 |
 | **Status** | Draft |
-| **Version** | 2 |
+| **Version** | 3 |
 | **Supersedes** | N/A |
-| **Reviewed-by** | daninci (TBD) |
+| **Reviewed-by** | daninci, atchox (TBD) |
 | **Related Issues** | [#289](https://github.com/omnibenchmark/omnibenchmark/issues/289) (multi-stage outputs), [#291](https://github.com/omnibenchmark/omnibenchmark/pull/291) (earlier gather proposal, held back) |
-| **Related designs** | 008 — filtering and gating ([PR #354](https://github.com/omnibenchmark/omnibenchmark/pull/354), in flight), 009 — named outputs ([PR #329](https://github.com/omnibenchmark/omnibenchmark/pull/329), in flight); referenced throughout — they land *after* 010 (see §6) |
+| **Related designs** | [004](004-yaml-specification.md) §3.11–3.12 — the YAML surface; [008](008-filtering.md) — filtering and gating (landed); 009 — named outputs (not landed) |
 
 ## Changes
 
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 1       | 2026-07-07 | Initial draft | btraven00 |
-| 2       | 2026-08-13 | §3.1 rule 1 split into shadowing (1a) and alternatives (1b); define *producer* / *maximal*; rule 1b ungated on api_version | btraven00 |
+| 2       | 2026-08-13 | §3.1 chain resolution split into *shadowing* and *alternatives*; define *producer* / *maximal*; alternatives ungated on api_version | btraven00 |
+| 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 
 ## 1. Problem Statement
 
-Two related things are missing, both flavours of fan-in:
+At the current state (v0.6.0), benchmark provenance is only captured via the
+nested tree model. Each module adds three levels of nesting (stage, module and
+parameter set) to the tree. This allows us to express only trivial fan-outs,
+with combinatorial pruning in the form of excludes
+([004 §3.8](004-yaml-specification.md)) and metric-collectors as a special case
+of terminal leaf gather.
 
-1. **The join**: a stage cannot consume outputs from stages on *divergent
-   branches* (no producer is an ancestor of the other). The resolver
-   linearises each stage onto one lineage, so one branch silently falls out at
-   run time ("Could not resolve input"). PR #367 (daninci) added the
-   regression fixture and made plan validation reject the diamond up front;
-   this design makes it legal at api ≥ 0.7.0 — the same fixture now drives
-   both `test_validate_plan_accepts_diamond_input_collection` (0.7, accepted)
-   and `test_validate_plan_rejects_diamond_below_api_0_7` (0.5, the old
-   failure mode) in `tests/cli/test_validate.py`.
-2. **The gather**: a stage cannot consume outputs from *many* upstream nodes
-   at once — N files fanned into one list-valued input, e.g. "all clustering
-   results for dataset D".
+Two related cases are needed to express real-world benchmarks, both fan-in
+variants:
 
-#367 also made stage expansion topological, which *allows* out-of-order
-declarations on a single chain — but an output id with several producers is
-still resolved to a single one silently (nearest-ancestor for chain inputs;
-first-declared-stage for topology edges, fixed here by
-`get_stages_by_output`, see `test_get_stages_by_output_returns_all_producers_in_order`).
+1. **The join** — a stage cannot consume outputs from stages on *divergent
+   branches* (no producer is an ancestor of the other, even when they share the
+   same named output). The resolver linearises each stage onto one lineage, so
+   one branch silently falls out at run time ("Could not resolve input"). PR
+   #367 added a regression fixture and made plan validation reject the diamond
+   up front; this design makes it legal at api ≥ 0.7.0.
+2. **The gather** — a stage cannot consume outputs from *many* upstream nodes at
+   once: N files fanned into one list-valued input, e.g. "all clustering results
+   for dataset D". A metric module wanting that shape has no way to express it,
+   yet it is the efficient one — a single pass over the N files, read once,
+   computed vectorised, written back per-row or aggregated.
 
-The only fan-in construct at v0.5 is the original `metric_collector`
-concept, which is privileged in every way that matters:
+#367 also made stage expansion topological, which allows out-of-order
+declarations on a single chain. Still, an output id with several producers
+resolves to a single one silently: nearest-ancestor for chain inputs,
+first-declared-stage for topology edges. The second is why stage-level diagrams
+draw fewer edges than the YAML declares. Both come from one single-producer
+lookup, so both are fixed in one place — `get_stages_by_output`, which
+`stage_adjacency` and input resolution now share. Every topology consumer
+inherits the fix: the mermaid and dot exporters, and **obeditor**, which loads
+omnibenchmark as a Pyodide wheel and calls `stage_adjacency` directly. No
+obeditor-side change is needed, only a wheel bump.
 
-- **Global**: it gathers every matching output in the whole benchmark, with no
-  way to group (e.g. "one summary per dataset").
-- **Terminal**: its outputs are not registered in the output registry, so
-  nothing can consume them downstream.
-- **Outside the lineage system**: synthetic stage id, no parent, no template
+The only fan-in construct at v0.5 is the original `metric_collector`, which is
+privileged in every way that matters:
+
+- **Global** — gathers every matching output in the benchmark, with no way to
+  group (e.g. "one summary per dataset").
+- **Terminal** — its outputs are not registered, so nothing can consume them.
+- **Outside the lineage system** — synthetic stage id, no parent, no template
   context, no participation in `requires`/`exclude`.
-- **Hacky**: list-valued inputs are smuggled through enumerated
-  `input_0..input_N` keys.
+- **Hacky** — list-valued inputs smuggled through enumerated `input_0..input_N`
+  keys.
 
-Users asking for "multi-stage input collection" (#289) want an *ordinary*
-stage that can collect outputs produced by several other stages, be grouped
-along a chosen axis, and feed further stages. Note that multi-stage inputs
-along a single lineage already work (ancestor-chain resolution); what is
-missing is fan-in.
+Users asking for "multi-stage input collection" (#289) want an *ordinary* stage
+that collects outputs from several other stages, groups them along a chosen
+axis, and feeds further stages. Multi-stage inputs along a single lineage
+already work; what is missing is fan-in.
 
-The structural obstacle is the lineage *chain*, which is load-bearing in two
-places at once. Internally, a node's identity **is** its chain (`parent_id`
-chain, prefix-composed node ids), and a fan-in node has no single chain. On
-disk, the folder tree **is** the chain too — every node's output directory
-extends its parent's directory, so the path doubles as the provenance record,
-and a fan-in node has no parent directory to extend (hence `prefix:`, §3.3)
-and no path that encodes its members (hence `gathered_from`/the sidecar,
-§3.3). This document defines what a gather node is, what its lineage means,
-and how the metadata that used to live on the chain is represented once the
-chain is cut.
+The obstacle is the lineage *chain*, which constrains two things at once.
+Internally, a node's identity **is** its chain (`parent_id`, prefix-composed
+ids), and a fan-in node has no single chain. On disk the folder tree is the
+chain too — every node's directory extends its parent's — so the path doubles
+as the provenance record, coupling storage and provenance.
+
+Both fan-in shapes break that, differently:
+
+- **A gather has no parent directory to extend**, because the chain is cut. The
+  stage must say where its fresh tree starts: `prefix:`. A join keeps its
+  parents and still extends its deepest input's directory.
+- **A join's path stops identifying it.** Two joins sharing a deepest input but
+  differing in another parent land on the same path, which Snakemake rejects as
+  an ambiguous rule. The directory segment therefore carries a digest of the
+  parent set.
+- **Neither path encodes its members.** A gather's records only the group key, a
+  join's only its deepest input, so the rest of the closure survives only if
+  written down — `gathered_from`/`parents` in the plan, `lineage.json` on disk.
+
+This document defines what a gather node is, what its lineage means, and how the
+metadata that used to live on the chain is represented once the chain is cut.
+The YAML surface itself is specified in
+[004 §3.11–3.12](004-yaml-specification.md).
 
 ## 2. Design Goals
 
-- **One new construct** (`gather:`), reusing vocabulary defined elsewhere:
-  output ids for selection now, lineage labels (design 008, in flight) for
-  filtering and grouping in later phases.
-- **Gather nodes are ordinary nodes**: they run a module, they have outputs,
-  downstream stages chain off them normally (scatter after gather).
-- **No silent absence** (008 §2): every dropped member and every empty group
-  is logged; impossible references are plan-time errors.
-- **Provenance survives**: the full set of contributing upstream nodes is
-  recorded, even though gating lineage is deliberately reduced.
-- **Deprecation path** for `metric_collectors`, which becomes the degenerate
-  case (global gather, terminal by choice).
+- **Multi-stage joins behave as expected**: any stage pair connected by a named
+  output is connected in the plan and in the rendered topology.
+- **One new construct** (`gather:`), reusing existing vocabulary — output ids
+  now, lineage labels (008) for later phases.
+- **Gather nodes are ordinary nodes**: they run a module, have outputs, and
+  downstream stages chain off them (scatter after gather).
+- **No silent absence** (008 §2): every dropped member and empty group is
+  logged; impossible references are plan-time errors.
+- **Provenance survives** the cut, even though gating lineage is reduced.
+- **Deprecation path** for `metric_collectors`, the degenerate case: a global
+  gather, terminal by choice.
 
 ### Non-Goals
 
-- A type system for outputs. Selection is by shared output id; there is no
-  `shape:`/`exports:` field (see Alternatives).
-- Format compatibility enforcement between producers of a shared output id.
-  That is the job of the planned output validators; until then it is a
-  convention between benchmark authors.
-- Dynamic fan-out (Snakemake checkpoints, unknown cardinality). Membership is
-  fully known at plan time.
-- Removing `metric_collectors` in this release (deprecation only).
+- A type system for outputs. Selection is by shared output id; no
+  `shape:`/`exports:` field (§4).
+- Format compatibility between producers of a shared id. That belongs to the
+  planned output validators; until then it is a convention between authors.
+- Dynamic fan-out (checkpoints, unknown cardinality). Membership is known at
+  plan time.
+- Removing `metric_collectors` in this release (deprecation notices only).
 
-## 3. Proposed Solution
+## 3. Model
 
 ### 3.1 Selection: shared output ids
 
 An output id declared by more than one stage is a *contract*: the files are
-interchangeable for consumers that reference that id.
+interchangeable for consumers referencing that id. A stage declaring an output
+id is a **producer** of it.
 
-```yaml
-stages:
-  - id: method_a
-    outputs:
-      - id: clustering              # shared id — not "method_a.result"
-        path: "{name}_assignments.tsv"
+Output ids and `provides` labels are separate namespaces and never interact: an
+id names a file contract, a label names a property of a node's lineage. Binding
+one to the other was considered and rejected (§4).
 
-  - id: method_b
-    outputs:
-      - id: clustering
-        path: "{name}_labels.tsv"
-```
-
-A stage that declares an output id is a **producer** of it. For a given
-consumer, ancestry is a partial order over the producers of its declared
-inputs; a producer is **maximal** when no other producer descends from it.
-Shadowed producers — an upstream stage that also declares the id — are exactly
-the non-maximal ones. (Ancestry is read off the resolved nodes, i.e. the
-`parent_id` chain plus fan-in `parents` edges, not off the declared stage DAG.)
-
-Resolution rules for an output id with multiple producers:
-
-1. **Plain (chain) input** — depends on how the producers relate to each other:
-   - **a. Shadowing — producers on one chain.** All but the deepest are
-     ancestors of it, so the maximal set is a singleton and the nearest
-     ancestor wins. The current implementation already does this, silently;
-     emitting a shadowing warning is planned work, not in this PR.
-   - **b. Alternatives — producers on parallel branches**, neither an ancestor
-     of the other. *Every maximal producer is used*: each becomes its own
-     expansion base, so the consumer runs once per producer. There is no
-     "nearest" between parallel branches, and picking one by topological index
-     silently drops the other — yet the files are interchangeable by the
-     definition above, so both belong in the plan.
-2. **Gather input** — *all* producers, from any stage, post-pruning (§3.4).
-
-Rule 1b is scoped to producers of the **same** id. Several maximal producers of
-*different* ids that a consumer needs together are a fan-in, not alternatives,
-and are resolved as one node with several parents (§3.9) — anchoring each branch
-separately would emit that join once per branch.
-
-Unlike `gather` and the fan-in join, rule 1b is **not gated on api_version**:
-with one producer per id the maximal set is a singleton and the resolved plan is
-byte-identical, so no existing benchmark can shift under it. Gating it would
-also force benchmarks pinned at 0.4.0 (by the `--name`/`{dataset}`
-path-position workaround) into an unrelated module migration to get a resolver
-fix.
-
-### 3.2 DSL
-
-```yaml
-stages:
-  - id: metrics
-    prefix: aggregated              # required: filesystem prefix for the cut chain (§3.3)
-    gather:
-      - from: clustering            # required: output id to collect
-        group_by: data              # required: STAGE id to group members by
-    modules:
-      - id: summarizer
-        software_environment: env
-        repository: {url: ..., commit: ...}
-    outputs:
-      - id: metrics.summary
-        path: "{data}_summary.tsv"      # {data} = the group value (which `data` module)
-```
-
-- `from` — an output id. Every node producing it (any stage) is a candidate
-  member. Referencing an id with zero producers is a plan-time error.
-- `group_by` — **required**, a single **stage id** (not a tuple, not a label).
-  Members are partitioned by the ancestor module of that stage they descend
-  from: one gather node per distinct ancestor module. This is *structural*
-  grouping over the existing lineage chain — it needs no `provides` labels. The
-  stage id doubles as the template variable (`{data}` above) bound to the group
-  value.
-- `prefix` (stage-level, **required**) — the filesystem prefix under which the
-  gathered chain is written. A gather cuts the parent chain, so there is no
-  parent directory to extend; the stage must name where the fresh chain
-  starts. See §3.3.
-
-**Deferred** (later phases, see §5): `where` (member filtering), label-value
-`group_by` (grouping by a `provides` label rather than a stage — the general
-form of the structural rule here), and plain `inputs:` mixed with `gather:`.
-
-Grouping merges parameter expansions: with `group_by: data`, members descending
-from `data-D1.p1` and `data-D1.p2` (two parameter expansions of the same `data`
-module `D1`) land in the *same* group, because the group value is the ancestor
-**module** id (`D1`), not its node id. If per-parameter grouping is needed,
-that is a future label-based `group_by`.
-
-### 3.3 Lineage: what the chain becomes
-
-A gather **partitions** the members by their `group_by` ancestor and keeps
-only the partition key: everything below the `group_by` stage is deliberately
-forgotten; what remains is the single group value (the ancestor module of
-that stage). This splits what the chain used to carry into two distinct
-records:
-
-With the §3.2 example — two `data` modules (`D1`, `D2`), two method stages
-producing `clustering`, and `group_by: data` — the four members partition
-into two groups, one gather node each:
+When a consumer references an id with several producers, one question decides
+what happens: **does one producer run downstream of another?**
 
 ```
-members (producers of `clustering`, ids abbreviated)   group (ancestor `data` module)
-D1-method_a.default ─┐
-D1-method_b.default ─┴─▶ metrics-summarizer-D1.default   ({data} = D1)
-D2-method_a.default ─┐
-D2-method_b.default ─┴─▶ metrics-summarizer-D2.default   ({data} = D2)
+chain:       data ──▶ norm ──▶ cluster      norm and cluster both declare `result`
+                                            → cluster shadows norm
+
+branches:    data ──▶ stage_a               stage_a and stage_b both declare `result`
+                  ╰─▶ stage_b              → alternatives
 ```
 
-Each gather node keeps only its group key: `{data} = D1` is usable in
-templates and matched by downstream `requires:`, while *which methods* fed
-the node is forgotten from gating — it survives only in `gathered_from`
-(below).
+- **Yes — one is downstream of the other.** The downstream producer wins; the
+  upstream one is **shadowed**. Its file is still written, but consumers bind to
+  the nearer producer.
+- **No — they are on parallel branches.** They are **alternatives**, and all of
+  them run: each becomes its own expansion base, so the consumer produces one
+  node per producer. There is no "nearer" between parallel branches, and picking
+  one silently strands the other — yet the files are interchangeable by the
+  contract above, so both belong in the plan.
 
-**Gating lineage** — what `requires`, `exclude`, and path templates reason
-over. Note the label *system* itself is 008 work, scoped for api 0.7 and not
-landed with this PR. The MVP only binds the group key into the existing
-internal `TemplateContext.provides` — the same container that carries the
-builtin `dataset`/`name` today — which templates and the already-wired
-`requires:` match against; the rest below is the intended semantics once 008
-lands. For a gather node the gating record is exactly the group key:
+With more than two producers, apply it pairwise: drop any producer that has
+another producer downstream of it; every survivor is an alternative.
+"Downstream" is read off the resolved nodes — the `parent_id` chain plus fan-in
+`parents` edges — not off the declared stage DAG.
 
-- `TemplateContext.provides` binds one label: the `group_by` stage id → the
-  group value (plus the builtin `name` = the gather module's own id).
-  Downstream `requires:` matches against this and nothing else.
-- Output path templates may reference `{<group_by stage>}` (the group value)
-  and `{name}`/`{params.*}`. Referencing any other label is a **plan-time
-  error** (raised in `substitute()`), never an empty substitution.
-- `exclude` rules pairing the gather stage's own module with a member's
-  lineage drop that member from that module's gather — transitive exclude at
-  the member level, so one excluded member never poisons the whole group.
-  Beyond that boundary the cut holds: an `exclude` pairing a pre-gather
-  module with a *post*-gather module has no chain to be transitive over
-  (richer cross-boundary semantics arrive with `where`, Phase 3).
+> The survivors are the **maximal** producers: those with no other producer
+> below them under the ancestry order. That is the term the implementation uses
+> and the compact way to state the rule for any number of producers — *every
+> maximal producer is an expansion base*. Shadowed producers are exactly the
+> non-maximal ones.
 
-**Provenance lineage** — which concrete nodes fed this node. This is a new
-explicit field:
+**A gather ignores shadowing.** `gather.from` collects every producer of the id,
+shadowed ones included. Shadowing decides which producer a chain input binds to;
+it is not a rule about membership.
 
-```
-ResolvedNode.gathered_from: List[str]     # member node ids, plan order
-```
+**Alternatives are same-id only.** Two producers of *different* ids that a
+consumer needs together are a fan-in, not alternatives: the consumer needs both
+at once, so it resolves to one node with several parents (§3.3). Treating them
+as alternatives would emit that join once per branch.
 
-Full ancestry of any post-gather node is recovered by walking `parent_id`
-chains as today and, at a gather node, fanning out through `gathered_from`
-into each member's chain. In the MVP this record exists only in the resolved
-plan (and in the Snakefile's input lists); *persisting* it is Phase 4: the
-run metadata (`out/.metadata/`) will record `gathered_from` alongside the
-resolved-modules list, so a result file's complete upstream closure — every
-module id, commit, and parameter hash that contributed — stays
-reconstructable even though no single chain encodes it.
+**Not gated on api_version**, unlike `gather` and the join, because it is a bug
+fix rather than a new construct. Shadowing is a deliberate rule and is
+unchanged. What changes is the parallel case, where there is no "nearest" and
+the resolver was picking a producer by topological index — an implementation
+detail with no meaning in the spec. Nothing worth preserving sits behind a gate.
+Not gating is also safe: with one producer per id there is nothing to shadow or
+alternate, so existing plans are identical.
 
-**Identity.** Gather node ids are composed from the group key instead of a
-parent chain — `metrics-summarizer-D1.default`, the bare group *value* in the
-id — and downstream ids prefix-compose off them as usual
-(`metrics-summarizer-D1.default-report-R1.default`). `parent_id` is `None`:
-a fan-in has no single ancestor node to point at. Chains resume immediately
-downstream — the plan becomes alternating scatter segments and gather cut
-points (series-parallel), never a general DAG. Bare group values stay
-unambiguous in ids only while ids cannot contain the separators — the
-id-separator reservation, deferred with layout v2 (§3.8); the full identity
-story (labels, fan-in hashes) is §3.9.
+### 3.2 The gather stage
 
-**New filesystem prefix (required).** Because the chain is cut, a gather node
-has no parent directory to extend, so the stage must declare `prefix:` (§3.2)
-naming where the fresh chain begins; outputs land under
-`<prefix>/<group>/<stage>/<module>/<param>/…`, the existing nested builder
-resuming below the prefix. See §3.8 for why this local answer suffices and
-layout v2 stays orthogonal.
+Syntax and validation rules: [004 §3.12](004-yaml-specification.md). In short, a
+stage declares `gather: [{from, group_by}]` and a `prefix:`, replacing `inputs:`.
 
-**Provenance now that nesting is broken (open).** With the chain cut, the
-directory tree no longer encodes the full upstream closure — the on-disk path
-of a post-gather result no longer *is* its lineage. `gathered_from` records the
-member node ids in the run metadata, but the layout itself is lossy across the
-cut. Candidate mechanism (TBD): a **sidecar file at the gather prefix** — in the
-spirit of the existing `parameters.json` — recording, per gather node, the
-resolved member set (module id, commit, parameter hash) so the closure is
-reconstructable from the filesystem alone, not only from the run's metadata db.
-Deciding the sidecar's name, location (per-root vs per-node), and relationship
-to `out/.metadata/` is deferred to Phase 4 (provenance); the requirement here
-is only that the root exists and is declared.
+Members are every node producing `from`. They are partitioned by the ancestor
+module of the `group_by` stage, one gather node per group. This is *structural*
+grouping over the existing chain: it needs no `provides` labels.
 
-### 3.4 Ordering of pruning and membership
+Grouping merges parameter expansions: members descending from `data-D1.p1` and
+`data-D1.p2` land in the same group, because the key is the ancestor **module**
+id (`D1`), not its node id. Per-parameter grouping needs a label-based
+`group_by` (§6, Phase 2).
 
-Membership is computed **after** all pruning (stages marked 008/`where` are
-later phases; in the MVP only `excludes` prune):
+**Deferred**: `where` (member filtering), label-value `group_by`, and plain
+`inputs:` mixed with `gather:`.
+
+### 3.3 The cut: what lineage becomes
+
+A gather **partitions** its members by their `group_by` ancestor and keeps only
+the partition key. Everything below that stage is deliberately forgotten.
 
 ```
-excludes → requires/label gates (008) → capability gates (008) → gather membership → where → group_by partition
+members (producers of `clustering`)      group (ancestor `data` module)
+D1-method_a ─┐
+D1-method_b ─┴─▶ metrics-summarizer-D1     ({data} = D1)
+D2-method_a ─┐
+D2-method_b ─┴─▶ metrics-summarizer-D2     ({data} = D2)
 ```
 
-Consequences, all logged per 008's diagnostics rules:
+That splits what the chain used to carry into two records.
 
-- A pruned lineage simply never appears in any gather list; an `exclude`
-  naming the gather module itself additionally drops the matching members
-  from that module's gather (member-level filtering, MVP).
-- `where:` drops are counted per group (Phase 3).
-- A group that ends up **empty** is a warning (and the gather node for that
-  key is not created). In the MVP *all* groups empty is also a warning;
-  promoting it to an error lands with `where` (Phase 3), when silent
-  emptiness becomes likelier.
+**Gating lineage** — what `requires`, `exclude` and path templates see:
 
-### 3.5 Internal representation changes
+- A gather node carries exactly one label: the `group_by` stage id bound to the
+  group value, plus the builtin `name`. Downstream `requires:` matches that and
+  nothing else. Output templates may reference it and `{name}`/`{params.*}`;
+  any other label is a plan-time error, never an empty substitution.
+- `exclude` rules pairing the gather's own module with a member's lineage drop
+  that member from that module's gather, so one excluded member never poisons
+  the whole group. Beyond that the cut holds: an `exclude` pairing a pre-gather
+  module with a post-gather one has no chain to be transitive over.
 
-| Where | Change |
-|---|---|
-| `model/benchmark.py` | `Stage.gather: Optional[List[GatherSpec]]`; `Stage.prefix: Optional[str]` (**required when `gather` is set** — the filesystem prefix for the cut chain, §3.3); `GatherSpec {from_: str (alias `from`), group_by: str (a stage id)}`. Both fields required; `where` deferred. Gated on api ≥ 0.7.0 (mints `0.7.0`, shared with 008 and 009; 0.6 is left unminted). `group_by` validated to name a real stage. Duplicate output ids across stages are already legal (the `get_outputs()` dict collapses them, so the uniqueness check never fires) — now documented as the intended contract. |
-| `model/resolved.py` | `ResolvedNode.gathered_from: List[str]` (member node ids, plan order); `is_gather` already exists — it finally gets set. Gather inputs reuse the collector's enumerated `input_N` keys + `input_name_mapping`, which `_write_gather_shell` already groups back by flag name. |
-| `cli/run.py` | Sibling `_expand_gather_stage()` reached by an `if stage.gather:` dispatch (not threaded through the scatter loop). Collect producers of `from` from `output_to_nodes`; partition by the ancestor module of the `group_by` stage (walk `parent_id` via `nodes_by_id`); emit one node per group × module × parameter. `parent_id=None`; outputs written under `prefix/<group>/…` and registered in `output_to_nodes` so downstream stages consume them. |
-| `backend/snakemake.py` | No change: `_write_gather_shell` already exists (previously only reachable via collectors) and gather nodes reuse it as-is, enumerated `input_N` keys included. Shell contract: `--<from_id> path1 path2 …` (space-separated, as collectors today). Migrating to Snakemake-native named list inputs is a possible later cleanup. |
+A **join** does not cut. It keeps every parent, and its labels are the union
+over all of them — a gate downstream of a join may name a label from any
+branch. Labels cannot conflict in that union because a label is owned by
+exactly one stage (008 §3.5).
 
-### 3.6 Module CLI contract for gather modules
+**Provenance lineage** — which concrete nodes fed this one. `gathered_from`
+holds the member node ids in the resolved plan; `lineage.json`, written beside
+the outputs, holds the same record on disk (§5.2). Full ancestry of any
+post-gather node is recovered by walking `parent_id` as usual and, at a gather,
+fanning out through the members.
 
-A gather module receives, per gather entry, one flag named after the output
-id with all member paths:
+**Identity and paths.** A gather node's id is composed from the group key
+(`metrics-summarizer-D1.default`) rather than a parent chain, and `parent_id` is
+`None`. Downstream ids prefix-compose off it as usual, so chains resume
+immediately: the plan alternates scatter segments and gather cut points, never a
+general DAG. Outputs land under `<prefix>/<group>/<stage>/<module>/<param>/…`,
+the existing nested builder resuming below the prefix.
+
+### 3.4 Membership and pruning order
+
+Membership is computed **after** all pruning:
+
+```
+excludes → requires → capability gates → gather membership → where → group_by partition
+```
+
+- A pruned lineage never appears in any gather list. An `exclude` naming the
+  gather module itself additionally drops matching members from that module's
+  gather.
+- A group that ends up empty is a warning, and no node is created for that key.
+  All groups empty is also a warning; promoting it to an error should land with
+  `where`, when silent emptiness becomes likelier.
+
+### 3.5 Module CLI contract
+
+A gather module receives one flag per gather entry, named after the output id,
+with every member path:
 
 ```
 <entrypoint> --output_dir … --name summarizer \
@@ -325,237 +268,149 @@ id with all member paths:
     [param flags]
 ```
 
-Outputs follow the existing api ≥ 0.5 contract: no `--output` flags are
-emitted; the module writes its declared output filenames into `--output_dir`
-(exactly what `_write_gather_shell` produces for collectors today). Design
-009's named-output rules (explicit `--output` flags) are not yet merged; when
-009 lands at api 0.7, its rules apply to gather nodes as to any other node —
-same gate, no compatibility split.
-Member order is plan order — the order the planner created the member nodes:
-stage *topological* order (declaration order breaks ties between independent
-stages, the sort being stable), then module declaration order, then
-input-lineage × parameter expansion order. The order is arbitrary but
-deterministic: it is baked into the emitted command line, and identical YAML
-must produce byte-identical Snakefiles or Snakemake reruns unchanged work.
-Modules must not read meaning from positions — identity comes from the paths.
+Output handling is unchanged from any other node and follows whatever the
+declared api version specifies — the api ≥ 0.5 contract today, design 009's
+named outputs when it lands. There is no gather-specific rule.
 
-### 3.7 Metric collector deprecation
+Member order is plan order: topological by stage, then declaration order within
+a stage, then parameter expansion. Arbitrary but deterministic: identical YAML
+must produce byte-identical Snakefiles, or Snakemake reruns unchanged work.
+Modules must not read meaning from position; identity comes from the paths.
 
-`metric_collectors` is re-expressible as a *global* gather — a gather with
-no `group_by`, one node collecting every producer. `group_by` is required in
-the MVP, so this form arrives with the reimplementation itself. Plan:
+### 3.6 Metric collector deprecation
 
-1. When gather lands, the collector resolver is reimplemented *on top of*
-   gather nodes (`is_collector` kept for output-layout compat).
-2. A deprecation warning on `metric_collectors:` points at the equivalent
-   `gather:` stanza.
-3. Removal in a later major api version, not scheduled here.
-
-### 3.8 Output layout: `prefix` is enough (layout v2 is orthogonal)
-
-Gather forces a path-layout decision — the current builder appends
-`<stage>/<module>/.<hash>/` to the parent's directory, and a gather node has
-no parent directory to extend. The MVP answers it locally: the required
-`prefix:` names a fresh root, the group value is the first segment under it,
-and the existing nested builder resumes unchanged:
-`<prefix>/<group>/<stage>/<module>/<param>/…`. Nothing else about the layout
-changes; existing trees are untouched.
-
-The **layout-v2** un-nesting — one flat `stage.module.hash/` segment per node
-instead of today's three components, depth N+1 instead of 3N, stage-to-stage
-nesting untouched (an unapproved cleanup note in `scratch/`, not a design; 007
-remains the layout spec of record) — is orthogonal: it would make gather a
-non-special case (a parentless segment is just another segment), but nothing in this
-design depends on it, and the overly deep nesting is a pre-existing cost, not
-a gather cost. It remains a standalone cleanup on its own api bump; 007
-(output layout) gets a v2 section if and when it lands. The one piece gather
-will eventually want from it is the id-separator reservation (no dots in
-stage/module ids) so group values stay unambiguous inside node ids — noted in
-§3.3 and deferred with the rest.
-
-### 3.9 Node identity, rule labels, and multi-parent lineage
-
-Today a node's `id` is overloaded: it is simultaneously (a) the **identity**,
-(b) the **human-readable label** (the Snakemake rule name is
-`_sanitize_rule_name(node.id)`, and the log file is `<rule>.log`), and (c) the
-**lineage**, encoded as a prefix-composed chain (`A.p-C2.p-E.p`) that
-`get_ancestor_nodes` recovers by id-prefix matching. Overloading (c) into the id
-string is *why* a node can have only one parent — a single prefix path — which
-forces both gather and the diamond join (#289) into `parent_id`/`gathered_from`
-workarounds.
-
-**Decided (used by the join + gather work):**
-
-- **Lineage becomes explicit edges.** `ResolvedNode.parents: List[str]` holds
-  the direct parent ids of a fan-in (join or gather) — the full producer set.
-  Root and linear nodes leave it empty: their single parent already lives in
-  `parent_id` and the id prefix. Ancestry recovery walks `parents` (unioned with the
-  id-prefix walk for the linear spine), which removes the "downstream of a
-  fan-in sees only the primary branch" limitation. Persisting the full record
-  — a **`lineage.json` sidecar** (a file for now; a DB later) — is deferred to
-  Phase 4 with the rest of provenance; the MVP lands only the in-memory field.
-
-  Formally the lineage is a directed **hypergraph** (a B-graph): each
-  derivation is one hyperedge `{parents} → child`, consumed *together*, not a
-  bundle of independent pairwise edges. Storing it per-node loses nothing
-  because of an invariant the planner maintains: **one node = one
-  derivation**. A node never has alternative input bundles — the expansion
-  materializes every combination as its own node (`_select_input_bundles`
-  emits one node per bundle, gather one node per group), so
-  `(node.parents, node.id)` *is* the hyperedge and upward traversal is
-  unambiguous: everything reachable genuinely contributed. Two caveats keep
-  this sound: which parent supplied which file lives in
-  `input_name_mapping`/`gathered_from` (not in the edge set), and the linear
-  spine is walked via `parent_id` (not id-prefix matching), so ids containing
-  the separator cannot corrupt ancestry. Note this traversal answers *provenance*
-  questions only; gating deliberately does not walk through a gather cut
-  (§3.3 — the partition forgets, so e.g. one excluded member among hundreds
-  gathered must not poison every downstream node).
-- **Identity vs label are separated.** The id stays the readable label. Linear
-  nodes are unchanged (full lineage-readable id). Fan-in nodes, having no single
-  prefix chain, get a `stage-module`-stemmed id plus a short disambiguating hash
-  — readable stem, guaranteed unique. The rule name still derives from the id.
-
-**Deferred (capture only — a later concern, not part of the #289/gather fix):**
-
-- **Author-controlled rule labels.** Reuse `TemplateContext` (the same
-  `{provides}` / `{module.*}` / `{params.*}` vocabulary as output paths) to let
-  a benchmark name its rules, e.g. `label: "cluster_{dataset}_{method}"`.
-  Snakemake does not care what rules are called, so the label is free — *except*
-  two hard constraints it does enforce: **uniqueness** (resolve → sanitize →
-  detect collisions → append a short hash only to the colliders; never trust the
-  template to be unique) and **validity** (sanitize to a Python identifier).
-  Enabling hook: a `label` field on `ResolvedNode` defaulting to `node.id`, with
-  `snakemake.py` using `node.label` for the rule name — then this feature only
-  has to populate `label`. Scope (open): per-stage template with an optional
-  per-module override (mirrors how `outputs.path` templates are stage-scoped).
-- **Content-addressed identity.** A fully stable `key = hash(sorted(parents) +
-  module + params)`, order-independent and stable across runs, for caching / a
-  results DB / provenance dedup. Separate from the readable label; not needed for
-  execution correctness because Snakemake incrementality here keys on **output
-  file paths**, not rule names. Fold the short fan-in hash (above) forward into
-  this when caching/DB actually lands.
+`metric_collectors` is re-expressible as a *global* gather — no `group_by`, one
+node collecting every producer. That form arrives with the reimplementation
+itself, since `group_by` is required today. Plan: reimplement the collector
+resolver on top of gather nodes (`is_collector` kept for output-layout compat),
+add a deprecation warning pointing at the equivalent `gather:` stanza, remove in
+a later major api version.
 
 ## 4. Alternatives Considered
 
-### Alternative 1: a shape/type field on outputs (`exports:` / `shape:`)
-- **Description**: outputs declare a semantic type; `gather.from` selects by
-  type name; stage-local output ids remain unique.
-- **Pros**: a file can have both a local name and a contract name; precise
-  chain references when two producers share a lineage.
-- **Cons**: introduces a second "this offers X" keyword next to `provides:` —
-  a near-synonym pair whose distinction (node-level label vs file-level type)
-  is hard to teach; one more namespace to validate and document.
-- **Reason for rejection**: the shared-output-id form covers the same cases
-  with zero new vocabulary. If a benchmark ever needs both names for one
-  file, a type field can be added **back-compatibly** later; removing one
-  after specs depend on it cannot. Same asymmetry argument as 008's
-  parameter-name-fallback cut.
+1. **A shape/type field on outputs (`exports:`/`shape:`)** — outputs declare a
+   semantic type and `gather.from` selects by it. Rejected: shared output ids
+   cover the same cases with no new vocabulary, and a second "this offers X"
+   keyword next to `provides:` is hard to teach. A type field can be added
+   back-compatibly later; removing one cannot.
+2. **Map-form `Stage.provides: {label: output_id}`** (PR #291) — bind labels to
+   output ids and gather by label. Rejected in 008: it overloads the label
+   namespace, and a label attaches to a *node*, which underdetermines which file
+   to collect.
+3. **Topology-directed gather** — "all descendants of a prefix node at stage S".
+   Rejected: selection must follow the contract, not the tree. Producers of one
+   contract may live on different branches, and once gathers chain, members need
+   not share a prefix at all.
+4. **Snakemake checkpoints / `directory()` fan-in** — rejected: membership is
+   known at plan time, and the explicit-Snakefile backend has no wildcard
+   machinery for Snakemake to leverage.
 
-### Alternative 2: map-form `Stage.provides: {label: output_id}` (PR #291)
-- **Description**: bind lineage labels to output ids; gather selects by label.
-- **Reason for rejection**: already rejected in 008 ("Scope and naming") — it
-  overloads the label namespace, and a label attaches to a *node*, which
-  underdetermines *which file* to collect.
+## 5. Implementation Notes
 
-### Alternative 3: topology-directed gather (collapse an axis under a common prefix)
-- **Description**: gather = "all descendants of a prefix node at stage S";
-  grouping key = shared lineage prefix.
-- **Reason for rejection**: selection must be type-directed — producers of the
-  same contract may live in different stages and branches, and once gathers
-  chain, members need not share any meaningful prefix. The common-prefix case
-  falls out of `group_by` when the grouping labels happen to be prefix-minted
-  (e.g. `dataset`); it is not the model.
+### 5.1 Representation
 
-### Alternative 4: Snakemake checkpoints / `directory()` fan-in
-- **Reason for rejection**: membership is fully known at plan time; the
-  explicit-Snakefile backend has no wildcard machinery for Snakemake to
-  leverage (same altitude argument as 008 Alt 4 and 009 Alt 1).
+| Where | Change |
+|---|---|
+| `model/benchmark.py` | `Stage.gather: Optional[List[GatherSpec]]`, `Stage.prefix: Optional[str]` (required with `gather`), `GatherSpec {from_ (alias `from`), group_by}`. Gated on api ≥ 0.7.0; `group_by` validated against real stage ids. Duplicate output ids across stages were already legal (`get_outputs()` collapses them) — now the intended contract. |
+| `model/resolved.py` | `gathered_from: List[str]` (members, plan order) and `parents: List[str]` (direct parent ids of any fan-in). `is_gather` finally gets set. Gather inputs reuse the collector's enumerated `input_N` keys plus `input_name_mapping`. |
+| `core/_expand.py` | `expand_gather_stage()`, a sibling of the scatter path reached by an `if stage.gather:` dispatch. Members come from `output_to_nodes`; partition by the `group_by` ancestor; one node per group × module × parameter; `parent_id=None`; outputs registered so downstream stages consume them normally. |
+| `core/_lineage.py` | `select_input_bundles()` pairs producers on divergent branches whose ancestries agree at every shared stage; one node per bundle. `inherited_provides()` unions a bundle's labels. |
+| `backend/snakemake.py` | `_write_gather_shell` reused unchanged (it predates gather, reachable only via collectors). Shell contract `--<from_id> path1 path2 …`. Migrating to Snakemake-native list inputs is a possible later cleanup. |
 
-## 5. Implementation Plan
+### 5.2 Node identity and multi-parent lineage
 
-Phased; each phase lands separately, smallest working piece first.
+A node's `id` was doing three jobs: identity, human-readable label, and lineage
+(a prefix-composed chain recovered by string matching). The third is why a node
+could have only one parent, which is what forced both fan-in shapes into
+workarounds.
 
-### Phase 1 — structural gather + fan-in join (api ≥ 0.7.0) — **this PR**
+- **Lineage is explicit edges.** `parents` holds the direct parent ids of a
+  fan-in; root and linear nodes leave it empty, their single parent already
+  being in `parent_id`. Ancestry recovery walks `parents` unioned with the
+  linear spine, which removes the "downstream of a fan-in sees only the primary
+  branch" limitation. This traversal answers *provenance* questions; gating
+  deliberately stops at a gather cut (§3.3).
+- **Identity is separate from label.** Linear nodes keep their
+  lineage-readable id. Fan-in nodes, having no prefix chain, get a
+  `stage-module` stem plus a short digest of the parent set — readable and
+  unique. The rule name still derives from the id.
+- **`lineage.json`** is written beside the outputs of any fan-in node,
+  recording each member's node id, stage, module, commit, parameter hash and
+  directory. This is what makes the closure recoverable from the filesystem
+  alone once a path no longer encodes it.
 
-- **Model**: `GatherSpec {from, group_by}` (both required); `Stage.prefix`
-  required with `gather`; `group_by` must name a real stage; duplicate output
-  ids across stages legalized (`get_stages_by_output` replaces the
-  single-producer lookup).
-- **Expansion**: `_expand_gather_stage()`, a sibling of the scatter path
-  reached by one `if stage.gather:` dispatch. Members = producers of `from`;
-  partition by the ancestor module of the `group_by` stage; one node per
-  group × module × parameter; `parent_id=None`, `parents`/`gathered_from`
-  set; outputs under `prefix/<group>/…`, registered for downstream stages.
-- **Join** (§3.9) rides along: `_select_input_bundles` pairs producers on
-  divergent branches that share a lineage root; one node per bundle.
-- **Backend**: reuses the collector's `_write_gather_shell` unchanged
-  (enumerated `input_N` keys + name mapping).
-- **Refactor, mechanical**: the scatter body is extracted to
-  `_expand_scatter_stage()` and its loop-local helpers hoisted to module
-  level, so gather is a sibling rather than a deeper nesting level. No
-  behaviour change; the e2e suite is the regression net.
+## 6. Implementation Plan
 
-Phase 1 is deliberately self-contained — it needs neither 008 nor 009.
-Grouping is structural (walks `parent_id`; no `provides` labels), membership
-uses the already-id-keyed `output_to_nodes`, and the only 009-flavoured piece
-is legalizing duplicate output ids, not the `output_name_mapping` rewrite.
-Layout v2 is not a prerequisite either: `prefix:` answers the path question
-locally (§3.8).
+### Phase 1 — structural gather + fan-in join (api ≥ 0.7.0) — **landed**
 
-### Phase 2 — label-based `group_by` (needs 008)
+Model, expansion, and backend per §5.1, plus `lineage.json`, which was pulled
+forward from Phase 4 because a fan-in path is unreadable without it. The scatter
+body was extracted alongside so gather is a sibling rather than a deeper nesting
+level.
 
-Group by a `provides` label instead of a stage — the general form of Phase
-1's structural rule, reading values from `TemplateContext.provides`. Enables
-tuple keys and per-parameter grouping. The deprecated `dataset` builtin is
-not a grouping axis.
+Phase 1 is self-contained: grouping is structural, membership uses the
+already-id-keyed `output_to_nodes`, and neither 009 nor a layout change is a
+prerequisite.
 
-### Phase 3 — `where` + cross-boundary `exclude` (needs 008)
+### Phase 2 — label-based `group_by` — unblocked (008 landed)
+
+Group by a `provides` label instead of a stage: the general form of Phase 1's
+structural rule, reading values from the node's labels. Enables tuple keys and
+per-parameter grouping. The deprecated `dataset` builtin is not a grouping axis.
+
+### Phase 3 — `where` + cross-boundary `exclude` — unblocked (008 landed)
 
 Member filtering; unsatisfiable cross-gather exclude rules reported;
-empty-group warning, all-groups-empty error.
+empty-group warning promoted to an all-groups-empty error.
 
 ### Phase 4 — provenance + collector deprecation
 
-Persist `gathered_from` (`out/.metadata/`, `lineage.json` sidecar, §3.3/§3.9);
-reimplement collectors on top of gather; deprecation warning on
-`metric_collectors:`.
+Persist the member record into the run metadata (`out/.metadata/`) alongside the
+on-disk `lineage.json`; reimplement collectors on top of gather; deprecation
+warning on `metric_collectors:`.
 
 ### Landing order
 
-The priority inversion: 010 lands first in *code*; 008 and 009 sequence in
-behind it, all sharing api `0.7.0` (this PR mints it). 009's named-output
-representation is folded in when it lands; 008's labels unlock Phases 2–3.
+010 landed first in code, then 008; both share api `0.7.0`. Only 009 is still
+outstanding, and its named-output representation folds in when it lands.
 
-### Deferred (add when a benchmark asks)
+### Deferred
 
-- Plain `inputs:` mixed with `gather:` on one stage (which chain resolves the
-  plain input? needs the group key to pin it).
-- Multiple `gather:` entries with *different* `group_by` axes on one stage
-  (cross-product of groups; unclear demand).
-- Wildcard-based Snakefile emission (O(stages×modules) rules instead of
-  O(nodes)) — a backend-emitter rewrite that loses the diffable Snakefile
-  artifact (007) and buys nothing for gather; separate proposal if node
-  counts ever make explicit Snakefiles hurt.
+- Plain `inputs:` mixed with `gather:` on one stage — which chain resolves the
+  plain input? It needs the group key to pin it.
+- Multiple `gather:` entries with different `group_by` axes on one stage
+  (cross-product of groups; unclear demand, make it illegal for now).
+- **Author-controlled rule labels** — a `label:` template over the same
+  `{provides}`/`{module.*}`/`{params.*}` vocabulary as output paths. Snakemake
+  does not care what rules are called, so the label is free except for
+  uniqueness (resolve, sanitize, hash only the colliders) and validity (a Python
+  identifier). Hook: a `label` field defaulting to `node.id`.
+- **Content-addressed identity** — a stable `hash(sorted(parents) + module +
+  params)` for caching or a results DB. Not needed for execution, since
+  Snakemake keys on output paths rather than rule names. The fan-in digest folds
+  forward into this if it ever lands.
+- **A flat output layout** (one segment per node instead of three) would make a
+  gather a non-special case, but nothing here depends on it. It is a future
+  evolution belonging to a 007 revision, on its own api bump. The one piece
+  gather would want from it is reserving the id separator, so group values stay
+  unambiguous inside node ids.
+- **Wildcard-based Snakefile emission** — a backend rewrite that loses the
+  diffable Snakefile artifact (007). See `scratch/011-wildcard-lowering.md`.
 
-### Testing Strategy
+### Testing
 
-- Unit: membership selection, `group_by` partitioning, group-key id
-  composition — asserting on resolved node sets, not Snakefile text (008's
-  convention). `where` filtering joins in Phase 3.
-- Integration: e2e fixture with two method stages sharing an output id, a
-  grouped gather, and a downstream consumer (scatter → gather → scatter).
-- Provenance: walk `gathered_from` from a terminal node and assert the full
-  upstream closure matches the plan.
+- Unit: membership selection, `group_by` partitioning, group-key id composition
+  — asserting on resolved node sets, not Snakefile text.
+- Integration: `tests/e2e/test_13_gather.py` — two method stages sharing an
+  output id, a grouped gather, a downstream consumer, executed.
+- Provenance: walk the member record from a terminal node and assert the closure
+  matches the plan.
 
-## 6. References
+## 7. References
 
-010 lands ahead of 008 and 009 (they sequence in with Phases 2–3, see §5), so
-the relative links below dangle on main until their PRs merge; the PR links
-are the live copies meanwhile.
-
-1. [Issue #289 — support for multi-stage outputs](https://github.com/omnibenchmark/omnibenchmark/issues/289)
-2. [Design 008 — filtering and gating mechanisms](008-filtering.md) — in flight on [PR #354](https://github.com/omnibenchmark/omnibenchmark/pull/354)
-3. [Design 009 — named outputs](009-named-outputs.md) — in flight on [PR #329](https://github.com/omnibenchmark/omnibenchmark/pull/329)
-4. [Köster et al., Snakemake paper, Fig 8a scatter-gather](https://f1000research.com/articles/10-33/v3#f8)
-5. [PR #291 — earlier gather proposal](https://github.com/omnibenchmark/omnibenchmark/pull/291)
+1. [Issue #289 — multi-stage outputs](https://github.com/omnibenchmark/omnibenchmark/issues/289)
+2. [004 — YAML specification](004-yaml-specification.md) §3.11–3.12, the gather and fan-in surface
+3. [008 — filtering and gating](008-filtering.md) — landed
+4. 009 — named outputs — not landed; [PR #329](https://github.com/omnibenchmark/omnibenchmark/pull/329)
+5. [Köster et al., Snakemake paper, Fig 8a scatter-gather](https://f1000research.com/articles/10-33/v3#f8)
+6. [PR #291 — earlier gather proposal](https://github.com/omnibenchmark/omnibenchmark/pull/291)

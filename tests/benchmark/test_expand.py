@@ -342,7 +342,7 @@ def test_group_by_must_name_a_stage():
 
 
 def test_select_input_bundles_pairs_diamond_branches_by_root():
-    """The fan-in join (design 010 §3.9, #289): a stage declaring inputs from
+    """The fan-in join (design 010 §5.2, #289): a stage declaring inputs from
     two divergent branches gets one bundle per (anchor, partner) pair, and
     partners are only drawn from the SAME lineage root — no cross-dataset
     joins. Linear anchors stay 1-tuples (fast path, no behaviour change)."""

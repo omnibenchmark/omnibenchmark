@@ -882,7 +882,7 @@ class TestUntilValidatesWholeModel:
         behind the pruning.
 
         Downgraded to api 0.5.0: from 0.7.0 the diamond is a supported fan-in join
-        (design 010 §3.9), so only the pre-0.7 gate still rejects it.
+        (design 010 §5.2), so only the pre-0.7 gate still rejects it.
         """
         import logging
 

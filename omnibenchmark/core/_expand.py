@@ -349,7 +349,7 @@ def expand_scatter_stage(
 
                 if input_node and module.requires:
                     # Gate against every branch's labels, the same lineage the
-                    # exclusion check above unions over (010 §3.9).
+                    # exclusion check above unions over (010 §5.2).
                     upstream = inherited_provides(members)
                     if not satisfies_requires(module.requires, upstream):
                         prune_counts["requires"] += 1
@@ -363,7 +363,7 @@ def expand_scatter_stage(
 
                 if is_join:
                     # No single prefix chain: id is a readable stem plus a
-                    # short hash of the (sorted) parents (design 010 §3.9).
+                    # short hash of the (sorted) parents (design 010 §5.2).
                     node_id = f"{stage.id}-{module_id}-{join_hash(m.id for m in members)}{param_id}"
                 elif input_node:
                     node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"

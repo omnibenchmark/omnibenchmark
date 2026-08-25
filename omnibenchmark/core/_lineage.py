@@ -2,7 +2,7 @@
 
 Ancestry walks over a node's ``parent_id`` chain and ``parents`` fan-in edges
 (see ``model.resolved.ResolvedNode``), the input-selection rules built on them
-(design 010 §3.1/§3.9), and the lineage labels a node carries
+(design 010 §3.1/§5.2), and the lineage labels a node carries
 (``TemplateContext``, design 008). Together they back the stage-expansion loop
 in ``cli/run.py``; they live here because they are pure and unit-testable in
 isolation.
@@ -26,7 +26,7 @@ def join_hash(node_ids) -> str:
 def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
     """Every distinct ancestor of `node`, nearest-first: the `parent_id` chain
     plus explicit `parents` edges, so a node downstream of a join sees every
-    branch (010 §3.9).
+    branch (010 §5.2).
 
     `through_gather=False` is the GATING walk — it stops at a gather, whose
     partition deliberately forgets (010 §3.3), so one excluded member among
@@ -92,7 +92,7 @@ def _alternative_producer_stages(
 
     * same id — alternatives (010 §3.1): each is its own expansion base, so
       the consumer runs once per producer.
-    * different ids — fan-in partners (010 §3.9): the consumer needs both at
+    * different ids — fan-in partners (010 §5.2): the consumer needs both at
       once. Left to ``select_input_bundles``; returning them here would anchor
       the same join once per branch and emit it twice.
     """
@@ -178,7 +178,7 @@ def inherited_provides(input_nodes) -> dict:
     """The lineage labels a node inherits from its producer bundle.
 
     The **union** over every member, not just the anchor: a node downstream of
-    a fan-in sees every branch (design 010 §3.9), the same rule `exclude`
+    a fan-in sees every branch (design 010 §5.2), the same rule `exclude`
     already follows. Branches cannot disagree on a value because a label is
     owned by exactly one stage (008 §3.5, enforced at parse time); the only
     overlap is the builtin `name`, which every node overwrites with its own id.
