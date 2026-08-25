@@ -10,8 +10,8 @@
 | Status          | Draft                                                                                                               |
 | Version         | 2                                                                                                                   |
 | Supersedes      | N/A                                                                                                                 |
-| Reviewed-by     | TBD                                                                                                                 |
-| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
+| Reviewed-by     | daninci, csoneson
+| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata), [#353](https://github.com/omnibenchmark/omnibenchmark/issues/353) (discussion of the design doc) |
 
 ## Changes
 
