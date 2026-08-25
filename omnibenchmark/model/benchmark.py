@@ -587,9 +587,17 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
     requires: Optional[Dict[str, str]] = Field(
         None,
         description=(
-            "Explicit upstream plugs. Maps provides-label → module-id. "
-            "This module is wired only to the specified ancestor node for each "
-            "named label."
+            "Lineage gate. Maps label name → required value: this module runs "
+            "only on execution paths whose upstream lineage carries every "
+            "label at exactly that value (string equality). Labels are "
+            "advertised by a stage via `Stage.provides` and valued per node by "
+            "`Module.provides`, defaulting to the producing module's id — so "
+            "naming a module id here is the common case, not the contract. "
+            "Downstream of a fan-in join the lineage is the union over every "
+            "branch, so a gate may name a label carried by any of them; a "
+            "gather cuts the chain and exposes only its group key. Non-matching "
+            "paths prune at DAG-construction time. See docs/design/"
+            "008-filtering.md §3.5."
         ),
     )
     provides: Optional[Dict[str, str]] = Field(
@@ -1151,6 +1159,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
     # API migration
 
+    # TODO: are we using this?
     def upgrade_to_latest(self) -> "Benchmark":
         """Upgrade benchmark to latest API version."""
         # Check current version from either field
@@ -1172,6 +1181,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     # Compatibility methods for LinkMLConverter interface
     # They can be removed when API migration is complete
 
+    # TODO: deprecate if not in use.
     def get_storage_api(self) -> Optional[str]:
         """Get storage API with backward compatibility."""
         if self.storage and self.storage.api:
@@ -1557,7 +1567,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         errors: List[str] = []
 
         # Fan-in (diamond) input joins are gated on api >= 0.7.0 (design 010
-        # §3.9). Below 0.7.0 the resolver linearises each stage onto one lineage
+        # §5.2). Below 0.7.0 the resolver linearises each stage onto one lineage
         # and one branch silently falls out, so reject up front with an
         # actionable message. From 0.7.0 the join is resolved by
         # _select_input_bundles and the diamond is legal.

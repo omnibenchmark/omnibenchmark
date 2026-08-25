@@ -1,12 +1,12 @@
 # 007: Output Folder Layout and Runtime Manifest
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 2](https://img.shields.io/badge/Version-2-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2026-02-19
 **Status**: Draft
-**Version**: 1
+**Version**: 2
 **Supersedes**: N/A
 **Reviewed-by**: TBD
 **Related Issues**: TBD
@@ -16,6 +16,7 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
+| 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
 
 ## 1. Problem Statement
 
@@ -96,7 +97,7 @@ The default nesting strategy (`nested`) mirrors the upstream DAG:
 <stage_1>/<module_1>/.<hash_1>/<stage_2>/<module_2>/.<hash_2>/<file>
 ```
 
-The `<param_hash>` component is prefixed with `.` (dot) so it is hidden by default on Unix systems and clearly distinguished from module IDs.  The hash is the first 8 characters of the SHA256 of the sorted key=value parameter string (see 004 §3.8).
+The `<param_hash>` component is prefixed with `.` (dot) so it is hidden by default on Unix systems and clearly distinguished from module IDs.  The hash is the first 8 characters of the SHA256 of the sorted key=value parameter string (see [004 §3.7, "Parameter Hash"](004-yaml-specification.md)).
 
 ## 4. Runtime Manifest (`manifest.json`)
 

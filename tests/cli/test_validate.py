@@ -169,7 +169,7 @@ class TestValidatePlanCLI:
 
         A stage that collects inputs from two stages on divergent branches (a
         diamond) used to be rejected. At api > 0.7.0 it is resolved as a fan-in join
-        (`_select_input_bundles`, design 010 §3.9): the two branches share a
+        (`_select_input_bundles`, design 010 §5.2): the two branches share a
         lineage root, so the join pairs them. Plan validation must accept it and
         must NOT emit the old "divergent branches" rejection.
         """
@@ -220,7 +220,7 @@ class TestValidatePlanCLI:
 
     @pytest.mark.short
     def test_validate_plan_rejects_diamond_below_api_0_7(self, cli_setup, temp_dir):
-        """The fan-in join is gated on api >= 0.7.0 (design 010 §3.9). The SAME
+        """The fan-in join is gated on api >= 0.7.0 (design 010 §5.2). The SAME
         diamond fixture at api 0.5.0 must be rejected up front with the actionable
         "divergent branches" message, since the pre-0.7 resolver can't satisfy it.
         """

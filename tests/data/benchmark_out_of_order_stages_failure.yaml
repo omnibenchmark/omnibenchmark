@@ -4,7 +4,7 @@ description: >
   Stage 'B' (process) fans out to two parallel 'method' stages 'C1' and 'C2', and
   stage 'E' (metric) joins them by declaring inputs from both. 'C1' and 'C2' are on
   divergent branches, but share a lineage root ('A'/'B'), so the resolver pairs them
-  into a fan-in join (design 010 §3.9). Plan validation must ACCEPT it.
+  into a fan-in join (design 010 §5.2). Plan validation must ACCEPT it.
 version: "1.0"
 benchmarker: "Daniel Incicau, daniel.incicau@example.com"
 api_version: "0.7.0"

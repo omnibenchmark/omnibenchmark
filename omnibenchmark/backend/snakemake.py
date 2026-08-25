@@ -265,7 +265,7 @@ class SnakemakeGenerator:
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # Fan-in provenance sidecar (design 010 §3.3/§3.9)
+    # Fan-in provenance sidecar (design 010 §3.3/§5.2)
     # ------------------------------------------------------------------
 
     def _member_record(self, member_id: str) -> dict:

@@ -717,7 +717,7 @@ class TestEntrypointInvocationContract:
 
 # ---------------------------------------------------------------------------
 # lineage.json — provenance for nodes whose path cannot encode their ancestry
-# (design 010 §3.3/§3.9).
+# (design 010 §3.3/§5.2).
 # ---------------------------------------------------------------------------
 
 

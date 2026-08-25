@@ -261,7 +261,7 @@ class ResolvedNode:
     gathered_from: List[str] = field(default_factory=list)
 
     # Explicit lineage EDGES — the direct parent node ids. The general
-    # multi-parent representation (design 010 §3.9): empty for a linear node
+    # multi-parent representation (design 010 §5.2): empty for a linear node
     # (its single parent is `parent_id`, recoverable via the id prefix), and the
     # full producer set for a fan-in node (diamond join #289, or gather) whose id
     # does NOT encode its lineage. Ancestry recovery walks `parents` in addition
