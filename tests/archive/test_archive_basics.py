@@ -183,6 +183,53 @@ def test_prepare_archive_results_local_no_files():
 
 
 @pytest.mark.short
+def test_prepare_archive_results_local_excludes_snakemake_and_cache_dirs(tmp_path):
+    """Test prepare_archive_results_local skips .snakemake/.cache internal dirs.
+
+    These directories hold Snakemake's own execution state (locks, logs,
+    metadata) and tool/package caches, not benchmark results. They can grow
+    to many gigabytes and were previously swept into the archive by the
+    catch-all directory scan, bloating archives with artifacts nobody wants.
+    """
+    results_dir = tmp_path / "out"
+    results_dir.mkdir()
+
+    real_result = results_dir / "real_result.json"
+    real_result.write_text("{}")
+
+    snakemake_dir = results_dir / ".snakemake" / "metadata"
+    snakemake_dir.mkdir(parents=True)
+    (snakemake_dir / "some_rule").write_text("junk")
+
+    cache_dir = results_dir / ".cache" / "some_tool"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "cached_file").write_text("junk")
+
+    # Nested case: a real subdirectory of results that happens to be *named*
+    # like the results dir itself shouldn't be affected; only .snakemake/
+    # and .cache/ subtrees should be excluded.
+    nested_result_dir = results_dir / "subdir"
+    nested_result_dir.mkdir()
+    nested_result = nested_result_dir / "nested_result.json"
+    nested_result.write_text("{}")
+
+    mock_benchmark = Mock()
+
+    with patch(
+        "omnibenchmark.archive.components.get_expected_benchmark_output_files"
+    ) as mock_expected:
+        mock_expected.return_value = []
+
+        result = prepare_archive_results_local(mock_benchmark, str(results_dir))
+
+    assert real_result in result
+    assert nested_result in result
+    assert not any(
+        ".snakemake" in p.parts or ".cache" in p.parts for p in result
+    )
+
+
+@pytest.mark.short
 def test_prepare_archive_code_handles_clone_failures():
     """Test prepare_archive_code handles repository clone failures gracefully."""
     mock_benchmark = Mock()

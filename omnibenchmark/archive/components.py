@@ -225,6 +225,20 @@ def prepare_archive_results(
         return prepare_archive_results_local(benchmark, results_dir)
 
 
+# Directories that hold Snakemake's own internal execution state rather than
+# actual benchmark artifacts (e.g. ".snakemake" can accumulate gigabytes of
+# logs, locks and metadata; ".cache" holds tool/package caches). These should
+# never be swept into a results archive, regardless of how large `out/` gets.
+EXCLUDED_RESULTS_DIR_NAMES = {".snakemake", ".cache"}
+
+
+def _is_in_excluded_results_dir(path: Path, base: Path) -> bool:
+    """Return True if `path` lives inside one of EXCLUDED_RESULTS_DIR_NAMES,
+    relative to `base`."""
+    rel_parts = path.relative_to(base).parts
+    return any(part in EXCLUDED_RESULTS_DIR_NAMES for part in rel_parts[:-1])
+
+
 def prepare_archive_results_local(
     benchmark: BenchmarkExecution, results_dir: str
 ) -> List[Path]:
@@ -255,7 +269,9 @@ def prepare_archive_results_local(
         additional_files = [
             f
             for f in results_path.rglob("*")
-            if f.is_file() and f not in existing_files
+            if f.is_file()
+            and f not in existing_files
+            and not _is_in_excluded_results_dir(f, results_path)
         ]
         existing_files.extend(additional_files)
 
