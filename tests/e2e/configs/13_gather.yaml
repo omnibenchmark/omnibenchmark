@@ -1,0 +1,115 @@
+id: Gather
+description: >-
+  Grouped gather (design 010), the shape §5 asks for: two method stages
+  sharing one output id, a gather over it grouped by the data stage, and a
+  downstream consumer chaining off the gather (scatter -> gather -> scatter).
+
+  `method_a` and `method_b` are parallel branches both declaring
+  `methods.result` — the shared-output-id contract (§3.1) — so the gather's
+  membership spans two stages, not one. The id matches the flag the bundled
+  collector reads (`--methods.result`), since a gather module's CLI contract
+  is named after the output id it collects (§3.6).
+
+  Two data modules x two method stages = four producers, partitioned by
+  `group_by: data` into two groups of two, one gather node each.
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.7.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+      - id: D2
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "2+2"]
+    outputs:
+      - id: data.out
+        path: "{name}_data.json"
+
+  # --- two parallel method stages, both producing the SAME output id ---
+  - id: method_a
+    inputs:
+      - data.out
+    modules:
+      - id: MA
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+1", "--input", "data.out", "--kind", "a"]
+    outputs:
+      - id: methods.result
+        path: "{name}_a.json"
+
+  - id: method_b
+    inputs:
+      - data.out
+    modules:
+      - id: MB
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+2", "--input", "data.out", "--kind", "b"]
+    outputs:
+      - id: methods.result
+        path: "{name}_b.json"
+
+  # --- the gather: every producer of `methods.result`, grouped by data module ---
+  - id: metrics
+    prefix: aggregated
+    gather:
+      - from: methods.result
+        group_by: data
+    modules:
+      - id: MC
+        software_environment: "host"
+        repository:
+          url: bundles/dummycollector_9e3a99a.bundle
+          commit: 9e3a99a
+    outputs:
+      - id: metrics.summary
+        # A plain filename: the group value already reaches the path through
+        # the `<prefix>/<group>/…` scheme, and the collector writes a fixed
+        # `metrics.json`. `{data}`-in-the-filename is unit-tested instead
+        # (tests/benchmark/test_expand.py), since it cannot both template the
+        # name and match what this module writes.
+        path: "metrics.json"
+
+  # --- scatter after gather: the chain resumes off the gather node ---
+  - id: report
+    inputs:
+      - metrics.summary
+    modules:
+      - id: R1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          # No `--input`: dummymodule's evaluator expects a `result` field, and
+          # the collector writes an aggregate instead. The Snakemake dependency
+          # on `metrics.summary` is what this stage is here to prove.
+          - values: ["--evaluate", "1+1", "--kind", "r"]
+    outputs:
+      - id: report.out
+        # dummymodule writes `{name}_{kind}.json`, hence `--kind r` above.
+        path: "{name}_r.json"

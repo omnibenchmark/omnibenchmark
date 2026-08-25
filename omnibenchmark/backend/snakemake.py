@@ -30,6 +30,7 @@ from omnibenchmark.core._paths import (
     truncate_filename,
 )
 from omnibenchmark.model.benchmark import APIVersion
+from omnibenchmark.core._lineage import join_hash
 from omnibenchmark.model.resolved import ResolvedModule, ResolvedNode
 
 __all__ = ["SnakemakeGenerator", "_make_human_name", "_UNSAFE_CHARS"]
@@ -47,6 +48,21 @@ def _bash_var(name: str) -> str:
     '_data_raw'
     """
     return "_" + name.replace(".", "_").replace("-", "_")
+
+
+def _human_link_name(node: ResolvedNode) -> str:
+    """Name of the readable sibling symlink for a node's output directory.
+
+    Parameters alone are not unique for a fan-in node: joins sharing a module
+    and parameters differ only in their parents, so every one of them would
+    claim the same link and `ln -sfn` would leave only whichever ran last.
+    Suffix the parent-set digest — the same one the directory segment uses.
+    """
+    name = _make_human_name(node.parameters)
+    parents = getattr(node, "parents", None) or []
+    if len(parents) > 1:
+        return f"{name}-{join_hash(parents)}"
+    return name
 
 
 class SnakemakeGenerator:
@@ -68,9 +84,11 @@ class SnakemakeGenerator:
         self.benchmark_version = benchmark_version
         self.benchmark_author = benchmark_author
         self.api_version = api_version
+        self._nodes_by_id: dict = {}
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
+        self._nodes_by_id = {n.id: n for n in nodes}
         with open(output_path, "w") as f:
             self._write_header(f)
             for node in nodes:
@@ -246,6 +264,64 @@ class SnakemakeGenerator:
     # Shell writers — override in subclasses to change generated commands
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Fan-in provenance sidecar (design 010 §3.3/§5.2)
+    # ------------------------------------------------------------------
+
+    def _member_record(self, member_id: str) -> dict:
+        """Enough to locate one contributing node without the run metadata."""
+        member = self._nodes_by_id.get(member_id)
+        if member is None:
+            return {"node_id": member_id}
+        return {
+            "node_id": member.id,
+            "stage": member.stage_id,
+            "module": member.module_id,
+            "commit": member.module.commit,
+            "params": member.get_parameter_hash(),
+            "dir": os.path.dirname(member.outputs[0]) if member.outputs else None,
+        }
+
+    def _lineage_record(self, node: ResolvedNode):
+        """Provenance record for a node whose path cannot encode its ancestry.
+
+        A linear node needs none: its directory prefix *is* its lineage. A
+        fan-in node (join or gather) has several parents and only one path
+        prefix, so the other branches are recoverable from the filesystem only
+        if written down. Returns None when the path already says it.
+        """
+        parents = list(getattr(node, "parents", None) or [])
+        is_gather = bool(getattr(node, "is_gather", False))
+        if not is_gather and len(parents) < 2:
+            return None
+
+        member_ids = list(getattr(node, "gathered_from", None) or []) or parents
+        members = [self._member_record(member_id) for member_id in member_ids]
+        return {
+            "node_id": node.id,
+            "stage": node.stage_id,
+            "module": node.module_id,
+            "kind": "gather" if is_gather else "join",
+            "members": members,
+        }
+
+    def _lineage_sidecar_lines(self, node: ResolvedNode) -> list:
+        """Shell lines writing lineage.json, or [] when the node needs none.
+
+        Single-line echo, exactly as parameters.json is written: every line of
+        a shell block is indented, and an indented heredoc terminator would not
+        close the heredoc. Braces are doubled because Snakemake formats the
+        block before bash sees it, and single quotes are escaped for the
+        surrounding shell quoting.
+        """
+        record = self._lineage_record(node)
+        if record is None:
+            return []
+        body = json.dumps(record)
+        body = body.replace("{", "{{").replace("}", "}}")
+        body = body.replace("'", "'\\''")
+        return [f"echo '{body}' > $OUTPUT_DIR/lineage.json"]
+
     def _write_shell_lines(self, f: TextIO, lines: list) -> None:
         """Write a shell: block from a list of content lines.
 
@@ -289,6 +365,9 @@ class SnakemakeGenerator:
             "echo '---'",
         ]
 
+        # Fan-in nodes: record the parents the path prefix cannot carry.
+        lines += self._lineage_sidecar_lines(node)
+
         # Write parameters.json and a human-readable symlink to the hash folder.
         if node.parameters:
             params_json = json.dumps(node.parameters._params)
@@ -296,8 +375,11 @@ class SnakemakeGenerator:
             params_json_escaped = params_json_escaped.replace("'", "'\\''")
             lines += [
                 f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json",
-                f"ln -sfn .{node.parameters.hash_short()}"
-                f" $OUTPUT_DIR/../{_make_human_name(node.parameters)}",
+                # Link to the real directory name rather than re-deriving it:
+                # a fan-in node's segment carries the parent-set digest as well
+                # as the parameter hash, so recomputing it here would dangle.
+                f'ln -sfn "$(basename $OUTPUT_DIR)"'
+                f" $OUTPUT_DIR/../{_human_link_name(node)}",
             ]
 
         lines.append("cd {params.module_dir}")
@@ -366,6 +448,9 @@ class SnakemakeGenerator:
             "MODULE_DIR={params.module_dir}",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
+
+        # A gather cuts the chain, so its members exist nowhere in the path.
+        lines += self._lineage_sidecar_lines(node)
 
         # Resolve each input group to absolute paths into a bash array.
         # One loop per distinct flag name — no matter how many files per flag.

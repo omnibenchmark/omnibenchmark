@@ -1,4 +1,4 @@
-"""Unit tests for select_input_nodes and the dag_errors abort path in run.py."""
+"""Unit tests for select_input_nodes (core/_lineage.py)."""
 
 from dataclasses import dataclass
 
@@ -208,3 +208,98 @@ class TestSelectInputNodes:
         assert result == [n_harmony]
         assert n_leiden_s not in result
         assert n_leiden_r not in result
+
+
+# ===========================================================================
+# Shared output ids: several stages declaring the same output id (design 010
+# §3.1). Nodes carry parent_id so ancestry — and therefore domination — is
+# real; the stub above has none, which is the single-producer case.
+# ===========================================================================
+
+
+@dataclass
+class _ChainNode:
+    """Stub with a parent link, so ancestor walks see a real lineage."""
+
+    id: str
+    stage_id: str
+    parent_id: str = None
+
+
+class TestSharedOutputIdProducers:
+    """`pcas_tsv` declared by both PCA and CNTFCT — interchangeable for any
+    consumer referencing that id, so the consumer expands once per producer."""
+
+    def _two_branch_setup(self):
+        # feat -> pca and feat -> cntfct; both declare `pcas.tsv`.
+        n_feat = _ChainNode("feat-F1", "feat")
+        n_pca = _ChainNode("feat-F1-pca-P1", "pca", parent_id="feat-F1")
+        n_cnt = _ChainNode("feat-F1-cntfct-C1", "cntfct", parent_id="feat-F1")
+        reg = _reg(
+            ("feat.h5", "feat-F1"),
+            ("pcas.tsv", "feat-F1-pca-P1"),
+            ("pcas.tsv", "feat-F1-cntfct-C1"),
+        )
+        return n_feat, n_pca, n_cnt, reg
+
+    def test_alternatives_on_parallel_branches_all_selected(self):
+        n_feat, n_pca, n_cnt, reg = self._two_branch_setup()
+
+        result = select_input_nodes(
+            declared_input_ids=["pcas.tsv"],
+            output_to_nodes=reg,
+            resolved_nodes=[n_feat, n_pca, n_cnt],
+            stage_ids_in_order=["feat", "pca", "cntfct", "embed"],
+            previous_stage_nodes=[],
+        )
+        assert sorted(n.id for n in result) == sorted([n_pca.id, n_cnt.id])
+
+    def test_shared_ancestor_is_dominated_and_excluded(self):
+        """`feat` also produces a declared input, but it is an ancestor of both
+        alternatives, so it must not become an expansion base of its own."""
+        n_feat, n_pca, n_cnt, reg = self._two_branch_setup()
+
+        result = select_input_nodes(
+            declared_input_ids=["pcas.tsv", "feat.h5"],
+            output_to_nodes=reg,
+            resolved_nodes=[n_feat, n_pca, n_cnt],
+            stage_ids_in_order=["feat", "pca", "cntfct", "embed"],
+            previous_stage_nodes=[],
+        )
+        assert sorted(n.id for n in result) == sorted([n_pca.id, n_cnt.id])
+        assert n_feat not in result
+
+    def test_shadowing_producers_on_one_chain_pick_nearest(self):
+        """Same id declared twice along a single chain is shadowing, not
+        alternatives: the nearest (deepest) producer wins, as before."""
+        n_up = _ChainNode("up-U1", "up")
+        n_down = _ChainNode("up-U1-down-D1", "down", parent_id="up-U1")
+        reg = _reg(("shared.tsv", "up-U1"), ("shared.tsv", "up-U1-down-D1"))
+
+        result = select_input_nodes(
+            declared_input_ids=["shared.tsv"],
+            output_to_nodes=reg,
+            resolved_nodes=[n_up, n_down],
+            stage_ids_in_order=["up", "down", "consumer"],
+            previous_stage_nodes=[],
+        )
+        assert result == [n_down]
+
+    def test_fan_in_partners_are_not_alternatives(self):
+        """Two parallel producers of *different* ids are a join, not
+        alternatives: only one anchor, so the bundle logic emits the join once
+        rather than once per branch."""
+        n_root = _ChainNode("root-R1", "root")
+        n_left = _ChainNode("root-R1-left-L1", "left", parent_id="root-R1")
+        n_right = _ChainNode("root-R1-right-G1", "right", parent_id="root-R1")
+        reg = _reg(("left.tsv", "root-R1-left-L1"), ("right.tsv", "root-R1-right-G1"))
+
+        result = select_input_nodes(
+            declared_input_ids=["left.tsv", "right.tsv"],
+            output_to_nodes=reg,
+            resolved_nodes=[n_root, n_left, n_right],
+            stage_ids_in_order=["root", "left", "right", "join"],
+            previous_stage_nodes=[],
+        )
+        assert len(result) == 1
+        assert result == [n_right]

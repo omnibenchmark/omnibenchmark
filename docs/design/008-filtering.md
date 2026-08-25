@@ -10,8 +10,8 @@
 | Status          | Draft                                                                                                               |
 | Version         | 2                                                                                                                   |
 | Supersedes      | N/A                                                                                                                 |
-| Reviewed-by     | TBD                                                                                                                 |
-| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
+| Reviewed-by     | daninci, csoneson
+| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata), [#353](https://github.com/omnibenchmark/omnibenchmark/issues/353) (discussion of the design doc) |
 
 ## Changes
 
@@ -110,7 +110,7 @@ named.
 > scoped to the selected stages. Cheap to add once the selected-stages set
 > is threaded into the prefetch step.
 
-### 3.3 `--capability <name>` (repeatable)
+### 3.3 `--with-capability <name>` (repeatable)
 
 Declares a capability available on the current host. Modules may declare
 required capabilities:

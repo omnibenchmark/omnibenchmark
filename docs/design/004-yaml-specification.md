@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v3)
+# 004: Omnibenchmark YAML Specification (v6)
 
 [![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 6](https://img.shields.io/badge/Version-6-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
 **Status**: Accepted
-**Version**: 3
+**Version**: 6
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
@@ -18,6 +18,9 @@
 | 1       | 2026-01-20 | Initial specification for v0.4 | ben |
 | 2       | 2026-03-31 | Add resource allocation (Section 8) | ben |
 | 3       | 2026-05-06 | Add provenance metadata (Section 9): canonical_url, derived_from, subset_of | ben |
+| 4       | 2026-08-25 | Add api 0.7.0 keywords as sections 3.9-3.12: `provides`/`requires`, `requires_capabilities`, shared output ids, joins and `gather`/`prefix` | ben |
+| 5       | 2026-08-25 | Correct stage ordering in §3.3 (topological, not positional); drop §3.8's stale "not yet implemented" note on `provides`/`requires` | ben |
+| 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
 
 ## 1. Problem Statement
 
@@ -135,19 +138,25 @@ stages:
     modules: <array>                   # Required: module list (≥1)
     inputs: <array>                    # Optional: input dependencies
     outputs: <array>                   # Optional: output declarations
-    provides: <array>                  # Optional: lineage labels (api 0.7+)
+    provides: <array>                  # Optional: lineage labels (api 0.7+, §3.9)
+    gather: <array>                    # Optional: fan-in specs (api 0.7+, §3.12)
+    prefix: <string>                   # Required with `gather` (§3.12)
+    resources: <object>                # Optional: resource requirements (§7)
 ```
 
-`provides:` is a list of label names this stage advertises to downstream
-modules; downstream modules gate on these labels via `requires:`. The
-builtin labels `name` and `dataset` are reserved. See
-[008-filtering.md §3.5](./008-filtering.md) for details.
+`inputs:` and `gather:` are alternatives: a gather stage collects by output id
+instead of declaring chain inputs.
 
 #### Stage Ordering
 
-- Stages are processed in document order
-- Dependencies resolved via input/output declarations
-- Stage N consumes outputs from Stage N-1
+- Dependencies come from the input/output declarations, not from position: a
+  stage may be declared before a stage that produces one of its inputs.
+- Stages are expanded in topological order of those dependencies. Declaration
+  order only breaks ties between independent stages, and the sort is stable, so
+  identical documents expand identically.
+- A stage may consume the outputs of any upstream stage, not only its immediate
+  predecessor: inputs resolve along the whole ancestor chain, and — from api
+  0.7.0 — across branches as well (§3.12).
 
 ### 3.4 Modules
 
@@ -161,8 +170,10 @@ modules:
     name: <string>                     # Optional: human-readable name
     parameters: <array>                # Optional: module parameters
     exclude: <array>                   # Optional: module ids this module must not share a path with
-    requires: <object>                 # Optional: lineage gate, label → value (api 0.7+)
-    provides: <object>                 # Optional: label → value bindings for this module (api 0.7+)
+    requires: <object>                 # Optional: lineage gate, label → value (api 0.7+, §3.9)
+    provides: <object>                 # Optional: label → value bindings (api 0.7+, §3.9)
+    requires_capabilities: <array>     # Optional: host capabilities (api 0.7+, §3.10)
+    resources: <object>                # Optional: resource requirements (§7)
 ```
 
 #### Required Fields
@@ -358,10 +369,172 @@ Semantics:
 - **Symmetric.** `D2: exclude [M2]` and `M2: exclude [D2]` prune the same paths;
   declare it wherever it reads most naturally.
 - **OR over the list.** `exclude: [M2, M3]` is two independent rules (drop D2+M2,
-  drop D2+M3). There is no "exclude only when both present" (AND) form. (A future
-  additive lineage gate — `provides`/`requires`, not yet implemented — is the
-  intended home for richer conditions; see
-  [PR #332](https://github.com/omnibenchmark/omnibenchmark/pull/332).)
+  drop D2+M3). There is no "exclude only when both present" (AND) form; richer
+  conditions belong to the lineage gate in §3.9.
+
+### 3.9 Lineage labels: `provides` and `requires` (api ≥ 0.7.0)
+
+A stage declares label *names*; its modules bind label *values*; downstream
+modules gate on those values. Rationale and diagnostics:
+[008-filtering.md §3.5](./008-filtering.md).
+
+```yaml
+stages:
+  - id: data
+    provides: [dataset_size]           # the stage owns this label (the axis)
+    modules:
+      - id: small_set
+        provides: {dataset_size: sm}   # this module's value on that axis
+      - id: huge_set
+        provides: {dataset_size: lg}
+
+  - id: methods
+    inputs: [data.raw]
+    modules:
+      - id: cheap_method
+        requires: {dataset_size: sm}   # runs only on lineages carrying sm
+```
+
+| Keyword | Level | Type | Meaning |
+|---|---|---|---|
+| `provides` | stage | array of strings | Label names this stage advertises |
+| `provides` | module | object | label → value for this module's nodes |
+| `requires` | module | object | label → required value; the module runs only where all match |
+
+Rules:
+
+- **A label is owned by exactly one stage.** Two stages declaring the same
+  label is a parse-time error — the value would otherwise depend on where in
+  the lineage you stand.
+- A module may only bind labels its stage declares; an unknown key is a
+  parse-time error, not a silent fall-through.
+- Unbound labels default to the **module id**, which is the zero-config
+  "label = module identity" pattern.
+- `name` and `dataset` are reserved builtins and may not be declared.
+- `requires` on a module in an initial stage (no `inputs:`) is a parse-time
+  error: there is no upstream lineage to match.
+- Matching is exact string equality. Values are AND-ed.
+
+### 3.10 Capability gating: `requires_capabilities` (api ≥ 0.7.0)
+
+Where `requires` asks about the *data*, `requires_capabilities` asks about the
+*host*. Both must pass for a module to run.
+
+```yaml
+modules:
+  - id: gpu_method
+    requires_capabilities: [gpu, large_mem]
+```
+
+The module is pruned unless every listed capability is supplied at run time:
+
+```
+ob run benchmark.yaml --with-capability gpu --with-capability large_mem
+```
+
+Capabilities are host facts, never lineage labels; they do not propagate
+downstream and cannot be gated on with `requires`. `-m/--module` bypasses the
+gate. See [008-filtering.md §3.3](./008-filtering.md).
+
+### 3.11 Shared output ids
+
+An output id declared by more than one stage is a **contract**: the files are
+interchangeable for any consumer referencing that id.
+
+```yaml
+stages:
+  - id: method_a
+    outputs:
+      - id: clustering                 # same id, deliberately
+        path: "{name}_assignments.tsv"
+  - id: method_b
+    outputs:
+      - id: clustering
+        path: "{name}_labels.tsv"
+```
+
+When a consumer references an id with several producers, what happens depends
+on whether one producer runs downstream of another:
+
+- **Downstream of each other** — the downstream one wins; the upstream is
+  *shadowed*. Its file is still written; consumers bind to the nearer producer.
+- **On parallel branches** — they are *alternatives* and all of them run: the
+  consumer expands once per producer.
+
+A `gather` (§3.12) ignores shadowing and collects every producer. Full rules:
+[010-gather.md §3.1](./010-gather.md).
+
+### 3.12 Fan-in: joins and `gather` (api ≥ 0.7.0)
+
+Two ways for a stage to consume more than one upstream node at once.
+
+#### Joins
+
+A stage whose declared inputs come from **divergent branches** (neither
+producer is upstream of the other) resolves to a single node with several
+parents, one per compatible combination of branches.
+
+```yaml
+  - id: compare
+    inputs:
+      - method_a.result                # branch A
+      - method_b.result                # branch B
+```
+
+Branches are paired only when their lineages agree at every stage they share,
+so a join never crosses datasets. Below api 0.7.0 this is rejected at
+validation time. A join's output directory extends its deepest input's and
+carries a digest of its parent set, so two joins sharing a branch do not
+collide.
+
+#### Gather
+
+A gather collects **every node producing a shared output id** and partitions
+them by a stage they descend from, emitting one node per group.
+
+```yaml
+  - id: metrics
+    prefix: aggregated                 # Required with `gather`
+    gather:
+      - from: clustering               # Required: output id to collect
+        group_by: data                 # Required: stage id to group by
+    modules:
+      - id: summarizer
+        software_environment: env
+        repository: {url: ..., commit: ...}
+    outputs:
+      - id: metrics.summary
+        path: "{data}_summary.tsv"     # {data} = the group value
+```
+
+| Keyword | Level | Type | Meaning |
+|---|---|---|---|
+| `gather` | stage | array of objects | Fan-in specs; replaces `inputs:` for this stage |
+| `gather[].from` | — | string | Output id to collect; every producer is a member |
+| `gather[].group_by` | — | string | **Stage id** to partition members by. Optional: omitted, every producer lands in one node (the global form) |
+| `prefix` | stage | string | Filesystem root for the cut chain; required with `gather` |
+
+Rules:
+
+- `from` must name an id some stage produces; zero producers is a parse-time
+  error. Members are collected after pruning (`exclude`, `requires`,
+  capabilities).
+- `group_by`, when given, must name a real stage. Members are grouped by the
+  **ancestor module id** of that stage, so parameter expansions of one module
+  land in the same group. Omitting it collects every producer into a single
+  node and drops the group segment from the output path — the shape a
+  `metric_collector` has.
+- All `gather` entries on a stage must share one `group_by`, and "no
+  `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
+- A gather **cuts the lineage chain**: its node has no parent, its outputs land
+  under `<prefix>/<group>/<stage>/<module>/<params>/`, and it carries exactly
+  one label — the `group_by` stage id, bound to the group value and usable in
+  output templates. Referencing any other label is a plan-time error.
+- Downstream stages chain off a gather normally (scatter after gather).
+
+The contributing nodes a path can no longer encode are recorded in a
+`lineage.json` sidecar next to the outputs. See
+[010-gather.md](./010-gather.md) for the full model.
 
 ## 4. Complete Example
 

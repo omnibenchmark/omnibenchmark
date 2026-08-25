@@ -38,9 +38,13 @@ def save_metadata(
         f.write("# Format: stage/module - repository@commit\n")
         f.write("#\n\n")
 
+        # Key on the benchmark-level identity, not (repo, commit): one
+        # repository commonly hosts several modules, told apart by entrypoint
+        # (scrapper -> filter/normalize/select/pca). Deduping on the repo
+        # dropped every module after the first from the record.
         seen_modules: set = set()
         for node in nodes:
-            module_key = (node.module.repository_url, node.module.commit)
+            module_key = (node.stage_id, node.module_id)
             if module_key not in seen_modules:
                 seen_modules.add(module_key)
                 f.write(f"{node.stage_id}/{node.module_id}:\n")

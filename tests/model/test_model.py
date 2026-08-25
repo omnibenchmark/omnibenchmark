@@ -420,6 +420,32 @@ class TestLineageProvides:
                 stages=[make_stage(id="data", provides=[reserved])],
             )
 
+    def test_label_declared_by_two_stages_rejected(self):
+        """A label is owned by exactly one stage (008 §3.5).
+
+        Two owners leave the value dependent on where you stand: on a chain the
+        later stage silently overwrites the earlier, and on a fan-in join the
+        branches disagree with no non-arbitrary winner. Rejecting the second
+        declaration is what makes the join's label union well-defined.
+        """
+        with pytest.raises(ValueError, match="already declares it"):
+            make_benchmark(
+                api_version=APIVersion.V0_7_0,
+                stages=[
+                    make_stage(id="norm", provides=["method"]),
+                    make_stage(id="embed", provides=["method"]),
+                ],
+            )
+
+    def test_same_label_twice_within_one_stage_is_fine(self):
+        """One stage owning a label is the whole point; a repeated entry in its
+        own list is a no-op, not a second owner."""
+        bench = make_benchmark(
+            api_version=APIVersion.V0_7_0,
+            stages=[make_stage(id="norm", provides=["method", "method"])],
+        )
+        assert bench.stages[0].provides == ["method", "method"]
+
     @pytest.mark.parametrize(
         "stage_provides",
         [None, ["dataset_size"]],

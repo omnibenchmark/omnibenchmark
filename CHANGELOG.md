@@ -11,6 +11,13 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: lineage gating — `provides:` labels a lineage, `requires:` runs a module only on matching lineages (api 0.7.0, #354)
 - feat: reject gates that can never fire at parse time (#354)
 - fix: compare `api_version` by components, not lexicographically (#354)
+- feat: explicit `gather:` stages — fan-in by shared output id, grouped by an ancestor stage (design 010, #289)
+- feat: a stage consumes an output id from every stage producing it; parallel producers of the same id are alternatives, so the consumer expands once per producer (design 010 §3.1)
+- feat: fan-in nodes write a `lineage.json` sidecar naming every contributing node (design 010 §3.3)
+- fix: fan-in output paths carry a digest of the parent set, so two joins sharing their deepest input no longer collide (`AmbiguousRuleException`)
+- fix: `modules.txt` listed one module per repository+commit, dropping every module that shares a repo with another
+- feat: a join inherits lineage labels from every branch, not only the one that named it (design 010 §5.2)
+- feat: a `provides` label is owned by one stage; a second stage declaring it is a parse-time error (design 008 §3.5)
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 
