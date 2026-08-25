@@ -60,9 +60,9 @@ def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
 def _maximal_producer_stages(producing_stage_ids: set, resolved_nodes, nodes_by_id):
     """Producing stages that are not ancestors of another producing stage.
 
-    Shadowed producers — those on the same chain as a deeper one — drop out
-    here, which is what reproduces nearest-ancestor-wins (design 010 §3.1
-    rule 1a).
+    Shadowed producers — those with another producer downstream of them — drop
+    out here, which is what reproduces nearest-ancestor-wins (design 010 §3.1,
+    "shadowed").
     """
     if len(producing_stage_ids) < 2:
         return set(producing_stage_ids)
@@ -90,8 +90,8 @@ def _alternative_producer_stages(
     Several maximal producers mean one of two things, told apart by whether
     they produce the **same** declared input id:
 
-    * same id — alternatives (010 §3.1 rule 1b): each is its own expansion
-      base, so the consumer runs once per producer.
+    * same id — alternatives (010 §3.1): each is its own expansion base, so
+      the consumer runs once per producer.
     * different ids — fan-in partners (010 §3.9): the consumer needs both at
       once. Left to ``select_input_bundles``; returning them here would anchor
       the same join once per branch and emit it twice.
@@ -118,10 +118,11 @@ def select_input_nodes(
 ) -> list:
     """Return the node list to use as the cartesian expansion base for a stage.
 
-    Per design 010 §3.1: producers on one chain collapse to the deepest
-    (rule 1a); producers on parallel branches declaring the *same* id are
-    alternatives, each its own base (rule 1b); parallel producers of
-    *different* ids are a fan-in, left to ``select_input_bundles``.
+    Per design 010 §3.1: a producer with another producer downstream of it is
+    shadowed and drops out, so producers on one chain collapse to the deepest;
+    producers on parallel branches declaring the *same* id are alternatives,
+    each its own expansion base; parallel producers of *different* ids are a
+    fan-in, left to ``select_input_bundles``.
 
     Ungated on api_version, unlike gather and fan-in: with one producer per id
     the maximal set is a singleton, so existing plans are byte-identical, and a
@@ -173,15 +174,30 @@ def select_input_nodes(
     return [n for n in resolved_nodes if n.stage_id in selected]
 
 
-def satisfies_requires(requires: dict, input_node) -> bool:
-    """Return True if the input_node's lineage satisfies all requires constraints."""
-    if not input_node.template_context:
-        return False
-    for label, required_value in requires.items():
-        actual_value = input_node.template_context.provides.get(label)
-        if actual_value != required_value:
-            return False
-    return True
+def inherited_provides(input_nodes) -> dict:
+    """The lineage labels a node inherits from its producer bundle.
+
+    The **union** over every member, not just the anchor: a node downstream of
+    a fan-in sees every branch (design 010 §3.9), the same rule `exclude`
+    already follows. Branches cannot disagree on a value because a label is
+    owned by exactly one stage (008 §3.5, enforced at parse time); the only
+    overlap is the builtin `name`, which every node overwrites with its own id.
+    """
+    provides: dict = {}
+    for member in input_nodes:
+        if member.template_context is not None:
+            provides.update(member.template_context.provides)
+    return provides
+
+
+def satisfies_requires(requires: dict, provides: dict) -> bool:
+    """Return True if every `requires` label matches the upstream lineage's.
+
+    `provides` is the upstream label set — for a fan-in, the union over every
+    branch (`inherited_provides`), so a gate can name a label carried by any
+    of them.
+    """
+    return all(provides.get(label) == value for label, value in requires.items())
 
 
 def lineage_module_ids(input_node, nodes_by_id) -> set:
@@ -368,12 +384,17 @@ def build_template_context(
     stage,
     module_id: str,
     module_name: Optional[str] = None,
-    input_node=None,
+    input_nodes=(),
     params=None,
     module_provides=None,
     extra_provides=None,
 ) -> TemplateContext:
     """Build a TemplateContext for a node during expansion.
+
+    `input_nodes` is the producer bundle feeding this node: empty for a root or
+    a gather (the cut has no parent), a 1-tuple for a linear node, several for
+    a fan-in join. Labels are inherited from all of them; `{module.parent.*}`
+    names the anchor, the first, which is also the node's id spine.
 
     `module_provides` is the optional `Module.provides` dict (label → value);
     it sources the values for the labels this stage advertises via
@@ -383,7 +404,7 @@ def build_template_context(
     nodes use it to bind their group-key label (the `group_by` stage → group
     value) so output templates can reference it (design 010 §3.3).
     """
-    provides: dict[str, str] = {}
+    anchor = input_nodes[0] if input_nodes else None
     module_attrs: dict[str, str] = {
         "id": module_id,
         "stage": stage.id,
@@ -393,16 +414,15 @@ def build_template_context(
     stage_provides = getattr(stage, "provides", None)
 
     # Inherit the upstream lineage labels first, then layer this stage's own.
-    if input_node is not None and input_node.template_context is not None:
-        provides.update(input_node.template_context.provides)
+    provides: dict[str, str] = inherited_provides(input_nodes)
 
     if stage_provides:
         for label in stage_provides:
             provides[label] = resolve_label_value(label, module_provides, module_id)
 
-    if input_node is not None:
-        module_attrs["parent.id"] = input_node.module_id
-        module_attrs["parent.stage"] = input_node.stage_id
+    if anchor is not None:
+        module_attrs["parent.id"] = anchor.module_id
+        module_attrs["parent.stage"] = anchor.stage_id
     else:
         if extra_provides is None:
             # Builtin `dataset` label: root identity, propagated downstream. A

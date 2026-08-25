@@ -6,6 +6,7 @@ import pytest
 
 from omnibenchmark.core._lineage import (
     build_template_context,
+    inherited_provides,
     lineage_module_ids,
     resolve_label_value,
     satisfies_requires,
@@ -94,7 +95,7 @@ class TestBuildTemplateContext:
         )
         input_node = _make_input_node("D1", "data", template_context=parent_ctx)
         stage = _make_stage("methods", provides=None)
-        ctx = build_template_context(stage, "M1", input_node=input_node)
+        ctx = build_template_context(stage, "M1", input_nodes=(input_node,))
         assert ctx.provides["dataset"] == "pbmc3k"
         assert ctx.module_attrs["parent.id"] == "D1"
         assert ctx.module_attrs["parent.stage"] == "data"
@@ -102,7 +103,7 @@ class TestBuildTemplateContext:
     def test_child_node_no_parent_context(self):
         input_node = _make_input_node("D1", "data", template_context=None)
         stage = _make_stage("methods", provides=None)
-        ctx = build_template_context(stage, "M1", input_node=input_node)
+        ctx = build_template_context(stage, "M1", input_nodes=(input_node,))
         assert "dataset" not in ctx.provides
         assert ctx.module_attrs["parent.id"] == "D1"
 
@@ -113,7 +114,7 @@ class TestBuildTemplateContext:
         )
         input_node = _make_input_node("D1", "data", template_context=parent_ctx)
         stage = _make_stage("methods", provides=["method"])
-        ctx = build_template_context(stage, "M1", input_node=input_node)
+        ctx = build_template_context(stage, "M1", input_nodes=(input_node,))
         assert ctx.provides["method"] == "M1"
 
     def test_child_node_provides_label_from_module_binding(self):
@@ -124,7 +125,7 @@ class TestBuildTemplateContext:
         input_node = _make_input_node("D1", "data", template_context=parent_ctx)
         stage = _make_stage("methods", provides=["method"])
         ctx = build_template_context(
-            stage, "M1", input_node=input_node, module_provides={"method": "kmeans"}
+            stage, "M1", input_nodes=(input_node,), module_provides={"method": "kmeans"}
         )
         assert ctx.provides["method"] == "kmeans"
         # parent lineage labels still inherited
@@ -145,7 +146,7 @@ class TestBuildTemplateContext:
         )
         input_node = _make_input_node("D1", "data", template_context=parent_ctx)
         stage = _make_stage("methods", provides=None)
-        ctx = build_template_context(stage, "M1", input_node=input_node)
+        ctx = build_template_context(stage, "M1", input_nodes=(input_node,))
         assert ctx.provides["name"] == "M1"
 
     def test_name_template_variable_substitution(self):
@@ -172,68 +173,88 @@ class TestBuildTemplateContext:
 
 
 # ---------------------------------------------------------------------------
-# satisfies_requires
+# inherited_provides / satisfies_requires
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.short
+class TestInheritedProvides:
+    def _node(self, module_id, **provides):
+        return _make_input_node(
+            module_id,
+            "s",
+            template_context=TemplateContext(
+                provides=provides, module_attrs={"id": module_id, "stage": "s"}
+            ),
+        )
+
+    def test_no_members_is_empty(self):
+        assert inherited_provides(()) == {}
+
+    def test_single_member_passes_its_labels_through(self):
+        node = self._node("D1", dataset="pbmc3k")
+        assert inherited_provides((node,)) == {"dataset": "pbmc3k"}
+
+    def test_member_without_context_contributes_nothing(self):
+        node = _make_input_node("D1", "s", template_context=None)
+        assert inherited_provides((node,)) == {}
+
+    def test_join_unions_every_branch(self):
+        """A fan-in node sees every branch's labels, not just the anchor's —
+        the same lineage `exclude` unions over (design 010 §3.9)."""
+        anchor = self._node("log1p", dataset="pbmc3k", normalization="log")
+        partner = self._node("umap", dataset="pbmc3k", embedding="umap")
+        assert inherited_provides((anchor, partner)) == {
+            "dataset": "pbmc3k",
+            "normalization": "log",
+            "embedding": "umap",
+        }
+
+
+@pytest.mark.short
 class TestSatisfiesRequires:
-    def test_no_template_context_returns_false(self):
-        node = _make_input_node("D1", "data", template_context=None)
-        assert satisfies_requires({"dataset": "pbmc3k"}, node) is False
+    def test_empty_requires_is_satisfied_by_anything(self):
+        assert satisfies_requires({}, {}) is True
+        assert satisfies_requires({}, {"dataset": "pbmc3k"}) is True
 
     def test_matching_single_constraint(self):
-        ctx = TemplateContext(
-            provides={"dataset": "pbmc3k"},
-            module_attrs={"id": "D1", "stage": "data"},
-        )
-        node = _make_input_node("D1", "data", template_context=ctx)
-        assert satisfies_requires({"dataset": "pbmc3k"}, node) is True
+        assert satisfies_requires({"dataset": "pbmc3k"}, {"dataset": "pbmc3k"}) is True
 
-    def test_mismatched_constraint(self):
-        ctx = TemplateContext(
-            provides={"dataset": "pbmc3k"},
-            module_attrs={"id": "D1", "stage": "data"},
-        )
-        node = _make_input_node("D1", "data", template_context=ctx)
-        assert satisfies_requires({"dataset": "other"}, node) is False
+    def test_mismatched_value(self):
+        assert satisfies_requires({"dataset": "other"}, {"dataset": "pbmc3k"}) is False
 
-    def test_missing_label_returns_false(self):
-        ctx = TemplateContext(
-            provides={},
-            module_attrs={"id": "D1", "stage": "data"},
-        )
-        node = _make_input_node("D1", "data", template_context=ctx)
-        assert satisfies_requires({"dataset": "pbmc3k"}, node) is False
-
-    def test_empty_requires_returns_true(self):
-        ctx = TemplateContext(
-            provides={"dataset": "pbmc3k"},
-            module_attrs={"id": "D1", "stage": "data"},
-        )
-        node = _make_input_node("D1", "data", template_context=ctx)
-        assert satisfies_requires({}, node) is True
+    def test_absent_label(self):
+        assert satisfies_requires({"dataset": "pbmc3k"}, {}) is False
 
     def test_multiple_constraints_all_match(self):
-        ctx = TemplateContext(
-            provides={"dataset": "pbmc3k", "treatment": "ctrl"},
-            module_attrs={"id": "D1", "stage": "data"},
-        )
-        node = _make_input_node("D1", "data", template_context=ctx)
-        assert (
-            satisfies_requires({"dataset": "pbmc3k", "treatment": "ctrl"}, node) is True
-        )
+        provides = {"dataset": "pbmc3k", "treatment": "ctrl"}
+        assert satisfies_requires(provides, provides) is True
 
     def test_multiple_constraints_partial_mismatch(self):
-        ctx = TemplateContext(
-            provides={"dataset": "pbmc3k", "treatment": "ctrl"},
-            module_attrs={"id": "D1", "stage": "data"},
-        )
-        node = _make_input_node("D1", "data", template_context=ctx)
         assert (
-            satisfies_requires({"dataset": "pbmc3k", "treatment": "stim"}, node)
+            satisfies_requires(
+                {"dataset": "pbmc3k", "treatment": "stim"},
+                {"dataset": "pbmc3k", "treatment": "ctrl"},
+            )
             is False
         )
+
+    def test_gate_matches_a_label_from_a_non_anchor_branch(self):
+        """The point of the union: a gate may name a label carried by any
+        branch of the join, not only the one that won the id spine."""
+        anchor = TemplateContext(
+            provides={"normalization": "log"}, module_attrs={"id": "log1p"}
+        )
+        partner = TemplateContext(
+            provides={"embedding": "umap"}, module_attrs={"id": "umap"}
+        )
+        upstream = inherited_provides(
+            (
+                _make_input_node("log1p", "norm", template_context=anchor),
+                _make_input_node("umap", "embed", template_context=partner),
+            )
+        )
+        assert satisfies_requires({"embedding": "umap"}, upstream) is True
 
 
 # ---------------------------------------------------------------------------

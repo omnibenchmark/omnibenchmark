@@ -18,6 +18,7 @@ from typing import Optional
 from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
     build_template_context,
+    inherited_provides,
     expansion_segment,
     iter_ancestors,
     join_hash,
@@ -161,7 +162,6 @@ def expand_gather_stage(
                 stage=stage,
                 module_id=module_id,
                 module_name=getattr(module, "name", None),
-                input_node=None,
                 params=params,
                 module_provides=module.provides,
                 extra_provides={group_label: gval},
@@ -324,8 +324,9 @@ def expand_scatter_stage(
             for input_bundle, params in node_combinations:
                 # A bundle is the producer node(s) feeding this node: a
                 # 1-tuple for a linear node, several for a diamond join
-                # (#289). `input_node` is the primary (deepest) branch, kept
-                # for the id spine, requires-check and template context.
+                # (#289). `input_node` is the anchor — the primary (deepest)
+                # branch — which gives the id spine and `{module.parent.*}`.
+                # Labels come from the whole bundle, not just the anchor.
                 members = input_bundle if input_bundle else ()
                 input_node = members[0] if members else None
                 is_join = len(members) > 1
@@ -347,11 +348,14 @@ def expand_scatter_stage(
                         continue
 
                 if input_node and module.requires:
-                    if not satisfies_requires(module.requires, input_node):
+                    # Gate against every branch's labels, the same lineage the
+                    # exclusion check above unions over (010 §3.9).
+                    upstream = inherited_provides(members)
+                    if not satisfies_requires(module.requires, upstream):
                         prune_counts["requires"] += 1
                         logger.debug(
                             f"      Skipping combination: requires not satisfied for {module_id} "
-                            f"(upstream context: {input_node.template_context.provides})"
+                            f"(upstream context: {upstream})"
                         )
                         continue
 
@@ -430,7 +434,7 @@ def expand_scatter_stage(
                     stage=stage,
                     module_id=module_id,
                     module_name=getattr(module, "name", None),
-                    input_node=input_node,
+                    input_nodes=members,
                     params=params,
                     module_provides=module.provides,
                 )

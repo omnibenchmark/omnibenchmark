@@ -1477,6 +1477,26 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"populated by the runtime; choose another name."
                     )
 
+        # A label names an axis, and one stage defines it. Two stages declaring
+        # the same label leaves its value dependent on where you are standing:
+        # on a chain the later stage silently overwrites the earlier, and on a
+        # fan-in join the branches disagree with no non-arbitrary winner (the
+        # "primary" branch is a topological accident, not something the author
+        # can predict). Rejecting the declaration keeps the join's label union
+        # well-defined and reports the problem where it was written. See 008
+        # §3.5 "Label ownership".
+        label_owner: Dict[str, str] = {}
+        for stage in self.stages:
+            for label in stage.provides or []:
+                owner = label_owner.setdefault(label, stage.id)
+                if owner != stage.id:
+                    raise ValueError(
+                        f"Stage '{stage.id}' declares label '{label}' in "
+                        f"`provides`, but stage '{owner}' already declares it. "
+                        f"A label is owned by exactly one stage; rename one of "
+                        f"them."
+                    )
+
         # A module can only bind a label its stage advertises. A `provides` key
         # absent from `stage.provides` is never consulted at resolution time
         # (`_resolve_label_value` iterates the stage's labels), so it would
