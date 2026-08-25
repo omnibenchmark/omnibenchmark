@@ -1137,6 +1137,7 @@ def _expand_gather_stage(
                 module_name=getattr(module, "name", None),
                 input_node=None,
                 params=params,
+                module_provides=module.provides,
                 extra_provides={group_label: gval},
             )
 
