@@ -190,6 +190,10 @@ Members are every node producing `from`. They are partitioned by the ancestor
 module of the `group_by` stage, one gather node per group. This is *structural*
 grouping over the existing chain: it needs no `provides` labels.
 
+`group_by` is optional. Omitted, every producer lands in one node and the
+output path carries no group segment — that is the global form, and it is what
+a `metric_collector` is (§3.6).
+
 Grouping merges parameter expansions: members descending from `data-D1.p1` and
 `data-D1.p2` land in the same group, because the key is the ancestor **module**
 id (`D1`), not its node id. Per-parameter grouping needs a label-based
@@ -277,14 +281,64 @@ a stage, then parameter expansion. Arbitrary but deterministic: identical YAML
 must produce byte-identical Snakefiles, or Snakemake reruns unchanged work.
 Modules must not read meaning from position; identity comes from the paths.
 
-### 3.6 Metric collector deprecation
+### 3.6 Metric collectors are a global gather
 
-`metric_collectors` is re-expressible as a *global* gather — no `group_by`, one
-node collecting every producer. That form arrives with the reimplementation
-itself, since `group_by` is required today. Plan: reimplement the collector
-resolver on top of gather nodes (`is_collector` kept for output-layout compat),
-add a deprecation warning pointing at the equivalent `gather:` stanza, remove in
-a later major api version.
+A `metric_collector` is a gather with no `group_by`, declared terminal by
+convention rather than by the engine. The two forms line up field for field:
+
+| `metric_collectors:` | `gather:` |
+|---|---|
+| `inputs: [methods.result]` | `gather: [{from: methods.result}]` |
+| implicit global scope | no `group_by` |
+| implicit output location | `prefix: aggregated` |
+| terminal — outputs unregistered | outputs registered; downstream stages consume them |
+| — | add `group_by: data` for one report per dataset |
+
+The last row is the reason to migrate: a collector cannot produce one summary
+per dataset, and that is the common request.
+
+Deprecation is a **notice, not a rewrite**. Reimplementing the collector
+resolver on top of gather nodes rewires a working path for no user-visible
+gain; a warning pointing at the equivalent `gather:` stanza does the actual
+work of moving people, and the code deletes itself once nobody declares
+`metric_collectors:`. Removal waits for a later major api version.
+
+### 3.7 Worked example: a report module
+
+The global form is what a "render a report over everything" module wants:
+
+```yaml
+  - id: report
+    prefix: aggregated
+    gather:
+      - from: metrics.summary        # every metric node in the benchmark
+    modules:
+      - id: rmd
+        software_environment: r
+        repository: {url: …, commit: …}   # the .Rmd lives here, pinned
+    outputs:
+      - id: report.html
+        path: report.html
+```
+
+The template belongs in the **module repository**, pinned by commit like any
+other module asset. A module is already "code and files at a commit", so
+nothing new is needed to make the rendered report reproducible; a
+benchmark-level asset mechanism would be a second way to say the same thing.
+
+The part that looks like it needs a mechanism is labelling. A report over N
+files must know which run produced each one, or every row is anonymous. That is
+already covered: `lineage.json` is written into the node's output directory
+*before* the entrypoint runs, so the module can read it and get each member's
+stage, module, commit, parameter hash and directory:
+
+```
+render.R          # reads $OUTPUT_DIR/lineage.json and the --metrics.summary paths
+template.Rmd
+```
+
+So the sidecar is not only a provenance artifact for humans — for a gather
+module it is part of the input contract (§5.2).
 
 ## 4. Alternatives Considered
 
