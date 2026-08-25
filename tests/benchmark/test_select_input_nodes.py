@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+import pytest
+
 from omnibenchmark.core._lineage import select_input_nodes
 
 
@@ -37,6 +39,7 @@ def _reg(*pairs):
 # ===========================================================================
 
 
+@pytest.mark.short
 class TestSelectInputNodes:
     """Tests for select_input_nodes pure function."""
 
@@ -226,6 +229,7 @@ class _ChainNode:
     parent_id: str = None
 
 
+@pytest.mark.short
 class TestSharedOutputIdProducers:
     """`pcas_tsv` declared by both PCA and CNTFCT — interchangeable for any
     consumer referencing that id, so the consumer expands once per producer."""
