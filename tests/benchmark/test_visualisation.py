@@ -318,3 +318,64 @@ def generate_graph(n_nodes, stage_proportions=None):
         G.add_edge(preprocess, metric)
 
     return G
+
+
+_SHARED_OUTPUT_ID = """\
+id: shared
+description: two stages declaring one output id, consumed by a third
+version: "1.0"
+benchmarker: x
+api_version: "0.7.0"
+software_backend: host
+software_environments:
+  env: {description: e, envmodule: "none"}
+stages:
+  - id: data
+    outputs: [{id: data.out, path: "d.txt"}]
+    modules:
+      - id: D1
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+  - id: method_a
+    inputs: [data.out]
+    outputs: [{id: methods.result, path: "a.txt"}]
+    modules:
+      - id: MA
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+  - id: method_b
+    inputs: [data.out]
+    outputs: [{id: methods.result, path: "b.txt"}]
+    modules:
+      - id: MB
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+  - id: metrics
+    inputs: [methods.result]
+    outputs: [{id: metrics.out, path: "m.txt"}]
+    modules:
+      - id: MC
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+"""
+
+
+def test_every_producer_of_a_shared_output_id_gets_an_edge():
+    """A consumer of an id declared by two stages is drawn as depending on
+    both (design 010 §3.1).
+
+    This is the case the single-producer lookup broke: `get_stages_by_output`
+    returned the first-declared producer, so `method_b -> metrics` was missing
+    from every topology consumer — mermaid, dot, and obeditor, which calls
+    `stage_adjacency` directly. A plain diamond never showed the bug, because
+    its branches declare *different* output ids with one producer each.
+    """
+    model = BenchmarkModel.from_yaml(_SHARED_OUTPUT_ID)
+    adjacency = stage_adjacency(model)
+
+    into_metrics = sorted(up for up, down, _ in adjacency if down == "metrics")
+    assert into_metrics == [
+        "method_a",
+        "method_b",
+    ], f"both producers of methods.result must be drawn: {adjacency}"
+    assert _module_edges(model) >= {("MA", "MC"), ("MB", "MC")}
