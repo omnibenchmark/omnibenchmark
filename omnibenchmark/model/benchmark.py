@@ -427,10 +427,11 @@ class GatherSpec(BaseModel):
     """A single fan-in: collect nodes producing a shared output id, grouped by
     a stage they descend from (design 010).
 
-    MVP: `from` + `group_by`. `group_by` is a single **stage id** (not a tuple,
-    not a label): members are partitioned by which node of that stage they
-    descend from — structural grouping over the existing lineage chain, no
-    `provides` labels needed. `where` is deferred.
+    `group_by` is a single **stage id** (not a tuple, not a label): members are
+    partitioned by which node of that stage they descend from — structural
+    grouping over the existing lineage chain, no `provides` labels needed.
+    Omitting it collects every producer into one node, which is the shape a
+    `metric_collector` has. `where` is deferred.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -440,12 +441,13 @@ class GatherSpec(BaseModel):
         alias="from",
         description="Output id to collect. Every node producing it is a member.",
     )
-    group_by: str = Field(
-        ...,
+    group_by: Optional[str] = Field(
+        None,
         description=(
             "Stage id to group members by. One gather node is created per "
             "distinct ancestor module of that stage among the members. A single "
-            "stage id, not a list."
+            "stage id, not a list. Omit it for a global gather: every producer "
+            "collected into one node, with no group segment in the output path."
         ),
     )
 
@@ -720,11 +722,15 @@ class Stage(DescribableEntity):
                 f"prefix for its outputs (design 010 §3.3)."
             )
         if self.gather:
+            # One axis per stage — including "no axis": mixing a grouped entry
+            # with a global one has no meaning, so {None, "data"} is rejected
+            # here just like {"data", "method"}.
             axes = {spec.group_by for spec in self.gather}
             if len(axes) > 1:
+                shown = sorted(a or "<global>" for a in axes)
                 raise ValueError(
                     f"Stage '{self.id}' has gather entries with differing "
-                    f"group_by {sorted(axes)}. A gather stage has one grouping "
+                    f"group_by {shown}. A gather stage has one grouping "
                     f"axis; multiple axes are deferred (design 010 §3.3)."
                 )
         return self
@@ -1544,7 +1550,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         stage_ids = {s.id for s in self.stages}
         for stage in self.stages:
             for spec in stage.gather or []:
-                if spec.group_by not in stage_ids:
+                if spec.group_by is not None and spec.group_by not in stage_ids:
                     raise ValueError(
                         f"Stage '{stage.id}' gathers with `group_by: "
                         f"{spec.group_by}`, which is not a known stage id."

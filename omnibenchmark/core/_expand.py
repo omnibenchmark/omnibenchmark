@@ -64,9 +64,9 @@ def expand_gather_stage(
     # expansion order — deterministic; entries are grouped by from id because
     # the outer loop runs per spec.
     grouped: dict = {}
-    # The group-key label: the single group_by stage. Stage.validate_gather
-    # guarantees all entries share one axis, so [0] is authoritative. Used to
-    # bind the template variable (design 010 §3.3).
+    # The group-key label: the single group_by stage, or None for a global
+    # gather (every producer into one node — the `metric_collector` shape).
+    # Stage.validate_gather guarantees one axis, so [0] is authoritative.
     group_label = stage.gather[0].group_by
 
     for spec in stage.gather:
@@ -77,6 +77,9 @@ def expand_gather_stage(
                 f"which no stage produces (design 010 §3.2)."
             )
         for member_id, path in producers:
+            if group_label is None:
+                grouped.setdefault(None, []).append((member_id, spec.from_, path))
+                continue
             gval = ancestor_module_at_stage(member_id, spec.group_by, nodes_by_id)
             if gval is None:
                 logger.warning(
@@ -88,7 +91,7 @@ def expand_gather_stage(
             grouped.setdefault(gval, []).append((member_id, spec.from_, path))
 
     if not grouped:
-        logger.warning(f"Stage '{stage.id}' gathered no members into any group.")
+        logger.warning(f"Stage '{stage.id}' gathered no members.")
 
     # Module-filter: same single-execution-path contract as the scatter path.
     if module_filter:
@@ -140,14 +143,18 @@ def expand_gather_stage(
             else:
                 kept = members
             if not kept:
+                where = f"group '{gval}'" if gval is not None else "the gather"
                 logger.warning(
-                    f"      Gather '{stage.id}': group '{gval}' has no "
-                    f"members left for module {module_id}; skipping node."
+                    f"      Gather '{stage.id}': {where} has no members left "
+                    f"for module {module_id}; skipping node."
                 )
                 continue
 
             param_id = f".{params.hash_short()}" if params else ".default"
-            node_id = f"{stage.id}-{module_id}-{gval}{param_id}"
+            # A global gather has no group value, so neither its id nor its
+            # path carries a group segment.
+            group_seg = f"-{gval}" if gval is not None else ""
+            node_id = f"{stage.id}-{module_id}{group_seg}{param_id}"
 
             # Enumerated keys + name mapping: same shape metric collectors
             # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
@@ -164,7 +171,10 @@ def expand_gather_stage(
                 module_name=getattr(module, "name", None),
                 params=params,
                 module_provides=module.provides,
-                extra_provides={group_label: gval},
+                # Always a dict for a gather, empty when global: that is what
+                # keeps the builtin `dataset` from leaking in (a gather binds
+                # its group key and nothing else, design 010 §3.3).
+                extra_provides={group_label: gval} if group_label else {},
             )
 
             outputs = []
@@ -173,8 +183,9 @@ def expand_gather_stage(
                 # other lineage label raises in substitute() — the plan-time
                 # error design 010 §3.3 wants, never a silent empty sub.
                 tmpl = ctx.substitute(output_spec.path, params=params)
+                group_dir = f"{gval}/" if gval is not None else ""
                 output_path = truncate_path_filename(
-                    f"{stage.prefix}/{gval}/{stage.id}/{module_id}/{param_id}/{tmpl}"
+                    f"{stage.prefix}/{group_dir}{stage.id}/{module_id}/{param_id}/{tmpl}"
                 )
                 outputs.append(output_path)
                 output_to_nodes.setdefault(output_spec.id, []).append(

@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v5)
+# 004: Omnibenchmark YAML Specification (v6)
 
 [![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 5](https://img.shields.io/badge/Version-5-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 6](https://img.shields.io/badge/Version-6-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
 **Status**: Accepted
-**Version**: 5
+**Version**: 6
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
@@ -20,6 +20,7 @@
 | 3       | 2026-05-06 | Add provenance metadata (Section 9): canonical_url, derived_from, subset_of | ben |
 | 4       | 2026-08-25 | Add api 0.7.0 keywords as sections 3.9-3.12: `provides`/`requires`, `requires_capabilities`, shared output ids, joins and `gather`/`prefix` | ben |
 | 5       | 2026-08-25 | Correct stage ordering in §3.3 (topological, not positional); drop §3.8's stale "not yet implemented" note on `provides`/`requires` | ben |
+| 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
 
 ## 1. Problem Statement
 
@@ -510,7 +511,7 @@ them by a stage they descend from, emitting one node per group.
 |---|---|---|---|
 | `gather` | stage | array of objects | Fan-in specs; replaces `inputs:` for this stage |
 | `gather[].from` | — | string | Output id to collect; every producer is a member |
-| `gather[].group_by` | — | string | **Stage id** to partition members by |
+| `gather[].group_by` | — | string | **Stage id** to partition members by. Optional: omitted, every producer lands in one node (the global form) |
 | `prefix` | stage | string | Filesystem root for the cut chain; required with `gather` |
 
 Rules:
@@ -518,10 +519,13 @@ Rules:
 - `from` must name an id some stage produces; zero producers is a parse-time
   error. Members are collected after pruning (`exclude`, `requires`,
   capabilities).
-- `group_by` must name a real stage. Members are grouped by the **ancestor
-  module id** of that stage, so parameter expansions of one module land in the
-  same group.
-- All `gather` entries on a stage must share one `group_by`.
+- `group_by`, when given, must name a real stage. Members are grouped by the
+  **ancestor module id** of that stage, so parameter expansions of one module
+  land in the same group. Omitting it collects every producer into a single
+  node and drops the group segment from the output path — the shape a
+  `metric_collector` has.
+- All `gather` entries on a stage must share one `group_by`, and "no
+  `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
 - A gather **cuts the lineage chain**: its node has no parent, its outputs land
   under `<prefix>/<group>/<stage>/<module>/<params>/`, and it carries exactly
   one label — the `group_by` stage id, bound to the group value and usable in

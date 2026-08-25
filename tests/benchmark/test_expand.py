@@ -767,3 +767,71 @@ def test_human_link_name_is_unique_per_join():
     assert _human_link_name(left) != _human_link_name(right)
     # Non-join nodes keep the plain readable name.
     assert _human_link_name(linear) == _make_human_name(params)
+
+
+def test_global_gather_collects_every_producer_into_one_node():
+    """No `group_by` is the `metric_collector` shape (design 010 §3.6): one
+    node over every producer, and no group segment in the id or the path."""
+    nodes_by_id = {
+        "d1.default": _member("d1.default", None, "data", "d1"),
+        "d2.default": _member("d2.default", None, "data", "d2"),
+        "d1.default-clu-ma.default": _member(
+            "d1.default-clu-ma.default", "d1.default", "clu", "ma"
+        ),
+        "d2.default-clu-ma.default": _member(
+            "d2.default-clu-ma.default", "d2.default", "clu", "ma"
+        ),
+    }
+    output_to_nodes = {
+        "clustering": [
+            ("d1.default-clu-ma.default", "d1/clu/ma/a.tsv"),
+            ("d2.default-clu-ma.default", "d2/clu/ma/a.tsv"),
+        ]
+    }
+    stage = SimpleNamespace(
+        id="report",
+        prefix="aggregated",
+        gather=[SimpleNamespace(from_="clustering", group_by=None)],
+        modules=[
+            SimpleNamespace(
+                id="R", name="R", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="report.html", path="report.html")],
+        resources=None,
+    )
+
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=_fake_benchmark(),
+        resolved_modules_cache={("report", "R"): object()},
+        output_to_nodes=output_to_nodes,
+        nodes_by_id=nodes_by_id,
+    )
+
+    assert len(nodes) == 1
+    node = nodes[0]
+    assert node.id == "report-R.default"
+    assert node.outputs == ["aggregated/report/R/.default/report.html"]
+    # Both datasets contribute — grouping is what a global gather forgoes.
+    assert sorted(node.gathered_from) == [
+        "d1.default-clu-ma.default",
+        "d2.default-clu-ma.default",
+    ]
+    # No group label, and the `dataset` builtin must not leak in its place.
+    assert node.template_context.provides == {"name": "R"}
+
+
+def test_global_and_grouped_gather_entries_cannot_mix():
+    """One axis per stage, and "no axis" is one of them."""
+    with pytest.raises(ValueError, match="differing group_by"):
+        Stage(
+            id="report",
+            prefix="aggregated",
+            modules=[],
+            outputs=[],
+            gather=[
+                GatherSpec(from_="clustering", group_by="data"),
+                GatherSpec(from_="metrics"),
+            ],
+        )
