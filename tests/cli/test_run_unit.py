@@ -1521,9 +1521,20 @@ class _StubCollector:
 @pytest.mark.short
 class TestFilterCollectorsByStages:
     def _benchmark(self, output_to_stage):
-        """Build a stub benchmark whose get_stage_by_output returns mapped stages."""
+        """Build a stub benchmark whose get_stages_by_output returns mapped stages.
+
+        Values may be a single stage or a list (an output id is a contract that
+        several stages may produce — design 010 §3.1).
+        """
         bench = MagicMock()
-        bench.get_stage_by_output.side_effect = lambda oid: output_to_stage.get(oid)
+
+        def _producers(oid):
+            found = output_to_stage.get(oid)
+            if found is None:
+                return []
+            return found if isinstance(found, list) else [found]
+
+        bench.get_stages_by_output.side_effect = _producers
         return bench
 
     def test_keeps_collector_when_all_inputs_in_included_stages(self):
@@ -1555,6 +1566,19 @@ class TestFilterCollectorsByStages:
         collectors = [_StubCollector("MC1", inputs=["unknown.id"])]
         kept, dropped = _filter_collectors_by_stages(
             collectors, included_stage_ids={"data"}, benchmark=bench
+        )
+        assert [c.id for c in kept] == ["MC1"]
+        assert dropped == []
+
+    def test_keeps_collector_when_one_producer_of_a_shared_id_survives(self):
+        # A shared output id (design 010 §3.1) still has data to collect as long
+        # as one of its producing stages was kept.
+        bench = self._benchmark(
+            {"methods.result": [_StubStage("methods_a"), _StubStage("methods_b")]}
+        )
+        collectors = [_StubCollector("MC1", inputs=["methods.result"])]
+        kept, dropped = _filter_collectors_by_stages(
+            collectors, included_stage_ids={"methods_a"}, benchmark=bench
         )
         assert [c.id for c in kept] == ["MC1"]
         assert dropped == []

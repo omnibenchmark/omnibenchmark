@@ -1747,10 +1747,12 @@ def _apply_until_filter(stages, until_stage, parents):
 def _filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
     """Drop metric collectors whose declared inputs reference pruned stages.
 
-    Returns a tuple (kept, dropped_ids). A collector is dropped when any of its
-    declared input ids resolves to a stage outside `included_stage_ids` (or to
-    no stage at all — that case is left to the regular collector resolver to
-    warn about).
+    Returns a tuple (kept, dropped_ids). A collector is dropped when one of its
+    declared input ids has producing stages but none of them survived (an id
+    with no producer at all is left to the regular collector resolver to warn
+    about). An id may be a shared contract across stages (design 010 §3.1), and
+    `_gather_collector_inputs` collects from every producer, so one surviving
+    producer is enough to keep the collector.
     """
     kept = []
     dropped = []
@@ -1758,8 +1760,8 @@ def _filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
         keep = True
         for input_ref in c.inputs:
             input_id = input_ref if isinstance(input_ref, str) else input_ref.id
-            stage = benchmark.get_stage_by_output(input_id)
-            if stage is not None and stage.id not in included_stage_ids:
+            producers = benchmark.get_stages_by_output(input_id)
+            if producers and not any(s.id in included_stage_ids for s in producers):
                 keep = False
                 break
         if keep:
