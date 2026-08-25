@@ -1,6 +1,6 @@
 """Lean-MVP check for gather expansion (design 010).
 
-Exercises `_expand_gather_stage` with lightweight stand-ins so the test needs
+Exercises `expand_gather_stage` with lightweight stand-ins so the test needs
 neither module resolution nor a real benchmark. Asserts the fan-in shape:
 members grouped by the ancestor module of a `group_by` stage, chain cut,
 outputs registered downstream.
@@ -11,7 +11,8 @@ from types import SimpleNamespace
 import pytest
 
 from omnibenchmark.backend.snakemake import _human_link_name
-from omnibenchmark.cli.run import _expand_gather_stage, _expansion_segment
+from omnibenchmark.core._expand import expand_gather_stage
+from omnibenchmark.core._lineage import expansion_segment, select_input_bundles
 from omnibenchmark.core._paths import make_human_name as _make_human_name
 from omnibenchmark.model.benchmark import GatherSpec, Stage
 
@@ -73,7 +74,7 @@ def test_group_by_stage_partitions_members():
     )
     cache = {("metrics", "summ"): object()}
 
-    nodes = _expand_gather_stage(
+    nodes = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache=cache,
@@ -147,7 +148,7 @@ def test_gather_collects_across_multiple_stages():
         resources=None,
     )
 
-    nodes = _expand_gather_stage(
+    nodes = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache={("metrics", "summ"): object()},
@@ -172,7 +173,7 @@ def test_zero_producer_from_is_plan_time_error():
         resources=None,
     )
     try:
-        _expand_gather_stage(
+        expand_gather_stage(
             stage=stage,
             benchmark=_fake_benchmark(),
             resolved_modules_cache={},
@@ -345,8 +346,6 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
     two divergent branches gets one bundle per (anchor, partner) pair, and
     partners are only drawn from the SAME lineage root — no cross-dataset
     joins. Linear anchors stay 1-tuples (fast path, no behaviour change)."""
-    from omnibenchmark.cli.run import _select_input_bundles
-
     nodes = [
         _member("a1.default", None, "A", "a1"),
         _member("a2.default", None, "A", "a2"),
@@ -367,7 +366,7 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
         ],
     }
 
-    bundles = _select_input_bundles(
+    bundles = select_input_bundles(
         declared_input_ids=["c1.out", "c2.out"],
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
@@ -382,7 +381,7 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
     ]
 
     # Linear case: input covered by the anchor's own lineage → 1-tuples.
-    linear = _select_input_bundles(
+    linear = select_input_bundles(
         declared_input_ids=["c2.out"],
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
@@ -451,7 +450,7 @@ def test_gather_context_does_not_bind_builtin_dataset():
         outputs=[SimpleNamespace(id="metrics.summary", path="{data}.tsv")],
         resources=None,
     )
-    (node,) = _expand_gather_stage(
+    (node,) = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache={("metrics", "summ"): object()},
@@ -466,8 +465,6 @@ def test_select_input_bundles_rejects_cross_lineage_partners():
     """Sharing a root is not enough: partners must agree with the anchor at
     EVERY shared stage. data A -> process B (b1, b2) -> divergent C1, C2 ->
     join: the b1-chain anchor must never pair with a b2-chain producer."""
-    from omnibenchmark.cli.run import _select_input_bundles
-
     nodes = [_member("a.default", None, "A", "a")]
     for b in ("b1", "b2"):
         bid = f"a.default-B-{b}.default"
@@ -480,7 +477,7 @@ def test_select_input_bundles_rejects_cross_lineage_partners():
         "c2.out": [(n.id, f"{n.id}/q") for n in nodes if n.stage_id == "C2"],
     }
 
-    bundles = _select_input_bundles(
+    bundles = select_input_bundles(
         declared_input_ids=["c1.out", "c2.out"],
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
@@ -504,8 +501,6 @@ def test_select_input_bundles_rejects_cross_lineage_partners():
 def test_select_input_bundles_join_anchor_sees_parents_ancestry():
     """An anchor that is itself a fan-in (hash id, ancestry only in .parents)
     must not classify inputs covered by its true ancestry as missing."""
-    from omnibenchmark.cli.run import _select_input_bundles
-
     a = _member("a.default", None, "A", "a")
     b = _member("a.default-B-mb.default", "a.default", "B", "mb")
     c = _member("a.default-C-mc.default", "a.default", "C", "mc")
@@ -519,7 +514,7 @@ def test_select_input_bundles_join_anchor_sees_parents_ancestry():
         "b.out": [(b.id, "b/p")],
     }
 
-    bundles = _select_input_bundles(
+    bundles = select_input_bundles(
         declared_input_ids=["d.out", "b.out"],
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
@@ -568,7 +563,7 @@ def test_gather_respects_module_filter():
     )
     cache = {("metrics", "s1"): object(), ("metrics", "s2"): object()}
 
-    nodes = _expand_gather_stage(
+    nodes = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache=cache,
@@ -580,7 +575,7 @@ def test_gather_respects_module_filter():
     # Target stage: only the named module, first combo only.
     assert [n.module_id for n in nodes] == ["s2"]
 
-    nodes = _expand_gather_stage(
+    nodes = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache=cache,
@@ -624,7 +619,7 @@ def test_gather_applies_exclusions_at_member_level():
         resources=None,
     )
 
-    (node,) = _expand_gather_stage(
+    (node,) = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache={("metrics", "summ"): object()},
@@ -659,7 +654,7 @@ def test_gather_groups_through_join_partner_branch():
         resources=None,
     )
 
-    (node,) = _expand_gather_stage(
+    (node,) = expand_gather_stage(
         stage=stage,
         benchmark=_fake_benchmark(),
         resolved_modules_cache={("metrics", "summ"): object()},
@@ -728,8 +723,8 @@ def test_join_expansion_segment_distinguishes_parent_sets():
     s1 = _member("root-R1-shallow-S1", "root-R1", "shallow", "S1")
     s2 = _member("root-R1-shallow-S2", "root-R1", "shallow", "S2")
 
-    seg1 = _expansion_segment(".abc12345", (deep, s1))
-    seg2 = _expansion_segment(".abc12345", (deep, s2))
+    seg1 = expansion_segment(".abc12345", (deep, s1))
+    seg2 = expansion_segment(".abc12345", (deep, s2))
 
     assert seg1 != seg2, (
         "two joins sharing their deepest input must not share an output "
@@ -739,7 +734,7 @@ def test_join_expansion_segment_distinguishes_parent_sets():
     assert seg1.startswith(".abc12345-") and seg2.startswith(".abc12345-")
     # keyed on the parent *set*: bundle order must not leak into the path,
     # or the same join would land in two directories across runs.
-    assert seg1 == _expansion_segment(".abc12345", (s1, deep))
+    assert seg1 == expansion_segment(".abc12345", (s1, deep))
 
 
 @pytest.mark.short
@@ -748,9 +743,9 @@ def test_linear_expansion_segment_is_just_the_parameter_hash():
     already carried by the path prefix, so nothing may change for them."""
     only = _member("root-R1-stage-M1", "root-R1", "stage", "M1")
 
-    assert _expansion_segment(".abc12345", (only,)) == ".abc12345"
-    assert _expansion_segment(".default", (only,)) == ".default"
-    assert _expansion_segment(".default", ()) == ".default"
+    assert expansion_segment(".abc12345", (only,)) == ".abc12345"
+    assert expansion_segment(".default", (only,)) == ".default"
+    assert expansion_segment(".default", ()) == ".default"
 
 
 @pytest.mark.short

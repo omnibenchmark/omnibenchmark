@@ -1,4 +1,4 @@
-"""Unit tests for select_input_nodes and the dag_errors abort path in run.py."""
+"""Unit tests for select_input_nodes (core/_lineage.py)."""
 
 from dataclasses import dataclass
 
