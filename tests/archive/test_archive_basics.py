@@ -13,6 +13,7 @@ from omnibenchmark.archive.components import (
     prepare_archive_code,
     prepare_archive_results_local,
 )
+from omnibenchmark.constants import INTERNAL_OUT_DIRS
 
 
 @pytest.mark.short
@@ -183,13 +184,13 @@ def test_prepare_archive_results_local_no_files():
 
 
 @pytest.mark.short
-def test_prepare_archive_results_local_excludes_snakemake_and_cache_dirs(tmp_path):
-    """Test prepare_archive_results_local skips .snakemake/.cache internal dirs.
+def test_prepare_archive_results_local_excludes_internal_dirs(tmp_path):
+    """Test prepare_archive_results_local skips internal state dirs under out/.
 
-    These directories hold Snakemake's own execution state (locks, logs,
-    metadata) and tool/package caches, not benchmark results. They can grow
-    to many gigabytes and were previously swept into the archive by the
-    catch-all directory scan, bloating archives with artifacts nobody wants.
+    These hold Snakemake's execution state (locks, logs, metadata), module
+    checkouts, resolved environments (which symlink multi-GB images) and tool
+    caches, not benchmark results. They can grow to many gigabytes and were
+    previously swept into the archive by the catch-all directory scan.
     """
     results_dir = tmp_path / "out"
     results_dir.mkdir()
@@ -197,21 +198,17 @@ def test_prepare_archive_results_local_excludes_snakemake_and_cache_dirs(tmp_pat
     real_result = results_dir / "real_result.json"
     real_result.write_text("{}")
 
-    snakemake_dir = results_dir / ".snakemake" / "metadata"
-    snakemake_dir.mkdir(parents=True)
-    (snakemake_dir / "some_rule").write_text("junk")
-
-    cache_dir = results_dir / ".cache" / "some_tool"
-    cache_dir.mkdir(parents=True)
-    (cache_dir / "cached_file").write_text("junk")
-
-    # Nested case: a real subdirectory of results that happens to be *named*
-    # like the results dir itself shouldn't be affected; only .snakemake/
-    # and .cache/ subtrees should be excluded.
-    nested_result_dir = results_dir / "subdir"
-    nested_result_dir.mkdir()
+    # A real result nested in an ordinary subdirectory: only the internal dirs
+    # are special-cased, not nesting in general.
+    nested_result_dir = results_dir / "data" / "D1"
+    nested_result_dir.mkdir(parents=True)
     nested_result = nested_result_dir / "nested_result.json"
     nested_result.write_text("{}")
+
+    for internal in INTERNAL_OUT_DIRS:
+        junk_dir = results_dir / internal / "some_tool"
+        junk_dir.mkdir(parents=True)
+        (junk_dir / "junk_file").write_text("junk")
 
     mock_benchmark = Mock()
 
@@ -222,11 +219,7 @@ def test_prepare_archive_results_local_excludes_snakemake_and_cache_dirs(tmp_pat
 
         result = prepare_archive_results_local(mock_benchmark, str(results_dir))
 
-    assert real_result in result
-    assert nested_result in result
-    assert not any(
-        ".snakemake" in p.parts or ".cache" in p.parts for p in result
-    )
+    assert set(result) == {real_result, nested_result}
 
 
 @pytest.mark.short

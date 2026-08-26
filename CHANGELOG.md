@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: lineage gating — `provides:` labels a lineage, `requires:` runs a module only on matching lineages (api 0.7.0, #354)
 - feat: reject gates that can never fire at parse time (#354)
 - fix: compare `api_version` by components, not lexicographically (#354)
+- fix(archive): skip internal state dirs (`.snakemake`, `.modules`, `.envs`, `.logs`, `.metadata`, `.cache`) when sweeping the results dir, instead of archiving gigabytes of execution state as results (#324)
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 
