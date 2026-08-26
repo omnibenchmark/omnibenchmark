@@ -18,13 +18,13 @@ from typing import Any, Dict, List, Optional
 
 import click
 
+from omnibenchmark.constants import INTERNAL_OUT_DIRS
 from omnibenchmark.logging import logger
 from .debug import add_debug_option
 
-# Directories that never contain benchmark performance files but are expensive
-# (and noisy) to walk: vendored module checkouts, Snakemake bookkeeping, conda
-# envs, logs, metadata and the archived `old` runs.
-_SKIP_DIRS = {".modules", ".snakemake", ".envs", ".logs", ".metadata", "old"}
+# Internal state dirs, plus `.metadata` and the archived `old` runs: never a
+# source of performance files, expensive (and noisy) to walk.
+_SKIP_DIRS = INTERNAL_OUT_DIRS | {".metadata", "old"}
 
 # A node's benchmark file is `performance.txt` (>= v0.5.0) or, in older layouts,
 # `{dataset}_performance.txt`. Match both so the collector works across versions.

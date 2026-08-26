@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+from omnibenchmark.constants import INTERNAL_OUT_DIRS
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.benchmark import _is_environment_url
@@ -225,25 +226,15 @@ def prepare_archive_results(
         return prepare_archive_results_local(benchmark, results_dir)
 
 
-# Directories that hold Snakemake's own internal execution state rather than
-# actual benchmark artifacts (e.g. ".snakemake" can accumulate gigabytes of
-# logs, locks and metadata; ".cache" holds tool/package caches). These should
-# never be swept into a results archive, regardless of how large `out/` gets.
-EXCLUDED_RESULTS_DIR_NAMES = {".snakemake", ".cache"}
-
-
-def _is_in_excluded_results_dir(path: Path, base: Path) -> bool:
-    """Return True if `path` lives inside one of EXCLUDED_RESULTS_DIR_NAMES,
-    relative to `base`."""
-    rel_parts = path.relative_to(base).parts
-    return any(part in EXCLUDED_RESULTS_DIR_NAMES for part in rel_parts[:-1])
-
-
 def prepare_archive_results_local(
     benchmark: BenchmarkExecution, results_dir: str
 ) -> List[Path]:
     """
     Prepare local results files for archiving (no remote storage required).
+
+    Expected outputs are collected first, then any other file found under
+    `results_dir`, skipping the internal state directories in
+    `INTERNAL_OUT_DIRS` (they hold execution state, not results).
 
     Args:
         benchmark: The benchmark execution object
@@ -265,15 +256,16 @@ def prepare_archive_results_local(
 
     # Also include any additional files in the results directory
     results_path = Path(results_dir)
-    if results_path.exists() and results_path.is_dir():
-        additional_files = [
-            f
-            for f in results_path.rglob("*")
-            if f.is_file()
-            and f not in existing_files
-            and not _is_in_excluded_results_dir(f, results_path)
-        ]
-        existing_files.extend(additional_files)
+    if results_path.is_dir():
+        seen = set(existing_files)
+        for root, dirs, names in os.walk(results_path):
+            # Prune internal state dirs in place so we neither walk nor archive
+            # them; `.snakemake` alone can hold one metadata file per job.
+            dirs[:] = [d for d in dirs if d not in INTERNAL_OUT_DIRS]
+            for name in names:
+                f = Path(root) / name
+                if f not in seen and f.is_file():
+                    existing_files.append(f)
 
     return existing_files
 
