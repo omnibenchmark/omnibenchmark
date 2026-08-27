@@ -71,7 +71,13 @@ def print_exec_path_dict(
 
             else:
                 outls2.append("")
-        outls2.append(Path(exec_path_dict[i].exec_path[st].get_output_files()[0]).name)
+        # The last column is a representative output of *this* path's terminal
+        # stage.  Branching DAGs have several terminal stages, so it is not
+        # necessarily the last entry of `stages` (issue #371).
+        last_st = exec_path_dict[i].stages[-1]
+        outls2.append(
+            Path(exec_path_dict[i].exec_path[last_st].get_output_files()[0]).name
+        )
 
         if logs:
             tmps2 = ""
