@@ -50,8 +50,8 @@ def expand_gather_stage(
     and partition them by the ancestor module of the entry's `group_by` stage —
     structural grouping over the lineage chain, no `provides` labels. One node
     is emitted per (group value × module × parameter). The chain is cut
-    (`parent_id=None`); outputs are written under `stage.prefix` and registered
-    in `output_to_nodes` so downstream stages consume them normally.
+    (`parent_id=None`); outputs root at the stage id and are registered in
+    `output_to_nodes` so downstream stages consume them normally.
 
     Cross-cutting contracts honoured like the scatter sibling: `module_filter`
     prunes to a single execution path (`ob run -m`), and an exclusion rule
@@ -184,8 +184,10 @@ def expand_gather_stage(
                 # error design 010 §3.3 wants, never a silent empty sub.
                 tmpl = ctx.substitute(output_spec.path, params=params)
                 group_dir = f"{gval}/" if gval is not None else ""
+                # The cut chain roots at the stage id: unique by construction,
+                # so two gathers cannot share a tree.
                 output_path = truncate_path_filename(
-                    f"{stage.prefix}/{group_dir}{stage.id}/{module_id}/{param_id}/{tmpl}"
+                    f"{stage.id}/{group_dir}{module_id}/{param_id}/{tmpl}"
                 )
                 outputs.append(output_path)
                 output_to_nodes.setdefault(output_spec.id, []).append(

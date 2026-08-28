@@ -78,9 +78,9 @@ def test_gather_plan_groups_producers_from_both_method_stages(
             False,
         }, f"{name} must draw one member from each method stage: {inputs}"
 
-    # `prefix:` + the group value start the cut chain; the group is a data
+    # The stage id + the group value start the cut chain; the group is a data
     # module id, never a node id (§3.2 "grouping merges parameter expansions").
-    outputs = re.findall(r'"(aggregated/[^"]+)"', snakefile)
+    outputs = re.findall(r'"(metrics/[^"]+)"', snakefile)
     groups = {p.split("/")[1] for p in outputs}
     assert groups == {"D1", "D2"}, f"unexpected group segments: {groups}"
 
@@ -96,15 +96,13 @@ def test_downstream_stage_chains_off_the_gather(
     snakefile = (runner.out_dir / "Snakefile").read_text()
 
     # Deduplicated: every output also appears in `rule all`'s input list.
-    report_outputs = set(
-        re.findall(r'"(aggregated/\S*report/R1/\S*_r\.json)"', snakefile)
-    )
+    report_outputs = set(re.findall(r'"(metrics/\S*report/R1/\S*_r\.json)"', snakefile))
     assert (
         len(report_outputs) == 2
     ), f"expected one report per gather node, got {sorted(report_outputs)}"
     for path in report_outputs:
         assert path.startswith(
-            "aggregated/D"
+            "metrics/D"
         ), f"report must extend the gather's directory, got {path}"
 
 
@@ -128,7 +126,7 @@ def test_gather_runs_and_records_its_members(
     expected = {"D1": [3.0, 4.0], "D2": [5.0, 6.0]}
 
     for group in ("D1", "D2"):
-        base = runner.out_dir / "aggregated" / group / "metrics" / "MC" / ".default"
+        base = runner.out_dir / "metrics" / group / "MC" / ".default"
         summary = base / "metrics.json"
         assert summary.is_file(), f"gather produced no output for {group}"
 
@@ -147,5 +145,5 @@ def test_gather_runs_and_records_its_members(
         ], f"{group}'s sidecar must name every contributing node, got {modules}"
         assert {m["stage"] for m in lineage["members"]} == {"method_a", "method_b"}
 
-    reports = list(runner.out_dir.glob("aggregated/*/**/report/R1/**/R1_r.json"))
+    reports = list(runner.out_dir.glob("metrics/*/**/report/R1/**/R1_r.json"))
     assert len(reports) == 2, f"expected one report per group, got {reports}"

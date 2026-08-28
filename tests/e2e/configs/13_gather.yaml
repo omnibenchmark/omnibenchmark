@@ -75,7 +75,6 @@ stages:
 
   # --- the gather: every producer of `methods.result`, grouped by data module ---
   - id: metrics
-    prefix: aggregated
     gather:
       - from: methods.result
         group_by: data
@@ -88,7 +87,7 @@ stages:
     outputs:
       - id: metrics.summary
         # A plain filename: the group value already reaches the path through
-        # the `<prefix>/<group>/…` scheme, and the collector writes a fixed
+        # the `<stage>/<group>/…` scheme, and the collector writes a fixed
         # `metrics.json`. `{data}`-in-the-filename is unit-tested instead
         # (tests/benchmark/test_expand.py), since it cannot both template the
         # name and match what this module writes.

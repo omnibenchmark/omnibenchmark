@@ -1,16 +1,16 @@
 # 010: Generic Gather and Joins on Stage Output Contracts
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 4](https://img.shields.io/badge/Version-4-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | | |
 |---|---|
 | **Authors** | btraven00 |
 | **Date** | 2026-08-25 |
 | **Status** | Draft |
-| **Version** | 3 |
+| **Version** | 4 |
 | **Supersedes** | N/A |
-| **Reviewed-by** | daninci, atchox (TBD) |
+| **Reviewed-by** | daninci, atchox |
 | **Related Issues** | [#289](https://github.com/omnibenchmark/omnibenchmark/issues/289) (multi-stage outputs), [#291](https://github.com/omnibenchmark/omnibenchmark/pull/291) (earlier gather proposal, held back) |
 | **Related designs** | [004](004-yaml-specification.md) §3.11–3.12 — the YAML surface; [008](008-filtering.md) — filtering and gating (landed); 009 — named outputs (not landed) |
 
@@ -21,6 +21,7 @@
 | 1       | 2026-07-07 | Initial draft | btraven00 |
 | 2       | 2026-08-13 | §3.1 chain resolution split into *shadowing* and *alternatives*; define *producer* / *maximal*; alternatives ungated on api_version | btraven00 |
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
+| 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 
 ## 1. Problem Statement
 
@@ -81,9 +82,9 @@ as the provenance record, coupling storage and provenance.
 
 Both fan-in shapes break that, differently:
 
-- **A gather has no parent directory to extend**, because the chain is cut. The
-  stage must say where its fresh tree starts: `prefix:`. A join keeps its
-  parents and still extends its deepest input's directory.
+- **A gather has no parent directory to extend**, because the chain is cut. Its
+  fresh tree roots at the stage id, which is unique by construction. A join
+  keeps its parents and still extends its deepest input's directory.
 - **A join's path stops identifying it.** Two joins sharing a deepest input but
   differing in another parent land on the same path, which Snakemake rejects as
   an ambiguous rule. The directory segment therefore carries a digest of the
@@ -184,7 +185,7 @@ alternate, so existing plans are identical.
 ### 3.2 The gather stage
 
 Syntax and validation rules: [004 §3.12](004-yaml-specification.md). In short, a
-stage declares `gather: [{from, group_by}]` and a `prefix:`, replacing `inputs:`.
+stage declares `gather: [{from, group_by}]` in place of `inputs:`.
 
 Members are every node producing `from`. They are partitioned by the ancestor
 module of the `group_by` stage, one gather node per group. This is *structural*
@@ -243,8 +244,10 @@ fanning out through the members.
 (`metrics-summarizer-D1.default`) rather than a parent chain, and `parent_id` is
 `None`. Downstream ids prefix-compose off it as usual, so chains resume
 immediately: the plan alternates scatter segments and gather cut points, never a
-general DAG. Outputs land under `<prefix>/<group>/<stage>/<module>/<param>/…`,
-the existing nested builder resuming below the prefix.
+general DAG. Outputs land under `<stage>/<group>/<module>/<param>/…`, rooted at
+the stage id — no author-supplied path, so nothing to validate and no way for
+two gathers to share a tree — with the existing nested builder resuming below
+it.
 
 ### 3.4 Membership and pruning order
 
@@ -290,7 +293,7 @@ convention rather than by the engine. The two forms line up field for field:
 |---|---|
 | `inputs: [methods.result]` | `gather: [{from: methods.result}]` |
 | implicit global scope | no `group_by` |
-| implicit output location | `prefix: aggregated` |
+| implicit output location | rooted at the stage id |
 | terminal — outputs unregistered | outputs registered; downstream stages consume them |
 | — | add `group_by: data` for one report per dataset |
 
@@ -309,7 +312,6 @@ The global form is what a "render a report over everything" module wants:
 
 ```yaml
   - id: report
-    prefix: aggregated
     gather:
       - from: metrics.summary        # every metric node in the benchmark
     modules:
@@ -358,6 +360,12 @@ module it is part of the input contract (§5.2).
 4. **Snakemake checkpoints / `directory()` fan-in** — rejected: membership is
    known at plan time, and the explicit-Snakefile backend has no wildcard
    machinery for Snakemake to leverage.
+5. **An author-supplied `prefix:` for the cut chain** (in versions 1–3 of this
+   document) — rejected: a user-controlled path field owes three answers (is it
+   relative to the output directory, is `..` allowed, may two stages share
+   one?), and the stage id answers all three by construction — it is relative,
+   inert, and unique. An explicit root can be added back if someone wants two
+   gathers under one tree; the reverse is not possible.
 
 ## 5. Implementation Notes
 
@@ -365,7 +373,7 @@ module it is part of the input contract (§5.2).
 
 | Where | Change |
 |---|---|
-| `model/benchmark.py` | `Stage.gather: Optional[List[GatherSpec]]`, `Stage.prefix: Optional[str]` (required with `gather`), `GatherSpec {from_ (alias `from`), group_by}`. Gated on api ≥ 0.7.0; `group_by` validated against real stage ids. Duplicate output ids across stages were already legal (`get_outputs()` collapses them) — now the intended contract. |
+| `model/benchmark.py` | `Stage.gather: Optional[List[GatherSpec]]`, `GatherSpec {from_ (alias `from`), group_by}`. Gated on api ≥ 0.7.0; `group_by` validated against real stage ids. Duplicate output ids across stages were already legal (`get_outputs()` collapses them) — now the intended contract. |
 | `model/resolved.py` | `gathered_from: List[str]` (members, plan order) and `parents: List[str]` (direct parent ids of any fan-in). `is_gather` finally gets set. Gather inputs reuse the collector's enumerated `input_N` keys plus `input_name_mapping`. |
 | `core/_expand.py` | `expand_gather_stage()`, a sibling of the scatter path reached by an `if stage.gather:` dispatch. Members come from `output_to_nodes`; partition by the `group_by` ancestor; one node per group × module × parameter; `parent_id=None`; outputs registered so downstream stages consume them normally. |
 | `core/_lineage.py` | `select_input_bundles()` pairs producers on divergent branches whose ancestries agree at every shared stage; one node per bundle. `inherited_provides()` unions a bundle's labels. |
