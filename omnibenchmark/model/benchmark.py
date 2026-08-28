@@ -701,26 +701,13 @@ class Stage(DescribableEntity):
         description=(
             "Fan-in specs (design 010). Each collects every node producing a "
             "shared output id, grouped by a stage they descend from. A gather "
-            "cuts the lineage chain, so `prefix` is required. Requires "
-            "api_version ≥ 0.7.0."
-        ),
-    )
-    prefix: Optional[str] = Field(
-        None,
-        description=(
-            "Filesystem prefix for a gather stage's cut chain (design 010 "
-            "§3.3). Required when `gather` is set; ignored otherwise."
+            "cuts the lineage chain; its outputs root at the stage id. "
+            "Requires api_version ≥ 0.7.0."
         ),
     )
 
     @model_validator(mode="after")
     def validate_gather(self) -> "Stage":
-        if self.gather and not self.prefix:
-            raise ValueError(
-                f"Stage '{self.id}' uses `gather` but has no `prefix`. A gather "
-                f"cuts the lineage chain, so it must declare a filesystem "
-                f"prefix for its outputs (design 010 §3.3)."
-            )
         if self.gather:
             # One axis per stage — including "no axis": mixing a grouped entry
             # with a global one has no meaning, so {None, "data"} is rejected

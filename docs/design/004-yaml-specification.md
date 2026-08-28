@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v6)
+# 004: Omnibenchmark YAML Specification (v7)
 
 [![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 6](https://img.shields.io/badge/Version-6-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 7](https://img.shields.io/badge/Version-7-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
 **Status**: Accepted
-**Version**: 6
+**Version**: 7
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
@@ -18,9 +18,10 @@
 | 1       | 2026-01-20 | Initial specification for v0.4 | ben |
 | 2       | 2026-03-31 | Add resource allocation (Section 8) | ben |
 | 3       | 2026-05-06 | Add provenance metadata (Section 9): canonical_url, derived_from, subset_of | ben |
-| 4       | 2026-08-25 | Add api 0.7.0 keywords as sections 3.9-3.12: `provides`/`requires`, `requires_capabilities`, shared output ids, joins and `gather`/`prefix` | ben |
+| 4       | 2026-08-25 | Add api 0.7.0 keywords as sections 3.9-3.12: `provides`/`requires`, `requires_capabilities`, shared output ids, joins and `gather` | ben |
 | 5       | 2026-08-25 | Correct stage ordering in §3.3 (topological, not positional); drop §3.8's stale "not yet implemented" note on `provides`/`requires` | ben |
 | 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
+| 7       | 2026-08-28 | Drop `prefix`; a gather's outputs root at the stage id (§3.12) | ben |
 
 ## 1. Problem Statement
 
@@ -140,7 +141,6 @@ stages:
     outputs: <array>                   # Optional: output declarations
     provides: <array>                  # Optional: lineage labels (api 0.7+, §3.9)
     gather: <array>                    # Optional: fan-in specs (api 0.7+, §3.12)
-    prefix: <string>                   # Required with `gather` (§3.12)
     resources: <object>                # Optional: resource requirements (§7)
 ```
 
@@ -494,7 +494,6 @@ them by a stage they descend from, emitting one node per group.
 
 ```yaml
   - id: metrics
-    prefix: aggregated                 # Required with `gather`
     gather:
       - from: clustering               # Required: output id to collect
         group_by: data                 # Required: stage id to group by
@@ -512,7 +511,6 @@ them by a stage they descend from, emitting one node per group.
 | `gather` | stage | array of objects | Fan-in specs; replaces `inputs:` for this stage |
 | `gather[].from` | — | string | Output id to collect; every producer is a member |
 | `gather[].group_by` | — | string | **Stage id** to partition members by. Optional: omitted, every producer lands in one node (the global form) |
-| `prefix` | stage | string | Filesystem root for the cut chain; required with `gather` |
 
 Rules:
 
@@ -527,8 +525,9 @@ Rules:
 - All `gather` entries on a stage must share one `group_by`, and "no
   `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
 - A gather **cuts the lineage chain**: its node has no parent, its outputs land
-  under `<prefix>/<group>/<stage>/<module>/<params>/`, and it carries exactly
-  one label — the `group_by` stage id, bound to the group value and usable in
+  under `<stage>/<group>/<module>/<params>/` — the cut tree roots at the stage
+  id, so it needs no author-supplied path and two gathers cannot collide — and
+  it carries exactly one label — the `group_by` stage id, bound to the group value and usable in
   output templates. Referencing any other label is a plan-time error.
 - Downstream stages chain off a gather normally (scatter after gather).
 

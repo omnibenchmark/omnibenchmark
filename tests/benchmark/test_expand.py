@@ -62,7 +62,6 @@ def test_group_by_stage_partitions_members():
     }
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         gather=[SimpleNamespace(from_="clustering", group_by="data")],
         modules=[
             SimpleNamespace(
@@ -97,8 +96,9 @@ def test_group_by_stage_partitions_members():
     ]
     assert set(d1.inputs.values()) == {"d1/clu/ma/a.tsv", "d1/clu/mb/b.tsv"}
     assert set(d1.input_name_mapping.values()) == {"clustering"}
-    # Group value bound to the template + baked into the prefix path.
-    assert d1.outputs == ["agg/d1/metrics/summ/.default/d1_summary.tsv"]
+    # Group value bound to the template + baked into the path, which roots at
+    # the stage id.
+    assert d1.outputs == ["metrics/d1/summ/.default/d1_summary.tsv"]
     # Registered downstream so a later stage can consume it.
     assert ("metrics-summ-d1.default", d1.outputs[0]) in output_to_nodes[
         "metrics.summary"
@@ -139,7 +139,6 @@ def test_gather_collects_across_multiple_stages():
     }
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         gather=[SimpleNamespace(from_="clustering", group_by="data")],
         modules=[
             SimpleNamespace(
@@ -169,7 +168,6 @@ def test_gather_collects_across_multiple_stages():
 def test_zero_producer_from_is_plan_time_error():
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         gather=[SimpleNamespace(from_="nonexistent", group_by="data")],
         modules=[],
         outputs=[],
@@ -189,22 +187,6 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
-@pytest.mark.short
-def test_gather_requires_prefix():
-    """Model validation: gather without prefix is rejected at parse time."""
-    try:
-        Stage(
-            id="metrics",
-            modules=[],
-            outputs=[],
-            gather=[GatherSpec(from_="clustering", group_by="data")],
-        )
-    except Exception as e:
-        assert "prefix" in str(e)
-    else:
-        raise AssertionError("expected validation error for gather without prefix")
-
-
 _GATHER_YAML = """
 id: t
 description: t
@@ -219,7 +201,6 @@ stages:
     outputs: [{{id: clustering, path: c.tsv}}]
     modules: [{{id: d1, repository: {{url: 'http://x', commit: abc}}, software_environment: env}}]
   - id: metrics
-    prefix: agg
     gather: [{{from: clustering, group_by: {group_by}}}]
     modules: [{{id: s, repository: {{url: 'http://x', commit: abc}}, software_environment: env}}]
     outputs: [{{id: metrics.summary, path: summary.tsv}}]
@@ -281,7 +262,6 @@ def test_gather_entries_must_share_one_group_by_axis():
     # Same axis across entries: OK.
     Stage(
         id="metrics",
-        prefix="agg",
         modules=[],
         outputs=[],
         gather=[
@@ -293,7 +273,6 @@ def test_gather_entries_must_share_one_group_by_axis():
     try:
         Stage(
             id="metrics",
-            prefix="agg",
             modules=[],
             outputs=[],
             gather=[
@@ -424,7 +403,6 @@ software_environments:
   env: {description: e, easyconfig: e.eb}
 stages:
   - id: metrics
-    prefix: agg
     gather: [{from: clustering, group_by: data}]
     modules: [{id: s, repository: {url: 'http://x', commit: abc}, software_environment: env}]
     outputs: [{id: metrics.summary, path: summary.tsv}]
@@ -453,7 +431,6 @@ def test_gather_context_does_not_bind_builtin_dataset():
     output_to_nodes = {"clustering": [("d1.default-clu-ma.default", "p1")]}
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         gather=[SimpleNamespace(from_="clustering", group_by="data")],
         modules=[
             SimpleNamespace(
@@ -564,7 +541,6 @@ def test_gather_respects_module_filter():
     }
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         gather=[SimpleNamespace(from_="clustering", group_by="data")],
         modules=[
             SimpleNamespace(
@@ -625,7 +601,6 @@ def test_gather_applies_exclusions_at_member_level():
     }
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         gather=[SimpleNamespace(from_="clustering", group_by="data")],
         modules=[
             SimpleNamespace(
@@ -660,7 +635,6 @@ def test_gather_groups_through_join_partner_branch():
     nodes_by_id = {n.id: n for n in (a, b, c, j)}
     stage = SimpleNamespace(
         id="metrics",
-        prefix="agg",
         # group_by C: reachable only via the join's partner branch.
         gather=[SimpleNamespace(from_="j.out", group_by="C")],
         modules=[
@@ -811,7 +785,6 @@ def test_global_gather_collects_every_producer_into_one_node():
     }
     stage = SimpleNamespace(
         id="report",
-        prefix="aggregated",
         gather=[SimpleNamespace(from_="clustering", group_by=None)],
         modules=[
             SimpleNamespace(
@@ -833,7 +806,7 @@ def test_global_gather_collects_every_producer_into_one_node():
     assert len(nodes) == 1
     node = nodes[0]
     assert node.id == "report-R.default"
-    assert node.outputs == ["aggregated/report/R/.default/report.html"]
+    assert node.outputs == ["report/R/.default/report.html"]
     # Both datasets contribute — grouping is what a global gather forgoes.
     assert sorted(node.gathered_from) == [
         "d1.default-clu-ma.default",
@@ -849,7 +822,6 @@ def test_global_and_grouped_gather_entries_cannot_mix():
     with pytest.raises(ValueError, match="differing group_by"):
         Stage(
             id="report",
-            prefix="aggregated",
             modules=[],
             outputs=[],
             gather=[
