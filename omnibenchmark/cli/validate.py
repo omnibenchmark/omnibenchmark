@@ -265,6 +265,193 @@ def validate_module(ctx, path, strict, format="summary"):
     cleanup_temp_repositories()
 
 
+@validate.command("outputs")
+@click.argument("benchmark", type=click.Path(exists=True))
+@click.option("--out-dir", default="out", help="Output folder to validate.")
+@click.option(
+    "--validators-dir",
+    default=None,
+    help="Validators directory (default: '<plan dir>/<validators.directory>').",
+)
+@click.option("-c", "--cores", default=1, type=int, help="Snakemake cores.")
+@click.option(
+    "--force", is_flag=True, default=False, help="Re-validate everything (--forceall)."
+)
+@click.pass_context
+def validate_outputs(ctx, benchmark, out_dir, validators_dir, cores, force):
+    """Run output validators against a benchmark's produced files.
+
+    Generates a wildcard Snakefile under ``out/.validation/`` and runs the
+    validator declared for each produced output (one per stage/output), in the
+    environment named by the plan's ``validators.env``. Pass/fail is recorded per
+    output (exit code) for the status report to display.
+    """
+    rc = run_validators(
+        benchmark=benchmark,
+        out_dir=out_dir,
+        validators_dir=validators_dir,
+        cores=cores,
+        force=force,
+    )
+    ctx.exit(rc)
+
+
+def _resolve_env_directive(model, out_dir: Path, benchmark_dir: Path, env_id: str):
+    """Return ``(directive_line, snakemake_backend_flag)`` for the validators env.
+
+    Reuses the module resolver + the same directive mapping as the main run, so
+    conda/apptainer/envmodules are activated identically. Host backend -> ("", None).
+    """
+    from omnibenchmark.backend.resolver import ModuleResolver
+    from omnibenchmark.model.benchmark import SoftwareBackendEnum
+
+    backend = model.get_software_backend()
+    resolver = ModuleResolver(
+        work_base_dir=out_dir / ".modules",
+        output_dir=out_dir,
+        software_backend=backend,
+        software_environments=model.get_software_environments(),
+        benchmark_dir=benchmark_dir,
+    )
+    resolved = resolver._resolve_environment(env_id, "validators")
+
+    def _abs(ref: str) -> str:
+        # conda yamls / local SIFs are resolved relative to out_dir, but the
+        # validators Snakefile lives in out_dir/.validation — snakemake would
+        # resolve a relative path against the wrong dir. Make file refs absolute.
+        if "://" in ref or Path(ref).is_absolute():
+            return ref
+        return str((out_dir / ref).resolve())
+
+    directive = ""
+    if resolved is not None:
+        bt = resolved.backend_type.value
+        if bt == "conda":
+            directive = f'conda: "{_abs(resolved.reference)}"'
+        elif bt in ("apptainer", "docker"):
+            directive = f'container: "{_abs(resolved.reference)}"'
+        elif bt == "envmodules":
+            directive = f'envmodules: "{resolved.reference}"'
+
+    flag = {
+        SoftwareBackendEnum.conda: "--use-conda",
+        SoftwareBackendEnum.apptainer: "--use-singularity",
+        SoftwareBackendEnum.docker: "--use-singularity",
+        SoftwareBackendEnum.envmodules: "--use-envmodules",
+    }.get(backend)
+    return directive, flag
+
+
+def run_validators(
+    benchmark: str,
+    out_dir: str = "out",
+    validators_dir: Optional[str] = None,
+    cores: int = 1,
+    force: bool = False,
+) -> int:
+    """Discover validators, generate the wildcard Snakefile, run it. Returns rc."""
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    from omnibenchmark.core.status.status import prepare_status
+    from omnibenchmark.core.validators import (
+        VALIDATION_DIR,
+        build_targets,
+        discover_validators,
+        write_validators_snakefile,
+    )
+
+    benchmark_path = Path(benchmark)
+    model = BenchmarkModel.from_yaml(benchmark_path)
+    cfg = model.get_validators_config()
+    if cfg is None:
+        logger.error("No 'validators:' section in the benchmark plan.")
+        return 1
+    if cfg.env not in model.get_software_environments():
+        logger.error(
+            f"validators env '{cfg.env}' is not defined in software_environments."
+        )
+        return 1
+
+    out_path = Path(out_dir)
+    if not out_path.is_dir():
+        logger.error(f"Output dir '{out_path}' not found — run the benchmark first.")
+        return 1
+
+    benchmark_dir = benchmark_path.parent.absolute()
+    vdir = (
+        Path(validators_dir)
+        if validators_dir
+        else benchmark_dir / (cfg.directory or "validators")
+    )
+    validators = discover_validators(vdir)
+    if not validators:
+        logger.warning(f"No validators found under {vdir}; nothing to validate.")
+        return 0
+
+    # Match validators to the concrete files the benchmark produced. We reuse the
+    # status machinery (rather than globbing) because outputs are nested under
+    # hidden .{param} dirs that a glob won't traverse.
+    _, filedict, _ = prepare_status(
+        str(benchmark_path),
+        str(out_path),
+        return_all=True,
+        cache_dir=Path(".snakemake") / "repos",
+    )
+    produced = [
+        (stage_id, f)
+        for stage_id in filedict
+        for node in filedict[stage_id]
+        for f in filedict[stage_id][node]["observed_output_files"]
+    ]
+    stage_outputs = {
+        stage_id: model.get_stage_outputs(stage_id) for stage_id in model.get_stages()
+    }
+    targets = build_targets(produced, validators, stage_outputs, out_path)
+    if not targets:
+        logger.warning(
+            "No produced outputs matched a validator; nothing to validate. "
+            "(Run the benchmark first, or check validators/{stage}/{output_id}/.)"
+        )
+        return 0
+
+    directive, backend_flag = _resolve_env_directive(
+        model, out_path, benchmark_dir, cfg.env
+    )
+    snakefile = out_path / VALIDATION_DIR / "Snakefile"
+    write_validators_snakefile(targets, directive, snakefile)
+
+    bin_dir = Path(sys.executable).parent
+    candidate = bin_dir / "snakemake"
+    snakemake_bin = (
+        str(candidate)
+        if candidate.exists()
+        else (shutil.which("snakemake") or "snakemake")
+    )
+    cmd = [
+        snakemake_bin,
+        "--snakefile",
+        f"{VALIDATION_DIR}/Snakefile",
+        "--cores",
+        str(cores),
+    ]
+    if backend_flag:
+        cmd.append(backend_flag)
+    if force:
+        cmd.append("--forceall")
+
+    logger.info(f"Validating {len(targets)} output file(s) -> {snakefile}")
+    original_dir = os.getcwd()
+    os.chdir(out_path)
+    try:
+        result = subprocess.run(cmd)
+    finally:
+        os.chdir(original_dir)
+    return result.returncode
+
+
 def _format_warning_message(message: str) -> str:
     """Format warning message in a concise, colored format.
 

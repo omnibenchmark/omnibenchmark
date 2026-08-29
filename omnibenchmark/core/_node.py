@@ -86,6 +86,11 @@ class BenchmarkNode:
     def get_outputs(self):
         return self.outputs if self.outputs else []
 
+    def _param_seg(self):
+        """On-disk param dir, always dot-prefixed (".default" / ".{hash}") to match
+        what the run writes — node IDs keep the undotted ``param_id``."""
+        return self.param_id if self.param_id.startswith(".") else f".{self.param_id}"
+
     def get_output_paths(self, config):
         output_paths = []
 
@@ -97,7 +102,7 @@ class BenchmarkNode:
                 dataset=dataset,
                 stage=self.stage_id,
                 module=self.module_id,
-                params=self.param_id,
+                params=self._param_seg(),
             )
 
             output_paths.append(output)
@@ -120,7 +125,7 @@ class BenchmarkNode:
             dataset=dataset,
             stage=self.stage_id,
             module=self.module_id,
-            params=self.param_id,
+            params=self._param_seg(),
         )
 
         return benchmark_path
