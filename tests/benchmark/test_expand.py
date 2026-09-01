@@ -384,6 +384,39 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
 
 
 @pytest.mark.short
+def test_join_partners_drop_shadowed_producers():
+    """A join partner is chosen with the same shadowing rule as an anchor
+    (design 010 §3.1): B declares `x.out` at `b1` and again at its descendant
+    `b2`, so `b1` is shadowed and only the `b2` bundle exists. Without the
+    filter the cartesian product emits one bundle per producer, and the extra
+    node runs the module against the upstream file."""
+    nodes = [
+        _member("root.default", None, "root", "r"),
+        _member("b1.default", "root.default", "b1", "mb1"),
+        _member("b1.default-b2.default", "b1.default", "b2", "mb2"),
+        _member("a.default", "root.default", "a", "ma"),
+    ]
+    nodes_by_id = {n.id: n for n in nodes}
+    output_to_nodes = {
+        "x.out": [("b1.default", "b1/x.tsv"), ("b1.default-b2.default", "b2/x.tsv")],
+        "a.out": [("a.default", "a/a.tsv")],
+    }
+
+    bundles = select_input_bundles(
+        declared_input_ids=["a.out", "x.out"],
+        output_to_nodes=output_to_nodes,
+        resolved_nodes=nodes,
+        stage_ids_in_order=["root", "b1", "b2", "a"],
+        previous_stage_nodes=[],
+        nodes_by_id=nodes_by_id,
+    )
+
+    assert [tuple(n.id for n in b) for b in bundles] == [
+        ("a.default", "b1.default-b2.default")
+    ]
+
+
+@pytest.mark.short
 def test_gather_stage_is_ordered_after_its_producers():
     """A gather stage declares no `inputs:`, so build_stage_dag must derive its
     edges from `gather.from` — otherwise topological expansion (#289/#367)
