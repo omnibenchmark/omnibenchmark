@@ -288,10 +288,10 @@ Output handling is unchanged from any other node and follows whatever the
 declared api version specifies — the api ≥ 0.5 contract today, design 009's
 named outputs when it lands. There is no gather-specific rule.
 
-Member order is plan order: topological by stage, then declaration order within
-a stage, then parameter expansion. Arbitrary but deterministic: identical YAML
-must produce byte-identical Snakefiles, or Snakemake reruns unchanged work.
-Modules must not read meaning from position; identity comes from the paths.
+Member order is deterministic and stable across runs — identical YAML produces
+byte-identical Snakefiles, or Snakemake reruns unchanged work. Position carries
+no meaning: modules identify members by path, and the CLI order need not match
+the `gathered_from` order in `lineage.json`.
 
 ### 3.6 Metric collectors are a global gather
 
