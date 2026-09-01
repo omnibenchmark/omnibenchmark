@@ -293,6 +293,17 @@ def select_input_bundles(
             if node_id in nodes_by_id
         ]
 
+    # Shadowed producers must not become join partners. `select_input_nodes`
+    # already drops them when picking anchors; without the same filter here the
+    # cartesian product below emits one bundle per producer of a chain that
+    # should have collapsed to its deepest (010 §3.1, "shadowed").
+    maximal_stages: dict = {
+        input_id: _maximal_producer_stages(
+            {p.stage_id for p in nodes}, resolved_nodes, nodes_by_id
+        )
+        for input_id, nodes in producers.items()
+    }
+
     ancestry_cache: dict = {}
 
     def _ancestry(n):
@@ -320,7 +331,8 @@ def select_input_bundles(
             partners = [
                 p
                 for p in producers[input_id]
-                if _lineages_consistent(anchor_map, _ancestry(p))
+                if p.stage_id in maximal_stages[input_id]
+                and _lineages_consistent(anchor_map, _ancestry(p))
             ]
             partner_lists.append(partners)
         if not all(partner_lists):
