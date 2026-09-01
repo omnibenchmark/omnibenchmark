@@ -829,3 +829,57 @@ def test_global_and_grouped_gather_entries_cannot_mix():
                 GatherSpec(from_="metrics"),
             ],
         )
+
+
+@pytest.mark.short
+def test_partially_populated_group_is_an_error():
+    """Two gather entries, one dataset producing only one of the two ids.
+
+    The node would carry a single `--methods.result` flag and no
+    `--methods.other`, failing inside the module's argparse. Reject at plan
+    time (design 010 §3.2).
+    """
+    nodes_by_id = {
+        "d1.default": _member("d1.default", None, "data", "d1"),
+        "d2.default": _member("d2.default", None, "data", "d2"),
+        "d1.default-other.default": _member(
+            "d1.default-other.default", "d1.default", "methods", "other"
+        ),
+        "d1.default-res.default": _member(
+            "d1.default-res.default", "d1.default", "methods", "res"
+        ),
+        # d2 has no `methods.other` producer — the branch is excluded there.
+        "d2.default-res.default": _member(
+            "d2.default-res.default", "d2.default", "methods", "res"
+        ),
+    }
+    output_to_nodes = {
+        "methods.other": [("d1.default-other.default", "d1/other.tsv")],
+        "methods.result": [
+            ("d1.default-res.default", "d1/res.tsv"),
+            ("d2.default-res.default", "d2/res.tsv"),
+        ],
+    }
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[
+            SimpleNamespace(from_="methods.other", group_by="data"),
+            SimpleNamespace(from_="methods.result", group_by="data"),
+        ],
+        modules=[
+            SimpleNamespace(
+                id="MC", name="MC", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="metrics.out", path="{data}_out.tsv")],
+        resources=None,
+    )
+
+    with pytest.raises(ValueError, match="methods.other"):
+        expand_gather_stage(
+            stage=stage,
+            benchmark=_fake_benchmark(),
+            resolved_modules_cache={("metrics", "MC"): object()},
+            output_to_nodes=output_to_nodes,
+            nodes_by_id=nodes_by_id,
+        )

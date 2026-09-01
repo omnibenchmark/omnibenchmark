@@ -74,7 +74,7 @@ def expand_gather_stage(
         if not producers:
             raise ValueError(
                 f"Stage '{stage.id}' gathers from output id '{spec.from_}', "
-                f"which no stage produces (design 010 §3.2)."
+                f"which no stage produces."
             )
         for member_id, path in producers:
             if group_label is None:
@@ -149,6 +149,21 @@ def expand_gather_stage(
                     f"for module {module_id}; skipping node."
                 )
                 continue
+
+            # A group holding members for some entries but not all yields a
+            # node whose CLI is missing a flag the module declares — the
+            # failure only surfaces at run time, inside argparse. Reject it
+            # here (design 010 §3.2). Fully empty groups are the warning
+            # above: nothing about that group applies, so skipping is meant.
+            missing = {s.from_ for s in stage.gather} - {f for _m, f, _p in kept}
+            if missing:
+                where = f"group '{gval}'" if gval is not None else "the gather"
+                raise ValueError(
+                    f"Stage '{stage.id}': {where} has no members for gather "
+                    f"entries {sorted(missing)} (module {module_id}), but has "
+                    f"members for the others. A partially populated gather "
+                    f"group cannot run."
+                )
 
             param_id = f".{params.hash_short()}" if params else ".default"
             # A global gather has no group value, so neither its id nor its

@@ -200,6 +200,15 @@ Grouping merges parameter expansions: members descending from `data-D1.p1` and
 id (`D1`), not its node id. Per-parameter grouping needs a label-based
 `group_by` (§6, Phase 2).
 
+**Group population**, for a stage with several `gather` entries:
+
+- **Every entry populated** — the normal case, one node.
+- **No entry populated** — the group does not apply. Warn, emit no node.
+- **Some entries populated, others not** — plan-time error. The node's CLI
+  would be missing a flag the module declares, so it fails inside argparse at
+  run time, far from the cause. Both origins are rejected: no producer of that
+  id under the group at all, and every producer excluded for this module.
+
 **Deferred**: `where` (member filtering), label-value `group_by`, and plain
 `inputs:` mixed with `gather:`.
 
