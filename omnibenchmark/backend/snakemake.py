@@ -50,6 +50,51 @@ def _bash_var(name: str) -> str:
     return "_" + name.replace(".", "_").replace("-", "_")
 
 
+# TODO: named input lists would delete this function and its callers.
+#
+# A gather node currently emits one rule key per member file:
+#
+#     input:
+#         input_0="a/x.json",
+#         input_1="b/x.json",
+#     shell:
+#         _data=(); for _f in {input.input_0} {input.input_1}; do ...
+#
+# and `input_name_mapping` exists only to remember that both keys belong to the
+# `data` flag.  Emitting the group as a list instead:
+#
+#     input:
+#         data=["a/x.json", "b/x.json"],
+#     shell:
+#         _data=(); for _f in {input.data}; do ...
+#
+# gives the same DAG (same file set) and one loop per flag regardless of member
+# count.  Snakemake expands a named list in the order it was given, and that
+# order is plan order -- the same order the lineage sidecar lists members in --
+# so the enumerated keys, this sort, and `input_name_mapping` all go away for
+# gather and collector nodes together.
+#
+# Nothing about the node surface moves: `ResolvedNode.inputs` keeps its
+# `Dict[str, str]` shape and its `input_N` keys, so `to_dict()`, the telemetry
+# spans that do `list(inputs.values())`, and node equality are unaffected.  The
+# change is confined to the `input:` block in `_write_rule` and to both
+# `_write_gather_shell` implementations.
+#
+# Blocked on one thing: the flag name becomes a Python keyword argument in the
+# generated rule, so an id like `data.raw` is a syntax error and would need
+# sanitizing plus a collision check.  That check is not worth writing -- we
+# intend to forbid dots and other non-identifier characters in ids outright, at
+# which point `from_id` is already a legal keyword and this is a mechanical
+# swap.  Do it after #329, which is rewriting the same emission block.
+def _input_key_index(key: str) -> int:
+    """Sort key for the enumerated `input_N` keys of a gather/collector node.
+
+    >>> sorted(["input_10", "input_2"], key=_input_key_index)
+    ['input_2', 'input_10']
+    """
+    return int(key.rsplit("_", 1)[1])
+
+
 def _human_link_name(node: ResolvedNode) -> str:
     """Name of the readable sibling symlink for a node's output directory.
 
@@ -439,7 +484,10 @@ class SnakemakeGenerator:
         """
         inputs_by_name: defaultdict = defaultdict(list)
         if node.inputs and node.input_name_mapping:
-            for key in sorted(node.inputs.keys()):
+            # Numeric, not lexicographic: keys are input_0..input_N and the
+            # sidecar lineage lists members in plan order, so input_10 must not
+            # sort between input_1 and input_2.
+            for key in sorted(node.inputs.keys(), key=_input_key_index):
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 
