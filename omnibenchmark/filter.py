@@ -17,8 +17,10 @@ administrative edits to the parent don't break a slice.
 import base64
 import gzip
 import json
+import zlib
 
 BLOB_VERSION = 3
+MAX_BLOB_BYTES = 4 * 1024 * 1024  # decompressed ceiling; real picks are kilobytes
 WILDCARD = "*"
 DROP = None  # module_spec() returns this when a (stage, module) is not selected
 
@@ -44,8 +46,19 @@ def unpack_blob(packed):
     packed = packed.strip()
     pad = "=" * (-len(packed) % 4)
     try:
-        raw = gzip.decompress(base64.urlsafe_b64decode(packed + pad))
+        # Blobs travel between people, so decompress with a ceiling rather than
+        # letting a small payload expand without bound.
+        decomp = zlib.decompressobj(wbits=31)  # 31 = gzip frame
+        raw = decomp.decompress(
+            base64.urlsafe_b64decode(packed + pad), MAX_BLOB_BYTES + 1
+        )
+        if len(raw) > MAX_BLOB_BYTES or decomp.unconsumed_tail:
+            raise FilterError(
+                f"filter blob decompresses to more than {MAX_BLOB_BYTES} bytes"
+            )
         blob = json.loads(raw)
+    except FilterError:
+        raise
     except Exception as e:
         raise FilterError(f"could not decode filter blob: {e}") from e
     if blob.get("v") != BLOB_VERSION:

@@ -28,6 +28,32 @@ class TestBlobCodec:
         with pytest.raises(f.FilterError):
             f.unpack_blob("not-a-real-blob!!")
 
+    def test_unpack_rejects_decompression_bomb(self):
+        import base64
+        import gzip
+
+        import tracemalloc
+
+        inflated = 256 * 1024 * 1024  # 256 MB once decompressed
+        bomb = gzip.compress(b"\0" * inflated, mtime=0)
+        packed = base64.urlsafe_b64encode(bomb).decode().rstrip("=")
+        assert len(packed) < 1_000_000  # small on the wire, huge once inflated
+
+        tracemalloc.start()
+        try:
+            with pytest.raises(f.FilterError, match="more than"):
+                f.unpack_blob(packed)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        # Bounded: the ceiling, not the 256 MB the blob asked for.
+        assert peak < 3 * f.MAX_BLOB_BYTES, peak
+
+    def test_unpack_accepts_a_blob_at_the_ceiling(self):
+        # A legitimately large-but-bounded blob still round-trips.
+        picks = {f"stage{i}": {"*": "all"} for i in range(2000)}
+        assert f.unpack_blob(f.pack_blob(picks, {}))["picks"] == picks
+
     def test_unpack_rejects_wrong_version(self):
         import base64
         import gzip
