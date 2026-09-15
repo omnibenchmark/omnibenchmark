@@ -27,6 +27,7 @@ from omnibenchmark.core._prune import (
     apply_until_filter,
     capability_prune_summary,
     filter_collectors_by_stages,
+    collector_skip_message,
     select_capable_modules,
 )
 from omnibenchmark.cli.formatting import pretty_print_parse_error
@@ -1340,17 +1341,12 @@ def _generate_explicit_snakefile(
         collectors_to_resolve, dropped = filter_collectors_by_stages(
             collectors_to_resolve, stages_with_nodes, benchmark.model
         )
+        # A stage emptied on purpose (--until, --filter) is not worth a warning;
+        # one emptied by requires/exclude usually is.
+        deliberate = until_stage is not None or picks is not None
         for cid in dropped:
-            if until_stage is not None:
-                logger.info(
-                    f"--until {until_stage}: skipping metric collector "
-                    f"'{cid}' (references pruned stages)."
-                )
-            else:
-                logger.warning(
-                    f"Skipping metric collector '{cid}': it references a stage "
-                    f"that produced no nodes (pruned by requires/exclude)."
-                )
+            msg = collector_skip_message(cid, until_stage, picks is not None)
+            logger.info(msg) if deliberate else logger.warning(msg)
         try:
             collector_nodes = resolve_metric_collectors(
                 metric_collectors=collectors_to_resolve,
