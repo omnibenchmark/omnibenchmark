@@ -219,7 +219,14 @@ def ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
     group value). Parents-aware: sees through joins and prior gathers. Returns
     None when the member has no ancestor in that stage, or when the ancestry
     crosses a fan-in that yields several distinct modules of that stage —
-    grouping would be ambiguous."""
+    grouping would be ambiguous.
+
+    Always the raw `module_id`, never a `Module.provides` binding of that stage,
+    even though the ancestor carries a resolved label map. That is unambiguous
+    only because a `provides` label may not be named after a stage (008 §3.5),
+    so the group key and a label can never collide. Grouping by a label value is
+    design 010 Phase 2.
+    """
     node = nodes_by_id.get(member_id)
     if node is None:
         return None

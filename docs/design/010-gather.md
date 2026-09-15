@@ -1,14 +1,14 @@
 # 010: Generic Gather and Joins on Stage Output Contracts
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 4](https://img.shields.io/badge/Version-4-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 5](https://img.shields.io/badge/Version-5-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | | |
 |---|---|
 | **Authors** | btraven00 |
 | **Date** | 2026-08-25 |
 | **Status** | Draft |
-| **Version** | 4 |
+| **Version** | 5 |
 | **Supersedes** | N/A |
 | **Reviewed-by** | daninci, atchox |
 | **Related Issues** | [#289](https://github.com/omnibenchmark/omnibenchmark/issues/289) (multi-stage outputs), [#291](https://github.com/omnibenchmark/omnibenchmark/pull/291) (earlier gather proposal, held back) |
@@ -22,6 +22,7 @@
 | 2       | 2026-08-13 | §3.1 chain resolution split into *shadowing* and *alternatives*; define *producer* / *maximal*; alternatives ungated on api_version | btraven00 |
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
+| 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
 
 ## 1. Problem Statement
 
@@ -230,9 +231,20 @@ That splits what the chain used to carry into two records.
 **Gating lineage** — what `requires`, `exclude` and path templates see:
 
 - A gather node carries exactly one label: the `group_by` stage id bound to the
-  group value, plus the builtin `name`. Downstream `requires:` matches that and
-  nothing else. Output templates may reference it and `{name}`/`{params.*}`;
-  any other label is a plan-time error, never an empty substitution.
+  **ancestor module id** — the same value §3.2 partitions by, never a
+  `Module.provides` binding of that stage — plus the builtin `name`. Downstream
+  `requires:` matches that and nothing else. Output templates may reference it
+  and `{name}`/`{params.*}`; any other label is a plan-time error, never an
+  empty substitution.
+
+  The label name is a stage id, so a `provides` label of the same name would
+  bind one key to two values: the module's own binding before the cut, the
+  ancestor module id after it. A downstream `requires:` would then match
+  upstream and prune downstream with no diagnostic. A `provides` label may
+  therefore not be named after a stage ([004 §3.9](004-yaml-specification.md)) —
+  the two namespaces are disjoint. Grouping by a label value is Phase 2 (§6).
+  For the same reason a `group_by` may not name a stage called `name` or
+  `dataset`, which would clobber a builtin.
 - `exclude` rules pairing the gather's own module with a member's lineage drop
   that member from that module's gather, so one excluded member never poisons
   the whole group. Beyond that the cut holds: an `exclude` pairing a pre-gather
@@ -428,6 +440,10 @@ prerequisite.
 Group by a `provides` label instead of a stage: the general form of Phase 1's
 structural rule, reading values from the node's labels. Enables tuple keys and
 per-parameter grouping. The deprecated `dataset` builtin is not a grouping axis.
+
+Back-compatible because the namespaces are disjoint (§3.3): a `group_by` name is
+either a stage id or a label, never both, so the two forms are told apart by
+where the name resolves and Phase 1 specs keep their meaning.
 
 ### Phase 3 — `where` + cross-boundary `exclude` — unblocked (008 landed)
 

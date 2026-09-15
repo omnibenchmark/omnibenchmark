@@ -22,6 +22,7 @@
 | 5       | 2026-08-25 | Correct stage ordering in §3.3 (topological, not positional); drop §3.8's stale "not yet implemented" note on `provides`/`requires` | ben |
 | 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
 | 7       | 2026-08-28 | Drop `prefix`; a gather's outputs root at the stage id (§3.12) | ben |
+| 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id | ben |
 
 ## 1. Problem Statement
 
@@ -406,6 +407,10 @@ Rules:
 - **A label is owned by exactly one stage.** Two stages declaring the same
   label is a parse-time error — the value would otherwise depend on where in
   the lineage you stand.
+- **A label may not be named after a stage.** A gather groups by a stage id and
+  binds a label of that name to the ancestor module id (§3.12), so a `provides`
+  label sharing it would carry a different value on either side of the cut.
+  Parse-time error.
 - A module may only bind labels its stage declares; an unknown key is a
   parse-time error, not a silent fall-through.
 - Unbound labels default to the **module id**, which is the zero-config
@@ -524,6 +529,8 @@ Rules:
   `metric_collector` has.
 - All `gather` entries on a stage must share one `group_by`, and "no
   `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
+- `group_by` may not name a stage called `name` or `dataset` — the group key is
+  bound under the stage id and would clobber that builtin.
 - A gather **cuts the lineage chain**: its node has no parent, its outputs land
   under `<stage>/<group>/<module>/<params>/` — the cut tree roots at the stage
   id, so it needs no author-supplied path and two gathers cannot collide — and

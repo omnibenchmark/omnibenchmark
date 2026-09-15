@@ -171,8 +171,15 @@ class APIVersion(str, Enum):
 
 
 # Labels the runtime populates on every node; a stage may not advertise these
-# via `Stage.provides` (it would silently clobber the builtin value). See
-# docs/design/008-filtering.md §3.5.
+# via `Stage.provides` (it would silently clobber the builtin value), and a
+# gather may not `group_by` a stage named after one. See 008 §3.5.
+#
+# TODO(deprecate `dataset`): superseded by an explicit `Stage.provides` label on
+# the data stage, which landed with 008 and says the same thing without being
+# magic — `dataset` is implicit, inherited, and unavailable as a grouping axis
+# (010 §6 Phase 2). Path: emit a deprecation warning when a spec relies on it,
+# then drop it from this set at the next major api bump, which also frees
+# `dataset` as an ordinary label and stage name. Until then it stays reserved.
 _RESERVED_PROVIDES_LABELS = frozenset({"name", "dataset"})
 
 
@@ -1480,6 +1487,23 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"populated by the runtime; choose another name."
                     )
 
+        # A gather groups by a stage id and binds a label of that name to the
+        # ancestor module id (010 §3.3), so stage ids and label names share one
+        # namespace. A `provides` label named after a stage would carry that
+        # stage's module id after the cut and the module's own binding before
+        # it, and a downstream `requires:` would match on one side and prune
+        # silently on the other. Keeping the two namespaces disjoint removes the
+        # whole class instead of special-casing the gather. See 008 §3.5.
+        stage_ids = {stage.id for stage in self.stages}
+        for stage in self.stages:
+            for label in stage.provides or []:
+                if label in stage_ids:
+                    raise ValueError(
+                        f"Stage '{stage.id}' declares label '{label}' in "
+                        f"`provides`, but '{label}' is also a stage id. "
+                        f"Hint: rename the label."
+                    )
+
         # A label names an axis, and one stage defines it. Two stages declaring
         # the same label leaves its value dependent on where you are standing:
         # on a chain the later stage silently overwrites the earlier, and on a
@@ -1533,14 +1557,24 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"`requires` gate or move the module to a later stage."
                     )
 
-        # A gather's `group_by` must name a real stage to partition members by.
-        stage_ids = {s.id for s in self.stages}
+        # A gather's `group_by` must name a real stage to partition members by,
+        # and binding its id as a label must not clobber a runtime builtin.
+        # Only the `group_by` target is constrained — a stage merely *called*
+        # `dataset` is legal and stays legal in released 0.6 specs.
         for stage in self.stages:
             for spec in stage.gather or []:
-                if spec.group_by is not None and spec.group_by not in stage_ids:
+                if spec.group_by is None:
+                    continue
+                if spec.group_by not in stage_ids:
                     raise ValueError(
                         f"Stage '{stage.id}' gathers with `group_by: "
                         f"{spec.group_by}`, which is not a known stage id."
+                    )
+                if spec.group_by in _RESERVED_PROVIDES_LABELS:
+                    raise ValueError(
+                        f"Stage '{stage.id}' gathers with `group_by: "
+                        f"{spec.group_by}`, but '{spec.group_by}' is a "
+                        f"reserved builtin label. Hint: rename the stage."
                     )
 
         # Call the pure model validation from the validator base class

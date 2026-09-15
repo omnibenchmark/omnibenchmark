@@ -330,6 +330,96 @@ def test_group_by_must_name_a_stage():
         raise AssertionError("expected group_by to be validated against stage ids")
 
 
+_HEAD = """
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: 0.7.0
+software_backend: host
+software_environments:
+  env: {description: e, easyconfig: e.eb}
+stages:
+"""
+
+_REPO = "repository: {url: 'http://x', commit: abc}, software_environment: env"
+
+
+def _parse_error(yaml_text):
+    """`from_yaml` wraps validation in BenchmarkParseError, which is not a
+    ValueError — catch broadly and assert on the message, as the rest of this
+    file does."""
+    from omnibenchmark.model.benchmark import Benchmark
+
+    try:
+        Benchmark.from_yaml(yaml_text)
+    except Exception as e:
+        return str(e)
+    raise AssertionError("expected the benchmark to be rejected")
+
+
+@pytest.mark.short
+def test_provides_label_on_the_group_by_stage_rejected():
+    """The two values the group key could take must never both exist.
+
+    Before the cut a node carries `Module.provides['data']`; after it the gather
+    binds `data` to the ancestor module id. A downstream `requires: {data: custom}`
+    would match upstream and prune downstream with no diagnostic. Rejecting the
+    declaration is what keeps that unreachable.
+    """
+    message = _parse_error(
+        _HEAD
+        + f"""  - id: data
+    provides: [data]
+    outputs: [{{id: clustering, path: c.tsv}}]
+    modules: [{{id: d1, {_REPO}, provides: {{data: custom}}}}]
+  - id: metrics
+    gather: [{{from: clustering, group_by: data}}]
+    modules: [{{id: s, {_REPO}}}]
+    outputs: [{{id: metrics.summary, path: summary.tsv}}]
+"""
+    )
+    assert "also a stage id" in message
+
+
+@pytest.mark.short
+def test_group_by_reserved_stage_name_rejected():
+    """A stage called `dataset` cannot be a `group_by` target: the group key is
+    bound under the stage id and would clobber the runtime builtin."""
+    message = _parse_error(
+        _HEAD
+        + f"""  - id: dataset
+    outputs: [{{id: clustering, path: c.tsv}}]
+    modules: [{{id: d1, {_REPO}}}]
+  - id: metrics
+    gather: [{{from: clustering, group_by: dataset}}]
+    modules: [{{id: s, {_REPO}}}]
+    outputs: [{{id: metrics.summary, path: summary.tsv}}]
+"""
+    )
+    assert "reserved builtin label" in message
+
+
+@pytest.mark.short
+def test_stage_named_dataset_without_gather_accepted():
+    """Only the `group_by` target is constrained. A stage merely *called*
+    `dataset` is legal in released 0.6 specs and stays legal."""
+    from omnibenchmark.model.benchmark import Benchmark
+
+    bench = Benchmark.from_yaml(
+        _HEAD
+        + f"""  - id: dataset
+    outputs: [{{id: clustering, path: c.tsv}}]
+    modules: [{{id: d1, {_REPO}}}]
+  - id: metrics
+    inputs: [clustering]
+    modules: [{{id: s, {_REPO}}}]
+    outputs: [{{id: metrics.summary, path: summary.tsv}}]
+"""
+    )
+    assert [s.id for s in bench.stages] == ["dataset", "metrics"]
+
+
 @pytest.mark.short
 def test_select_input_bundles_pairs_diamond_branches_by_root():
     """The fan-in join (design 010 §5.2, #289): a stage declaring inputs from

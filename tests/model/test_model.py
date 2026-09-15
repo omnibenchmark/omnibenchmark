@@ -437,6 +437,31 @@ class TestLineageProvides:
                 ],
             )
 
+    def test_provides_label_named_after_another_stage_rejected(self):
+        """Stage ids and label names are one namespace, so keep them disjoint.
+
+        A gather binds a label named after its `group_by` stage (010 §3.3). A
+        `provides` label sharing that name would carry the module's own binding
+        before the cut and the ancestor module id after it, so a downstream
+        `requires:` would match on one side and prune silently on the other.
+        """
+        with pytest.raises(ValueError, match="also a stage id"):
+            make_benchmark(
+                api_version=APIVersion.V0_7_0,
+                stages=[
+                    make_stage(id="data"),
+                    make_stage(id="norm", provides=["data"]),
+                ],
+            )
+
+    def test_provides_label_named_after_own_stage_rejected(self):
+        """The reported shape: stage `data` advertising a label called `data`."""
+        with pytest.raises(ValueError, match="also a stage id"):
+            make_benchmark(
+                api_version=APIVersion.V0_7_0,
+                stages=[make_stage(id="data", provides=["data"])],
+            )
+
     def test_same_label_twice_within_one_stage_is_fine(self):
         """One stage owning a label is the whole point; a repeated entry in its
         own list is a no-op, not a second owner."""
