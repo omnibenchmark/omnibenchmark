@@ -245,6 +245,13 @@ That splits what the chain used to carry into two records.
   the two namespaces are disjoint. Grouping by a label value is Phase 2 (§6).
   For the same reason a `group_by` may not name a stage called `name` or
   `dataset`, which would clobber a builtin.
+
+- `requires` on a gather module is a parse-time error. A gather collects members
+  from many lineages at once, so there is no single lineage to match, and
+  expansion never evaluates the gate — accepting it would make it silently inert
+  (§2, no silent absence). The gate belongs on the modules producing the
+  gathered id, where it decides which members are collected. Gating on the group
+  key itself arrives with Phase 2.
 - `exclude` rules pairing the gather's own module with a member's lineage drop
   that member from that module's gather, so one excluded member never poisons
   the whole group. Beyond that the cut holds: an `exclude` pairing a pre-gather

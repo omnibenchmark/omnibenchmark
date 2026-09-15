@@ -359,6 +359,58 @@ def _parse_error(yaml_text):
 
 
 @pytest.mark.short
+def test_gather_stage_is_not_an_initial_stage():
+    """A gather consumes `gather.from` from real producers, so it is not a root.
+
+    `is_initial` looked only at `inputs:`, which a gather replaces, so every
+    gather read as a root and the initial-stage `requires` check fired on it.
+    """
+    from omnibenchmark.model.benchmark import Benchmark
+
+    bench = Benchmark.from_yaml(_GATHER_YAML.format(api="0.7.0", group_by="data"))
+    data, metrics = bench.stages
+    assert bench.get_stage_implicit_inputs(metrics) == [["clustering"]]
+    assert bench.get_stage_implicit_inputs(data) == []
+
+
+@pytest.mark.short
+def test_requires_on_gather_module_rejected():
+    """A gather cuts the chain, so a member-lineage gate has nothing to match.
+
+    `expand_gather_stage` never evaluates `requires`, so accepting it would make
+    the gate silently inert (008 §2). The message must name the gather rather
+    than claim the stage has no upstream lineage — it has plenty, just not
+    reachable across the cut.
+    """
+    message = _parse_error(
+        _HEAD
+        + f"""  - id: data
+    outputs: [{{id: clustering, path: c.tsv}}]
+    modules: [{{id: d1, {_REPO}}}]
+  - id: metrics
+    gather: [{{from: clustering, group_by: data}}]
+    modules: [{{id: s, {_REPO}, requires: {{data: d1}}}}]
+    outputs: [{{id: metrics.summary, path: summary.tsv}}]
+"""
+    )
+    assert "gather stage" in message
+    assert "initial stage" not in message
+
+
+@pytest.mark.short
+def test_requires_on_input_less_stage_still_rejected():
+    """The original rule survives: a stage with neither `inputs` nor `gather`."""
+    message = _parse_error(
+        _HEAD
+        + f"""  - id: data
+    outputs: [{{id: clustering, path: c.tsv}}]
+    modules: [{{id: d1, {_REPO}, requires: {{size: lg}}}}]
+"""
+    )
+    assert "initial stage" in message
+
+
+@pytest.mark.short
 def test_provides_label_on_the_group_by_stage_rejected():
     """The two values the group key could take must never both exist.
 

@@ -1404,7 +1404,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         return self.metric_collectors or []
 
     def is_initial(self, stage: Stage) -> bool:
-        """Check if a stage is initial (has no inputs)."""
+        """Whether a stage declares no `inputs:`. Legacy planner only.
+
+        This conflates two questions that only coincide for a stage with no
+        `gather:`. "Has no upstream producers" is `get_stage_implicit_inputs`,
+        which folds in `gather.from` — a gather is not a root. "Roots its own
+        output tree" is `node.parent_id is None` on the resolved node — a gather
+        is. Callers wanting either should ask directly; this survives only for
+        `core/_graph.py`, and goes away with it.
+        """
         return stage.inputs is None or len(stage.inputs) == 0
 
     def get_outputs(self) -> Dict[str, IOFile]:
@@ -1541,21 +1549,36 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"`provides` list or fix the key."
                         )
 
-        # A `requires:` gate matches against the upstream lineage. An initial
-        # stage has no inputs, so its modules have no upstream context and the
-        # gate can never be satisfied — flag it rather than silently running the
-        # module unconditionally. See 008 §2 (no silent absence).
+        # A `requires:` gate matches against the upstream lineage, so it needs
+        # one to match. Two stage shapes have none, for different reasons, and
+        # each gets its own diagnostic. Read "has upstream producers" off
+        # `get_stage_implicit_inputs`, which folds in `gather.from` — a gather
+        # consumes real producers and is not a root. See 008 §2, 010 §3.3.
         for stage in self.stages:
-            if not self.is_initial(stage):
+            gated = next((m for m in stage.modules if m.requires), None)
+            if gated is None:
                 continue
-            for module in stage.modules:
-                if module.requires:
-                    raise ValueError(
-                        f"Module '{module.id}' in initial stage '{stage.id}' "
-                        f"declares `requires`, but an initial stage has no "
-                        f"upstream lineage to match against. Remove the "
-                        f"`requires` gate or move the module to a later stage."
-                    )
+            # A gather has upstream producers but cuts the chain, exposing only
+            # its group key, and `expand_gather_stage` never evaluates
+            # `requires` — accepting it would make the gate silently inert.
+            # Gating on the group key itself is 010 Phase 2.
+            if stage.gather:
+                collected = ", ".join(f"'{spec.from_}'" for spec in stage.gather)
+                raise ValueError(
+                    f"Module '{gated.id}' in gather stage '{stage.id}' "
+                    f"declares `requires`, but a gather collects members from "
+                    f"many lineages at once, so there is no single lineage to "
+                    f"match. Hint: move the `requires` to the modules "
+                    f"producing {collected} — it will then decide which "
+                    f"members get gathered."
+                )
+            if not self.get_stage_implicit_inputs(stage):
+                raise ValueError(
+                    f"Module '{gated.id}' in initial stage '{stage.id}' "
+                    f"declares `requires`, but an initial stage has no "
+                    f"upstream lineage to match against. Hint: remove the "
+                    f"`requires` filter, or move the module to a later stage."
+                )
 
         # A gather's `group_by` must name a real stage to partition members by,
         # and binding its id as a label must not clobber a runtime builtin.

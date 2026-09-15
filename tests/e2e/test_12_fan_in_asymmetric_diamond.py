@@ -72,6 +72,45 @@ def test_each_join_gets_its_own_output_path(
     joins = [p for p in outputs if "/join/J1/" in p]
     assert len(joins) == 2, f"expected one join per shallow module: {joins}"
 
+    # Where the two differ is the point, not merely that they do. Both joins
+    # share their deepest input, so everything up to `join/J1/` is identical
+    # and only the parameter segment — which carries the parent-set digest —
+    # separates them. Pinning the shape rather than the digest keeps this
+    # honest if the hash inputs ever change, and pins the prefix structure
+    # that resolving `{pre}` at plan time has to keep producing.
+    heads, tails = zip(*(p.split("/join/J1/", 1) for p in joins))
+    assert len(set(heads)) == 1, (
+        f"both joins descend from the same deepest input, so their prefix "
+        f"must be identical; got {sorted(set(heads))}"
+    )
+    assert re.fullmatch(
+        r"root/R1/\.[0-9a-f]+/mid/M1/\.[0-9a-f]+/deep/D1/\.[0-9a-f]+", heads[0]
+    ), (
+        f"a join's prefix is its deepest input's full chain, three segments "
+        f"per stage (007): {heads[0]}"
+    )
+    segments = sorted(t.split("/", 1)[0] for t in tails)
+    assert (
+        len(set(segments)) == 2
+    ), f"the digest is what disambiguates two joins sharing a branch; got {segments}"
+    # `.<param hash>-<parent-set digest>`: same module and parameters on both
+    # sides, so the param half matches and only the digest half separates them.
+    # That split is the fix — without the digest the two collapse to one path
+    # and Snakemake raises AmbiguousRuleException.
+    halves = [re.fullmatch(r"\.([0-9a-f]+)-([0-9a-f]+)", s) for s in segments]
+    matched = [m for m in halves if m]
+    assert len(matched) == len(
+        segments
+    ), f"expected `.<param hash>-<digest>` segments, got {segments}"
+    param_hashes = {m.group(1) for m in matched}
+    digests = {m.group(2) for m in matched}
+    assert (
+        len(param_hashes) == 1
+    ), f"same module and parameters, so the parameter hash must match: {segments}"
+    assert (
+        len(digests) == 2
+    ), f"different parent sets, so the digest must differ: {segments}"
+
     for block in re.split(r"^rule ", snakefile, flags=re.M)[1:]:
         if "/join/J1/" in block and "lineage.json" in block:
             assert "shallow" in block, (

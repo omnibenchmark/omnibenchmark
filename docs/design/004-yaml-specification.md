@@ -22,7 +22,7 @@
 | 5       | 2026-08-25 | Correct stage ordering in §3.3 (topological, not positional); drop §3.8's stale "not yet implemented" note on `provides`/`requires` | ben |
 | 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
 | 7       | 2026-08-28 | Drop `prefix`; a gather's outputs root at the stage id (§3.12) | ben |
-| 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id | ben |
+| 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
 
 ## 1. Problem Statement
 
@@ -529,8 +529,12 @@ Rules:
   `metric_collector` has.
 - All `gather` entries on a stage must share one `group_by`, and "no
   `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
-- `group_by` may not name a stage called `name` or `dataset` — the group key is
-  bound under the stage id and would clobber that builtin.
+- `requires` on a gather module is a parse-time error: a gather collects members
+  from many lineages at once, so there is no single lineage to match. Put the
+  `requires` on the modules producing the gathered id, where it decides which
+  members are collected. `group_by` may not name a stage called `name` or
+  `dataset` — the group key is bound under the stage id and would clobber that
+  builtin.
 - A gather **cuts the lineage chain**: its node has no parent, its outputs land
   under `<stage>/<group>/<module>/<params>/` — the cut tree roots at the stage
   id, so it needs no author-supplied path and two gathers cannot collide — and
