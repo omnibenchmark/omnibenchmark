@@ -477,6 +477,35 @@ Semantics worth knowing:
 - **Not combinable with `-m/--module`**, which already truncates the DAG its own
   way; passing both is an error.
 
+## Run a saved slice of a benchmark
+
+`--filter` runs only the stages, modules and parameter combinations picked in
+`obeditor`. The picks travel as a short text blob, which you can paste inline or
+save to a file.
+
+```bash
+ob run benchmark.yaml --filter picks.obfilter   # a saved file
+ob run benchmark.yaml --filter H4sIAAAA...      # the same thing, pasted inline
+```
+
+Semantics worth knowing:
+
+- **Stages left out are pruned.** A stage missing from the picks is dropped
+  entirely, along with the paths that ran through it. Within a picked stage you
+  can keep every module or name them one by one, and keep every parameter
+  combination, the first one, or a chosen few.
+- **The blob remembers which benchmark it came from.** If the YAML has changed
+  since the picks were made and something no longer exists, the run stops and
+  lists what went missing. Re-export the picks, or pass `--allow-drift` to run
+  whatever still matches.
+- **Metric collectors that reach into a pruned stage are skipped**, with a log
+  line for each.
+- **Combines with `--until`**, which cuts the benchmark short first; the picks
+  then apply to what is left. Not combinable with `-m/--module`, which selects
+  modules its own way; passing both is an error.
+- **Overrides `--with-capability`.** Picks are an explicit choice, so a picked
+  module runs whether or not the machine advertises what it asks for.
+
 ## Use a custom apptainer container to run methods
 
 We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.
