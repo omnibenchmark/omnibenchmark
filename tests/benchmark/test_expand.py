@@ -1058,3 +1058,385 @@ def test_partially_populated_group_is_an_error():
             output_to_nodes=output_to_nodes,
             nodes_by_id=nodes_by_id,
         )
+
+
+# --- the scatter path -------------------------------------------------------
+#
+# `expand_scatter_stage` is the other half of the planner and the one every
+# benchmark goes through, but nothing unit-tested it — the gather tests above
+# exercise its sibling, and only e2e reached this. These drive it over a real
+# parsed model, the way `cli/run.py` does, with the module cache faked so no
+# repository is cloned.
+
+
+def _plan(yaml_text, nesting_strategy="nested"):
+    """Expand every stage of a parsed benchmark, mirroring `cli/run.py`'s loop.
+
+    Returns `(nodes, prune_counts, dag_errors)`. Module resolution is faked:
+    the cache maps every (stage, module) to a sentinel, which is all the
+    expander does with it (stashes it on the node).
+    """
+    from omnibenchmark.core._expand import expand_scatter_stage
+    from omnibenchmark.core._graph import build_stage_dag, compute_stage_order
+    from omnibenchmark.core._paths import collect_path_exclusions
+    from omnibenchmark.model.benchmark import Benchmark
+
+    bench = Benchmark.from_yaml(yaml_text)
+    benchmark = SimpleNamespace(model=bench)
+    by_id = {s.id: s for s in bench.stages}
+    stages_to_expand = [
+        by_id[sid] for sid in compute_stage_order(build_stage_dag(bench))
+    ]
+    cache = {(s.id, m.id): object() for s in bench.stages for m in s.modules}
+
+    resolved_nodes, nodes_by_id, output_to_nodes = [], {}, {}
+    prune_counts = {"requires": 0, "exclude": 0}
+    dag_errors = []
+    previous = []
+    for stage in stages_to_expand:
+        if stage.gather:
+            previous = expand_gather_stage(
+                stage=stage,
+                benchmark=benchmark,
+                resolved_modules_cache=cache,
+                output_to_nodes=output_to_nodes,
+                nodes_by_id=nodes_by_id,
+            )
+            resolved_nodes.extend(previous)
+            nodes_by_id.update({n.id: n for n in previous})
+        else:
+            previous = expand_scatter_stage(
+                stage=stage,
+                benchmark=benchmark,
+                resolved_modules_cache=cache,
+                resolved_nodes=resolved_nodes,
+                nodes_by_id=nodes_by_id,
+                output_to_nodes=output_to_nodes,
+                previous_stage_nodes=previous,
+                stages_to_expand=stages_to_expand,
+                path_exclusions=collect_path_exclusions(bench),
+                nesting_strategy=nesting_strategy,
+                module_filter=None,
+                target_stage=None,
+                dag_errors=dag_errors,
+                prune_counts=prune_counts,
+                quiet=True,
+            )
+    return resolved_nodes, prune_counts, dag_errors
+
+
+_BLOCK_REPO = """        repository: {url: 'http://x', commit: abc}
+        software_environment: env"""
+
+
+def _line(text, indent):
+    """One optional extra YAML line at `indent` spaces, or nothing."""
+    return f"\n{' ' * indent}{text}" if text else ""
+
+
+def _chain_yaml(data_extra="", d1_extra="", method_module_extra=""):
+    """data (D1, D2) -> method (M1). Every test below varies one knob on it."""
+    return f"""
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: 0.7.0
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: data{_line(data_extra, 4)}
+    outputs: [{{id: data.out, path: "{{name}}_d.txt"}}]
+    modules:
+      - id: D1
+{_BLOCK_REPO}{_line(d1_extra, 8)}
+      - id: D2
+{_BLOCK_REPO}
+  - id: method
+    inputs: [data.out]
+    outputs: [{{id: method.out, path: "{{name}}_m.txt"}}]
+    modules:
+      - id: M1
+{_BLOCK_REPO}{_line(method_module_extra, 8)}
+"""
+
+
+@pytest.mark.short
+def test_scatter_chains_each_module_onto_every_upstream_node():
+    """The base case: 2 data modules x 1 method = 2 method nodes, each parented
+    to its own upstream node and nested under its directory."""
+    nodes, prune, errors = _plan(_chain_yaml())
+    assert errors == []
+
+    data = {n.id: n for n in nodes if n.stage_id == "data"}
+    method = {n.id: n for n in nodes if n.stage_id == "method"}
+    assert len(data) == 2 and len(method) == 2
+
+    # A root node has no parent and roots its own tree; that is the "layout"
+    # half of what `is_initial` used to answer.
+    for node in data.values():
+        assert node.parent_id is None and node.parents == []
+    assert sorted(n.outputs[0] for n in data.values()) == [
+        "data/D1/.default/D1_d.txt",
+        "data/D2/.default/D2_d.txt",
+    ]
+
+    # Each method node extends exactly one data node's directory.
+    for node in method.values():
+        assert node.parent_id in data
+        assert node.outputs[0].startswith(
+            data[node.parent_id].outputs[0].rsplit("/", 1)[0]
+        )
+        assert node.inputs == {"data_out": data[node.parent_id].outputs[0]}
+        assert node.input_name_mapping == {"data_out": "data.out"}
+
+
+@pytest.mark.short
+def test_scatter_expands_one_node_per_parameter_set():
+    """Parameters are a fan-out axis, and the param hash separates the nodes."""
+    nodes, _, errors = _plan(
+        _chain_yaml(
+            method_module_extra="parameters: [{values: ['-k', '1']}, {values: ['-k', '2']}]"
+        )
+    )
+    assert errors == []
+    method = [n for n in nodes if n.stage_id == "method"]
+    # 2 data nodes x 2 parameter sets.
+    assert len(method) == 4
+    assert all(n.param_id != ".default" for n in method)
+    # Distinct paths, so Snakemake sees four rules rather than two collisions.
+    assert len({n.outputs[0] for n in method}) == 4
+
+
+@pytest.mark.short
+def test_scatter_prunes_excluded_lineages():
+    """`exclude` drops the combination and is counted, not silently skipped."""
+    nodes, prune, errors = _plan(_chain_yaml(method_module_extra="exclude: [D2]"))
+    assert errors == []
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert len(method) == 1, [n.id for n in method]
+    assert "D1" in method[0].id
+    assert prune["exclude"] == 1
+
+
+@pytest.mark.short
+def test_scatter_prunes_by_requires_against_upstream_labels():
+    """`requires` matches the resolved label, so `Module.provides` decides.
+
+    D1 binds `size: lg`, D2 falls through to the module-id default, so only
+    D1's lineage satisfies the gate.
+    """
+    nodes, prune, errors = _plan(
+        _chain_yaml(
+            data_extra="provides: [size]",
+            d1_extra="provides: {size: lg}",
+            method_module_extra="requires: {size: lg}",
+        )
+    )
+    assert errors == []
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert len(method) == 1, [n.id for n in method]
+    assert "D1" in method[0].id
+    assert prune["requires"] == 1
+
+
+@pytest.mark.short
+def test_flat_nesting_drops_the_parent_prefix():
+    """`flat` roots every stage at its own id instead of extending the parent."""
+    nodes, _, errors = _plan(_chain_yaml(), nesting_strategy="flat")
+    assert errors == []
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert {n.outputs[0] for n in method} == {"method/M1/.default/M1_m.txt"}
+
+
+@pytest.mark.short
+def test_unknown_nesting_strategy_is_reported_as_a_dag_error():
+    """A bad strategy raises inside the module loop, which records it against
+    the stage rather than crashing the whole plan."""
+    nodes, _, errors = _plan(_chain_yaml(), nesting_strategy="sideways")
+    assert errors, "expected the ValueError to be captured"
+    assert any("sideways" in msg for _, _, msg in errors)
+
+
+@pytest.mark.short
+def test_module_missing_from_the_resolution_cache_is_skipped():
+    """A module whose repository failed to resolve produces no nodes, and the
+    stage warns rather than cascading an empty set silently."""
+    from omnibenchmark.core._expand import expand_scatter_stage
+    from omnibenchmark.model.benchmark import Benchmark
+
+    bench = Benchmark.from_yaml(_chain_yaml())
+    data_stage = bench.stages[0]
+    nodes = expand_scatter_stage(
+        stage=data_stage,
+        benchmark=SimpleNamespace(model=bench),
+        resolved_modules_cache={},  # nothing resolved
+        resolved_nodes=[],
+        nodes_by_id={},
+        output_to_nodes={},
+        previous_stage_nodes=[],
+        stages_to_expand=[data_stage],
+        path_exclusions={},
+        nesting_strategy="nested",
+        module_filter=None,
+        target_stage=None,
+        dag_errors=[],
+        prune_counts={"requires": 0, "exclude": 0},
+        quiet=True,
+    )
+    assert nodes == []
+
+
+@pytest.mark.short
+def test_scatter_joins_divergent_branches_into_one_node():
+    """The fan-in join (#289): a stage consuming two output ids from divergent
+    branches gets ONE node holding both parents, not one node per branch.
+
+    The id cannot prefix-compose off a single chain, so it is a readable stem
+    plus a hash of the parent set; `parents` carries the real edges.
+    """
+    nodes, _, errors = _plan(f"""
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: 0.7.0
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: root
+    outputs: [{{id: root.out, path: r.txt}}]
+    modules:
+      - id: R1
+{_BLOCK_REPO}
+  - id: left
+    inputs: [root.out]
+    outputs: [{{id: left.out, path: l.txt}}]
+    modules:
+      - id: L1
+{_BLOCK_REPO}
+  - id: right
+    inputs: [root.out]
+    outputs: [{{id: right.out, path: rt.txt}}]
+    modules:
+      - id: RT1
+{_BLOCK_REPO}
+  - id: join
+    inputs: [left.out, right.out]
+    outputs: [{{id: join.out, path: j.txt}}]
+    modules:
+      - id: J1
+{_BLOCK_REPO}
+""")
+    assert errors == []
+    joins = [n for n in nodes if n.stage_id == "join"]
+    assert len(joins) == 1, [n.id for n in joins]
+    node = joins[0]
+
+    # Both branches feed it, and both are recorded as parents.
+    assert len(node.parents) == 2
+    assert set(node.inputs) == {"left_out", "right_out"}
+    assert node.input_name_mapping == {"left_out": "left.out", "right_out": "right.out"}
+
+    # `parent_id` is the anchor (one branch), so the id cannot be the chain —
+    # it carries a digest of the parent set instead.
+    assert node.parent_id in node.parents
+    assert node.id.startswith("join-J1-")
+    assert node.id != f"{node.parent_id}-join-J1{node.param_id}"
+
+
+@pytest.mark.short
+def test_module_resources_win_over_stage_resources():
+    """Resources fall back stage -> module, most specific first."""
+    nodes, _, errors = _plan(
+        _chain_yaml(method_module_extra="resources: {mem_mb: 512}")
+    )
+    assert errors == []
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert all(n.resources is not None for n in method)
+    assert all(n.resources.mem_mb == 512 for n in method)
+    # The data stage declares none, so its nodes carry none.
+    assert all(n.resources is None for n in nodes if n.stage_id == "data")
+
+
+@pytest.mark.short
+def test_gather_drops_a_member_with_no_ancestor_in_the_group_by_stage(caplog):
+    """Membership is silent-absence-free (§2): a member that cannot be placed
+    in any group is dropped with a warning, not into an arbitrary bucket."""
+    import logging
+
+    nodes_by_id = {
+        "d1.default": _member("d1.default", None, "data", "d1"),
+        "d1.default-clu-ma.default": _member(
+            "d1.default-clu-ma.default", "d1.default", "clu", "ma"
+        ),
+        # No `data` ancestor: this one descends from nothing.
+        "orphan.default": _member("orphan.default", None, "clu", "mb"),
+    }
+    output_to_nodes = {
+        "clustering": [
+            ("d1.default-clu-ma.default", "d1/clu/ma/a.tsv"),
+            ("orphan.default", "orphan/b.tsv"),
+        ]
+    }
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="data")],
+        modules=[
+            SimpleNamespace(
+                id="summ", name="summ", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="metrics.summary", path="{data}.tsv")],
+        resources=None,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        nodes = expand_gather_stage(
+            stage=stage,
+            benchmark=_fake_benchmark(),
+            resolved_modules_cache={("metrics", "summ"): object()},
+            output_to_nodes=output_to_nodes,
+            nodes_by_id=nodes_by_id,
+        )
+
+    assert len(nodes) == 1
+    assert nodes[0].gathered_from == ["d1.default-clu-ma.default"]
+    assert "orphan.default" in caplog.text and "dropped" in caplog.text
+
+
+@pytest.mark.short
+def test_gather_skips_a_module_missing_from_the_resolution_cache():
+    """Same contract as the scatter path: an unresolved module makes no nodes."""
+    nodes_by_id = {
+        "d1.default": _member("d1.default", None, "data", "d1"),
+        "d1.default-clu-ma.default": _member(
+            "d1.default-clu-ma.default", "d1.default", "clu", "ma"
+        ),
+    }
+    nodes = expand_gather_stage(
+        stage=SimpleNamespace(
+            id="metrics",
+            gather=[SimpleNamespace(from_="clustering", group_by="data")],
+            modules=[
+                SimpleNamespace(
+                    id="summ",
+                    name="summ",
+                    parameters=None,
+                    provides=None,
+                    resources=None,
+                )
+            ],
+            outputs=[SimpleNamespace(id="metrics.summary", path="{data}.tsv")],
+            resources=None,
+        ),
+        benchmark=_fake_benchmark(),
+        resolved_modules_cache={},  # nothing resolved
+        output_to_nodes={
+            "clustering": [("d1.default-clu-ma.default", "d1/clu/ma/a.tsv")]
+        },
+        nodes_by_id=nodes_by_id,
+    )
+    assert nodes == []
