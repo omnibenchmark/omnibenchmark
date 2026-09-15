@@ -121,8 +121,9 @@ class TestFilterParams:
 class _StubParam:
     """Minimal Parameter stand-in for Params.expand_from_parameter."""
 
-    def __init__(self, values):
+    def __init__(self, values=None, params=None):
         self.values = values
+        self.params = params
 
 
 @pytest.mark.short
@@ -136,6 +137,19 @@ class TestFindOrphans:
         data = NS(id="data", modules=[NS(id="D1", parameters=None)])
         methods = NS(id="methods", modules=[m1, m2])
         return NS(stages=[data, methods])
+
+    def _params_model(self):
+        """Same shape, but M1 and M2 each expand to one distinct combo."""
+        from types import SimpleNamespace as NS
+
+        m1 = NS(id="M1", parameters=[_StubParam(params={"k": "m1"})])
+        m2 = NS(id="M2", parameters=[_StubParam(params={"k": "m2"})])
+        data = NS(id="data", modules=[NS(id="D1", parameters=None)])
+        return NS(stages=[data, NS(id="methods", modules=[m1, m2])])
+
+    @staticmethod
+    def _combo_hash(module):
+        return Params.expand_from_parameter(module.parameters[0])[0].hash_short()
 
     def test_no_orphans_when_all_resolve(self):
         picks = {"data": {"*": "all"}, "methods": {"M1": "all"}}
@@ -151,3 +165,18 @@ class TestFindOrphans:
 
     def test_wildcard_never_orphans(self):
         assert f.find_orphans({"methods": {"*": "all"}}, self._model()) == []
+
+    def test_wildcard_hash_orphans_when_no_module_expands_it(self):
+        orphans = f.find_orphans({"methods": {"*": ["deadbeef"]}}, self._params_model())
+        assert any("methods/*/deadbeef" in o for o in orphans)
+
+    def test_wildcard_hash_satisfied_by_any_module_in_stage(self):
+        model = self._params_model()
+        live = self._combo_hash(model.stages[1].modules[1])
+        assert f.find_orphans({"methods": {"*": [live]}}, model) == []
+
+    def test_explicit_module_hash_not_satisfied_by_sibling(self):
+        model = self._params_model()
+        sibling = self._combo_hash(model.stages[1].modules[1])
+        orphans = f.find_orphans({"methods": {"M1": [sibling]}}, model)
+        assert any(f"methods/M1/{sibling}" in o for o in orphans)

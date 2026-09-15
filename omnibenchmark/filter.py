@@ -123,10 +123,18 @@ def filter_params(params_list, spec):
 def find_orphans(picks, model):
     """Human-readable descriptions of picks that don't resolve against `model`.
 
-    Renamed/removed stage or module, or an explicit combo hash that no longer expands.
-    "*" and "all"/"first" specs never orphan.
+    Renamed/removed stage or module, or a combo hash that no longer expands (under
+    "*", checked against every module in the stage). "all"/"first" never orphan.
     """
     from omnibenchmark.model.params import Params
+
+    def combo_hashes(modules):
+        have = set()
+        for module in modules:
+            for pset in module.parameters or []:
+                for p in Params.expand_from_parameter(pset):
+                    have.add(p.hash_short())
+        return have
 
     orphans = []
     stages_by_id = {s.id: s for s in model.stages}
@@ -138,19 +146,26 @@ def find_orphans(picks, model):
         modules_by_id = {m.id: m for m in stage.modules}
         for key, spec in mods.items():
             if key == WILDCARD:
+                # The wildcard itself never orphans, but its combo hashes do:
+                # a hash no module in the stage produces any more silently
+                # empties every module. Satisfied if *any* module still has it.
+                if isinstance(spec, list):
+                    have = combo_hashes(stage.modules)
+                    orphans.extend(
+                        f"combo '{stage_id}/*/{h}' (no longer expands)"
+                        for h in spec
+                        if h not in have
+                    )
                 continue
             module = modules_by_id.get(key)
             if module is None:
                 orphans.append(f"module '{stage_id}/{key}' (not in stage)")
                 continue
             if isinstance(spec, list):
-                have = set()
-                for pset in module.parameters or []:
-                    for p in Params.expand_from_parameter(pset):
-                        have.add(p.hash_short())
-                for h in spec:
-                    if h not in have:
-                        orphans.append(
-                            f"combo '{stage_id}/{key}/{h}' (no longer expands)"
-                        )
+                have = combo_hashes([module])
+                orphans.extend(
+                    f"combo '{stage_id}/{key}/{h}' (no longer expands)"
+                    for h in spec
+                    if h not in have
+                )
     return orphans
