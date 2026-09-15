@@ -907,3 +907,50 @@ class TestUntilValidatesWholeModel:
         messages = " ".join(record.message for record in caplog.records)
         assert "divergent branches" in messages
         assert "'C1'" in messages and "'C2'" in messages
+
+
+# ---------------------------------------------------------------------------
+# --filter argument handling
+# ---------------------------------------------------------------------------
+
+
+def _long_inline_blob():
+    """A packed blob longer than NAME_MAX (255), so it cannot be a filename."""
+    from omnibenchmark.filter import pack_blob
+
+    picks = {f"stage{i}": {f"mod{i}": ["%08x" % i]} for i in range(20)}
+    blob = pack_blob(picks, {"sha256": "ab" * 32})
+    assert len(blob) > 255
+    return blob
+
+
+@pytest.mark.short
+def test_run_filter_accepts_long_inline_blob():
+    """A blob past NAME_MAX must decode, not crash the path probe with ENAMETOOLONG."""
+    blob = _long_inline_blob()
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        result = runner.invoke(
+            run, ["tests/data/mock_benchmark.yaml", "--filter", blob]
+        )
+        assert result.exception is None, result.exception
+        mock_rb.assert_called_once()
+        assert mock_rb.call_args.kwargs["filter_blob"]["picks"]["stage0"] == {
+            "mod0": ["00000000"]
+        }
+
+
+@pytest.mark.short
+def test_run_filter_reads_blob_from_file(tmp_path):
+    blob = _long_inline_blob()
+    path = tmp_path / "picks.obfilter"
+    path.write_text(blob + "\n")
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        result = runner.invoke(
+            run, ["tests/data/mock_benchmark.yaml", "--filter", str(path)]
+        )
+        assert result.exception is None, result.exception
+        assert mock_rb.call_args.kwargs["filter_blob"]["picks"]["stage0"] == {
+            "mod0": ["00000000"]
+        }

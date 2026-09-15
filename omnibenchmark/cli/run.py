@@ -264,7 +264,13 @@ def run(
         from omnibenchmark.filter import unpack_blob, FilterError
 
         packed = filter_arg
-        if Path(filter_arg).exists():
+        try:
+            # An inline blob longer than NAME_MAX makes exists() raise ENAMETOOLONG
+            # on Python < 3.13 instead of answering False.
+            is_path = Path(filter_arg).exists()
+        except OSError:
+            is_path = False
+        if is_path:
             packed = Path(filter_arg).read_text().strip()
         try:
             filter_blob = unpack_blob(packed)
