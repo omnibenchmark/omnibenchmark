@@ -32,6 +32,10 @@ class StorageOptions:
         self.extra_files_to_version_not_in_benchmark_yaml = [
             f"{out_dir}/**/parameters.json",
             f"{out_dir}/**/parameters_dict.tsv",
+            # A fan-in node's path cannot encode its ancestry, so this sidecar
+            # is the only record of what it was computed from (design 010 §5.2)
+            # — unrecoverable if archiving drops it.
+            f"{out_dir}/**/lineage.json",
         ]  # glob style
 
         assert all(

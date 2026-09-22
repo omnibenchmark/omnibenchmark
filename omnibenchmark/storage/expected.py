@@ -1,6 +1,6 @@
 """Pure computation of the output files a benchmark is expected to produce."""
 
-import glob
+from pathlib import Path
 from typing import List
 
 from omnibenchmark.core import Benchmark
@@ -16,7 +16,8 @@ def get_expected_benchmark_output_files(
         for (
             glob_expression
         ) in storage_options.extra_files_to_version_not_in_benchmark_yaml:
-            found_files = glob.glob(glob_expression, recursive=True)
-            for found_file in found_files:
-                object_names_to_keep.add(found_file)
+            # pathlib, not glob: `glob` skips names starting with a dot, and
+            # every node's parameter directory is dotted (`.default`, `.<hash>`).
+            for found_file in Path().glob(glob_expression):
+                object_names_to_keep.add(str(found_file))
     return list(object_names_to_keep)
