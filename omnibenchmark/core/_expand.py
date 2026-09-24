@@ -23,6 +23,7 @@ from omnibenchmark.core._lineage import (
     iter_ancestors,
     join_hash,
     lineage_module_ids,
+    resolve_param_refs,
     satisfies_requires,
     select_input_bundles,
 )
@@ -386,6 +387,13 @@ def expand_scatter_stage(
                             f"(upstream context: {upstream})"
                         )
                         continue
+
+                # Before the hash: param_id feeds the node id, the output
+                # directory segment and the human-readable symlink, so two
+                # nodes whose `k` really differs must not share one. A bad
+                # reference raises out of the per-module `try`, skipping this
+                # module's remaining combinations.
+                params = resolve_param_refs(members, params)
 
                 param_id = f".{params.hash_short()}" if params else ".default"
 

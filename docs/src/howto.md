@@ -639,6 +639,46 @@ stages:
 
 This is useful when a single module is run with multiple parameter sweeps and each run's output must be stored at a distinct path.
 
+### Deriving a parameter from an upstream module
+
+Sometimes a downstream parameter is not a free sweep but a property of the data: the number of components to keep depends on which dataset is being processed. Label the upstream stage with `provides:`, then write `{LABEL.params.KEY}` as the downstream parameter *value*. It resolves, per lineage, to the value the module that bound `LABEL` declared.
+
+```yaml
+api_version: 0.7.0
+
+stages:
+  - id: data
+    provides: [source]
+    modules:
+      - id: D1
+        parameters:
+          - ideal_components: 10
+      - id: D2
+        parameters:
+          - ideal_components: 25
+    outputs:
+      - id: data.raw
+        path: "{name}_data.json"
+
+  - id: pca
+    modules:
+      - id: PCA
+        parameters:
+          - k: "{source.params.ideal_components}"
+    inputs:
+      - data.raw
+    outputs:
+      - id: pca.embedding
+        path: "{name}_embedding.json"
+        # PCA under D1 runs `--k 10`, under D2 `--k 25`
+```
+
+`LABEL` is a lineage label, the same namespace `requires:` matches against. Labels are inherited by everything downstream, so the reference works at any depth, not just one stage down; below a fan-in join, a label from any branch resolves. The value keeps its type — `ideal_components: 10` arrives as the integer `10`, not `"10"`.
+
+Each resolved value gets its own parameter hash, so the two PCA runs land in separate output directories, exactly as if you had written the numbers by hand.
+
+A reference that cannot be resolved — an unknown label, or an upstream module that declares no such parameter — fails at plan time with a `DAG construction failed` error naming the stage and module. A `gather` stage binds only its group key, so a reference there fails the same way. It is not a way to make a module conditional; to skip a combination, use `requires:` or `exclude:`.
+
 ## Collect telemetry from a run
 
 `ob run` can emit OpenTelemetry traces and events covering benchmark setup, DAG construction, and per-job execution. Pass `--telemetry` to enable OTLP/JSON Lines output:
