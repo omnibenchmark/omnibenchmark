@@ -1,17 +1,17 @@
 # 008: Filtering and gating mechanisms
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 2](https://img.shields.io/badge/Version-2-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 3](https://img.shields.io/badge/Version-3-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | Field           | Value                                                                                                               |
 |-----------------|---------------------------------------------------------------------------------------------------------------------|
 | Authors         | btraven00, atchox                                                                                                   |
 | Date            | 2026-05-07                                                                                                          |
 | Status          | Draft                                                                                                               |
-| Version         | 2                                                                                                                   |
+| Version         | 3                                                                                                                   |
 | Supersedes      | N/A                                                                                                                 |
-| Reviewed-by     | TBD                                                                                                                 |
-| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata) |
+| Reviewed-by     | daninci, csoneson
+| Related Issues  | [#331](https://github.com/omnibenchmark/omnibenchmark/issues/331), [#330](https://github.com/omnibenchmark/omnibenchmark/pull/330) (provenance metadata), [#353](https://github.com/omnibenchmark/omnibenchmark/issues/353) (discussion of the design doc) |
 
 ## Changes
 
@@ -19,6 +19,7 @@
 |---------|------------|---------------|-----------|
 | 1       | 2026-05-07 | Initial draft | btraven00 |
 | 2       | 2026-06-12 | Two-level label resolution (param-name fallback rejected); reserved builtin labels; diagnostics promoted to phase scope; phases reordered — lineage gating lands before capability gating | btraven00 |
+| 3       | 2026-09-15 | §3.5: label names and stage ids are disjoint namespaces | btraven00 |
 
 ## 1. Problem Statement
 
@@ -110,7 +111,7 @@ named.
 > scoped to the selected stages. Cheap to add once the selected-stages set
 > is threaded into the prefetch step.
 
-### 3.3 `--capability <name>` (repeatable)
+### 3.3 `--with-capability <name>` (repeatable)
 
 Declares a capability available on the current host. Modules may declare
 required capabilities:
@@ -309,6 +310,16 @@ module's own id, never inherited — see PR #323). Declaring either in
 clobber the user's value on every node, and a downstream
 `requires: {name: …}` would gate on an accident of propagation rather
 than a declared contract.
+
+**Stage ids are reserved for the same reason.** A gather binds a label
+named after its `group_by` stage, valued by the ancestor module id (010
+§3.3), so a `provides` label sharing a stage id would hold the module's
+own binding before the cut and the ancestor module id after it — a
+downstream `requires:` would match upstream and prune downstream with no
+diagnostic. Label names and stage ids are therefore disjoint namespaces,
+checked at parse time. The difference from `name`/`dataset` is only where
+the competing value comes from: the runtime there, a gather's group key
+here.
 
 #### Diagnostics
 

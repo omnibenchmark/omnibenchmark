@@ -92,16 +92,16 @@ def mock_benchmark():
     mock_stage.id = "metrics"
     mock_stage.outputs = [Mock(id="scores")]
 
-    def get_stage_by_output(output_id):
+    def get_stages_by_output(output_id):
         if output_id == "metrics.scores" or output_id == "scores":
-            return mock_stage
+            return [mock_stage]
         elif output_id == "results.data" or output_id == "data":
             mock_stage2 = Mock()
             mock_stage2.id = "results"
-            return mock_stage2
-        return None
+            return [mock_stage2]
+        return []
 
-    benchmark.get_stage_by_output = Mock(side_effect=get_stage_by_output)
+    benchmark.get_stages_by_output = Mock(side_effect=get_stages_by_output)
     benchmark.get_name = Mock(return_value="TestBenchmark")
     benchmark.get_version = Mock(return_value="1.0")
     benchmark.get_author = Mock(return_value="Test Author")
@@ -237,7 +237,7 @@ class TestResolveMetricCollectors:
         """Test collector referencing non-existent stage."""
         # Create benchmark that returns None for stage lookup
         benchmark = Mock()
-        benchmark.get_stage_by_output = Mock(return_value=None)
+        benchmark.get_stages_by_output = Mock(return_value=[])
         benchmark.get_name = Mock(return_value="Test")
         benchmark.get_version = Mock(return_value="1.0")
         benchmark.get_author = Mock(return_value="Author")
@@ -300,12 +300,43 @@ class TestGatherCollectorInputs:
         assert "metrics/method2/default/scores.json" in inputs["metrics.scores"]
         assert "results/analyzer/default/data.csv" in inputs["results.data"]
 
+    def test_gather_one_output_id_shared_by_two_stages(self, sample_resolved_nodes):
+        """A single output id produced by MULTIPLE stages collects from all of
+        them (the one-to-many shared-output-id contract, design 010 §3.1)."""
+        sa, sb = Mock(), Mock()
+        sa.id, sb.id = "metrics", "results"
+        benchmark = Mock()
+        # One input id "scores" is produced by BOTH the metrics and results stages.
+        benchmark.get_stages_by_output = Mock(
+            side_effect=lambda oid: [sa, sb] if oid == "scores" else []
+        )
+        collector = MetricCollector(
+            id="shared",
+            name="Shared-id collector",
+            repository=Repository(url="http://test.git", commit="abc"),
+            software_environment="python",
+            inputs=["scores"],
+            outputs=[IOFile(id="out", path="{name}/out.html")],
+        )
+
+        inputs = _gather_collector_inputs(
+            collector=collector,
+            resolved_nodes=sample_resolved_nodes,
+            benchmark=benchmark,
+        )
+
+        # Outputs from nodes in BOTH producing stages land under the one key.
+        assert set(inputs.keys()) == {"scores"}
+        paths = inputs["scores"]
+        assert "metrics/method1/default/scores.json" in paths  # from metrics stage
+        assert "results/analyzer/default/data.csv" in paths  # from results stage
+
     def test_gather_from_nonexistent_stage(
         self, simple_collector, sample_resolved_nodes
     ):
         """Test gathering when stage doesn't exist."""
         benchmark = Mock()
-        benchmark.get_stage_by_output = Mock(return_value=None)
+        benchmark.get_stages_by_output = Mock(return_value=[])
 
         inputs = _gather_collector_inputs(
             collector=simple_collector,

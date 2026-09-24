@@ -55,6 +55,7 @@ stages:
 """
 
 
+@pytest.mark.short
 def test_topology_dag_restores_cross_stage_edges():
     """The display DAG draws an edge from *every* declared upstream stage, even
     when one input group spans several (regression: only the latest survived)."""
@@ -62,6 +63,7 @@ def test_topology_dag_restores_cross_stage_edges():
     assert _module_edges(model) == {("D", "P"), ("D", "C"), ("P", "C")}
 
 
+@pytest.mark.short
 def test_topology_dag_does_not_mutate_execution_dag():
     """Building the display DAG must not perturb the execution DAG's edges
     (which must stay a linear ancestry for correct output-path construction)."""
@@ -73,6 +75,7 @@ def test_topology_dag_does_not_mutate_execution_dag():
     assert before == after == {("D", "P"), ("P", "C")}
 
 
+@pytest.mark.short
 def test_export_to_dot_contains_cross_stage_edge():
     """The rendered dot graph includes the restored data->combine edge."""
     model = BenchmarkModel.from_yaml(_TWO_STAGE_DIAMOND)
@@ -82,6 +85,7 @@ def test_export_to_dot_contains_cross_stage_edge():
     assert "combine-C" in rendered and "data-D" in rendered
 
 
+@pytest.mark.short
 def test_stage_adjacency_edges_and_labels():
     """stage_adjacency yields every declared edge with its shared output ids."""
     model = BenchmarkModel.from_yaml(_TWO_STAGE_DIAMOND)
@@ -93,6 +97,7 @@ def test_stage_adjacency_edges_and_labels():
     ]
 
 
+@pytest.mark.short
 def test_stage_adjacency_groups_multiple_shared_outputs():
     """Multiple outputs shared between the same stage pair collapse to one edge
     whose label lists all of them (sorted)."""
@@ -109,6 +114,7 @@ def test_stage_adjacency_groups_multiple_shared_outputs():
     assert any(up == "methods" and down == "metrics" for up, down, _ in adjacency)
 
 
+@pytest.mark.short
 def test_upstream_stage_ids_consistent_with_adjacency():
     """The wrapper returns exactly the upstream stages from the adjacency."""
     model = BenchmarkModel.from_yaml(_TWO_STAGE_DIAMOND)
@@ -318,3 +324,65 @@ def generate_graph(n_nodes, stage_proportions=None):
         G.add_edge(preprocess, metric)
 
     return G
+
+
+_SHARED_OUTPUT_ID = """\
+id: shared
+description: two stages declaring one output id, consumed by a third
+version: "1.0"
+benchmarker: x
+api_version: "0.7.0"
+software_backend: host
+software_environments:
+  env: {description: e, envmodule: "none"}
+stages:
+  - id: data
+    outputs: [{id: data.out, path: "d.txt"}]
+    modules:
+      - id: D1
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+  - id: method_a
+    inputs: [data.out]
+    outputs: [{id: methods.result, path: "a.txt"}]
+    modules:
+      - id: MA
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+  - id: method_b
+    inputs: [data.out]
+    outputs: [{id: methods.result, path: "b.txt"}]
+    modules:
+      - id: MB
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+  - id: metrics
+    inputs: [methods.result]
+    outputs: [{id: metrics.out, path: "m.txt"}]
+    modules:
+      - id: MC
+        software_environment: env
+        repository: {url: "https://e.com/r.git", commit: "abc123"}
+"""
+
+
+@pytest.mark.short
+def test_every_producer_of_a_shared_output_id_gets_an_edge():
+    """A consumer of an id declared by two stages is drawn as depending on
+    both (design 010 §3.1).
+
+    This is the case the single-producer lookup broke: `get_stages_by_output`
+    returned the first-declared producer, so `method_b -> metrics` was missing
+    from every topology consumer — mermaid, dot, and obeditor, which calls
+    `stage_adjacency` directly. A plain diamond never showed the bug, because
+    its branches declare *different* output ids with one producer each.
+    """
+    model = BenchmarkModel.from_yaml(_SHARED_OUTPUT_ID)
+    adjacency = stage_adjacency(model)
+
+    into_metrics = sorted(up for up, down, _ in adjacency if down == "metrics")
+    assert into_metrics == [
+        "method_a",
+        "method_b",
+    ], f"both producers of methods.result must be drawn: {adjacency}"
+    assert _module_edges(model) >= {("MA", "MC"), ("MB", "MC")}

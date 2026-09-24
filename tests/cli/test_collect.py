@@ -118,3 +118,22 @@ def test_collect_performance_end_to_end(tmp_path):
     assert len(rows) == 2
     assert {r["module"] for r in rows} == {"norman", "adamson"}
     assert all(r["stage"] == "download" for r in rows)
+
+
+@pytest.mark.short
+def test_build_record_below_a_grouped_gather(tmp_path):
+    """A gather's group segment does not shift every downstream column by one."""
+    gather = tmp_path / "metrics" / "D1" / "MC" / ".default"
+    leaf = gather / "report" / "R1" / ".13058ed0"
+    leaf.mkdir(parents=True)
+    (leaf / "parameters.json").write_text(json.dumps({"top": 5}))
+    perf = _write_perf(leaf)
+
+    record = _build_record(tmp_path, perf)
+
+    assert record["stage"] == "report"
+    assert record["module"] == "R1"
+    assert record["param_hash"] == "13058ed0"
+    assert record["dataset"] == "D1"  # the group key, the chain being cut
+    assert record["lineage"] == "metrics/MC/report/R1"
+    assert json.loads(record["params"]) == {"report": {"top": 5}}

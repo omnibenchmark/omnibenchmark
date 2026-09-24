@@ -20,22 +20,19 @@ from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.core._paths import (
     truncate_filename,
-    truncate_path_filename,
     collect_path_exclusions,
-    is_lineage_excluded,
 )
-from omnibenchmark.core._lineage import (
-    lineage_ancestors,
-    lineage_module_ids,
-    satisfies_requires,
-    select_input_nodes,
+from omnibenchmark.core._expand import expand_gather_stage, expand_scatter_stage
+from omnibenchmark.core._prune import (
+    apply_until_filter,
+    capability_prune_summary,
+    filter_collectors_by_stages,
+    select_capable_modules,
 )
-from omnibenchmark.model.params import Params
 from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
 from omnibenchmark.core import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
-from omnibenchmark.model.resolved import ResolvedNode, TemplateContext
 from omnibenchmark.model.validation import BenchmarkParseError
 
 
@@ -894,212 +891,6 @@ def log_error_and_quit(logger, error):
     sys.exit(1)
 
 
-def _substitute_params_in_path(template: str, params) -> str:
-    """Substitute {params.key} placeholders in an output path template."""
-    if params is None or "{params." not in template:
-        return template
-
-    import re
-
-    def _replace(match):
-        key = match.group(1)
-        try:
-            return str(params[key])
-        except KeyError:
-            return match.group(0)
-
-    return re.sub(r"\{params\.([^}]+)\}", _replace, template)
-
-
-def _resolve_label_value(label: str, module_provides, module_id: str) -> str:
-    """Resolve a single `Stage.provides` label's value for one node.
-
-    Two-level chain, most specific first:
-      1. ``module.provides[label]`` — explicit benchmark-local binding.
-      2. ``module_id`` — default for the "label = module identity" pattern.
-
-    The parameter-name fallback prototyped earlier is intentionally absent:
-    sourcing a label from a same-named CLI parameter couples the module's CLI
-    contract to the benchmark's routing across repositories. See
-    docs/design/008-filtering.md §3.5.
-    """
-    if module_provides and label in module_provides:
-        return str(module_provides[label])
-    return module_id
-
-
-def _build_template_context(
-    stage,
-    module_id: str,
-    module_name: Optional[str] = None,
-    input_node=None,
-    params=None,
-    module_provides=None,
-) -> TemplateContext:
-    """Build a TemplateContext for a node during expansion.
-
-    `module_provides` is the optional `Module.provides` dict (label → value);
-    it sources the values for the labels this stage advertises via
-    `Stage.provides`, defaulting to the module id.
-    """
-    provides: dict[str, str] = {}
-    module_attrs: dict[str, str] = {
-        "id": module_id,
-        "stage": stage.id,
-        "name": module_name or module_id,
-    }
-
-    stage_provides = getattr(stage, "provides", None)
-
-    # Inherit the upstream lineage labels first, then layer this stage's own.
-    if input_node is not None and input_node.template_context is not None:
-        provides.update(input_node.template_context.provides)
-
-    if stage_provides:
-        for label in stage_provides:
-            provides[label] = _resolve_label_value(label, module_provides, module_id)
-
-    if input_node is not None:
-        module_attrs["parent.id"] = input_node.module_id
-        module_attrs["parent.stage"] = input_node.stage_id
-    else:
-        # Builtin `dataset` label: root identity, propagated downstream.
-        if params is not None and "dataset" in params:
-            provides.setdefault("dataset", str(params["dataset"]))
-        else:
-            provides.setdefault("dataset", module_id)
-
-    # {name} always resolves to the current module's own ID, never inherited
-    provides["name"] = module_id
-
-    return TemplateContext(provides=provides, module_attrs=module_attrs)
-
-
-def _module_capabilities_met(module, available_capabilities) -> bool:
-    """True unless the module declares a capability the host did not provide.
-
-    Modules with no `requires_capabilities` always pass. `available_capabilities`
-    of None is treated as the empty set (no host facts declared).
-    """
-    required = getattr(module, "requires_capabilities", None)
-    if not required:
-        return True
-    return set(required).issubset(available_capabilities or set())
-
-
-def _select_capable_modules(modules, module_filter, available_capabilities):
-    """Partition modules into (kept, pruned) by the host-capability gate.
-
-    A module is pruned when its `requires_capabilities` are not all provided.
-    `-m/--module` (dev mode) bypasses the gate entirely — the user asked for a
-    specific module explicitly, so nothing is silently dropped from under them.
-    """
-    if module_filter:
-        return list(modules), []
-    kept, pruned = [], []
-    for module in modules:
-        (
-            kept if _module_capabilities_met(module, available_capabilities) else pruned
-        ).append(module)
-    return kept, pruned
-
-
-def _capability_prune_summary(pruned_modules, available_capabilities) -> str:
-    """One-line warning naming what the capability gate dropped and how to keep it."""
-    ids = sorted({m.id for m in pruned_modules})
-    missing = sorted(
-        {
-            cap
-            for m in pruned_modules
-            for cap in m.requires_capabilities
-            if cap not in (available_capabilities or set())
-        }
-    )
-    flags = " ".join(f"--with-capability {cap}" for cap in missing)
-    return (
-        f"{len(ids)} module(s) pruned by capability gate: {', '.join(ids)}. "
-        f"Rerun with {flags} to include them."
-    )
-
-
-def _empty_stage_warning(stage_id: str, combinations_seen: int) -> str:
-    """Message for a stage that had modules to expand but produced no nodes.
-
-    `combinations_seen` is how many (input, params) combinations the stage
-    actually attempted. Zero means none was ever generated — a declared input
-    id matched no upstream output, which is a wiring problem, not a filter one.
-    Blaming requires/exclude there sends the user to the wrong config.
-    """
-    cause = (
-        "every module/input combination was pruned by a filter (requires/exclude)"
-        if combinations_seen
-        else (
-            "no upstream output matched its declared inputs (check for a "
-            "misspelled output id or a skipped upstream stage)"
-        )
-    )
-    return (
-        f"Stage '{stage_id}' produced no nodes: {cause}. Downstream stages "
-        f"depending on it will also be empty."
-    )
-
-
-def _apply_until_filter(stages, until_stage, parents):
-    """Restrict a stage list to `until_stage` plus its transitive ancestors.
-
-    `parents` maps a stage id to the set of its *direct* upstream stage ids
-    (built from the model's declared inputs — see `stage_adjacency`). Stages are
-    kept by declared lineage, not by their order of appearance in the YAML: a
-    benchmark may declare an ancestor of `until_stage` *after* it, and every
-    stage downstream of (or unrelated to) `until_stage` is pruned regardless of
-    declaration order. Output preserves the original declaration order.
-
-    Returns the original sequence as a list when `until_stage` is None.
-    Raises ValueError when the named stage is not present.
-    """
-    stages = list(stages)
-    if until_stage is None:
-        return stages
-    if not any(s.id == until_stage for s in stages):
-        available = ", ".join(s.id for s in stages)
-        raise ValueError(
-            f"--until: stage '{until_stage}' not found. Available stages: {available}"
-        )
-    keep = {until_stage}
-    queue = [until_stage]
-    while queue:
-        for up in parents.get(queue.pop(), ()):
-            if up not in keep:
-                keep.add(up)
-                queue.append(up)
-    return [s for s in stages if s.id in keep]
-
-
-def _filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
-    """Drop metric collectors whose declared inputs reference pruned stages.
-
-    Returns a tuple (kept, dropped_ids). A collector is dropped when any of its
-    declared input ids resolves to a stage outside `included_stage_ids` (or to
-    no stage at all — that case is left to the regular collector resolver to
-    warn about).
-    """
-    kept = []
-    dropped = []
-    for c in collectors or []:
-        keep = True
-        for input_ref in c.inputs:
-            input_id = input_ref if isinstance(input_ref, str) else input_ref.id
-            stage = benchmark.get_stage_by_output(input_id)
-            if stage is not None and stage.id not in included_stage_ids:
-                keep = False
-                break
-        if keep:
-            kept.append(c)
-        else:
-            dropped.append(c.id)
-    return kept, dropped
-
-
 def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
@@ -1193,7 +984,7 @@ def _generate_explicit_snakefile(
             parents.setdefault(down_id, set()).add(up_id)
         kept_ids = {
             s.id
-            for s in _apply_until_filter(benchmark.model.stages, until_stage, parents)
+            for s in apply_until_filter(benchmark.model.stages, until_stage, parents)
         }
         stages_to_expand = [s for s in topo_sorted_stages if s.id in kept_ids]
         logger.info(
@@ -1208,7 +999,7 @@ def _generate_explicit_snakefile(
     unique_modules = {}
     pruned_modules = []
     for stage in stages_to_expand:
-        kept, pruned = _select_capable_modules(
+        kept, pruned = select_capable_modules(
             stage.modules, module_filter, available_capabilities
         )
         pruned_modules.extend(pruned)
@@ -1224,9 +1015,7 @@ def _generate_explicit_snakefile(
                 unique_modules[cache_key] = (module, module.software_environment)
 
     if pruned_modules:
-        logger.warning(
-            _capability_prune_summary(pruned_modules, available_capabilities)
-        )
+        logger.warning(capability_prune_summary(pruned_modules, available_capabilities))
 
     if not quiet:
         logger.info(f"\nResolving {len(unique_modules)} modules...")
@@ -1367,251 +1156,53 @@ def _generate_explicit_snakefile(
     # observable (see docs/design/008-filtering.md, "No silent absence").
     prune_counts = {"requires": 0, "exclude": 0}
 
-    # stage_id -> ordered output ids. Precomputed once so per-node output lookup
-    # is O(1) instead of scanning every stage and doing an O(outputs) pydantic
-    # `.index()` (was ~180k __eq__ calls during generation).
-    stage_output_ids = {s.id: [o.id for o in s.outputs] for s in benchmark.model.stages}
-
     # Lineage-wide exclusion rules, shared with execution-path pruning so the
     # two code paths agree (see core._paths.is_lineage_excluded).
     path_exclusions = collect_path_exclusions(benchmark.model)
 
     for stage in stages_to_expand:
-        current_stage_nodes = []
-        # How many (input, params) combinations this stage actually attempted.
-        # Zero means nothing was generated to prune (an input id resolved to no
-        # upstream node); >0 with an empty stage means a filter rejected them
-        # all. The empty-stage warning below distinguishes the two.
-        combinations_seen = 0
-
-        # Module-filter: which modules to expand per stage
-        if module_filter:
-            is_target_stage = stage.id == target_stage_id
-            if is_target_stage:
-                modules_to_expand = [m for m in stage.modules if m.id == module_filter]
-            else:
-                modules_to_expand = stage.modules[:1]
-        else:
-            modules_to_expand, _ = _select_capable_modules(
-                stage.modules, module_filter, available_capabilities
-            )
-
-        for module in modules_to_expand:
-            module_id = module.id
-            cache_key = (stage.id, module_id)
-
+        if stage.gather:
+            # Gather stages fan in instead of chaining (design 010). Plan-time
+            # errors (zero-producer `from`, unbound template label) feed the
+            # same dag_errors report as scatter failures, not a raw traceback.
             try:
-                if cache_key not in resolved_modules_cache:
-                    logger.warning(f"      Module {module_id} not in cache, skipping")
-                    continue
-
-                resolved_module = resolved_modules_cache[cache_key]
-
-                if module.parameters:
-                    params_list = []
-                    for param in module.parameters:
-                        params_list.extend(Params.expand_from_parameter(param))
-                else:
-                    params_list = [None]
-
-                if stage.inputs and previous_stage_nodes:
-                    from itertools import product
-
-                    declared_input_ids = [
-                        entry
-                        for input_col in stage.inputs
-                        if hasattr(input_col, "entries")
-                        for entry in input_col.entries
-                    ]
-
-                    stage_ids_in_order = [s.id for s in stages_to_expand]
-                    input_node_combinations = select_input_nodes(
-                        declared_input_ids=declared_input_ids,
-                        output_to_nodes=output_to_nodes,
-                        resolved_nodes=resolved_nodes,
-                        nodes_by_id=nodes_by_id,
-                        stage_ids_in_order=stage_ids_in_order,
-                        previous_stage_nodes=previous_stage_nodes,
-                    )
-
-                    node_combinations = list(
-                        product(input_node_combinations, params_list)
-                    )
-                else:
-                    node_combinations = [(None, params) for params in params_list]
-
-                if module_filter:
-                    node_combinations = node_combinations[:1]
-
-                combinations_seen += len(node_combinations)
-
-                for input_node, params in node_combinations:
-                    # Exclusions are transitive over the full lineage, not just
-                    # the immediate predecessor: prune if any exclusion rule has
-                    # both endpoints present along this node's lineage.
-                    if input_node:
-                        lineage = lineage_module_ids(input_node, nodes_by_id) | {
-                            module_id
-                        }
-                        if is_lineage_excluded(lineage, path_exclusions):
-                            prune_counts["exclude"] += 1
-                            logger.debug(
-                                f"      Excluding combination: lineage {lineage} "
-                                f"violates an exclusion rule"
-                            )
-                            continue
-
-                    if input_node and module.requires:
-                        if not satisfies_requires(module.requires, input_node):
-                            prune_counts["requires"] += 1
-                            logger.debug(
-                                f"      Skipping combination: requires not satisfied for {module_id} "
-                                f"(upstream context: {input_node.template_context.provides})"
-                            )
-                            continue
-
-                    param_id = f".{params.hash_short()}" if params else ".default"
-
-                    if input_node:
-                        node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"
-                    else:
-                        node_id = f"{stage.id}-{module_id}{param_id}"
-
-                    inputs = {}
-                    input_name_mapping = {}
-                    base_path = None
-
-                    if input_node:
-                        output_id_to_path = {}
-
-                        def get_output_ids_for_node(node):
-                            return {
-                                output_id: node.outputs[i]
-                                for i, output_id in enumerate(
-                                    stage_output_ids.get(node.stage_id, [])
-                                )
-                                if i < len(node.outputs)
-                            }
-
-                        output_id_to_path.update(get_output_ids_for_node(input_node))
-
-                        # TODO(#289): this only collects outputs from the node's
-                        # *linear* ancestors (nodes whose id is a prefix of this
-                        # one). Inputs produced on a sibling branch that re-joins
-                        # here are invisible and warn "Could not resolve input"
-                        # below. Generalise this (and select_input_nodes)
-                        # to gather from all producing lineages once multi-stage
-                        # input collection lands.
-                        for ancestor in lineage_ancestors(input_node, nodes_by_id):
-                            output_id_to_path.update(get_output_ids_for_node(ancestor))
-
-                        if stage.inputs:
-                            for input_collection in stage.inputs:
-                                if not hasattr(input_collection, "entries"):
-                                    continue
-                                for input_id in input_collection.entries:
-                                    if input_id in output_id_to_path:
-                                        sanitized_id = input_id.replace(".", "_")
-                                        inputs[sanitized_id] = output_id_to_path[
-                                            input_id
-                                        ]
-                                        input_name_mapping[sanitized_id] = input_id
-                                    else:
-                                        logger.warning(
-                                            f"      Could not resolve input {input_id} for node {node_id}"
-                                        )
-
-                        if inputs:
-                            from pathlib import Path as PathLib
-
-                            deepest_input = max(
-                                inputs.values(), key=lambda p: len(PathLib(p).parts)
-                            )
-                            base_path = str(PathLib(deepest_input).parent)
-
-                    ctx = _build_template_context(
-                        stage=stage,
-                        module_id=module_id,
-                        module_name=getattr(module, "name", None),
-                        input_node=input_node,
-                        params=params,
-                        module_provides=module.provides,
-                    )
-
-                    outputs = []
-                    for output_spec in stage.outputs:
-                        output_path_template = ctx.substitute(
-                            output_spec.path, params=params
-                        )
-
-                        if nesting_strategy == "nested":
-                            if base_path:
-                                output_path = f"{base_path}/{stage.id}/{module_id}/{param_id}/{output_path_template}"
-                            else:
-                                output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
-                        elif nesting_strategy == "flat":
-                            output_path = f"{stage.id}/{module_id}/{param_id}/{output_path_template}"
-                        else:
-                            raise ValueError(
-                                f"Unknown nesting strategy: {nesting_strategy}"
-                            )
-
-                        output_path = truncate_path_filename(output_path)
-
-                        outputs.append(output_path)
-                        if output_spec.id not in output_to_nodes:
-                            output_to_nodes[output_spec.id] = []
-                        output_to_nodes[output_spec.id].append((node_id, output_path))
-
-                    node_resources = None
-                    if hasattr(module, "resources") and module.resources:
-                        node_resources = module.resources
-                    elif hasattr(stage, "resources") and stage.resources:
-                        node_resources = stage.resources
-
-                    node = ResolvedNode(
-                        id=node_id,
-                        stage_id=stage.id,
-                        module_id=module_id,
-                        param_id=param_id,
-                        module=resolved_module,
-                        parameters=params,
-                        parent_id=input_node.id if input_node else None,
-                        inputs=inputs,
-                        outputs=outputs,
-                        input_name_mapping=input_name_mapping,
-                        benchmark_name=benchmark.model.get_name(),
-                        benchmark_version=benchmark.model.get_version(),
-                        benchmark_author=benchmark.model.get_author(),
-                        resources=node_resources,
-                        template_context=ctx,
-                    )
-
-                    resolved_nodes.append(node)
-                    nodes_by_id[node.id] = node
-                    current_stage_nodes.append(node)
-
-                if not quiet:
-                    logger.info(
-                        f"      Created {len([n for n in current_stage_nodes if n.module_id == module_id])} nodes for {module_id}"
-                    )
-
+                current_stage_nodes = expand_gather_stage(
+                    stage=stage,
+                    benchmark=benchmark,
+                    resolved_modules_cache=resolved_modules_cache,
+                    output_to_nodes=output_to_nodes,
+                    nodes_by_id=nodes_by_id,
+                    path_exclusions=path_exclusions,
+                    module_filter=module_filter,
+                    target_stage=target_stage if module_filter else None,
+                    available_capabilities=available_capabilities,
+                )
             except ValueError as e:
-                msg = str(e)
-                logger.error(f"      Failed to resolve {module_id}: {msg}")
-                dag_errors.append((stage.id, module_id, msg))
-
-            except Exception as e:
-                logger.error(f"      Failed to resolve {module_id}: {e}")
-                import traceback
-
-                if logger.level <= 10:
-                    traceback.print_exc()
-
-        # A stage that had modules to expand but produced no nodes should not
-        # cascade an empty set downstream silently.
-        if modules_to_expand and not current_stage_nodes:
-            logger.warning(_empty_stage_warning(stage.id, combinations_seen))
+                logger.error(f"      Failed to expand gather stage {stage.id}: {e}")
+                dag_errors.append((stage.id, "<gather>", str(e)))
+                current_stage_nodes = []
+            for node in current_stage_nodes:
+                resolved_nodes.append(node)
+                nodes_by_id[node.id] = node
+        else:
+            current_stage_nodes = expand_scatter_stage(
+                stage=stage,
+                benchmark=benchmark,
+                resolved_modules_cache=resolved_modules_cache,
+                resolved_nodes=resolved_nodes,
+                nodes_by_id=nodes_by_id,
+                output_to_nodes=output_to_nodes,
+                previous_stage_nodes=previous_stage_nodes,
+                stages_to_expand=stages_to_expand,
+                path_exclusions=path_exclusions,
+                nesting_strategy=nesting_strategy,
+                module_filter=module_filter,
+                target_stage=target_stage if module_filter else None,
+                dag_errors=dag_errors,
+                prune_counts=prune_counts,
+                quiet=quiet,
+                available_capabilities=available_capabilities,
+            )
 
         previous_stage_nodes = current_stage_nodes
 
@@ -1650,7 +1241,7 @@ def _generate_explicit_snakefile(
         # `stages_to_expand` alone would keep a collector on an organically
         # emptied stage and hand the resolver zero matches (a confusing error).
         stages_with_nodes = {n.stage_id for n in resolved_nodes}
-        collectors_to_resolve, dropped = _filter_collectors_by_stages(
+        collectors_to_resolve, dropped = filter_collectors_by_stages(
             collectors_to_resolve, stages_with_nodes, benchmark.model
         )
         for cid in dropped:

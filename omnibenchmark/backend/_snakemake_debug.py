@@ -11,6 +11,7 @@ from typing import TextIO
 
 from omnibenchmark.backend.snakemake import (
     SnakemakeGenerator,
+    _input_key_index,
     _make_human_name,
 )
 from omnibenchmark.model.resolved import ResolvedNode
@@ -77,7 +78,10 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
         """Write a debug shell: block for gather/collector nodes."""
         inputs_by_name: defaultdict = defaultdict(list)
         if node.inputs and node.input_name_mapping:
-            for key in sorted(node.inputs.keys()):
+            # Numeric, not lexicographic: keys are input_0..input_N and the
+            # sidecar lineage lists members in plan order, so input_10 must not
+            # sort between input_1 and input_2.
+            for key in sorted(node.inputs.keys(), key=_input_key_index):
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 

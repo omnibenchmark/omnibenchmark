@@ -42,14 +42,11 @@ def expand_stage_nodes(
                 latest_stage = None
                 if inputs:
                     stages_by_output = list(
-                        set(
-                            [
-                                stage.id
-                                for input_id in inputs
-                                for stage in [model.get_stage_by_output(input_id)]
-                                if stage is not None
-                            ]
-                        )
+                        {
+                            stage.id
+                            for input_id in inputs
+                            for stage in model.get_stages_by_output(input_id)
+                        }
                     )
                     latest_stage = sorted(stages_by_output, key=stage_ordering.index)[
                         -1
@@ -105,10 +102,26 @@ def build_stage_dag(model: Benchmark) -> DiGraph:
         input_ids = [
             input_id for input in (stage.inputs or []) for input_id in input.entries
         ]
-        dep_stages = [model.get_output_stage(input_id) for input_id in input_ids]
+        dep_stages = [
+            dep
+            for input_id in input_ids
+            for dep in model.get_stages_by_output(input_id)
+        ]
+        # A stage may legally re-declare an output id it consumes (shared
+        # output ids, design 010 §3.1) — never add a self-edge, it would make
+        # the topological sort reject a valid plan.
         for dep in dep_stages:
-            if dep is not None:
+            if dep.id != stage.id:
                 g.add_edge(dep.id, stage.id)
+
+        # A gather stage (design 010) consumes its `from` output ids without
+        # declaring them as `inputs`, so add its producer edges here too —
+        # otherwise topological expansion order could expand the gather before
+        # its members exist.
+        for spec in getattr(stage, "gather", None) or []:
+            for dep in model.get_stages_by_output(spec.from_):
+                if dep.id != stage.id:
+                    g.add_edge(dep.id, stage.id)
 
     return g
 
@@ -143,14 +156,14 @@ def stage_adjacency(model: Benchmark) -> List[Tuple[str, str, List[str]]]:
         order: List[str] = []
         for entries in model.get_stage_implicit_inputs(stage):
             for output_id in entries:
-                producing_stage = model.get_output_stage(output_id)
-                if producing_stage is None or producing_stage.id == stage.id:
-                    continue
-                if producing_stage.id not in shared_by_stage:
-                    shared_by_stage[producing_stage.id] = []
-                    order.append(producing_stage.id)
-                if output_id not in shared_by_stage[producing_stage.id]:
-                    shared_by_stage[producing_stage.id].append(output_id)
+                for producing_stage in model.get_stages_by_output(output_id):
+                    if producing_stage.id == stage.id:
+                        continue
+                    if producing_stage.id not in shared_by_stage:
+                        shared_by_stage[producing_stage.id] = []
+                        order.append(producing_stage.id)
+                    if output_id not in shared_by_stage[producing_stage.id]:
+                        shared_by_stage[producing_stage.id].append(output_id)
         for up_stage_id in order:
             adjacency.append(
                 (up_stage_id, stage.id, sorted(shared_by_stage[up_stage_id]))

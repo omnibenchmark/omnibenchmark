@@ -1,0 +1,84 @@
+id: SharedOutputContractBenchmark
+description: >-
+  Two stages on parallel branches declare the same output id, so the consumer
+  must expand once per producer (design 010 §3.1 rule 1b). api_version is
+  deliberately low: this is not gated on an api bump.
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.5.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+    outputs:
+      - id: data.raw
+        path: "{dataset}_data.json"
+
+  # ---- Two alternative implementations of the `embedding` contract. ----
+  # Both consume data.raw, neither is an ancestor of the other.
+
+  - id: pca
+    modules:
+      - id: P1
+        name: "PCA embedding"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              ["--evaluate", "input+1", "--input", "data.raw", "--kind", "embedding"]
+    inputs:
+      - data.raw
+    outputs:
+      - id: embedding
+        path: "{dataset}_embedding.json"
+
+  - id: cntfct
+    modules:
+      - id: C1
+        name: "Count-factor embedding — same contract, different inputs"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              ["--evaluate", "input+2", "--input", "data.raw", "--kind", "embedding"]
+    inputs:
+      - data.raw
+    outputs:
+      - id: embedding
+        path: "{dataset}_embedding.json"
+
+  # ---- One consumer definition, applied to every producer. ----
+
+  - id: metrics
+    modules:
+      - id: M1
+        name: "Embedding metrics"
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values:
+              ["--evaluate", "input+10", "--input", "embedding", "--kind", "metric"]
+    inputs:
+      - embedding
+    outputs:
+      - id: metrics.result
+        path: "{dataset}_metric.json"

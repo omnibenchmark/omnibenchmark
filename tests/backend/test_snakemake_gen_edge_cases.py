@@ -444,7 +444,14 @@ class TestSaveMetadataEdgeCases:
         assert "#" in content
 
     def test_duplicate_modules_across_nodes(self, tmp_path, minimal_module):
-        """Test deduplication of modules used in multiple nodes."""
+        """One module expanded over many parameter sets is listed once.
+
+        The record is keyed on (stage, module): the same module appearing in
+        five nodes because its parameters fan out is still one module. Distinct
+        module ids are NOT deduplicated even when they share a repository and
+        commit -- one repo commonly hosts several modules that differ only by
+        entrypoint, and collapsing them under-reported what ran.
+        """
         # Create a dummy benchmark.yaml file
         benchmark_yaml = tmp_path / "benchmark.yaml"
         benchmark_yaml.write_text("name: test\nversion: 1.0\n")
@@ -453,9 +460,9 @@ class TestSaveMetadataEdgeCases:
             ResolvedNode(
                 id=f"node-{i}",
                 stage_id="test",
-                module_id=f"mod{i}",
-                param_id="default",
-                module=minimal_module,  # Same module
+                module_id="mod1",  # one module...
+                param_id=f"p{i}",  # ...expanded over five parameter sets
+                module=minimal_module,
                 outputs=[f"output{i}.json"],
             )
             for i in range(5)
