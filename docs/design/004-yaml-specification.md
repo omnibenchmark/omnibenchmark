@@ -216,6 +216,26 @@ Modules MUST NOT declare these in their YAML configuration.
 #### Parameter Values
 
 - **String**: Passed directly (`evaluate: "1+1"` → `--evaluate 1+1`)
+- **Lineage reference**: `{LABEL.params.KEY}` resolves, per lineage, to the
+  value of `KEY` in the parameters of the node providing lineage label `LABEL`
+  (`k: "{source.params.ideal_components}"`, with `provides: [source]` on an
+  upstream stage). `LABEL` is the same label namespace `requires:` matches
+  against. Labels are inherited downstream, so the reference resolves at any
+  depth; below a fan-in join, a label from any branch resolves. A
+  whole-value reference keeps the upstream value's type, so the resolved node is
+  indistinguishable from one written with the literal inline — including its
+  parameter hash, hence its output directory. An embedded reference
+  (`tag: "run-{source.params.n}"`) interpolates as text; text that matches no
+  reference is left alone, so literal braces in a value are safe.
+
+  Resolution happens at plan time, before the parameter hash is taken. An
+  unresolvable reference — unknown label, or an upstream module declaring no
+  such parameter — is a `DAG construction failed` error. It is *not* a
+  conditional-execution mechanism; use `requires:` or `exclude:` to drop a
+  combination.
+
+  Not available inside a gather stage: a gather cuts the lineage chain and binds
+  only its group key (design 010 §3.3), so a reference there raises.
 
 #### Wildcard-Based Resolution
 
