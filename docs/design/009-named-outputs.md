@@ -141,7 +141,9 @@ unchanged.
 
 ### 3.5 `{dataset}` deprecation
 
-`{dataset}` in an output path warns at load time. The replacement is
+From api 0.5.0, `{dataset}` in an output path warns at load time. Below
+0.5.0 `--name` is the dataset id, so downstream modules write
+`{dataset}`-named files and there is nothing to migrate to. The replacement is
 `{module.id}`, not `{name}`, which reads too close to `{module.name}` (the
 human-readable name).
 

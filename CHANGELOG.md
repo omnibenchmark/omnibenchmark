@@ -8,7 +8,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat(breaking)!: stage, module and output ids may only contain letters, digits and underscores (api 0.8.0); older plans get a deprecation warning for stage and module ids
 - fix: `ob archive`, `ob describe status` and remote storage predicted wrong paths for output templates using `{name}` or `{module.*}`, and crashed on `{module.id}`
 - feat: named outputs — modules receive one `--output` flag per declared stage output (positional path for single-output stages, `id=path` otherwise), decoupling module code from benchmark filenames; `--output` paths are absolute (#329)
-- deprecate: `{dataset}` in output path templates now warns at load time, naming the offending path; prefer `{module.id}` or `{params.KEY}`
+- deprecate: `{dataset}` in output path templates now warns at load time for api ≥ 0.5.0, naming the offending path; prefer `{module.id}` or `{params.KEY}`
+- feat: `ob create benchmark` scaffolds an api 0.8.0 plan using `{module.id}` and identifier output ids
 
 ## [0.7.0](UNRELEASED)
 
