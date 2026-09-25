@@ -22,4 +22,4 @@ stages:
           - evaluate: "1+1"
     outputs:
       - id: data.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"

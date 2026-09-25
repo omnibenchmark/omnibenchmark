@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v7)
+# 004: Omnibenchmark YAML Specification (v9)
 
 [![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 7](https://img.shields.io/badge/Version-7-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 9](https://img.shields.io/badge/Version-9-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
 **Status**: Accepted
-**Version**: 7
+**Version**: 9
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
@@ -23,6 +23,7 @@
 | 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
 | 7       | 2026-08-28 | Drop `prefix`; a gather's outputs root at the stage id (§3.12) | ben |
 | 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
+| 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -136,7 +137,7 @@ Stages represent logical phases in the pipeline.
 
 ```yaml
 stages:
-  - id: <string>                       # Required: unique stage identifier
+  - id: <string>                       # Required: unique stage identifier (§3.13)
     modules: <array>                   # Required: module list (≥1)
     inputs: <array>                    # Optional: input dependencies
     outputs: <array>                   # Optional: output declarations
@@ -179,7 +180,7 @@ modules:
 
 #### Required Fields
 
-- `id`: Unique identifier within stage (used as wildcard value)
+- `id`: Unique identifier within stage (used as wildcard value; charset §3.13)
 - `software_environment`: Reference to defined environment
 - `repository`: Source code specification
 
@@ -545,6 +546,24 @@ Rules:
 The contributing nodes a path can no longer encode are recorded in a
 `lineage.json` sidecar next to the outputs. See
 [010-gather.md](./010-gather.md) for the full model.
+
+### 3.13 Identifier charset (api ≥ 0.8.0)
+
+Stage, module and output ids (including metric collector outputs) match
+`[A-Za-z_][A-Za-z0-9_]*`: letters, digits and underscores, not starting with a
+digit.
+
+- Node ids join stage and module ids with `-` and `.`
+  (`{parent}-{stage}-{module}.{params}`). Keeping both out of the ids makes a
+  node id parse back into its segments, which the un-nested output layout
+  relies on.
+- Output ids are used as-is as Snakemake output names and `--output` ids
+  (009), with no sanitization step.
+
+Below 0.8.0, a stage or module id that breaks the rule loads with a
+deprecation warning. A dotted output id (`data.raw`) loads silently: renaming
+it renames the `--<input id>` flag downstream modules parse, so it belongs to
+the 0.8.0 migration.
 
 ## 4. Complete Example
 

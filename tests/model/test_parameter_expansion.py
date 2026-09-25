@@ -613,3 +613,50 @@ def test_disjoint_warning_metric_collector(capsys):
     assert "inconsistent" in err.lower()
     assert "metric_type" in err
     assert "cutoff" in err
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "api, path, warns",
+    [
+        ("0.5.0", "{dataset}.h5ad", True),
+        ("0.5.0", "{module.id}.h5ad", False),
+        # below 0.5 `--name` is the dataset id: {dataset} is still correct
+        ("0.4.0", "{dataset}.h5ad", False),
+    ],
+)
+def test_deprecated_dataset_template_var_warns(capsys, api, path, warns):
+    from omnibenchmark.model.benchmark import (
+        _warn_if_deprecated_dataset_var,
+        _warned_dataset_paths,
+    )
+
+    _warned_dataset_paths.clear()
+    Benchmark.from_yaml(
+        f"""
+id: b
+version: "1.0"
+benchmarker: t
+api_version: "{api}"
+software_backend: host
+software_environments:
+  host:
+    description: host
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: host
+        repository: {{url: https://example.com/r.git, commit: abc123}}
+    outputs:
+      - id: raw
+        path: "{path}"
+"""
+    )
+    err = capsys.readouterr().err
+    assert ("deprecated '{dataset}'" in err) is warns
+    if warns:
+        assert "{module.id}" in err
+        # the same path warns once, not once per parse
+        _warn_if_deprecated_dataset_var(path)
+        assert capsys.readouterr().err == ""

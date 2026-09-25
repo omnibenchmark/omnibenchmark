@@ -34,4 +34,4 @@ stages:
           - evaluate: "2+2"
     outputs:
       - id: data.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"

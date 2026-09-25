@@ -35,7 +35,7 @@ stages:
         exclude: ["M2"]
     outputs:
       - id: data.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
 
   - id: preprocessing
     modules:
@@ -52,7 +52,7 @@ stages:
       - data.raw
     outputs:
       - id: preprocessing.processed
-        path: "{dataset}_preprocessed.json"
+        path: "{module.id}_preprocessed.json"
 
   - id: methods
     modules:
@@ -93,7 +93,7 @@ stages:
       - preprocessing.processed
     outputs:
       - id: methods.result
-        path: "{dataset}_method.json"
+        path: "{module.id}_method.json"
 
 metric_collectors:
   - id: MC1

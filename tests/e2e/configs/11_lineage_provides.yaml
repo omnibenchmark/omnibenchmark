@@ -38,7 +38,7 @@ stages:
           - evaluate: "9+9"
     outputs:
       - id: data.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
 
   - id: methods
     inputs:
@@ -58,4 +58,4 @@ stages:
             kind: "method"
     outputs:
       - id: methods.result
-        path: "{dataset}_method.json"
+        path: "{module.id}_method.json"

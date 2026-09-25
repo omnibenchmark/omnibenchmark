@@ -98,9 +98,9 @@ def test_group_by_stage_partitions_members():
     assert set(d1.input_name_mapping.values()) == {"clustering"}
     # Group value bound to the template + baked into the path, which roots at
     # the stage id.
-    assert d1.outputs == ["metrics/d1/summ/.default/d1_summary.tsv"]
+    assert d1.get_output_list() == ["metrics/d1/summ/.default/d1_summary.tsv"]
     # Registered downstream so a later stage can consume it.
-    assert ("metrics-summ-d1.default", d1.outputs[0]) in output_to_nodes[
+    assert ("metrics-summ-d1.default", d1.get_output_list()[0]) in output_to_nodes[
         "metrics.summary"
     ]
 
@@ -981,7 +981,7 @@ def test_global_gather_collects_every_producer_into_one_node():
     assert len(nodes) == 1
     node = nodes[0]
     assert node.id == "report-R.default"
-    assert node.outputs == ["report/R/.default/report.html"]
+    assert node.get_output_list() == ["report/R/.default/report.html"]
     # Both datasets contribute — grouping is what a global gather forgoes.
     assert sorted(node.gathered_from) == [
         "d1.default-clu-ma.default",
@@ -1177,7 +1177,7 @@ def test_scatter_chains_each_module_onto_every_upstream_node():
     # half of what `is_initial` used to answer.
     for node in data.values():
         assert node.parent_id is None and node.parents == []
-    assert sorted(n.outputs[0] for n in data.values()) == [
+    assert sorted(n.get_output_list()[0] for n in data.values()) == [
         "data/D1/.default/D1_d.txt",
         "data/D2/.default/D2_d.txt",
     ]
@@ -1185,10 +1185,10 @@ def test_scatter_chains_each_module_onto_every_upstream_node():
     # Each method node extends exactly one data node's directory.
     for node in method.values():
         assert node.parent_id in data
-        assert node.outputs[0].startswith(
-            data[node.parent_id].outputs[0].rsplit("/", 1)[0]
+        assert node.get_output_list()[0].startswith(
+            data[node.parent_id].get_output_list()[0].rsplit("/", 1)[0]
         )
-        assert node.inputs == {"data_out": data[node.parent_id].outputs[0]}
+        assert node.inputs == {"data_out": data[node.parent_id].get_output_list()[0]}
         assert node.input_name_mapping == {"data_out": "data.out"}
 
 
@@ -1206,7 +1206,7 @@ def test_scatter_expands_one_node_per_parameter_set():
     assert len(method) == 4
     assert all(n.param_id != ".default" for n in method)
     # Distinct paths, so Snakemake sees four rules rather than two collisions.
-    assert len({n.outputs[0] for n in method}) == 4
+    assert len({n.get_output_list()[0] for n in method}) == 4
 
 
 @pytest.mark.short
@@ -1247,7 +1247,7 @@ def test_flat_nesting_drops_the_parent_prefix():
     nodes, _, errors = _plan(_chain_yaml(), nesting_strategy="flat")
     assert errors == []
     method = [n for n in nodes if n.stage_id == "method"]
-    assert {n.outputs[0] for n in method} == {"method/M1/.default/M1_m.txt"}
+    assert {n.get_output_list()[0] for n in method} == {"method/M1/.default/M1_m.txt"}
 
 
 @pytest.mark.short

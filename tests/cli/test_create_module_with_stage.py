@@ -31,9 +31,9 @@ stages:
           commit: abc123
     outputs:
       - id: data.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
       - id: data.meta
-        path: "{dataset}_meta.json"
+        path: "{module.id}_meta.json"
 
   - id: methods
     modules:
@@ -48,7 +48,7 @@ stages:
       - data.meta
     outputs:
       - id: methods.result
-        path: "{dataset}_result.json"
+        path: "{module.id}_result.json"
 
   - id: metrics
     modules:
@@ -63,7 +63,7 @@ stages:
       - data.raw
     outputs:
       - id: metrics.score
-        path: "{dataset}_score.json"
+        path: "{module.id}_score.json"
 """
     benchmark_file = tmp_path / "benchmark.yaml"
     benchmark_file.write_text(benchmark_content)
