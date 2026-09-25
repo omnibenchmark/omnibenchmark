@@ -235,9 +235,9 @@ class ResolvedNode:
         default_factory=dict
     )  # id -> resolved path template
 
-    # Name mappings (sanitized key -> original id), same scheme for inputs and outputs
+    # Input name mapping (sanitized -> original)
+    # Maps Snakemake-safe input names (data_matrix) to original names (data.matrix)
     input_name_mapping: Dict[str, str] = field(default_factory=dict)
-    output_name_mapping: Dict[str, str] = field(default_factory=dict)
 
     # Execution Config
     timeout: Optional[int] = None
@@ -275,10 +275,6 @@ class ResolvedNode:
         if isinstance(self.outputs, list):
             d = {f"output_{i}": p for i, p in enumerate(self.outputs)}
             object.__setattr__(self, "outputs", d)
-        # Auto-build output_name_mapping if empty and outputs is populated.
-        if not self.output_name_mapping and self.outputs:
-            onm = {k.replace(".", "_"): k for k in self.outputs}
-            object.__setattr__(self, "output_name_mapping", onm)
 
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
@@ -355,7 +351,6 @@ class ResolvedNode:
             "inputs": self.inputs,
             "outputs": self.outputs,
             "input_name_mapping": self.input_name_mapping,
-            "output_name_mapping": self.output_name_mapping,
             "timeout": self.timeout,
             "benchmark_name": self.benchmark_name,
             "benchmark_version": self.benchmark_version,

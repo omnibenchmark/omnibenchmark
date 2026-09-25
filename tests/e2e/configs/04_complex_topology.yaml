@@ -32,7 +32,7 @@ stages:
           - values: ["--evaluate", "200"]
     outputs:
       - id: data_primary.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
 
   - id: data_secondary
     modules:
@@ -55,7 +55,7 @@ stages:
           - values: ["--evaluate", "400"]
     outputs:
       - id: data_secondary.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
 
   - id: preprocessing_primary
     modules:

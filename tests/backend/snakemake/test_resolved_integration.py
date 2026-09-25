@@ -79,7 +79,7 @@ class TestResolvedNodeFromBenchmark:
             module_id=module.id,
             param_id="default",
             module=resolved_module,
-            outputs=["{input}/data/D1/default/{dataset}_data.json"],
+            outputs=["{input}/data/D1/default/{module.id}_data.json"],
             benchmark_name=benchmark.get_name(),
             benchmark_version=benchmark.get_version(),
             benchmark_author=benchmark.get_author(),
@@ -129,7 +129,7 @@ class TestResolvedNodeFromBenchmark:
             module=resolved_module,
             parameters=params,
             param_dir_template=f"{{input}}/data/D1/.{param_hash}",
-            outputs=[f"{{input}}/data/D1/.{param_hash}/{{dataset}}_data.json"],
+            outputs=[f"{{input}}/data/D1/.{param_hash}/{{module.id}}_data.json"],
             benchmark_name=benchmark.get_name(),
             benchmark_version=benchmark.get_version(),
             benchmark_author=benchmark.get_author(),
@@ -173,9 +173,9 @@ class TestResolvedNodeFromBenchmark:
             module=resolved_module,
             parent_id="data-D1-default",
             inputs={
-                "data.raw": "{input}/data/D1/default/{dataset}_data.json",
+                "data.raw": "{input}/data/D1/default/{module.id}_data.json",
             },
-            outputs=["{input}/methods/M1/default/{dataset}_data.json"],
+            outputs=["{input}/methods/M1/default/{module.id}_data.json"],
             benchmark_name=benchmark.get_name(),
             benchmark_version=benchmark.get_version(),
             benchmark_author=benchmark.get_author(),
@@ -185,7 +185,9 @@ class TestResolvedNodeFromBenchmark:
         assert not node.is_entrypoint()  # Has inputs
         assert node.parent_id == "data-D1-default"
         assert "data.raw" in node.inputs
-        assert node.get_input_list() == ["{input}/data/D1/default/{dataset}_data.json"]
+        assert node.get_input_list() == [
+            "{input}/data/D1/default/{module.id}_data.json"
+        ]
 
 
 class TestResolvedMetricCollectorFromBenchmark:
@@ -255,7 +257,7 @@ class TestResolvedNodeSerialization:
             module_id=module.id,
             param_id="default",
             module=resolved_module,
-            outputs=["{input}/data/D1/default/{dataset}_data.json"],
+            outputs=["{input}/data/D1/default/{module.id}_data.json"],
             benchmark_name=benchmark.get_name(),
             benchmark_version=benchmark.get_version(),
             benchmark_author=benchmark.get_author(),

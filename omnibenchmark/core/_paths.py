@@ -131,7 +131,41 @@ def normalize_dataset_path(path: str, prefix: Path) -> str:
         # this is better than an IndexError
         return ""
     dataset = matched[1]
-    return path.format(dataset=dataset)
+    return path.replace("{dataset}", dataset)
+
+
+_TEMPLATE_VAR_RE = re.compile(r"\{([^}]+)\}")
+
+
+def substitute_node_vars(template: str, node, prefix: Path) -> str:
+    """Fill the variables the run path fills (``core/_expand.py``) for *node*.
+
+    ``{dataset}`` and anything unknown are left in place; ``{dataset}`` is
+    resolved later by :func:`normalize_dataset_path`.
+    """
+    values = {
+        "input": str(prefix),
+        "stage": node.stage_id,
+        "module": node.module_id,
+        "params": node.param_id,
+        "name": node.module_id,
+        "module.id": node.module_id,
+        "module.stage": node.stage_id,
+        "module.name": getattr(node.module, "name", None) or node.module_id,
+    }
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key in values:
+            return values[key]
+        if key.startswith("params.") and node.parameters is not None:
+            try:
+                return str(node.parameters[key[len("params.") :]])
+            except (KeyError, TypeError):
+                pass
+        return match.group(0)
+
+    return _TEMPLATE_VAR_RE.sub(_replace, template)
 
 
 def construct_output_paths(
@@ -168,16 +202,7 @@ def construct_output_paths(
         current_path += f"/{head.param_id}"
 
     new_prefix = f"{prefix}/{current_path}"
-    paths = [
-        x.format(
-            input=str(prefix),
-            stage=head.stage_id,
-            module=head.module_id,
-            params=head.param_id,
-            dataset="{dataset}",
-        )
-        for x in stage_outputs
-    ]
+    paths = [substitute_node_vars(x, head, prefix) for x in stage_outputs]
 
     return paths + construct_output_paths(
         Path(new_prefix), tail, model, stage_outputs_cache

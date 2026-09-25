@@ -39,7 +39,7 @@ stages:
     modules:
       - {id: D, software_environment: e, repository: {url: https://github.com/o/data.git, commit: 63b7b36}}
     outputs:
-      - {id: data.out, path: "{dataset}.txt"}
+      - {id: data.out, path: "{module.id}.txt"}
   - id: proc
     modules:
       - {id: P, software_environment: e, repository: {url: https://github.com/o/p.git, commit: 63b7b36}}

@@ -617,7 +617,7 @@ def test_disjoint_warning_metric_collector(capsys):
 
 @pytest.mark.short
 def test_deprecated_dataset_template_var_warns(capsys):
-    """An output path templating on {dataset} should warn; {name} should not."""
+    """An output path templating on {dataset} should warn; {module.id} should not."""
     from omnibenchmark.model.benchmark import (
         IOFile,
         _warn_if_deprecated_dataset_var,
@@ -626,13 +626,13 @@ def test_deprecated_dataset_template_var_warns(capsys):
 
     _warned_dataset_paths.clear()
 
-    IOFile(id="data.raw", path="{name}.h5ad")
+    IOFile(id="data.raw", path="{module.id}.h5ad")
     assert "deprecated" not in capsys.readouterr().err
 
     IOFile(id="data.raw", path="{dataset}.h5ad")
     err = capsys.readouterr().err
     assert "deprecated '{dataset}'" in err
-    assert "{name}" in err
+    assert "{module.id}" in err
 
     # the same path warns once, not once per parse
     _warn_if_deprecated_dataset_var("{dataset}.h5ad")
