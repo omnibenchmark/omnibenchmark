@@ -22,7 +22,7 @@ stages:
           - values: ["--output", "D1.txt"]
     outputs:
       - id: data.counts
-        path: "{dataset}.txt"
+        path: "{module.id}.txt"
 
   - id: process
     modules:

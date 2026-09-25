@@ -2,6 +2,7 @@ import os.path
 from pathlib import Path
 from typing import Optional
 
+from omnibenchmark.core._paths import substitute_node_vars
 from omnibenchmark.model import SoftwareBackendEnum
 
 
@@ -92,14 +93,9 @@ class BenchmarkNode:
         dataset = config["dataset"]
         output_paths = []
         for path in self.get_outputs().values():
+            path = substitute_node_vars(path, self, pre)
             output_paths.append(
-                path.format(
-                    pre=pre,
-                    dataset=dataset,
-                    stage=self.stage_id,
-                    module=self.module_id,
-                    params=self.param_id,
-                )
+                path.replace("{pre}", str(pre)).replace("{dataset}", dataset)
             )
         return output_paths
 

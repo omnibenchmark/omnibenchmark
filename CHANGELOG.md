@@ -3,6 +3,13 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [0.8.0](UNRELEASED)
+
+- feat(breaking)!: stage, module and output ids may only contain letters, digits and underscores (api 0.8.0); older plans get a deprecation warning for stage and module ids
+- fix: `ob archive`, `ob describe status` and remote storage predicted wrong paths for output templates using `{name}` or `{module.*}`, and crashed on `{module.id}`
+- feat: named outputs — modules receive one `--output` flag per declared stage output (positional path for single-output stages, `id=path` otherwise), decoupling module code from benchmark filenames; `--output` paths are absolute (#329)
+- deprecate: `{dataset}` in output path templates now warns at load time, naming the offending path; prefer `{module.id}` or `{params.KEY}`
+
 ## [0.7.0](UNRELEASED)
 
 - feat: capability filters by --with-capability (#360)
@@ -20,9 +27,6 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: `modules.txt` listed one module per repository+commit, dropping every module that shares a repo with another
 - feat: a join inherits lineage labels from every branch, not only the one that named it (design 010 §5.2)
 - feat: a `provides` label is owned by one stage; a second stage declaring it is a parse-time error (design 008 §3.5)
-- feat: named outputs — modules receive one `--output` flag per declared stage output (positional path for single-output stages, `id=path` otherwise), decoupling module code from benchmark filenames (#329)
-- feat(breaking)!: `--output` paths are absolute; previously the workflow-relative path was passed after the shell had already `cd`'d into the module checkout, so modules wrote outside the output tree
-- deprecate: `{dataset}` in output path templates now warns at load time, naming the offending path; prefer `{name}` or `{params.KEY}`
 
 ## [0.6.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.6.0) (Jul 21st 2026)
 

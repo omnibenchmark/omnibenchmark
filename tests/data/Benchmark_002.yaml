@@ -32,15 +32,15 @@ stages:
           commit: 63b7b36
     outputs:
       - id: data.counts
-        path: "{dataset}.txt.gz"
+        path: "{module.id}.txt.gz"
       - id: data.meta
-        path: "{dataset}.meta.json"
+        path: "{module.id}.meta.json"
       - id: data.label
-        path: "{dataset}.label.json"
+        path: "{module.id}.label.json"
       - id: data.coord
-        path: "{dataset}.coord.json"
+        path: "{module.id}.coord.json"
       - id: data.ncluster
-        path: "{dataset}_ncluster.txt"
+        path: "{module.id}_ncluster.txt"
 
   - id: normalization
     modules:

@@ -29,7 +29,7 @@ stages:
           commit: 63b7b36
     outputs:
       - id: raw
-        path: "{dataset}.txt.gz"
+        path: "{module.id}.txt.gz"
   - id: FEAT
     inputs:
       - raw

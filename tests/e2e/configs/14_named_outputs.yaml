@@ -1,8 +1,8 @@
-id: NamedOutputsV06
-description: E2E test for API v0.6 named-output contract
+id: NamedOutputs
+description: E2E test for API v0.8 named-output contract
 version: "1.0"
 benchmarker: "E2E Test Suite"
-api_version: "0.6.0"
+api_version: "0.8.0"
 software_backend: host
 
 software_environments:
@@ -21,5 +21,5 @@ stages:
         parameters:
           - evaluate: "1+1"
     outputs:
-      - id: data.raw
-        path: "{dataset}_data.json"
+      - id: data_raw
+        path: "{module.id}_data.json"

@@ -4,8 +4,8 @@ from pathlib import Path
 from tests.e2e.common import E2ETestRunner, run_standard_pipeline_test
 
 
-CONFIG_FILENAME = "12_named_outputs_v06.yaml"
-TEST_NAME = "12_named_outputs_v06"
+CONFIG_FILENAME = "14_named_outputs.yaml"
+TEST_NAME = "14_named_outputs"
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def named_outputs_config():
 def test_named_outputs_pipeline(
     named_outputs_config, tmp_path, bundled_repos, keep_files
 ):
-    """v0.6 named-outputs: module receives --output path and file is produced."""
+    """v0.8 named-outputs: module receives --output path and file is produced."""
     run_standard_pipeline_test(
         config_path=named_outputs_config,
         config_filename=CONFIG_FILENAME,
@@ -32,7 +32,7 @@ def test_named_outputs_pipeline(
 def test_named_outputs_snakefile_syntax(
     named_outputs_config, tmp_path, bundled_repos, keep_files
 ):
-    """v0.6 Snakefile uses named-output syntax (data_raw=) not positional."""
+    """v0.8 Snakefile uses named-output syntax (data_raw=) not positional."""
     runner = E2ETestRunner(tmp_path, keep_files)
     config_file = runner.setup_test_environment(named_outputs_config, CONFIG_FILENAME)
     runner.execute_cli_command(config_file, ["--continue-on-error"])
@@ -45,7 +45,7 @@ def test_named_outputs_snakefile_syntax(
         "Expected named-output syntax 'data_raw=' in Snakefile output block; "
         f"actual output block:\n{content}"
     )
-    # v0.6 shell contract: single output → --output path (no id= prefix)
+    # v0.8 shell contract: single output → --output path (no id= prefix)
     assert (
         "--output $OUTPUT_data_raw" in content
     ), "Expected '--output $OUTPUT_data_raw' in Snakefile shell block"

@@ -16,7 +16,7 @@ class TestCreatePolicyCommand:
         assert result.exit_code == 0
 
         # Parse the output as JSON
-        policy = json.loads(result.output)
+        policy = json.loads(result.stdout)
 
         # Verify policy structure
         assert policy["Version"] == "2012-10-17"
@@ -59,7 +59,7 @@ stages:
           commit: abc123
     outputs:
       - id: data.out
-        path: "{dataset}.txt"
+        path: "{module.id}.txt"
 """
         yaml_file = tmp_path / "test.yaml"
         yaml_file.write_text(yaml_content)
@@ -70,7 +70,7 @@ stages:
         assert result.exit_code == 0
 
         # Parse the output as JSON
-        policy = json.loads(result.output)
+        policy = json.loads(result.stdout)
 
         # Verify bucket name from YAML is used
         assert "arn:aws:s3:::my-yaml-bucket/*" in policy["Statement"][0]["Resource"]
@@ -99,7 +99,7 @@ stages:
           commit: abc123
     outputs:
       - id: data.out
-        path: "{dataset}.txt"
+        path: "{module.id}.txt"
 """
         yaml_file = tmp_path / "test.yaml"
         yaml_file.write_text(yaml_content)
