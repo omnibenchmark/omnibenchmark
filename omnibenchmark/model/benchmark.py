@@ -425,9 +425,7 @@ class IOFile(IdentifiableEntity):
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: str) -> str:
-        v = validate_non_empty_string(v)
-        _warn_if_deprecated_dataset_var(v)
-        return v
+        return validate_non_empty_string(v)
 
 
 class InputCollection(BaseModel):
@@ -1548,6 +1546,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 FutureWarning,
                 stacklevel=2,
             )
+
+        # Below 0.5 `--name` is the dataset id, so downstream modules write
+        # `{dataset}`-named files and the template is still the right one.
+        if self.api_version >= APIVersion.V0_5_0:
+            for stage in self.stages:
+                for output in stage.outputs or []:
+                    _warn_if_deprecated_dataset_var(output.path)
 
         # The runtime auto-populates `name` (current module id) and `dataset`
         # (root dataset identity) on every node; letting a stage advertise
