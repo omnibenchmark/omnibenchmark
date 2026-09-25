@@ -25,7 +25,7 @@ stages:
           - values: ["--evaluate", "1+1"]
     outputs:
       - id: data.raw
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
 
   # ---- Two alternative implementations of the `embedding` contract. ----
   # Both consume data.raw, neither is an ancestor of the other.
@@ -45,7 +45,7 @@ stages:
       - data.raw
     outputs:
       - id: embedding
-        path: "{dataset}_embedding.json"
+        path: "{module.id}_embedding.json"
 
   - id: cntfct
     modules:
@@ -62,7 +62,7 @@ stages:
       - data.raw
     outputs:
       - id: embedding
-        path: "{dataset}_embedding.json"
+        path: "{module.id}_embedding.json"
 
   # ---- One consumer definition, applied to every producer. ----
 
@@ -81,4 +81,4 @@ stages:
       - embedding
     outputs:
       - id: metrics.result
-        path: "{dataset}_metric.json"
+        path: "{module.id}_metric.json"

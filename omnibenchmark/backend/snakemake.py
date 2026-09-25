@@ -176,11 +176,10 @@ class SnakemakeGenerator:
 
         if node.outputs:
             f.write("    output:\n")
-            if self.api_version >= APIVersion.V0_6_0:
-                for sanitized, path in zip(
-                    node.output_name_mapping.keys(), node.outputs.values()
-                ):
-                    f.write(f'        {sanitized}="{path}",\n')
+            if self.api_version >= APIVersion.V0_8_0:
+                # Output ids are identifiers from 0.8.0 (004 §3.13).
+                for output_id, path in node.outputs.items():
+                    f.write(f'        {output_id}="{path}",\n')
             else:
                 for path in node.outputs.values():
                     f.write(f'        "{path}",\n')
@@ -189,8 +188,8 @@ class SnakemakeGenerator:
         f.write(f'        module_dir="{node.module.module_dir}",\n')
         f.write(f'        entrypoint="{node.module.entrypoint}",\n')
         if node.outputs:
-            if self.api_version >= APIVersion.V0_6_0:
-                first_key = next(iter(node.output_name_mapping.keys()))
+            if self.api_version >= APIVersion.V0_8_0:
+                first_key = next(iter(node.outputs))
                 f.write(
                     f'        output_dir=lambda wildcards, output: os.path.dirname(output.{first_key}) or ".",\n'
                 )
@@ -417,13 +416,13 @@ class SnakemakeGenerator:
         # Same for each declared output: the shell cds into the module directory
         # below, so a workflow-relative --output would land inside the module
         # checkout. Spec §3.2 promises absolute paths.
-        if self.api_version >= APIVersion.V0_6_0:
-            for sanitized in node.output_name_mapping:
-                var = _bash_var(sanitized)
+        if self.api_version >= APIVersion.V0_8_0:
+            for output_id in node.outputs:
+                var = _bash_var(output_id)
                 lines += [
-                    f"mkdir -p $(dirname {{output.{sanitized}}})",
-                    f"OUTPUT{var}=$(cd $(dirname {{output.{sanitized}}}) && pwd)"
-                    f"/$(basename {{output.{sanitized}}})",
+                    f"mkdir -p $(dirname {{output.{output_id}}})",
+                    f"OUTPUT{var}=$(cd $(dirname {{output.{output_id}}}) && pwd)"
+                    f"/$(basename {{output.{output_id}}})",
                 ]
 
         # Redirect stdout/stderr through tee so both the terminal and the log
@@ -491,17 +490,13 @@ class SnakemakeGenerator:
 
         cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
 
-        if self.api_version >= APIVersion.V0_6_0 and node.outputs:
-            orig_to_san = {orig: san for san, orig in node.output_name_mapping.items()}
-            output_items = list(node.outputs.items())
-            if len(output_items) == 1:
-                original_id, _ = output_items[0]
-                sanitized = orig_to_san.get(original_id, original_id)
-                cmd.append(f"--output $OUTPUT{_bash_var(sanitized)}")
+        if self.api_version >= APIVersion.V0_8_0 and node.outputs:
+            if len(node.outputs) == 1:
+                output_id = next(iter(node.outputs))
+                cmd.append(f"--output $OUTPUT{_bash_var(output_id)}")
             else:
-                for original_id, _ in output_items:
-                    sanitized = orig_to_san.get(original_id, original_id)
-                    cmd.append(f"--output {original_id}=$OUTPUT{_bash_var(sanitized)}")
+                for output_id in node.outputs:
+                    cmd.append(f"--output {output_id}=$OUTPUT{_bash_var(output_id)}")
 
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
