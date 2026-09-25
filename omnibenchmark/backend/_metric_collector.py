@@ -136,8 +136,6 @@ def resolve_metric_collectors(
                 if hasattr(collector, "resources") and collector.resources:
                     node_resources = collector.resources
 
-                output_name_mapping = {oid.replace(".", "_"): oid for oid in outputs}
-
                 node = ResolvedNode(
                     id=node_id,
                     stage_id=f"_collector_{collector.id}",  # Synthetic stage ID
@@ -148,7 +146,6 @@ def resolve_metric_collectors(
                     inputs=inputs_dict,
                     outputs=outputs,
                     input_name_mapping=input_name_mapping,
-                    output_name_mapping=output_name_mapping,
                     benchmark_name=benchmark.get_name(),
                     benchmark_version=benchmark.get_version(),
                     benchmark_author=benchmark.get_author(),

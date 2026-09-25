@@ -29,7 +29,7 @@ metric_collectors:
       commit: 31e592d
     inputs:
       - id: metrics.mapping
-        path: "{dataset}.mapping.json"
+        path: "{module.id}.mapping.json"
     outputs:
       - id: biometrics_report.html
         path: "biometrics_report.html"
@@ -52,9 +52,9 @@ stages:
           commit: "3e48199"
     outputs:
       - id: data.features
-        path: "{dataset}.features.csv"
+        path: "{module.id}.features.csv"
       - id: data.labels
-        path: "{dataset}.labels.csv"
+        path: "{module.id}.labels.csv"
 
   - id: distances
     modules:

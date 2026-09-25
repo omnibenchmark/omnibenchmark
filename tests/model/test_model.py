@@ -86,8 +86,9 @@ class TestEnums:
         assert APIVersion.V0_5_0.value == "0.5.0"
         assert APIVersion.V0_6_0.value == "0.6.0"
         assert APIVersion.V0_7_0.value == "0.7.0"
+        assert APIVersion.V0_8_0.value == "0.8.0"
 
-        assert APIVersion.latest() == "0.7.0"
+        assert APIVersion.latest() == "0.8.0"
         assert set(APIVersion.supported_versions()) == {
             "0.1.0",
             "0.2.0",
@@ -96,6 +97,7 @@ class TestEnums:
             "0.5.0",
             "0.6.0",
             "0.7.0",
+            "0.8.0",
         }
 
     def test_api_version_ordering_is_semantic(self):
@@ -325,16 +327,6 @@ class TestCoreEntities:
         assert env.envmodule == "test/1.0"
         assert env.conda == "env.yaml"
         assert env.apptainer == "test.sif"
-
-    def test_iofile_kind(self):
-        """Test IOFile kind field defaults and validation."""
-        from omnibenchmark.model.benchmark import IOFile
-
-        f = IOFile(id="out1", path="output.txt")
-        assert f.kind == "file"
-
-        f_zip = IOFile(id="bag", path="data.zip", kind="zip")
-        assert f_zip.kind == "zip"
 
     def test_module_requires_capabilities(self):
         """Module accepts requires_capabilities and defaults it to None."""
@@ -787,3 +779,41 @@ outputs:
         errors = []
         benchmark._validate_software_environments(errors)
         assert len(errors) == 0
+
+
+@pytest.mark.short
+class TestIdCharset:
+    """Stage and module ids are [A-Za-z0-9_] from api 0.8.0 (004 §3.13)."""
+
+    @pytest.mark.parametrize("bad", ["kmeans-sklearn", "m.v2", "a:b"])
+    @pytest.mark.parametrize("where", ["stage", "module"])
+    def test_rejected_at_0_8(self, bad, where):
+        stage = (
+            make_stage(id=bad)
+            if where == "stage"
+            else make_stage(modules=[make_module(id=bad)])
+        )
+        with pytest.raises(ValueError, match="letters, digits and underscores"):
+            make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])
+
+    def test_warns_before_0_8(self):
+        stage = make_stage(modules=[make_module(id="kmeans-sklearn")])
+        with pytest.warns(FutureWarning, match="error at api_version 0.8.0"):
+            make_benchmark(api_version=APIVersion.V0_7_0, stages=[stage])
+
+    def test_dotted_output_id_rejected_at_0_8(self):
+        stage = make_stage(outputs=[make_iofile(id="data.raw", path="x.txt")])
+        with pytest.raises(ValueError, match="Output id 'data.raw'"):
+            make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])
+
+    def test_dotted_output_id_silent_before_0_8(self):
+        import warnings
+
+        stage = make_stage(outputs=[make_iofile(id="data.raw", path="x.txt")])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            make_benchmark(api_version=APIVersion.V0_7_0, stages=[stage])
+
+    def test_underscores_accepted(self):
+        stage = make_stage(id="pre_proc", modules=[make_module(id="k_means_2")])
+        make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])

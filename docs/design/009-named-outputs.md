@@ -1,12 +1,12 @@
 # 009: Named Outputs and Module/Benchmark Decoupling
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2026-05-05
 **Status**: Draft
-**Version**: 0.1
+**Version**: 1
 **Supersedes**: N/A
 **Reviewed-by**: TBD
 **Related Issues**: [#325](https://github.com/omnibenchmark/omnibenchmark/issues/325)
@@ -15,7 +15,7 @@
 
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
-| 0.1 | 2026-05-05 | Initial draft | ben |
+| 1 | 2026-05-05 | Initial draft | ben |
 
 ## 1. Problem Statement
 
@@ -33,7 +33,7 @@ code.
 
 - **Decouple module from spec filenames**: modules declare *what* they emit by
   id; the benchmark decides *where on disk* each named output lands.
-- **Backward-compatible**: existing v0.4/v0.5 modules keep working unchanged.
+- **Backward-compatible**: existing v0.4–v0.7 modules keep working unchanged.
 - **Handle bags of files**: support outputs that are collections of files
   (fastq libraries, single-cell folder formats) without unknown-cardinality
   Snakemake complexity.
@@ -42,7 +42,7 @@ code.
 
 ### Non-Goals
 
-- Removing `--output_dir` / `--name` in this release (deprecated in v0.8).
+- Removing `--output_dir` / `--name` in this release (dropped in v0.10).
 - Per-file fan-out from directory outputs (checkpoint semantics, deferred).
 - Module-side output declaration cross-checks (deferred to module metadata
   reading, stage 3).
@@ -50,18 +50,21 @@ code.
 
 ## 3. Proposed Solution
 
-### 3.1 Output kinds
+### 3.1 Output kinds (TODO, not in stage 1)
+
+TODO: not implemented. Stage 1 ships named outputs only; `kind` lands once
+there is a module producing a bag of files to test it against.
 
 Extend `IOFile` with an optional `kind` field:
 
 ```yaml
 outputs:
-  - id: rawdata.h5ad
-    path: "{dataset}.h5ad"
+  - id: rawdata_h5ad
+    path: "{module.id}.h5ad"
     kind: file          # default
 
-  - id: rawdata.fastq_collection
-    path: "{dataset}.fastq.zip"
+  - id: rawdata_fastq_collection
+    path: "{module.id}.fastq.zip"
     kind: zip           # bag of files, stored uncompressed
 ```
 
@@ -77,12 +80,12 @@ Zip is preferred over `directory()` for bags of files because it is a single
 Snakemake-tracked file, requires no `checkpoint` machinery, and allows
 parallel access for downstream readers when entries are stored uncompressed.
 
-### 3.2 Named output contract (API v0.6)
+### 3.2 Named output contract (API v0.8)
 
-For benchmarks declaring `api_version: 0.6.0`, the runtime passes one
+For benchmarks declaring `api_version: 0.8.0`, the runtime passes one
 `--output` flag per declared stage output, in addition to the existing
 `--output_dir` and `--name` flags (which remain for backward compatibility
-through v0.7, dropping in v0.8).
+through v0.9, dropping in v0.10).
 
 **Multi-output stage:**
 
@@ -90,8 +93,8 @@ through v0.7, dropping in v0.8).
 <entrypoint> \
     --output_dir $OUTPUT_DIR \
     --name <module_id> \
-    --output rawdata.h5ad=/abs/path/dataset1.h5ad \
-    --output rawdata.clusters_truth=/abs/path/dataset1.clusters_truth.tsv \
+    --output rawdata_h5ad=/abs/path/dataset1.h5ad \
+    --output rawdata_clusters_truth=/abs/path/dataset1.clusters_truth.tsv \
     --input_data /abs/path/to/input.h5ad \
     [param flags]
 ```
@@ -110,32 +113,46 @@ Paths passed via `--output` are absolute. Modules that opt into the new
 contract write to the exact path given; modules that ignore the new flags and
 use `--output_dir` + `--name` continue to work as before.
 
-### 3.3 Snakemake rule output block (v0.6+)
+### 3.3 Snakemake rule output block (v0.8+)
 
-For v0.6 benchmarks the generated Snakemake rule uses Snakemake's own
+For v0.8 benchmarks the generated Snakemake rule uses Snakemake's own
 named-output syntax so ids are tracked by the workflow engine:
 
 ```python
 rule one_data__datasets__default:
     output:
-        rawdata_h5ad="{input}/one-data/datasets/.abc123/{dataset}.h5ad",
-        rawdata_clusters_truth="{input}/one-data/datasets/.abc123/{dataset}.clusters_truth.tsv",
+        rawdata_h5ad="{input}/one-data/datasets/.abc123/{module.id}.h5ad",
+        rawdata_clusters_truth="{input}/one-data/datasets/.abc123/{module.id}.clusters_truth.tsv",
 ```
 
-Output id sanitization (`.` → `_`, etc.) follows the same scheme as the
-existing `input_name_mapping`. Collisions after sanitization are a hard
-load-time error.
+Output ids are identifiers from 0.8.0 (004 §3.13), so they are used as-is:
+no sanitization, no collisions to detect.
 
-v0.4 and v0.5 rules keep the existing positional `output: "path",` format
+Rules for earlier api versions keep the existing positional `output: "path",` format
 unchanged.
 
 ### 3.4 Deprecation timeline
 
 | Version | Change |
 |---------|--------|
-| 0.6 | `--output` flags added (additive). Named-output rule syntax for v0.6 benchmarks. |
-| 0.7 | Validator phantom modules (stage 2). |
-| 0.8 | `--output_dir` / `--name` dropped. Modules must use `--output` flags. |
+| 0.8 | `--output` flags added (additive). Named-output rule syntax for v0.8 benchmarks. |
+| 0.9 | Validator phantom modules (stage 2). |
+| 0.10 | `--output_dir` / `--name` dropped. Modules must use `--output` flags. |
+
+### 3.5 `{dataset}` deprecation
+
+`{dataset}` in an output path warns at load time. The replacement is
+`{module.id}`, not `{name}`, which reads too close to `{module.name}` (the
+human-readable name).
+
+The legacy path layer (`ob archive`, `ob describe status`, remote storage)
+fills the same variables as the run path and no longer injects `{dataset}.`
+into filenames, so plans using `{module.id}` or `{name}` get correct
+predicted paths.
+
+Test fixtures use `{module.id}`, except downstream stages of api < 0.5
+fixtures: there `--name` is the dataset id, so those modules really write
+`{dataset}_*` files. They stay as back-compat coverage.
 
 ## 4. Alternatives Considered
 
@@ -163,18 +180,15 @@ observed patterns.
 
 ## 5. Implementation Plan
 
-### Stage 1 — Named outputs (this PR, API v0.6.0)
+### Stage 1 — Named outputs (this PR, API v0.8.0)
 
 1. **`omnibenchmark/model/benchmark.py`**
-   - Add `V0_6_0 = "0.6.0"` to `APIVersion`.
-   - Add `kind: Literal["file", "zip"] = "file"` to `IOFile`.
+   - Add `V0_8_0 = "0.8.0"` to `APIVersion`.
    - Delete unused `Module.outputs` field.
 
 2. **`omnibenchmark/model/resolved.py`**
    - Change `ResolvedNode.outputs` from `List[str]` to `Dict[str, str]`
      (id → resolved path template).
-   - Add `output_name_mapping: Dict[str, str]` (sanitized key → original id),
-     symmetric to the existing `input_name_mapping`.
    - Keep `get_output_list()` returning `list(outputs.values())` for callers
      that only need paths.
 
@@ -183,15 +197,13 @@ observed patterns.
      `ResolvedNode.outputs`.
 
 4. **`omnibenchmark/backend/snakemake.py`**
-   - `_write_node_rule`: when `api_version >= V0_6_0`, emit named-output
-     syntax using sanitized ids; both `kind: file` and `kind: zip` use a
-     plain string (zip is a file to Snakemake). v0.4/v0.5 unchanged.
-   - `_write_shell`: when `api_version >= V0_6_0`, append `--output` flags
+   - `_write_node_rule`: when `api_version >= V0_8_0`, emit named-output
+     syntax keyed by output id. Earlier versions unchanged.
+   - `_write_shell`: when `api_version >= V0_8_0`, append `--output` flags
      (single output → positional path; multi → `id=path` per output).
    - Migrate all `node.outputs[N]` integer-index accesses to dict access.
-   - Fail hard at codegen if any two output ids sanitize to the same key.
 
-### Stage 2 — Validators (API v0.7.0)
+### Stage 2 — Validators (API v0.9.0)
 
 Convention: `validators/<stage-id>/` directory alongside `benchmark.yaml` is
 discovered at resolution time and synthesized into a phantom `ResolvedModule`.
@@ -200,22 +212,22 @@ The validator entrypoint is invoked per node with `--output id=path` flags
 Generated rule emits a `.validate/<node>.ok` marker; downstream rewires to
 depend on the marker.
 
-### Stage 3 — Module metadata + v0.8 decoupling
+### Stage 3 — Module metadata + v0.10 decoupling
 
 - Read each module's `omnibenchmark.yaml` at clone time for module-side output
   declarations (`essential: true|false`). Cross-check at benchmark load.
-- Drop `--output_dir` / `--name` (v0.8).
+- Drop `--output_dir` / `--name` (v0.10).
 
 ### Testing Strategy
 
-- Unit: `tests/backend/test_snakemake_gen.py` — assert v0.6 rule uses
+- Unit: `tests/backend/test_snakemake_gen.py` — assert v0.8 rule uses
   named-output syntax, single-output emits positional `--output PATH`,
-  multi-output emits `--output id=PATH`, `kind: zip` produces plain string
-  (no `directory(...)`).
-- Back-compat: v0.4/v0.5 fixtures with no `api_version` keep asserting
+  multi-output emits `--output id=PATH`.
+- Back-compat: pre-0.8 fixtures with no `api_version` keep asserting
   positional `output:` format and old shell contract.
-- e2e: `tests/e2e/` — small v0.6 module fixture with `kind: file` and
-  `kind: zip` outputs.
+- e2e: `tests/e2e/` — small v0.8 module fixture with a single named output.
+- TODO (`kind: zip`): generator test asserting a plain string (no
+  `directory(...)`), and an e2e fixture with a zip output.
 
 ## 6. References
 
