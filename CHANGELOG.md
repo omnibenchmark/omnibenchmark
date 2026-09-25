@@ -8,7 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: capability filters by --with-capability (#360)
 - feat: emit threads per rule according if the module requests a number of cores
 - feat: `ob run benchmark --until STAGE` truncates the DAG to that stage and its transitive ancestors (#361)
-- feat: `ob run benchmark --filter FILE|BLOB` runs the stages, modules and parameter combinations picked in `obeditor`; the run stops if the benchmark has changed since the picks were made, unless `--allow-drift` is given (#363)
+- feat: `ob run benchmark --filter FILE|BLOB` runs the stages, modules and parameter combinations picked in `obeditor`, or listed in a hand-written YAML/JSON file; the run stops if the benchmark has changed since the picks were made, unless `--allow-drift` is given (#363)
 - feat: lineage gating — `provides:` labels a lineage, `requires:` runs a module only on matching lineages (api 0.7.0, #354)
 - feat: reject gates that can never fire at parse time (#354)
 - fix: compare `api_version` by components, not lexicographically (#354)

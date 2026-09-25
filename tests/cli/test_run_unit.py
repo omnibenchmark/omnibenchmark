@@ -954,3 +954,31 @@ def test_run_filter_reads_blob_from_file(tmp_path):
         assert mock_rb.call_args.kwargs["filter_blob"]["picks"]["stage0"] == {
             "mod0": ["00000000"]
         }
+
+
+@pytest.mark.short
+def test_run_filter_reads_yaml_file(tmp_path):
+    path = tmp_path / "picks.obfilter.yaml"
+    path.write_text("picks:\n  stage0: {'*': first}\n")
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        runner = CliRunner()
+        result = runner.invoke(
+            run, ["tests/data/mock_benchmark.yaml", "--filter", str(path)]
+        )
+        assert result.exception is None, result.exception
+        assert mock_rb.call_args.kwargs["filter_blob"] == {
+            "v": 3,
+            "picks": {"stage0": {"*": "first"}},
+        }
+
+
+@pytest.mark.short
+def test_run_filter_rejects_bad_yaml_file(tmp_path):
+    path = tmp_path / "picks.obfilter.yaml"
+    path.write_text("picks:\n  stage0: {'*': some}\n")
+    with patch("omnibenchmark.cli.run._run_benchmark") as mock_rb:
+        result = CliRunner().invoke(
+            run, ["tests/data/mock_benchmark.yaml", "--filter", str(path)]
+        )
+        assert result.exit_code != 0
+        mock_rb.assert_not_called()

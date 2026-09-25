@@ -166,8 +166,8 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     metavar="FILE|BLOB",
     help=(
         "Run a slice of the benchmark defined by an obfilter selection: a path to a "
-        "file containing a packed blob, or an inline packed blob. Prunes the DAG to "
-        "the picked stages/modules/param-combos. Incompatible with -m/--module."
+        "YAML/JSON file of picks, a file containing a packed blob, or an inline packed "
+        "blob. Prunes the DAG to the picked stages/modules/param-combos. Incompatible with -m/--module."
     ),
 )
 @click.option(
@@ -262,7 +262,7 @@ def run(
 
     filter_blob = None
     if filter_arg:
-        from omnibenchmark.filter import unpack_blob, FilterError
+        from omnibenchmark.filter import load_filter, FilterError
 
         packed = filter_arg
         try:
@@ -274,7 +274,7 @@ def run(
         if is_path:
             packed = Path(filter_arg).read_text().strip()
         try:
-            filter_blob = unpack_blob(packed)
+            filter_blob = load_filter(packed)
         except FilterError as e:
             log_error_and_quit(logger, f"--filter: {e}")
             return
@@ -994,8 +994,8 @@ def _generate_explicit_snakefile(
             else:
                 logger.error(
                     f"--filter: {len(orphans)} pick(s) do not resolve against this benchmark "
-                    f"(parent drifted from {parent_hash} to {current_hash}): {summary}. "
-                    "Re-export the filter, or pass --allow-drift to run the surviving subset."
+                    f"(benchmark is now {current_hash[:8]}): {summary}. "
+                    "Fix or re-export the filter, or pass --allow-drift to run the surviving subset."
                 )
                 sys.exit(1)
         elif parent_hash and parent_hash != current_hash:

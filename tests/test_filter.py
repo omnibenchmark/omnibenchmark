@@ -71,6 +71,33 @@ class TestBlobCodec:
 
 
 @pytest.mark.short
+class TestLoadFilter:
+    PICKS = {"data": {"*": "all"}, "methods": {"M1": "first"}}
+
+    def test_yaml_needs_only_picks(self):
+        text = "picks:\n  data: {'*': all}\n  methods:\n    M1: first\n"
+        assert f.load_filter(text) == {"v": 3, "picks": self.PICKS}
+
+    def test_json(self):
+        import json
+
+        text = json.dumps({"picks": self.PICKS})
+        assert f.load_filter(text)["picks"] == self.PICKS
+
+    def test_packed_blob(self):
+        packed = f.pack_blob(self.PICKS, {"sha256": "00" * 32})
+        assert f.load_filter(packed) == f.unpack_blob(packed)
+
+    def test_yaml_wrong_version(self):
+        with pytest.raises(f.FilterError, match="version"):
+            f.load_filter("v: 2\npicks:\n  data: {'*': all}\n")
+
+    def test_yaml_bad_picks(self):
+        with pytest.raises(f.FilterError, match="spec must be"):
+            f.load_filter("picks:\n  methods:\n    M1: some\n")
+
+
+@pytest.mark.short
 class TestValidatePicks:
     def test_accepts_specs(self):
         f.validate_picks({"s": {"m1": "all", "m2": "first", "m3": ["a", "b"]}})

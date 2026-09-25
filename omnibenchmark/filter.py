@@ -19,6 +19,8 @@ import gzip
 import json
 import zlib
 
+import yaml
+
 BLOB_VERSION = 3
 MAX_BLOB_BYTES = 4 * 1024 * 1024  # decompressed ceiling; real picks are kilobytes
 WILDCARD = "*"
@@ -61,6 +63,22 @@ def unpack_blob(packed):
         raise
     except Exception as e:
         raise FilterError(f"could not decode filter blob: {e}") from e
+    return _checked(blob)
+
+
+def load_filter(text):
+    """A packed blob, or the same mapping written as YAML/JSON (`v`, `parent` optional)."""
+    try:
+        blob = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        raise FilterError(f"could not parse filter: {e}") from e
+    # A packed blob parses as a bare string.
+    if not isinstance(blob, dict):
+        return unpack_blob(text)
+    return _checked({"v": BLOB_VERSION, **blob})
+
+
+def _checked(blob):
     if blob.get("v") != BLOB_VERSION:
         raise FilterError(
             f"unsupported filter blob version {blob.get('v')!r} (expected {BLOB_VERSION})"
