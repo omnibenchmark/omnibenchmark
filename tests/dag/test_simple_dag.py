@@ -263,3 +263,16 @@ class TestSimpleDAG:
         assert ("A", "B") in edges
         assert ("A", "C") in edges
         assert ("B", "D") in edges
+
+
+@pytest.mark.short
+def test_ties_break_in_insertion_order():
+    """Independent nodes come out in the order they were added, whatever the
+    hash seed; a set-backed graph reordered stages between runs, which changed
+    generated rule text and made Snakemake rerun."""
+    dag = SimpleDAG()
+    names = [f"stage_{c}" for c in "qwertyuiopasdf"]
+    for name in names:
+        dag.add_edge("root", name)
+    assert dag.topological_sort() == ["root", *names]
+    assert list(dag.nodes) == ["root", *names]

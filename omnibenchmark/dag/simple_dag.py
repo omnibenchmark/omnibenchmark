@@ -11,18 +11,24 @@ class CyclicDependencyError(Exception):
 
 
 class SimpleDAG:
-    """A simple directed acyclic graph implementation."""
+    """A simple directed acyclic graph implementation.
+
+    Nodes and edges are kept in insertion-ordered dicts used as sets, so every
+    traversal, and therefore the stage order ties break on, follows insertion
+    order. A set of strings iterates in a per-process hash order, which made
+    generated rule text differ between runs and Snakemake rerun them.
+    """
 
     def __init__(self) -> None:
         """Initialize an empty DAG."""
-        self.nodes: Set[Any] = set()
-        self._edges: Dict[Any, Set[Any]] = defaultdict(set)
-        self.predecessors: Dict[Any, Set[Any]] = defaultdict(set)
+        self.nodes: Dict[Any, None] = {}
+        self._edges: Dict[Any, Dict[Any, None]] = defaultdict(dict)
+        self.predecessors: Dict[Any, Dict[Any, None]] = defaultdict(dict)
         self.node_attrs: Dict[Any, Dict[str, Any]] = defaultdict(dict)
 
     def add_node(self, node: Any, **attrs: Any) -> None:
         """Add a node to the graph with optional attributes."""
-        self.nodes.add(node)
+        self.nodes[node] = None
         self.node_attrs[node].update(attrs)
 
     def add_nodes_from(
@@ -35,12 +41,12 @@ class SimpleDAG:
     def add_edge(self, from_node: Any, to_node: Any) -> None:
         """Add an edge from from_node to to_node."""
         # Ensure both nodes exist
-        self.nodes.add(from_node)
-        self.nodes.add(to_node)
+        self.nodes[from_node] = None
+        self.nodes[to_node] = None
 
         # Add the edge
-        self._edges[from_node].add(to_node)
-        self.predecessors[to_node].add(from_node)
+        self._edges[from_node][to_node] = None
+        self.predecessors[to_node][from_node] = None
 
     def in_degree(self) -> Iterator[Tuple[Any, int]]:
         """Return an iterator of (node, in_degree) pairs."""
