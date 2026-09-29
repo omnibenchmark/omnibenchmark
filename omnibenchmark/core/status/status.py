@@ -31,6 +31,21 @@ def _attach_log_paths(exec_path_dict: dict, out_dir: Union[str, Path]) -> None:
             ep.exec_path[st].log = log_file if log_file.is_file() else None
 
 
+def _count_nodes(exec_path_dict: dict, stage_id: str) -> int:
+    """Number of executions of a stage, one per lineage.
+
+    filedict keys are module x params, so a module run on every dataset would
+    count once; distinct output sets across exec paths count each execution.
+    """
+    return len(
+        {
+            frozenset(ep.exec_path[stage_id].get_output_files())
+            for ep in exec_path_dict.values()
+            if stage_id in ep.stages
+        }
+    )
+
+
 def print_exec_path_dict(
     exec_path_dict: dict,
     stages: list,
@@ -189,7 +204,7 @@ def prepare_status(
                     for nd in filedict2[st].keys()
                 ]
             ),
-            "n_nodes": len(filedict2[st].keys()),
+            "n_nodes": _count_nodes(exec_path_dict, st),
             "n_modules": len(set([nd.module_id for nd in filedict2[st].keys()])),
         }
         for st in stages

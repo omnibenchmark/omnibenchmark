@@ -11,10 +11,13 @@ log-selection logic in ``print_exec_path_dict``.
 
 from types import SimpleNamespace
 
+import pytest
+
 from omnibenchmark.backend.snakemake import SnakemakeGenerator
 from omnibenchmark.core._paths import sanitize_rule_name
 from omnibenchmark.core.status.status import (
     _attach_log_paths,
+    _count_nodes,
     print_exec_path_dict,
 )
 
@@ -166,3 +169,20 @@ def test_print_handles_paths_with_different_terminal_stages():
 
     assert "m.txt" in out
     assert "o.txt" in out
+
+
+@pytest.mark.short
+def test_count_nodes_counts_each_lineage():
+    """One module run on two datasets is two nodes, not one."""
+    m1 = _node("methods", "M1", "p")
+    eps = {
+        i: _FakeExecPath(
+            [
+                ("data", _FakeStage(_node("data", d, "p"), ".", f"out/{d}/x")),
+                ("methods", _FakeStage(m1, ".", f"out/{d}/methods/M1/x")),
+            ]
+        )
+        for i, d in enumerate(["D1", "D2"])
+    }
+    assert _count_nodes(eps, "data") == 2
+    assert _count_nodes(eps, "methods") == 2
