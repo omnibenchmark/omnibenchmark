@@ -438,19 +438,21 @@ class SnakemakeGenerator:
         # Fan-in nodes: record the parents the path prefix cannot carry.
         lines += self._lineage_sidecar_lines(node)
 
-        # Write parameters.json and a human-readable symlink to the hash folder.
+        # Write parameters.json (and, before 0.8.0, a readable sibling link).
         if node.parameters:
             params_json = json.dumps(node.parameters._params)
             params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
             params_json_escaped = params_json_escaped.replace("'", "'\\''")
-            lines += [
-                f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json",
+            lines.append(f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json")
+            # From 0.8.0 readable names live in the `human/` view (007 §3.1.2).
+            if self.api_version < APIVersion.V0_8_0:
                 # Link to the real directory name rather than re-deriving it:
                 # a fan-in node's segment carries the parent-set digest as well
                 # as the parameter hash, so recomputing it here would dangle.
-                f'ln -sfn "$(basename $OUTPUT_DIR)"'
-                f" $OUTPUT_DIR/../{_human_link_name(node)}",
-            ]
+                lines.append(
+                    f'ln -sfn "$(basename $OUTPUT_DIR)"'
+                    f" $OUTPUT_DIR/../{_human_link_name(node)}"
+                )
 
         lines.append("cd {params.module_dir}")
 

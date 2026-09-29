@@ -12,9 +12,13 @@ import pytest
 
 from omnibenchmark.backend.snakemake import _human_link_name
 from omnibenchmark.core._expand import expand_gather_stage
-from omnibenchmark.core._lineage import expansion_segment, select_input_bundles
+from omnibenchmark.core._lineage import (
+    expansion_segment,
+    node_dir,
+    select_input_bundles,
+)
 from omnibenchmark.core._paths import make_human_name as _make_human_name
-from omnibenchmark.model.benchmark import GatherSpec, Stage
+from omnibenchmark.model.benchmark import APIVersion, GatherSpec, Stage
 
 
 def _fake_benchmark():
@@ -22,6 +26,7 @@ def _fake_benchmark():
         get_name=lambda: "bench",
         get_version=lambda: "1.0",
         get_author=lambda: "me",
+        api_version=APIVersion.V0_7_0,
     )
     return SimpleNamespace(model=model)
 
@@ -1069,7 +1074,7 @@ def test_partially_populated_group_is_an_error():
 # repository is cloned.
 
 
-def _plan(yaml_text, nesting_strategy="nested"):
+def _plan(yaml_text):
     """Expand every stage of a parsed benchmark, mirroring `cli/run.py`'s loop.
 
     Returns `(nodes, prune_counts, dag_errors)`. Module resolution is faked:
@@ -1115,7 +1120,6 @@ def _plan(yaml_text, nesting_strategy="nested"):
                 previous_stage_nodes=previous,
                 stages_to_expand=stages_to_expand,
                 path_exclusions=collect_path_exclusions(bench),
-                nesting_strategy=nesting_strategy,
                 module_filter=None,
                 target_stage=None,
                 dag_errors=dag_errors,
@@ -1242,24 +1246,6 @@ def test_scatter_prunes_by_requires_against_upstream_labels():
 
 
 @pytest.mark.short
-def test_flat_nesting_drops_the_parent_prefix():
-    """`flat` roots every stage at its own id instead of extending the parent."""
-    nodes, _, errors = _plan(_chain_yaml(), nesting_strategy="flat")
-    assert errors == []
-    method = [n for n in nodes if n.stage_id == "method"]
-    assert {n.get_output_list()[0] for n in method} == {"method/M1/.default/M1_m.txt"}
-
-
-@pytest.mark.short
-def test_unknown_nesting_strategy_is_reported_as_a_dag_error():
-    """A bad strategy raises inside the module loop, which records it against
-    the stage rather than crashing the whole plan."""
-    nodes, _, errors = _plan(_chain_yaml(), nesting_strategy="sideways")
-    assert errors, "expected the ValueError to be captured"
-    assert any("sideways" in msg for _, _, msg in errors)
-
-
-@pytest.mark.short
 def test_module_missing_from_the_resolution_cache_is_skipped():
     """A module whose repository failed to resolve produces no nodes, and the
     stage warns rather than cascading an empty set silently."""
@@ -1278,7 +1264,6 @@ def test_module_missing_from_the_resolution_cache_is_skipped():
         previous_stage_nodes=[],
         stages_to_expand=[data_stage],
         path_exclusions={},
-        nesting_strategy="nested",
         module_filter=None,
         target_stage=None,
         dag_errors=[],
@@ -1440,3 +1425,42 @@ def test_gather_skips_a_module_missing_from_the_resolution_cache():
         nodes_by_id=nodes_by_id,
     )
     assert nodes == []
+
+
+@pytest.mark.short
+def test_node_dir_nested_and_flat():
+    """007 §3.1: v1 spends three directories per node, v2 one segment that
+    splits back on `.` into stage, module, [group,] param[-join]."""
+    a = SimpleNamespace(id="a")
+    b = SimpleNamespace(id="b")
+    assert node_dir("m", "M1", ".abc12345") == "m/M1/.abc12345"
+    assert node_dir("g", "c", ".default", group="D1") == "g/D1/c/.default"
+    assert node_dir("m", "M1", ".abc12345", flat=True) == "m.M1.abc12345"
+    assert node_dir("m", "M1", ".default", flat=True) == "m.M1.default"
+    assert node_dir("g", "c", ".default", group="D1", flat=True) == "g.c.D1.default"
+    join = node_dir("j", "J", ".default", (a, b), flat=True)
+    stage, module, param = join.split(".")
+    assert (stage, module) == ("j", "J")
+    assert param.split("-")[0] == "default" and len(param.split("-")[1]) == 8
+
+
+@pytest.mark.short
+def test_flat_layout_from_api_0_8_0():
+    """An 0.8.0 plan chains one segment per node; the 0.7.0 plan keeps v1."""
+    v2 = (
+        _chain_yaml()
+        .replace("api_version: 0.7.0", "api_version: 0.8.0")
+        .replace("data.out", "data_out")
+        .replace("method.out", "method_out")
+        .replace("{name}", "{module.id}")
+    )
+    nodes, _, errors = _plan(v2)
+    assert errors == []
+    method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
+    assert method == [
+        "data.D1.default/method.M1.default/M1_m.txt",
+        "data.D2.default/method.M1.default/M1_m.txt",
+    ]
+    nodes, _, _ = _plan(_chain_yaml())
+    method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
+    assert method[0] == "data/D1/.default/method/M1/.default/M1_m.txt"

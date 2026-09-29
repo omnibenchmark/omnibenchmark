@@ -382,6 +382,24 @@ def expansion_segment(param_id: str, members) -> str:
     return param_id
 
 
+def node_dir(
+    stage_id: str, module_id: str, param_id: str, members=(), group=None, flat=False
+) -> str:
+    """The output directory one node adds under its parent's (007 §3.1).
+
+    v1 (nested, api < 0.8.0): ``stage/[group/]module/.param[-join]``.
+    v2 (flat, api ≥ 0.8.0): ``stage.module[.group].param[-join]``, a single
+    segment. It splits back on ``.`` because 0.8.0 ids cannot contain ``.``
+    or ``-``.
+    """
+    seg = expansion_segment(param_id, members)
+    if flat:
+        group_field = [str(group)] if group is not None else []
+        return ".".join([stage_id, module_id, *group_field, seg.lstrip(".")])
+    group_dir = f"{group}/" if group is not None else ""
+    return f"{stage_id}/{group_dir}{module_id}/{seg}"
+
+
 def resolve_label_value(label: str, module_provides, module_id: str) -> str:
     """Resolve a single `Stage.provides` label's value for one node.
 
