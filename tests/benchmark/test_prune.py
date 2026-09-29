@@ -8,6 +8,7 @@ import pytest
 from omnibenchmark.core._prune import (
     apply_until_filter,
     capability_prune_summary,
+    collector_skip_message,
     empty_stage_warning,
     filter_collectors_by_stages,
     module_capabilities_met,
@@ -345,3 +346,28 @@ class TestFilterCollectorsByStages:
         )
         assert [c.id for c in kept] == ["MC2"]
         assert dropped == ["MC1"]
+
+
+# ---------------------------------------------------------------------------
+# collector_skip_message
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestCollectorSkipMessage:
+    def test_until_names_the_stage(self):
+        msg = collector_skip_message("MC1", until_stage="preproc", filtered=False)
+        assert "--until preproc" in msg and "MC1" in msg
+
+    def test_filter_blames_the_filter_not_requires_exclude(self):
+        msg = collector_skip_message("MC1", until_stage=None, filtered=True)
+        assert "--filter" in msg
+        assert "requires/exclude" not in msg
+
+    def test_organic_prune_blames_requires_exclude(self):
+        msg = collector_skip_message("MC1", until_stage=None, filtered=False)
+        assert "requires/exclude" in msg
+
+    def test_until_wins_over_filter(self):
+        msg = collector_skip_message("MC1", until_stage="preproc", filtered=True)
+        assert msg.startswith("--until preproc")

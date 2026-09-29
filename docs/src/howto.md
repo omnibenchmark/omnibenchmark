@@ -477,6 +477,75 @@ Semantics worth knowing:
 - **Not combinable with `-m/--module`**, which already truncates the DAG its own
   way; passing both is an error.
 
+## Run a saved slice of a benchmark
+
+`--filter` runs only the stages, modules and parameter combinations you pick.
+Picks are a YAML file you [write by hand](#write-a-filter-by-hand), or a short
+text blob exported from `obeditor`, pasted inline or saved to a file.
+
+```bash
+ob run benchmark.yaml --filter picks.obfilter.yaml   # hand-written YAML
+ob run benchmark.yaml --filter picks.obfilter        # a saved obeditor blob
+ob run benchmark.yaml --filter H4sIAAAA...           # the same blob, pasted inline
+```
+
+Semantics worth knowing:
+
+- **Stages left out are pruned.** A stage missing from the picks is dropped
+  entirely, along with the paths that ran through it. Within a picked stage you
+  can keep every module or name them one by one, and keep every parameter
+  combination, the first one, or a chosen few.
+- **Picks that no longer resolve stop the run.** If the benchmark has changed
+  since the picks were made and something they name no longer exists, the run stops and
+  lists what went missing. Fix or re-export the picks, or pass `--allow-drift` to run
+  whatever still matches.
+- **Metric collectors that reach into a pruned stage are skipped**, with a log
+  line for each.
+- **Combines with `--until`**, which cuts the benchmark short first; the picks
+  then apply to what is left. Not combinable with `-m/--module`, which selects
+  modules its own way; passing both is an error.
+- **Overrides `--with-capability`.** Picks are an explicit choice, so a picked
+  module runs whether or not the machine advertises what it asks for.
+
+### Write a filter by hand
+
+A filter file maps stage ids to module ids, or to `'*'` for every module in the
+stage, and each module to the parameter combinations to keep. JSON works too.
+
+```yaml
+# picks.obfilter.yaml
+picks:
+  data: {'*': all}             # every dataset
+  preprocessing: {'*': all}
+  methods: {M1: all}           # M1 only; M2 is pruned
+```
+
+```bash
+ob run benchmark.yaml --filter picks.obfilter.yaml --dry
+```
+
+| Spec | Keeps |
+|------|-------|
+| `all` | every parameter combination |
+| `first` | the first combination only |
+| `[dc8f7f3b, ...]` | the combinations with these short hashes, as in the `.<hash>` output directories |
+
+`'*'` needs quotes in YAML and cannot be mixed with explicit module ids in the
+same stage. `tests/e2e/test_10_obfilter.py` runs this file against
+`tests/e2e/configs/09_transitive_exclude.yaml` (data → preprocessing → methods).
+
+An `obeditor` blob is this same mapping, gzipped and base64-encoded, plus
+`parent: {sha256: ...}`, the `Benchmark.summary_hash()` of the benchmark the
+picks were made against. Removing a stage, module or parameter combination that
+a filter names fails the run whether or not the filter has `parent`; `parent`
+only lets the run log that the benchmark changed. To pack or inspect a blob, use
+`pack_blob(picks, parent)` and `unpack_blob(text)` from `omnibenchmark.filter`.
+
+For the full picks schema, see the docstring of
+[`omnibenchmark/filter.py`](https://github.com/omnibenchmark/omnibenchmark/blob/main/omnibenchmark/filter.py).
+For how filters relate to `--until`, capabilities and lineage gates, see
+[design 008: Filtering and gating](https://github.com/omnibenchmark/omnibenchmark/blob/main/docs/design/008-filtering.md).
+
 ## Use a custom apptainer container to run methods
 
 We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.

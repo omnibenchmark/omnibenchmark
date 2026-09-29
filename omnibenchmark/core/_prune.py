@@ -132,3 +132,21 @@ def filter_collectors_by_stages(collectors, included_stage_ids, benchmark):
         else:
             dropped.append(c.id)
     return kept, dropped
+
+
+def collector_skip_message(collector_id, until_stage, filtered):
+    """Why a metric collector was dropped, named by the mechanism that pruned it."""
+    if until_stage is not None:
+        return (
+            f"--until {until_stage}: skipping metric collector "
+            f"'{collector_id}' (references pruned stages)."
+        )
+    if filtered:
+        return (
+            f"--filter: skipping metric collector '{collector_id}' "
+            "(references stages the filter pruned)."
+        )
+    return (
+        f"Skipping metric collector '{collector_id}': it references a stage "
+        "that produced no nodes (pruned by requires/exclude)."
+    )
