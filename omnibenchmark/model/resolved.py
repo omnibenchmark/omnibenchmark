@@ -225,8 +225,9 @@ class ResolvedNode:
     # ========== Optional fields with defaults ==========
     # Parameters
     parameters: Optional[Params] = None
-    param_dir_template: str = ""  # e.g., "{input}/stage/module/.abc123"
-    param_symlink_template: str = ""  # e.g., "{input}/stage/module/method-X_k-10"
+    # The node's output directory, relative to out/ (007 §3), e.g.
+    # "data.D1.default/methods.M1.a1b2c3d4" or "data/D1/.default/methods/M1/.a1b2c3d4".
+    node_dir: str = ""
 
     # DAG Structure
     parent_id: Optional[str] = None
@@ -343,8 +344,7 @@ class ResolvedNode:
                 else None,
             },
             "parameters": self.get_parameter_json(),
-            "param_dir_template": self.param_dir_template,
-            "param_symlink_template": self.param_symlink_template,
+            "node_dir": self.node_dir,
             "parent_id": self.parent_id,
             "parents": self.parents,
             "gathered_from": self.gathered_from,

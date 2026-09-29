@@ -9,9 +9,7 @@ from omnibenchmark.model.params import Params
 
 
 def _node(real, params=None):
-    return SimpleNamespace(
-        param_dir_template=real, parameters=Params(params) if params else None
-    )
+    return SimpleNamespace(node_dir=real, parameters=Params(params) if params else None)
 
 
 @pytest.mark.short

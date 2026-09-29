@@ -144,17 +144,12 @@ class TestResolvedNode:
             param_id=".12345678",
             module=module,
             parameters=params,
-            param_dir_template="{input}/methods/M1/.12345678",
-            param_symlink_template="{input}/methods/M1/method-cosine_threshold-0.1",
+            node_dir="{input}/methods/M1/.12345678",
             outputs=["{input}/methods/M1/.12345678/{module.id}.result.json"],
         )
 
         assert node.parameters == params
-        assert node.param_dir_template == "{input}/methods/M1/.12345678"
-        assert (
-            node.param_symlink_template
-            == "{input}/methods/M1/method-cosine_threshold-0.1"
-        )
+        assert node.node_dir == "{input}/methods/M1/.12345678"
 
         # Test parameter methods
         assert node.get_parameter_hash() == params.hash_short()
