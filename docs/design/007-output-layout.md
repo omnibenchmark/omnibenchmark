@@ -17,6 +17,7 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
+| 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `human/`; nested layout deprecated | ben |
 
 ## 1. Problem Statement
 
@@ -98,6 +99,59 @@ The default nesting strategy (`nested`) mirrors the upstream DAG:
 ```
 
 The `<param_hash>` component is prefixed with `.` (dot) so it is hidden by default on Unix systems and clearly distinguished from module IDs.  The hash is the first 8 characters of the SHA256 of the sorted key=value parameter string (see [004 §3.7, "Parameter Hash"](004-yaml-specification.md)).
+
+This nested layout is **v1**. It applies to plans below api 0.8.0 and is deprecated (§3.1.5).
+
+### 3.1 Layout v2 (api ≥ 0.8.0)
+
+v1 spends three directories per stage, so a four-stage lineage is twelve deep. v2 spends one.
+
+#### 3.1.1 Node directory
+
+Each node contributes exactly one path segment. A child's segment nests under its deepest input's segment, as in v1.
+
+```
+segment = <stage> "." <module> [ "." <group> ] "." <param> [ "-" <join> ]
+param   = "default" | <hash8>
+```
+
+- `<group>`: the group value of a grouped gather (010 §3.3). A global gather omits it.
+- `<join>`: the parent-set digest of a fan-in node (010 §5.2).
+- Parsing: split on `.`. Three fields means no group, four means a group. Split the last field on `-` to get the join digest.
+- This parse is unambiguous because stage and module ids, and therefore group values, match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
+
+```
+out/data.D1.default/data.raw.tsv
+out/data.D1.default/methods.M1.a1b2c3d4/result.tsv
+out/data.D1.default/methods.M1.a1b2c3d4/metrics.acc.default/score.json
+out/summary.collect.default/table.tsv                 # global gather
+out/summary.collect.D1.default/table.tsv              # grouped gather, group D1
+out/data.D1.default/merge.J.default-9f8e7d6c/out.tsv  # fan-in
+```
+
+Nothing in the result tree is hidden and nothing in it is a symlink. `parameters.json` and `performance.txt` stay in the node directory.
+
+#### 3.1.2 Readable view: `human/`
+
+`out/human/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`k-5_alpha-0.1`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
+
+- `ob run` rebuilds it from the resolved node list after Snakemake exits, including after partial and failed runs. It is not written by rules, so it never appears in rule text.
+- It is a derived view. Archives and remote storage skip it, and deleting it loses nothing.
+- Readable names are not parsed. They are sanitized, and truncated with the hash appended when too long.
+
+#### 3.1.3 What changes for readers
+
+Any code that splits output paths into `stage/module/param` triples must dispatch on the plan's api version: `ob collect`, `ob status`, the metric collector, and storage globs.
+
+#### 3.1.4 Snakefile
+
+Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule's body no longer depends on its parameter names.
+
+#### 3.1.5 Deprecation of v1
+
+- api < 0.8.0: v1 layout, plus a deprecation warning at plan load.
+- api 0.10.0: the v1 writer is removed, and plans below 0.8.0 are rejected with a pointer to the migration.
+- Migration means raising `api_version`. Every output path changes, so the next run recomputes everything. Relocating an existing v1 tree is out of scope.
 
 ## 4. Runtime Manifest (`manifest.json`)
 

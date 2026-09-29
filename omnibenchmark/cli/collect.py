@@ -100,20 +100,45 @@ def _is_default_param_dir(param_dir: str) -> bool:
     return param_dir.lstrip(".") == "default"
 
 
-def _collect_params(
-    out_dir: Path, triples: List[tuple], group: Optional[str] = None
-) -> Dict[str, Any]:
+def _segments(rel_parts: List[str]) -> tuple:
+    """``(group, [(stage, module, param_dir, node_dir), ...])`` for a node path.
+
+    Flat layout (api ≥ 0.8.0, 007 §3.1): one ``stage.module[.group].param``
+    part per node; parts that do not split into 3 or 4 fields are template
+    subdirectories. Nested layout: ``stage/module/param_dir`` triples.
+    """
+    if (
+        rel_parts
+        and len(rel_parts[0].split(".")) in (3, 4)
+        and not any(p.startswith(".") for p in rel_parts)
+    ):
+        group, segs = None, []
+        for i, part in enumerate(rel_parts):
+            fields = part.split(".")
+            if len(fields) == 4:  # a grouped gather roots the chain
+                group = fields.pop(2)
+            if len(fields) == 3:
+                segs.append((*fields, "/".join(rel_parts[: i + 1])))
+        return group, segs
+
+    group, chain = _split_gather_group(list(rel_parts))
+    segs, cursor = [], []
+    for index, (stage, module, param_dir) in enumerate(_triples(chain)):
+        cursor.append(stage)
+        if index == 0 and group is not None:
+            cursor.append(group)
+        cursor += [module, param_dir]
+        segs.append((stage, module, param_dir, "/".join(cursor)))
+    return group, segs
+
+
+def _collect_params(out_dir: Path, segs: List[tuple]) -> Dict[str, Any]:
     """Read every ``parameters.json`` along the lineage into ``{stage: params}``."""
     params: Dict[str, Any] = {}
-    cursor = out_dir
-    for index, (stage, module, param_dir) in enumerate(triples):
-        cursor = cursor / stage
-        if index == 0 and group is not None:
-            cursor = cursor / group
-        cursor = cursor / module / param_dir
+    for stage, _module, param_dir, node_dir in segs:
         if _is_default_param_dir(param_dir):
             continue
-        param_file = cursor / "parameters.json"
+        param_file = out_dir / node_dir / "parameters.json"
         if param_file.exists():
             try:
                 params[stage] = json.loads(param_file.read_text())
@@ -130,26 +155,25 @@ def _build_record(out_dir: Path, perf_file: Path) -> Optional[Dict[str, Any]]:
         return None
 
     rel_parts = perf_file.relative_to(out_dir).parts[:-1]  # drop filename
-    group, chain = _split_gather_group(list(rel_parts))
-    triples = _triples(chain)
-    if not triples:
+    group, segs = _segments(list(rel_parts))
+    if not segs:
         logger.warning(f"Unexpected path layout for {perf_file}; skipping.")
         return None
 
-    leaf_stage, leaf_module, leaf_param_dir = triples[-1]
-    params = _collect_params(out_dir, triples, group)
+    leaf_stage, leaf_module, leaf_param_dir, _ = segs[-1]
+    params = _collect_params(out_dir, segs)
 
     # Metadata columns; names match what `ob dashboard` excludes from metrics.
     row["stage"] = leaf_stage
     row["module"] = leaf_module
     # Below a gather the chain is cut, so the group key is the only thing left
     # identifying the data the row came from.
-    row["dataset"] = group if group is not None else triples[0][1]
+    row["dataset"] = group if group is not None else segs[0][1]
     row["param_hash"] = (
         "" if _is_default_param_dir(leaf_param_dir) else leaf_param_dir.lstrip(".")
     )
     row["params"] = json.dumps(params) if params else ""
-    row["lineage"] = "/".join(f"{s}/{m}" for s, m, _ in triples)
+    row["lineage"] = "/".join(f"{s}/{m}" for s, m, _, _ in segs)
     row["path"] = str(perf_file.relative_to(out_dir))
     return row
 

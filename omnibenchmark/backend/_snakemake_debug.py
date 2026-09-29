@@ -14,6 +14,7 @@ from omnibenchmark.backend.snakemake import (
     _input_key_index,
     _make_human_name,
 )
+from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.model.resolved import ResolvedNode
 
 
@@ -63,7 +64,7 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
             "mkdir -p {params.output_dir}",
         ]
 
-        if node.parameters:
+        if node.parameters and self.api_version < APIVersion.V0_8_0:
             lines.append(
                 f"ln -sfn .{node.parameters.hash_short()}"
                 f" {{params.output_dir}}/../{_make_human_name(node.parameters)}"
