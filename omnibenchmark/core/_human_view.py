@@ -36,7 +36,7 @@ def build_human_view(out_dir: Path, nodes) -> None:
     root = Path(out_dir) / HUMAN_DIR
     shutil.rmtree(root, ignore_errors=True)
 
-    real_dirs = {n.param_dir_template: n for n in nodes if n.param_dir_template}
+    real_dirs = {n.node_dir: n for n in nodes if n.node_dir}
     # Every directory on the way to a node, so a template subdirectory that
     # holds child nodes is not linked as a whole (the children get readable
     # copies instead). Files beside child nodes in such a subdirectory are
