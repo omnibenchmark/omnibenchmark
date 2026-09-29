@@ -128,7 +128,7 @@ class TestResolvedNodeFromBenchmark:
             param_id=f".{param_hash}",
             module=resolved_module,
             parameters=params,
-            param_dir_template=f"{{input}}/data/D1/.{param_hash}",
+            node_dir=f"{{input}}/data/D1/.{param_hash}",
             outputs=[f"{{input}}/data/D1/.{param_hash}/{{module.id}}_data.json"],
             benchmark_name=benchmark.get_name(),
             benchmark_version=benchmark.get_version(),
@@ -137,7 +137,7 @@ class TestResolvedNodeFromBenchmark:
 
         assert node.parameters is not None
         assert node.get_parameter_hash() == param_hash
-        assert node.param_dir_template.endswith(param_hash)
+        assert node.node_dir.endswith(param_hash)
 
     def test_create_resolved_node_for_methods_stage(self, simple_benchmark_yaml):
         """Test creating a ResolvedNode for a methods stage with inputs."""
