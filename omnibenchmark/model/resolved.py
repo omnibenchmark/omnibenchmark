@@ -225,13 +225,16 @@ class ResolvedNode:
     # ========== Optional fields with defaults ==========
     # Parameters
     parameters: Optional[Params] = None
-    param_dir_template: str = ""  # e.g., "{input}/stage/module/.abc123"
-    param_symlink_template: str = ""  # e.g., "{input}/stage/module/method-X_k-10"
+    # The node's output directory, relative to out/ (007 §3), e.g.
+    # "data.D1.default/methods.M1.a1b2c3d4" or "data/D1/.default/methods/M1/.a1b2c3d4".
+    node_dir: str = ""
 
     # DAG Structure
     parent_id: Optional[str] = None
     inputs: Dict[str, str] = field(default_factory=dict)
-    outputs: List[str] = field(default_factory=list)
+    outputs: Dict[str, str] = field(
+        default_factory=dict
+    )  # id -> resolved path template
 
     # Input name mapping (sanitized -> original)
     # Maps Snakemake-safe input names (data_matrix) to original names (data.matrix)
@@ -268,6 +271,12 @@ class ResolvedNode:
     # to the id-prefix chain, so a stage downstream of a fan-in sees every branch.
     parents: List[str] = field(default_factory=list)
 
+    def __post_init__(self):
+        # Normalize outputs from List[str] (legacy test/compat format) to Dict[str, str].
+        if isinstance(self.outputs, list):
+            d = {f"output_{i}": p for i, p in enumerate(self.outputs)}
+            object.__setattr__(self, "outputs", d)
+
     def is_entrypoint(self) -> bool:
         """Check if this is an entrypoint node (no inputs)."""
         return not self.inputs or len(self.inputs) == 0
@@ -281,8 +290,8 @@ class ResolvedNode:
         return self.inputs
 
     def get_output_list(self) -> List[str]:
-        """Get list of output paths (template strings)."""
-        return self.outputs
+        """Get list of output paths (template strings), in declaration order."""
+        return list(self.outputs.values())
 
     def get_parameter_cli_args(self, style: str = "gnu") -> List[str]:
         """
@@ -335,8 +344,7 @@ class ResolvedNode:
                 else None,
             },
             "parameters": self.get_parameter_json(),
-            "param_dir_template": self.param_dir_template,
-            "param_symlink_template": self.param_symlink_template,
+            "node_dir": self.node_dir,
             "parent_id": self.parent_id,
             "parents": self.parents,
             "gathered_from": self.gathered_from,

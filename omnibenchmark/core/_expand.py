@@ -20,7 +20,7 @@ from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
     build_template_context,
     inherited_provides,
-    expansion_segment,
+    node_dir,
     iter_ancestors,
     join_hash,
     lineage_module_ids,
@@ -30,6 +30,7 @@ from omnibenchmark.core._lineage import (
 from omnibenchmark.core._paths import is_lineage_excluded, truncate_path_filename
 from omnibenchmark.core._prune import empty_stage_warning, select_capable_modules
 from omnibenchmark.logging import logger
+from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.model.params import Params
 from omnibenchmark.model.resolved import ResolvedNode
 
@@ -60,6 +61,7 @@ def expand_gather_stage(
     pairing this stage's module with a member's lineage drops that member from
     that module's gather (transitive exclude at member level).
     """
+    flat = benchmark.model.api_version >= APIVersion.V0_8_0  # 007 §3.1
     nodes: list = []
 
     # group value -> [(member id, from id, path)]. Insertion order is producer
@@ -205,19 +207,17 @@ def expand_gather_stage(
                 extra_provides={group_label: gval} if group_label else {},
             )
 
-            outputs = []
+            # The cut chain roots at the stage id: unique by construction,
+            # so two gathers cannot share a tree.
+            d = node_dir(stage.id, module_id, param_id, group=gval, flat=flat)
+            outputs = {}
             for output_spec in stage.outputs:
                 # Only the group label is bound: a template referencing any
                 # other lineage label raises in substitute() — the plan-time
                 # error design 010 §3.3 wants, never a silent empty sub.
                 tmpl = ctx.substitute(output_spec.path, params=params)
-                group_dir = f"{gval}/" if gval is not None else ""
-                # The cut chain roots at the stage id: unique by construction,
-                # so two gathers cannot share a tree.
-                output_path = truncate_path_filename(
-                    f"{stage.id}/{group_dir}{module_id}/{param_id}/{tmpl}"
-                )
-                outputs.append(output_path)
+                output_path = truncate_path_filename(f"{d}/{tmpl}")
+                outputs[output_spec.id] = output_path
                 output_to_nodes.setdefault(output_spec.id, []).append(
                     (node_id, output_path)
                 )
@@ -237,6 +237,7 @@ def expand_gather_stage(
                     module=resolved_module,
                     parameters=params,
                     parent_id=None,
+                    node_dir=d,
                     inputs=inputs,
                     outputs=outputs,
                     input_name_mapping=input_name_mapping,
@@ -256,11 +257,15 @@ def expand_gather_stage(
 
 def _get_output_ids_for_node(node, benchmark) -> dict:
     """Map each output id declared by `node`'s stage to that node's resolved
-    path (index-matched). Used to resolve a downstream stage's declared inputs."""
+    path. Used to resolve a downstream stage's declared inputs."""
     stage = benchmark.model.get_stage(node.stage_id)
     if stage is None:
         return {}
-    return {spec.id: path for spec, path in zip(stage.outputs, node.outputs)}
+    return {
+        spec.id: node.outputs[spec.id]
+        for spec in stage.outputs
+        if spec.id in node.outputs
+    }
 
 
 def expand_scatter_stage(
@@ -273,7 +278,6 @@ def expand_scatter_stage(
     previous_stage_nodes: list,
     stages_to_expand: list,
     path_exclusions,
-    nesting_strategy: str,
     module_filter,
     target_stage,
     dag_errors: list,
@@ -292,6 +296,7 @@ def expand_scatter_stage(
     one node per bundle instead of dropping a branch. The gather sibling is
     `expand_gather_stage`.
     """
+    flat = benchmark.model.api_version >= APIVersion.V0_8_0  # 007 §3.1
     current_stage_nodes: list = []
     # How many (input, params) combinations this stage actually attempted. Zero
     # means nothing was generated to prune (an input id resolved to no upstream
@@ -492,32 +497,21 @@ def expand_scatter_stage(
                     module_provides=module.provides,
                 )
 
-                outputs = []
+                prefix = f"{base_path}/" if base_path else ""
+                node_path = prefix + node_dir(
+                    stage.id, module_id, param_id, members, flat=flat
+                )
+                outputs = {}
                 for output_spec in stage.outputs:
                     output_path_template = ctx.substitute(
                         output_spec.path, params=params
                     )
 
-                    seg = expansion_segment(param_id, members)
-                    if nesting_strategy == "nested":
-                        if base_path:
-                            output_path = f"{base_path}/{stage.id}/{module_id}/{seg}/{output_path_template}"
-                        else:
-                            output_path = (
-                                f"{stage.id}/{module_id}/{seg}/{output_path_template}"
-                            )
-                    elif nesting_strategy == "flat":
-                        output_path = (
-                            f"{stage.id}/{module_id}/{seg}/{output_path_template}"
-                        )
-                    else:
-                        raise ValueError(
-                            f"Unknown nesting strategy: {nesting_strategy}"
-                        )
+                    output_path = f"{node_path}/{output_path_template}"
 
                     output_path = truncate_path_filename(output_path)
 
-                    outputs.append(output_path)
+                    outputs[output_spec.id] = output_path
                     if output_spec.id not in output_to_nodes:
                         output_to_nodes[output_spec.id] = []
                     output_to_nodes[output_spec.id].append((node_id, output_path))
@@ -537,6 +531,7 @@ def expand_scatter_stage(
                     parameters=params,
                     parent_id=input_node.id if input_node else None,
                     parents=[m.id for m in members] if is_join else [],
+                    node_dir=node_path,
                     inputs=inputs,
                     outputs=outputs,
                     input_name_mapping=input_name_mapping,

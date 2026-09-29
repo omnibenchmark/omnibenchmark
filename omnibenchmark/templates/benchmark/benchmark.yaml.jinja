@@ -5,6 +5,7 @@ benchmarker: "{{ author_name }} <{{ author_email }}>"
 
 # Benchmark configuration
 version: "0.1.0"
+api_version: "0.8.0"
 
 # The default software environment for this benchmark.
 # One of: apptainer, conda, envmodules.
@@ -24,10 +25,10 @@ software_environments:
 stages:
   - id: datasets
     outputs:
-        - id: data.matrix
-          path: "{dataset}.data.gz"
-        - id: data.true_labels
-          path: "{dataset}.gz"
+        - id: data_matrix
+          path: "{module.id}.data.gz"
+        - id: data_true_labels
+          path: "{module.id}.labels.gz"
     modules:
       - id: dataset_loader
         name: "loads the benchmark datasets"
@@ -46,11 +47,11 @@ stages:
 
   - id: methods
     inputs:
-        - data.matrix
-        - data.true_labels
+        - data_matrix
+        - data_true_labels
     outputs:
-      - id: clustering.predicted
-        path: "{dataset}_predicted.labels.gz"
+      - id: clustering_predicted
+        path: "{module.id}_predicted.labels.gz"
     modules:
       - id: cool_method_1
         name: "the only method you will ever need"
@@ -63,11 +64,11 @@ stages:
 
   - id: metrics
     inputs:
-        - clustering.predicted
-        - data.true_labels
+        - clustering_predicted
+        - data_true_labels
     outputs:
-      - id: metrics.scores
-        path: "{dataset}.scores.gz"
+      - id: metrics_scores
+        path: "{module.id}.scores.gz"
     modules:
       - id: strict_metric_1
         name: "a very well defined metric"

@@ -132,10 +132,11 @@ class APIVersion(str, Enum):
     V0_5_0 = "0.5.0"
     V0_6_0 = "0.6.0"
     V0_7_0 = "0.7.0"
+    V0_8_0 = "0.8.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_7_0
+        return cls.V0_8_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -181,6 +182,9 @@ class APIVersion(str, Enum):
 # then drop it from this set at the next major api bump, which also frees
 # `dataset` as an ordinary label and stage name. Until then it stays reserved.
 _RESERVED_PROVIDES_LABELS = frozenset({"name", "dataset"})
+# Stage, module and output ids (004 §3.13). The leading-digit rule is enforced for
+# every id by IdentifiableEntity.
+_ID_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 class SoftwareBackendEnum(str, Enum):
@@ -574,6 +578,36 @@ def _warn_if_disjoint_parameter_keys(
     )
 
 
+_warned_dataset_paths: set = set()
+
+
+def _warn_if_deprecated_dataset_var(path: str) -> None:
+    """Warn when an output path still templates on the legacy ``{dataset}``.
+
+    ``{dataset}`` resolves to the *first stage's* module id, which couples every
+    downstream filename to it and degenerates to a constant as soon as the first
+    stage is a single dispatcher module varying datasets by parameter. ``{module.id}``
+    resolves to the current module's own id and has no such coupling.
+    """
+    if "{dataset}" not in path or path in _warned_dataset_paths:
+        return
+    _warned_dataset_paths.add(path)
+
+    YELLOW = "\033[33m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+    indent = "      "
+    sys.stderr.write(
+        f"{BOLD}{YELLOW}WARN{RESET}{YELLOW}: output path '{path}' uses the "
+        f"deprecated '{{dataset}}' template variable.\n"
+        f"{indent}It resolves to the first stage's module id, so it is a constant "
+        f"whenever that stage\n"
+        f"{indent}dispatches datasets by parameter. Prefer '{{module.id}}' (this "
+        f"module's own id), or\n"
+        f"{indent}'{{params.KEY}}' to name outputs after a parameter.{RESET}\n"
+    )
+
+
 class Module(DescribableEntity, SoftwareEnvironmentReference):
     """Module definition."""
 
@@ -592,7 +626,6 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "Non-module-id entries are silently ignored."
         ),
     )
-    outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
     requires: Optional[Dict[str, str]] = Field(
         None,
         description=(
@@ -1482,6 +1515,45 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"declares {self.api_version.value})."
                         )
 
+        # Node ids join stage and module ids with `-` and `.`; keeping those out
+        # of the ids makes a node id parse back into its segments. Output ids
+        # become Snakemake output names as-is (009). Enforced from 0.8.0, a
+        # warning before so existing plans keep loading. See 004 §3.13.
+        collector_outputs = [
+            o for c in self.metric_collectors or [] for o in c.outputs or []
+        ]
+        for entity, kind in (
+            [(s, "Stage") for s in self.stages]
+            + [(m, "Module") for s in self.stages for m in s.modules]
+            + [(o, "Output") for s in self.stages for o in s.outputs or []]
+            + [(o, "Output") for o in collector_outputs]
+        ):
+            if _ID_PATTERN.fullmatch(entity.id):
+                continue
+            msg = (
+                f"{kind} id '{entity.id}' may only contain letters, digits "
+                f"and underscores."
+            )
+            if self.api_version >= APIVersion.V0_8_0:
+                raise ValueError(msg)
+            if kind == "Output":
+                # Renaming an output id renames the `--<input id>` flag
+                # downstream modules parse, so it only makes sense together
+                # with the 0.8.0 migration. No warning before.
+                continue
+            warnings.warn(
+                f"{msg} This becomes an error at api_version 0.8.0.",
+                FutureWarning,
+                stacklevel=2,
+            )
+
+        # Below 0.5 `--name` is the dataset id, so downstream modules write
+        # `{dataset}`-named files and the template is still the right one.
+        if self.api_version >= APIVersion.V0_5_0:
+            for stage in self.stages:
+                for output in stage.outputs or []:
+                    _warn_if_deprecated_dataset_var(output.path)
+
         # The runtime auto-populates `name` (current module id) and `dataset`
         # (root dataset identity) on every node; letting a stage advertise
         # either would silently clobber the user's value and make a downstream
@@ -1705,9 +1777,8 @@ def expand_output_path(file: IOFile) -> str:
     """
     Expands a relative output path into a standardized templated format.
 
-    This function ensures output paths follow a consistent structure by:
-    1. Prepending the standard OUTPUT_PATH_PREFIX if not already present
-    2. Adding a {dataset} placeholder to the filename if not already included
+    Prepends the standard OUTPUT_PATH_PREFIX if not already present. The
+    filename is kept as written, as the run path does.
     """
     # Import here to avoid circular imports
     OUTPUT_PATH_PREFIX = os.path.join("{input}", "{stage}", "{module}", "{params}")
@@ -1723,15 +1794,6 @@ def expand_output_path(file: IOFile) -> str:
 
     if not output_path.startswith(OUTPUT_PATH_PREFIX):
         output_path = os.path.join(OUTPUT_PATH_PREFIX, output_path)
-
-    if "{dataset}" not in output_path:
-        parts = output_path.rsplit(os.path.sep, 1)
-        if len(parts) == 2:
-            directory, filename = parts
-            output_path = os.path.join(directory, f"{{dataset}}.{filename}")
-        else:
-            filename = parts[0]
-            output_path = f"{{dataset}}.{filename}"
 
     return output_path
 

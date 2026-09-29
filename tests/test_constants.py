@@ -7,7 +7,7 @@ All tests are marked as 'short' since they test simple constant definitions.
 
 import pytest
 from omnibenchmark.constants import LayoutDesign, COMPRESSION_GZIP, DEFAULT_COMPRESSION
-from omnibenchmark.core.constants import LOCAL_TIMEOUT_VAR, OUTPUT_PATH_PREFIX
+from omnibenchmark.core.constants import LOCAL_TIMEOUT_VAR
 
 
 @pytest.mark.short
@@ -53,40 +53,15 @@ class TestBenchmarkConstants:
         assert isinstance(LOCAL_TIMEOUT_VAR, str)
         assert len(LOCAL_TIMEOUT_VAR) > 0
 
-    def test_output_path_prefix_defined(self):
-        """Test that OUTPUT_PATH_PREFIX is properly defined."""
-        expected_path = "{input}/{stage}/{module}/{params}"
-        assert OUTPUT_PATH_PREFIX == expected_path
-        assert isinstance(OUTPUT_PATH_PREFIX, str)
-
-    def test_output_path_prefix_format(self):
-        """Test that OUTPUT_PATH_PREFIX contains expected placeholders."""
-        assert "{input}" in OUTPUT_PATH_PREFIX
-        assert "{stage}" in OUTPUT_PATH_PREFIX
-        assert "{module}" in OUTPUT_PATH_PREFIX
-        assert "{params}" in OUTPUT_PATH_PREFIX
-
-    def test_output_path_prefix_structure(self):
-        """Test that OUTPUT_PATH_PREFIX has expected structure."""
-        # Should be path-like with forward slashes
-        assert "/" in OUTPUT_PATH_PREFIX
-        # Should start with {input}
-        assert OUTPUT_PATH_PREFIX.startswith("{input}")
-        # Should have exactly 4 path components
-        assert OUTPUT_PATH_PREFIX.count("/") == 3
-
     def test_constants_are_final(self):
         """Test that constants behave as immutable Final types."""
         # These should not raise errors during import and usage
         timeout_var = LOCAL_TIMEOUT_VAR
-        path_prefix = OUTPUT_PATH_PREFIX
 
         assert timeout_var is not None
-        assert path_prefix is not None
 
         # Verify they maintain their values
         assert timeout_var == "local_task_timeout"
-        assert path_prefix == "{input}/{stage}/{module}/{params}"
 
 
 @pytest.mark.short

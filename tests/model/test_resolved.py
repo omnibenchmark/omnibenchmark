@@ -112,7 +112,7 @@ class TestResolvedNode:
             module_id="D1",
             param_id="default",
             module=module,
-            outputs=["{input}/data/D1/default/{dataset}.json"],
+            outputs=["{input}/data/D1/default/{module.id}.json"],
         )
 
         assert node.id == "data-D1-default"
@@ -120,7 +120,9 @@ class TestResolvedNode:
         assert node.module_id == "D1"
         assert node.param_id == "default"
         assert node.module == module
-        assert node.outputs == ["{input}/data/D1/default/{dataset}.json"]
+        assert list(node.outputs.values()) == [
+            "{input}/data/D1/default/{module.id}.json"
+        ]
         assert node.is_entrypoint()  # No inputs
 
     def test_resolved_node_with_parameters(self):
@@ -142,17 +144,12 @@ class TestResolvedNode:
             param_id=".12345678",
             module=module,
             parameters=params,
-            param_dir_template="{input}/methods/M1/.12345678",
-            param_symlink_template="{input}/methods/M1/method-cosine_threshold-0.1",
-            outputs=["{input}/methods/M1/.12345678/{dataset}.result.json"],
+            node_dir="{input}/methods/M1/.12345678",
+            outputs=["{input}/methods/M1/.12345678/{module.id}.result.json"],
         )
 
         assert node.parameters == params
-        assert node.param_dir_template == "{input}/methods/M1/.12345678"
-        assert (
-            node.param_symlink_template
-            == "{input}/methods/M1/method-cosine_threshold-0.1"
-        )
+        assert node.node_dir == "{input}/methods/M1/.12345678"
 
         # Test parameter methods
         assert node.get_parameter_hash() == params.hash_short()
@@ -177,20 +174,20 @@ class TestResolvedNode:
             module=module,
             parent_id="data-D1-default",
             inputs={
-                "data.raw": "{input}/data/D1/default/{dataset}.json",
+                "data.raw": "{input}/data/D1/default/{module.id}.json",
             },
-            outputs=["{input}/methods/M1/default/{dataset}.result.json"],
+            outputs=["{input}/methods/M1/default/{module.id}.result.json"],
         )
 
         assert node.parent_id == "data-D1-default"
-        assert node.inputs == {"data.raw": "{input}/data/D1/default/{dataset}.json"}
+        assert node.inputs == {"data.raw": "{input}/data/D1/default/{module.id}.json"}
         assert not node.is_entrypoint()  # Has inputs
 
         # Test input accessors
         assert node.get_input_dict() == {
-            "data.raw": "{input}/data/D1/default/{dataset}.json"
+            "data.raw": "{input}/data/D1/default/{module.id}.json"
         }
-        assert node.get_input_list() == ["{input}/data/D1/default/{dataset}.json"]
+        assert node.get_input_list() == ["{input}/data/D1/default/{module.id}.json"]
 
     def test_resolved_node_id_creation(self):
         """Test node ID creation utility."""

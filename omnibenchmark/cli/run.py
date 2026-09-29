@@ -23,6 +23,7 @@ from omnibenchmark.core._paths import (
     collect_path_exclusions,
 )
 from omnibenchmark.core._expand import expand_gather_stage, expand_scatter_stage
+from omnibenchmark.core._human_view import build_human_view
 from omnibenchmark.core._prune import (
     apply_until_filter,
     capability_prune_summary,
@@ -34,6 +35,7 @@ from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
 from omnibenchmark.core import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
+from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.model.validation import BenchmarkParseError
 
 
@@ -941,6 +943,11 @@ def _run_snakemake(
 
     finally:
         os.chdir(original_dir)
+        if benchmark and benchmark.model.api_version >= APIVersion.V0_8_0:
+            try:
+                build_human_view(out_dir, resolved_nodes or [])
+            except OSError as e:  # the view is disposable; never fail the run
+                logger.warning(f"Could not build {out_dir}/human: {e}")
 
 
 def log_error_and_quit(logger, error):
@@ -952,7 +959,6 @@ def _generate_explicit_snakefile(
     benchmark: BenchmarkExecution,
     benchmark_yaml_path: Path,
     out_dir: Path,
-    nesting_strategy: str = "nested",
     cores: int = 4,
     quiet: bool = False,
     start_time: Optional[float] = None,
@@ -1291,7 +1297,6 @@ def _generate_explicit_snakefile(
                 previous_stage_nodes=previous_stage_nodes,
                 stages_to_expand=stages_to_expand,
                 path_exclusions=path_exclusions,
-                nesting_strategy=nesting_strategy,
                 module_filter=module_filter,
                 target_stage=target_stage if module_filter else None,
                 dag_errors=dag_errors,
@@ -1369,6 +1374,14 @@ def _generate_explicit_snakefile(
             sys.exit(1)
 
         resolved_nodes.extend(collector_nodes)
+
+    if benchmark.model.api_version < APIVersion.V0_8_0:
+        logger.warning(
+            f"api_version {benchmark.model.api_version.value} writes the nested "
+            "output layout, which is deprecated and removed at api 0.10.0. "
+            "Raise api_version to 0.8.0 for the flat layout (007 §3.1); "
+            "every output path changes, so the next run recomputes everything."
+        )
 
     # Generate Snakefile
     snakefile_path = out_dir / "Snakefile"

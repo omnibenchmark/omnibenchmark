@@ -2,6 +2,7 @@ import os.path
 from pathlib import Path
 from typing import Optional
 
+from omnibenchmark.core._paths import substitute_node_vars
 from omnibenchmark.model import SoftwareBackendEnum
 
 
@@ -84,31 +85,25 @@ class BenchmarkNode:
             return list(input_paths.values())
 
     def get_outputs(self):
-        return self.outputs if self.outputs else []
+        """Return outputs as dict {id: path_template}."""
+        return self.outputs if self.outputs else {}
 
     def get_output_paths(self, config):
-        output_paths = []
-
         pre = config.get("input", config.get("output"))
         dataset = config["dataset"]
-        for output in self.get_outputs():
-            output = output.format(
-                pre=pre,
-                dataset=dataset,
-                stage=self.stage_id,
-                module=self.module_id,
-                params=self.param_id,
+        output_paths = []
+        for path in self.get_outputs().values():
+            path = substitute_node_vars(path, self, pre)
+            output_paths.append(
+                path.replace("{pre}", str(pre)).replace("{dataset}", dataset)
             )
-
-            output_paths.append(output)
-
         return output_paths
 
     def get_benchmark_path(self, config):
         pre = config.get("input", config.get("output"))
         dataset = config["dataset"]
 
-        output_paths = self.get_outputs()
+        output_paths = list(self.get_outputs().values())
         output_dir = os.path.commonpath(output_paths)
         if len(output_paths) == 1:
             output_dir = Path(os.path.dirname(output_dir))
