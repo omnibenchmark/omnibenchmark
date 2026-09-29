@@ -29,7 +29,7 @@ from omnibenchmark.model.resolved import (
     ResolvedEnvironment,
     TemplateContext,
 )
-from omnibenchmark.model.benchmark import SoftwareBackendEnum
+from omnibenchmark.model.benchmark import APIVersion, SoftwareBackendEnum
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +77,12 @@ def _make_node(
 ):
     if module is None:
         module = _make_module()
+    # Accept list for backward compat; convert to {id: path} dict
+    raw = outputs if outputs is not None else ["out/stage1/mod1/default/result.csv"]
+    if isinstance(raw, list):
+        outputs_dict = {f"output_{i}": p for i, p in enumerate(raw)}
+    else:
+        outputs_dict = raw
     return ResolvedNode(
         id=node_id,
         stage_id=stage_id,
@@ -84,7 +90,7 @@ def _make_node(
         param_id=param_id,
         module=module,
         inputs=inputs or {},
-        outputs=outputs or ["out/stage1/mod1/default/result.csv"],
+        outputs=outputs_dict,
         parameters=parameters,
         resources=resources,
         template_context=template_context,
@@ -498,6 +504,79 @@ class TestWriteNodeRuleExec:
         node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
         out = _capture(_gen()._write_node_rule, node)
         assert "tee" in out
+
+
+# ---------------------------------------------------------------------------
+# API v0.8 named-output tests
+# ---------------------------------------------------------------------------
+
+
+class TestV08NamedOutputs:
+    """Tests for API v0.8 named-output contract."""
+
+    def test_single_output_named_rule_syntax(self):
+        """v0.8: output block uses named-output syntax."""
+        node = _make_node(
+            outputs={"rawdata_h5ad": "out/one-data/datasets/default/dataset1.h5ad"},
+        )
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        assert 'rawdata_h5ad="out/one-data/datasets/default/dataset1.h5ad"' in out
+        # Not positional
+        assert 'output:\n        "' not in out
+
+    def test_single_output_shell_flag_positional(self):
+        """v0.8 single output: --output PATH (no id= prefix)."""
+        node = _make_node(
+            outputs={"rawdata_h5ad": "out/one-data/datasets/default/dataset1.h5ad"},
+        )
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        # absolutised before the shell cds into the module dir
+        assert (
+            "OUTPUT_rawdata_h5ad=$(cd $(dirname {output.rawdata_h5ad}) && pwd)" in out
+        )
+        assert "--output $OUTPUT_rawdata_h5ad" in out
+        assert "--output rawdata" not in out  # no id= for single output
+
+    def test_multi_output_shell_flags_with_ids(self):
+        """v0.8 multi-output: --output id=PATH per output."""
+        node = _make_node(
+            outputs={
+                "rawdata_h5ad": "out/stage/mod/default/dataset.h5ad",
+                "rawdata_clusters": "out/stage/mod/default/dataset.clusters.tsv",
+            },
+        )
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        assert "--output rawdata_h5ad=$OUTPUT_rawdata_h5ad" in out
+        assert "--output rawdata_clusters=$OUTPUT_rawdata_clusters" in out
+
+    def test_v08_still_passes_output_dir_and_name(self):
+        """v0.8: --output_dir and --name still passed for back-compat."""
+        node = _make_node(
+            outputs={"result": "out/stage/mod/default/result.csv"},
+        )
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        assert "--output_dir" in out
+        assert "--name" in out
+
+    def test_v04_keeps_positional_output_block(self):
+        """v0.4: output block stays positional (no named-output syntax)."""
+        node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
+        out = _capture(_gen(api_version=APIVersion.V0_4_0)._write_node_rule, node)
+        assert '"out/stage1/mod1/default/result.csv",' in out
+        assert "output_0=" not in out
+
+    def test_v07_keeps_positional_output_block(self):
+        """v0.7: output block stays positional, no --output flags."""
+        node = _make_node(outputs=["out/stage1/mod1/default/result.csv"])
+        out = _capture(_gen(api_version=APIVersion.V0_7_0)._write_node_rule, node)
+        assert '"out/stage1/mod1/default/result.csv",' in out
+        assert "--output " not in out
+
+    def test_v04_no_output_flags_in_shell(self):
+        """v0.4: shell does not emit --output flags."""
+        node = _make_node(outputs=["out/stage1/mod1/default/dataset1_result.csv"])
+        out = _capture(_gen(api_version=APIVersion.V0_4_0)._write_node_rule, node)
+        assert "--output {" not in out
 
 
 # ---------------------------------------------------------------------------
