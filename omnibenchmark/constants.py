@@ -17,6 +17,11 @@ DEFAULT_COMPRESSION = COMPRESSION_GZIP
 # tool caches. They can reach many gigabytes, so nothing that walks `out/`
 # looking for results should descend into them.
 #
+# `human` is the derived readable view of a flat tree (007 §3.1.2): symlinks
+# into the results, so walking it would count every result twice.
+#
 # `.metadata` is deliberately absent: it holds the run's provenance (benchmark
 # YAML copy, modules.txt, manifest.json) and belongs in the archive.
-INTERNAL_OUT_DIRS = frozenset({".modules", ".snakemake", ".envs", ".logs", ".cache"})
+INTERNAL_OUT_DIRS = frozenset(
+    {".modules", ".snakemake", ".envs", ".logs", ".cache", "human"}
+)

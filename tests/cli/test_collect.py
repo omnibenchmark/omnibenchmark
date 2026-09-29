@@ -137,3 +137,41 @@ def test_build_record_below_a_grouped_gather(tmp_path):
     assert record["dataset"] == "D1"  # the group key, the chain being cut
     assert record["lineage"] == "metrics/MC/report/R1"
     assert json.loads(record["params"]) == {"report": {"top": 5}}
+
+
+@pytest.mark.short
+def test_build_record_flat_layout(tmp_path):
+    """007 §3.1: one `stage.module.param` part per node, the same row as nested;
+    `human/` is not walked."""
+    download = tmp_path / "download.norman.68ee97fd"
+    download.mkdir(parents=True)
+    (download / "parameters.json").write_text(json.dumps({"uri": "http://x"}))
+    leaf = download / "methods.additive.default"
+    perf = _write_perf(leaf)
+    _write_perf(
+        tmp_path / "human" / "download.norman.uri-x" / "methods.additive.default"
+    )
+
+    record = _build_record(tmp_path, perf)
+
+    assert record["stage"] == "methods"
+    assert record["module"] == "additive"
+    assert record["dataset"] == "norman"
+    assert record["param_hash"] == ""
+    assert record["lineage"] == "download/norman/methods/additive"
+    assert json.loads(record["params"]) == {"download": {"uri": "http://x"}}
+    assert _find_performance_files(tmp_path) == [perf]
+
+
+@pytest.mark.short
+def test_build_record_flat_below_a_grouped_gather(tmp_path):
+    leaf = tmp_path / "metrics.MC.D1.default" / "report.R1.13058ed0"
+    leaf.mkdir(parents=True)
+    (leaf / "parameters.json").write_text(json.dumps({"top": 5}))
+    record = _build_record(tmp_path, _write_perf(leaf))
+
+    assert (record["stage"], record["module"]) == ("report", "R1")
+    assert record["param_hash"] == "13058ed0"
+    assert record["dataset"] == "D1"
+    assert record["lineage"] == "metrics/MC/report/R1"
+    assert json.loads(record["params"]) == {"report": {"top": 5}}
