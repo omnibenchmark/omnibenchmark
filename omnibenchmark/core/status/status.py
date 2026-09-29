@@ -35,15 +35,15 @@ def _count_nodes(exec_path_dict: dict, stage_id: str) -> int:
     """Number of executions of a stage, one per lineage.
 
     filedict keys are module x params, so a module run on every dataset would
-    count once; distinct output sets across exec paths count each execution.
+    count once; the ancestor node chain identifies each execution, even when a
+    stage resolves no outputs.
     """
-    return len(
-        {
-            frozenset(ep.exec_path[stage_id].get_output_files())
-            for ep in exec_path_dict.values()
-            if stage_id in ep.stages
-        }
-    )
+    chains = set()
+    for ep in exec_path_dict.values():
+        if stage_id in ep.stages:
+            upto = ep.stages[: ep.stages.index(stage_id) + 1]
+            chains.add(tuple(ep.exec_path[st].node.get_id() for st in upto))
+    return len(chains)
 
 
 def print_exec_path_dict(

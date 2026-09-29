@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from omnibenchmark.core import Benchmark
+import pytest
+
 from tests.cli.cli_setup import OmniCLISetup
 
 benchmark_data = Path("..") / "data"
@@ -25,22 +26,10 @@ def test_benchmark_snakemake_plot():
         assert result.returncode == 0
         assert "process-P1-.317a5066-after_data" in result.stdout
         assert "methods-M2-.3297cc0b-after_data" in result.stdout
-        assert "metrics-m3-default-after_methods" in result.stdout
+        assert "metrics-m3-.default-after_methods" in result.stdout
 
 
-def test_benchmark_topology_plot(tmp_path):
-    import shutil
-
-    # Copy benchmark file to tmp_path to avoid writing to current directory
-    benchmark_file = benchmark_data_path / "Benchmark_001.yaml"
-    copied_benchmark_path = tmp_path / "Benchmark_001.yaml"
-    shutil.copy(benchmark_file, copied_benchmark_path)
-
-    benchmark = Benchmark(copied_benchmark_path, out_dir=tmp_path / "out")
-    # XXX what is this testing, exactly? that cli is calling the right method?
-    # for that we could use a mock object to test the export_to_mermaid method is called
-    expected_output = benchmark.export_to_mermaid()
-
+def test_benchmark_topology_plot():
     expected_methods = """
        	subgraph methods
 		M1
@@ -67,8 +56,6 @@ def test_benchmark_topology_plot(tmp_path):
         )
 
         assert result.returncode == 0
-        print(result.stdout)
-        print(expected_output)
         assert strip(expected_methods) in strip(result.stdout)
 
 
@@ -150,3 +137,23 @@ def test_describe_status_with_out_dir(tmp_path):
         # BenchmarkExecution is created with the custom path (verified by code inspection)
         # and the command doesn't crash
         assert "file completion" in result_custom.stdout.lower()
+
+
+@pytest.mark.short
+@pytest.mark.parametrize("flag", ["--json", "--html"])
+def test_describe_status_watch_rejects_json_and_html(flag):
+    with OmniCLISetup() as omni:
+        result = omni.call(
+            [
+                "describe",
+                "status",
+                str(benchmark_data_path / "Benchmark_001.yaml"),
+                "--watch",
+                "1",
+                flag,
+            ]
+        )
+        assert result.returncode != 0
+        assert "--watch only works with the text report" in (
+            result.stdout + result.stderr
+        )

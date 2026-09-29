@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the omnibenchmark config; `--author-name`/`--author-email` are no longer required with `--non-interactive`
 - feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style
+- feat: `ob describe status --watch SECONDS` redraws the text report on an interval and exits once every expected output exists; it only reads the output tree, so it works with any executor (#386)
+- fix: `ob describe status` looked for parameterless modules under `default/` while `ob run` writes `.default/`, so it reported 0% complete for them; node ids for such modules are now `<stage>-<module>-.default`
+- fix: `ob describe status` counts a stage's nodes once per lineage, instead of once per module and parameter set
 - fix: a stage resolves its inputs from their producers, not from whichever stage expanded just before it. A stage with no modules sorting between producer and consumer (ties are hash order) made the consumer expand as a root with no inputs, depending on PYTHONHASHSEED; and a stage whose producers were all pruned no longer chains onto an unrelated stage
 - fix: the DAG is deterministic. Nodes and edges keep insertion order instead of set (hash) order, and the topological sort breaks ties by declaration order, so the same plan expands in the same order on every run and machine
 - refactor: input resolution is a pure function of a stage's declared inputs and their producers; the `previous_stage_nodes` parameter is gone from `select_input_nodes`, `select_input_bundles` and `expand_scatter_stage`, so expansion order cannot change which nodes a stage chains onto

@@ -28,6 +28,7 @@ def _node(stage_id, module_id, param_id):
         module_id=module_id,
         param_id=param_id,
         parameters=None,
+        get_id=lambda: f"{stage_id}-{module_id}-{param_id}",
     )
 
 
@@ -186,3 +187,15 @@ def test_count_nodes_counts_each_lineage():
     }
     assert _count_nodes(eps, "data") == 2
     assert _count_nodes(eps, "methods") == 2
+
+
+@pytest.mark.short
+def test_count_nodes_stage_without_outputs():
+    """Executions of a stage that resolves no outputs are still distinct."""
+    eps = {
+        i: _FakeExecPath([("data", _FakeStage(_node("data", d, "p"), ".", "out/none"))])
+        for i, d in enumerate(["D1", "D2"])
+    }
+    for ep in eps.values():
+        ep.exec_path["data"].get_output_files = lambda: []
+    assert _count_nodes(eps, "data") == 2
