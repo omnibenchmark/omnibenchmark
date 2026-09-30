@@ -3,7 +3,7 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## [0.7.0](UNRELEASED)
+## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
 - feat: capability filters by --with-capability (#360)
 - feat: emit threads per rule according if the module requests a number of cores
