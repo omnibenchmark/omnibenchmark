@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
-- ...
+- feat: `gather[].expose` passes one labelled member per group as its own flag, e.g. a reference module to compare against (api 0.8.0, #389)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
