@@ -9,6 +9,7 @@ from omnibenchmark.core._lineage import (
     inherited_provides,
     lineage_module_ids,
     resolve_label_value,
+    resolve_param_refs,
     satisfies_requires,
     select_input_nodes,
 )
@@ -170,6 +171,130 @@ class TestBuildTemplateContext:
         stage = _make_stage("data", provides=None)
         ctx = build_template_context(stage, "D1", module_name="Dataset 1")
         assert ctx.substitute("{module.name}_output.txt") == "Dataset 1_output.txt"
+
+    # --- provides_params: every label binding records the binder's params ---
+
+    def test_root_node_binds_dataset_params(self):
+        stage = _make_stage("data", provides=None)
+        p = Params({"ideal_components": 10})
+        ctx = build_template_context(stage, "D1", params=p)
+        assert ctx.lookup_param("dataset", "ideal_components") == 10
+
+    def test_root_node_binds_stage_provides_params(self):
+        stage = _make_stage("data", provides=["treatment"])
+        p = Params({"treatment": "ctrl", "dose": 5})
+        ctx = build_template_context(stage, "D1", params=p)
+        assert ctx.lookup_param("treatment", "dose") == 5
+
+    def test_child_inherits_parent_provides_params(self):
+        parent_ctx = TemplateContext(
+            provides={"dataset": "D1"},
+            provides_params={"dataset": Params({"ideal_components": 10})},
+        )
+        input_node = _make_input_node("D1", "data", template_context=parent_ctx)
+        stage = _make_stage("pca", provides=None)
+        ctx = build_template_context(stage, "PCA", input_nodes=(input_node,))
+        assert ctx.lookup_param("dataset", "ideal_components") == 10
+
+    def test_child_does_not_rebind_dataset(self):
+        # `dataset` is an entrypoint concept: a downstream node must not
+        # shadow it with its own params.
+        parent_ctx = TemplateContext(
+            provides={"dataset": "D1"},
+            provides_params={"dataset": Params({"ideal_components": 10})},
+        )
+        input_node = _make_input_node("D1", "data", template_context=parent_ctx)
+        stage = _make_stage("pca", provides=None)
+        ctx = build_template_context(
+            stage, "PCA", input_nodes=(input_node,), params=Params({"k": 3})
+        )
+        assert ctx.lookup_param("dataset", "ideal_components") == 10
+
+
+# ---------------------------------------------------------------------------
+# resolve_param_refs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+class TestResolveParamRefs:
+    @staticmethod
+    def _bundle(**provides_params):
+        ctx = TemplateContext(provides_params=provides_params)
+        return (_make_input_node("P", "up", template_context=ctx),)
+
+    def test_none_params(self):
+        assert resolve_param_refs(self._bundle(), None) is None
+
+    def test_no_ref_returns_same_object(self):
+        # Untouched, and not even copied: params_list is shared across bundles.
+        p = Params({"k": 3, "flag": True})
+        assert resolve_param_refs(self._bundle(), p) is p
+
+    def test_literal_braces_passed_through(self):
+        p = Params({"pattern": "^{2,3}$", "j": "{not a ref}"})
+        assert resolve_param_refs(self._bundle(), p) is p
+
+    def test_whole_value_ref_preserves_native_type(self):
+        bundle = self._bundle(dataset=Params({"ideal_components": 10}))
+        result = resolve_param_refs(
+            bundle, Params({"k": "{dataset.params.ideal_components}"})
+        )
+        assert result["k"] == 10
+        assert isinstance(result["k"], int)
+
+    def test_whole_value_ref_preserves_bool(self):
+        # A stringified True would render as `--k True` instead of the flag.
+        bundle = self._bundle(dataset=Params({"scale": True}))
+        result = resolve_param_refs(bundle, Params({"k": "{dataset.params.scale}"}))
+        assert result["k"] is True
+
+    def test_embedded_ref_interpolates_as_text(self):
+        bundle = self._bundle(dataset=Params({"n": 100}))
+        result = resolve_param_refs(bundle, Params({"tag": "run-{dataset.params.n}-x"}))
+        assert result["tag"] == "run-100-x"
+
+    def test_does_not_mutate_input(self):
+        bundle = self._bundle(dataset=Params({"n": 7}))
+        p = Params({"k": "{dataset.params.n}"})
+        result = resolve_param_refs(bundle, p)
+        assert result is not p
+        assert p["k"] == "{dataset.params.n}"
+
+    def test_other_keys_survive(self):
+        bundle = self._bundle(dataset=Params({"n": 7}))
+        result = resolve_param_refs(bundle, Params({"k": "{dataset.params.n}", "m": 2}))
+        assert result["k"] == 7 and result["m"] == 2
+
+    def test_join_sees_every_branch(self):
+        a = _make_input_node(
+            "A", "up", TemplateContext(provides_params={"x": Params({"n": 1})})
+        )
+        b = _make_input_node(
+            "B", "up", TemplateContext(provides_params={"y": Params({"n": 2})})
+        )
+        result = resolve_param_refs((a, b), Params({"k": "{y.params.n}"}))
+        assert result["k"] == 2
+
+    def test_no_parent_raises(self):
+        # An entrypoint has no lineage; the ref must not reach the shell.
+        with pytest.raises(ValueError, match="Unknown lineage label"):
+            resolve_param_refs((), Params({"k": "{dataset.params.n}"}))
+
+    def test_unknown_label_raises(self):
+        bundle = self._bundle(dataset=Params({"n": 7}))
+        with pytest.raises(ValueError, match="Unknown lineage label 'treatment'"):
+            resolve_param_refs(bundle, Params({"k": "{treatment.params.n}"}))
+
+    def test_unknown_key_raises(self):
+        bundle = self._bundle(dataset=Params({"n": 7}))
+        with pytest.raises(ValueError, match="declares no parameter 'missing'"):
+            resolve_param_refs(bundle, Params({"k": "{dataset.params.missing}"}))
+
+    def test_label_bound_to_paramless_module_raises(self):
+        bundle = self._bundle(dataset=None)
+        with pytest.raises(ValueError, match="declares no parameter 'n'"):
+            resolve_param_refs(bundle, Params({"k": "{dataset.params.n}"}))
 
 
 # ---------------------------------------------------------------------------

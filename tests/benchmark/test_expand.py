@@ -1440,3 +1440,99 @@ def test_gather_skips_a_module_missing_from_the_resolution_cache():
         nodes_by_id=nodes_by_id,
     )
     assert nodes == []
+
+
+# ---------------------------------------------------------------------------
+# {label.params.key}: parameter values resolved from the lineage
+# ---------------------------------------------------------------------------
+
+
+def _param_ref_yaml(method_params, data_extra=""):
+    """data (D1: ideal_components=10, D2: 25) -> method (M1 with `method_params`)."""
+    return f"""
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: 0.7.0
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: data{_line(data_extra, 4)}
+    outputs: [{{id: data.out, path: "{{name}}_d.txt"}}]
+    modules:
+      - id: D1
+{_BLOCK_REPO}
+        parameters: [{{ideal_components: 10}}]
+      - id: D2
+{_BLOCK_REPO}
+        parameters: [{{ideal_components: 25}}]
+  - id: method
+    inputs: [data.out]
+    outputs: [{{id: method.out, path: "{{name}}_m.txt"}}]
+    modules:
+      - id: M1
+{_BLOCK_REPO}
+        parameters: [{method_params}]
+"""
+
+
+def _k_by_root(nodes, key="k"):
+    method = [n for n in nodes if n.stage_id == "method"]
+    return {n.template_context.provides["dataset"]: n.parameters[key] for n in method}
+
+
+@pytest.mark.short
+def test_param_ref_resolves_per_lineage_keeping_native_type():
+    nodes, _, errors = _plan(
+        _param_ref_yaml('{k: "{dataset.params.ideal_components}"}')
+    )
+    assert errors == []
+    assert _k_by_root(nodes) == {"D1": 10, "D2": 25}
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert all(isinstance(n.parameters["k"], int) for n in method)
+
+
+@pytest.mark.short
+def test_param_ref_resolves_a_declared_provides_label():
+    nodes, _, errors = _plan(
+        _param_ref_yaml(
+            '{k: "{treatment.params.ideal_components}"}',
+            data_extra="provides: [treatment]",
+        )
+    )
+    assert errors == []
+    assert _k_by_root(nodes) == {"D1": 10, "D2": 25}
+
+
+@pytest.mark.short
+def test_param_hash_follows_the_resolved_value():
+    """The hash is taken after resolution, so the two nodes never share a
+    param directory — which under the `flat` strategy would be one directory."""
+    nodes, _, _ = _plan(
+        _param_ref_yaml('{k: "{dataset.params.ideal_components}"}'), "flat"
+    )
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert len({n.param_id for n in method}) == 2
+    assert len({n.outputs[0] for n in method}) == 2
+
+
+@pytest.mark.short
+def test_literal_params_still_share_one_hash():
+    nodes, _, _ = _plan(_param_ref_yaml("{k: 3}"))
+    method = [n for n in nodes if n.stage_id == "method"]
+    assert len({n.param_id for n in method}) == 1
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "ref, message",
+    [
+        ("{dataset.params.nonexistent}", "declares no parameter 'nonexistent'"),
+        ("{treatment.params.dose}", "Unknown lineage label 'treatment'"),
+    ],
+)
+def test_bad_param_ref_is_a_dag_error(ref, message):
+    _, _, errors = _plan(_param_ref_yaml(f'{{k: "{ref}"}}'))
+    assert errors and message in errors[0][2]

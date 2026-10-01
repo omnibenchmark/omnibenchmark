@@ -9,6 +9,7 @@ isolation.
 """
 
 import hashlib
+import re
 from collections import deque
 from itertools import product
 from typing import Optional
@@ -174,7 +175,7 @@ def select_input_nodes(
     return [n for n in resolved_nodes if n.stage_id in selected]
 
 
-def inherited_provides(input_nodes) -> dict:
+def inherited_provides(input_nodes, attr: str = "provides") -> dict:
     """The lineage labels a node inherits from its producer bundle.
 
     The **union** over every member, not just the anchor: a node downstream of
@@ -182,11 +183,14 @@ def inherited_provides(input_nodes) -> dict:
     already follows. Branches cannot disagree on a value because a label is
     owned by exactly one stage (008 §3.5, enforced at parse time); the only
     overlap is the builtin `name`, which every node overwrites with its own id.
+
+    `attr="provides_params"` gives the same union over the params behind each
+    label, for `{label.params.key}`.
     """
     provides: dict = {}
     for member in input_nodes:
         if member.template_context is not None:
-            provides.update(member.template_context.provides)
+            provides.update(getattr(member.template_context, attr))
     return provides
 
 
@@ -434,10 +438,14 @@ def build_template_context(
 
     # Inherit the upstream lineage labels first, then layer this stage's own.
     provides: dict[str, str] = inherited_provides(input_nodes)
+    # {label.params.*}: every label binding also records the params of the node
+    # that bound it, so a downstream parameter value can read them.
+    provides_params: dict = inherited_provides(input_nodes, "provides_params")
 
     if stage_provides:
         for label in stage_provides:
             provides[label] = resolve_label_value(label, module_provides, module_id)
+            provides_params[label] = params
 
     if anchor is not None:
         module_attrs["parent.id"] = anchor.module_id
@@ -452,11 +460,66 @@ def build_template_context(
                 provides.setdefault("dataset", str(params["dataset"]))
             else:
                 provides.setdefault("dataset", module_id)
+            provides_params.setdefault("dataset", params)
 
     if extra_provides:
         provides.update(extra_provides)
 
     # {name} always resolves to the current module's own ID, never inherited
     provides["name"] = module_id
+    provides_params["name"] = params
 
-    return TemplateContext(provides=provides, module_attrs=module_attrs)
+    return TemplateContext(
+        provides=provides,
+        module_attrs=module_attrs,
+        provides_params=provides_params,
+    )
+
+
+_PARAM_REF_RE = re.compile(r"\{([A-Za-z0-9_-]+)\.params\.([^{}]+)\}")
+
+
+def resolve_param_refs(input_nodes, params):
+    """Substitute ``{label.params.key}`` in parameter VALUES from the lineage.
+
+    Resolved against the producer bundle's labels, which are already fully
+    resolved, so a node can never reference its own label and no fixpoint is
+    needed. Chained references (C → B → A) work transitively for free, since
+    what lands on each node is the resolved `Params`.
+
+    Only *matched* references are touched — unlike `TemplateContext.substitute`,
+    a leftover brace here is a legal literal, not an error. Returns a new
+    `Params` when anything changed, otherwise `params` itself: `params_list` is
+    built once per module and shared across every input bundle, so it must
+    never be mutated in place.
+
+    An entrypoint has no lineage to read, but a reference there must still fail
+    loudly rather than reach the shell verbatim — an empty context raises for
+    every label.
+    """
+    if params is None:
+        return params
+
+    ctx = TemplateContext(
+        provides_params=inherited_provides(input_nodes, "provides_params")
+    )
+    resolved = None
+
+    for key, value in params.items():
+        if not isinstance(value, str) or "{" not in value:
+            continue
+        whole = _PARAM_REF_RE.fullmatch(value)
+        if whole:
+            # Whole-value reference keeps the ancestor's native type.
+            new_value = ctx.lookup_param(*whole.groups())
+        elif _PARAM_REF_RE.search(value):
+            new_value = _PARAM_REF_RE.sub(
+                lambda m: str(ctx.lookup_param(*m.groups())), value
+            )
+        else:
+            continue
+        if resolved is None:
+            resolved = type(params)(params)
+        resolved[key] = new_value
+
+    return resolved if resolved is not None else params
