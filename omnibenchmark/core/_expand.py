@@ -178,6 +178,8 @@ def expand_gather_stage(
                     f"group cannot run."
                 )
 
+            exposed = _exposed_members(stage, kept, nodes_by_id, gval, module_id)
+
             param_id = f".{params.hash_short()}" if params else ".default"
             # A global gather has no group value, so neither its id nor its
             # path carries a group segment.
@@ -188,9 +190,9 @@ def expand_gather_stage(
             # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
             inputs: dict = {}
             input_name_mapping: dict = {}
-            for idx, (_mid, from_id, path) in enumerate(kept):
+            for idx, (_mid, flag, path) in enumerate(kept + exposed):
                 inputs[f"input_{idx}"] = path
-                input_name_mapping[f"input_{idx}"] = from_id
+                input_name_mapping[f"input_{idx}"] = flag
             member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
 
             ctx = build_template_context(
@@ -252,6 +254,38 @@ def expand_gather_stage(
             )
 
     return nodes
+
+
+def _exposed_members(stage, kept, nodes_by_id, gval, module_id) -> list:
+    """`(member id, flag, path)` for each `expose` flag of a gather node.
+
+    Matched on the members' lineage labels, after exclusion, so the count is
+    the one the node actually runs with. Exactly one match per flag: zero or
+    several (a parameter sweep on the reference, two upstream branches) has no
+    single path to pass, so it fails here rather than inside the module.
+    """
+    exposed = []
+    for spec in stage.gather:
+        for flag, match in (getattr(spec, "expose", None) or {}).items():
+            hits = []
+            for member_id, from_id, path in kept:
+                member = nodes_by_id.get(member_id)
+                ctx = getattr(member, "template_context", None)
+                labels = ctx.provides if ctx is not None else {}
+                if from_id == spec.from_ and all(
+                    labels.get(k) == v for k, v in match.items()
+                ):
+                    hits.append((member_id, flag, path))
+            if len(hits) != 1:
+                where = f"group '{gval}'" if gval is not None else "the gather"
+                found = ", ".join(h[0] for h in hits) or "none"
+                raise ValueError(
+                    f"Stage '{stage.id}': {where} must have exactly one member "
+                    f"matching expose '{flag}' {match} (module {module_id}), "
+                    f"found {len(hits)}: {found}."
+                )
+            exposed.extend(hits)
+    return exposed
 
 
 def _get_output_ids_for_node(node, benchmark) -> dict:

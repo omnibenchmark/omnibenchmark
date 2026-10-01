@@ -86,8 +86,9 @@ class TestEnums:
         assert APIVersion.V0_5_0.value == "0.5.0"
         assert APIVersion.V0_6_0.value == "0.6.0"
         assert APIVersion.V0_7_0.value == "0.7.0"
+        assert APIVersion.V0_8_0.value == "0.8.0"
 
-        assert APIVersion.latest() == "0.7.0"
+        assert APIVersion.latest() == "0.8.0"
         assert set(APIVersion.supported_versions()) == {
             "0.1.0",
             "0.2.0",
@@ -96,6 +97,7 @@ class TestEnums:
             "0.5.0",
             "0.6.0",
             "0.7.0",
+            "0.8.0",
         }
 
     def test_api_version_ordering_is_semantic(self):

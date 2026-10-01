@@ -1,14 +1,14 @@
 # 010: Generic Gather and Joins on Stage Output Contracts
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 5](https://img.shields.io/badge/Version-5-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 6](https://img.shields.io/badge/Version-6-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | | |
 |---|---|
 | **Authors** | btraven00 |
 | **Date** | 2026-08-25 |
 | **Status** | Draft |
-| **Version** | 5 |
+| **Version** | 6 |
 | **Supersedes** | N/A |
 | **Reviewed-by** | daninci, atchox |
 | **Related Issues** | [#289](https://github.com/omnibenchmark/omnibenchmark/issues/289) (multi-stage outputs), [#291](https://github.com/omnibenchmark/omnibenchmark/pull/291) (earlier gather proposal, held back) |
@@ -23,6 +23,7 @@
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
+| 6       | 2026-10-01 | §3.5: `expose` passes one labelled member per group as its own flag (#389) | btraven00 |
 
 ## 1. Problem Statement
 
@@ -306,6 +307,18 @@ with every member path:
 Output handling is unchanged from any other node and follows whatever the
 declared api version specifies — the api ≥ 0.5 contract today, design 009's
 named outputs when it lands. There is no gather-specific rule.
+
+`expose: {flag: {label: value}}` on an entry adds `--flag <path>` for the one
+member per group whose lineage labels match — the shape a metric comparing
+every member against a reference needs ([004 §3.12](004-yaml-specification.md)).
+Members still carry their labels before the cut, so this needs no new
+vocabulary. Exactly one match, counted after exclusion: the module expects a
+single path, and zero or several would otherwise fail inside argparse or
+compare against the wrong member.
+
+Deferred: pairing each member with the reference that shares its parameters
+(irlba@k=10 with sklearn@k=10). That is a params-keyed join, not a gather;
+today a parameter sweep on the reference is a plan-time error.
 
 Member order is deterministic and stable across runs — identical YAML produces
 byte-identical Snakefiles, or Snakemake reruns unchanged work. Position carries

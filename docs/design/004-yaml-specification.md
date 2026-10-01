@@ -516,6 +516,7 @@ them by a stage they descend from, emitting one node per group.
 | `gather` | stage | array of objects | Fan-in specs; replaces `inputs:` for this stage |
 | `gather[].from` | — | string | Output id to collect; every producer is a member |
 | `gather[].group_by` | — | string | **Stage id** to partition members by. Optional: omitted, every producer lands in one node (the global form) |
+| `gather[].expose` | — | object | flag → label match. Each flag receives the one member per group whose lineage labels match (api ≥ 0.8.0) |
 
 Rules:
 
@@ -541,6 +542,26 @@ Rules:
   it carries exactly one label — the `group_by` stage id, bound to the group value and usable in
   output templates. Referencing any other label is a plan-time error.
 - Downstream stages chain off a gather normally (scatter after gather).
+- `expose` passes one member per group as a flag of its own, e.g. the
+  reference to compare the others against. It does not filter the entry: the
+  member stays in the `from` list too. Labels match by exact equality, the
+  builtin `name` (the member's module id) included. Exactly one member must
+  match per group, counted after pruning; zero or several is a plan-time error.
+  Exposed flag names may not repeat or clash with a `from` id.
+
+  ```yaml
+  - id: pca
+    provides: [role]
+    modules:
+      - {id: sklearn, provides: {role: reference}}
+      - {id: irlba}
+  - id: pca_agree
+    gather:
+      - from: pca.embedding
+        group_by: data
+        expose: {reference: {role: reference}}
+  # → --pca.embedding <sklearn> <irlba> --reference <sklearn>
+  ```
 
 The contributing nodes a path can no longer encode are recorded in a
 `lineage.json` sidecar next to the outputs. See
