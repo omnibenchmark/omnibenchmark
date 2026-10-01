@@ -1,6 +1,7 @@
 """cli commands related to benchmark infos and stats"""
 
 import sys
+import time
 from typing import Any, List
 
 import click
@@ -93,6 +94,67 @@ def plot_topology(ctx, benchmark, show_params, compact_params):
     click.echo(mermaid)
 
 
+def _render_text_status(
+    benchmark,
+    out_dir,
+    show_missing_files: bool,
+    show_incomplete_reason: bool,
+    show_logs: bool,
+) -> tuple[str, bool]:
+    """Render the plain-text status report. Returns (report, is_complete)."""
+    status_dict, _, exec_path_dict = prepare_status(
+        benchmark, out_dir, return_all=True, cache_dir=Path(".snakemake") / "repos"
+    )
+    template_path = Path(__file__).parent.parent / "templates" / "status"
+    env = Environment(loader=FileSystemLoader(template_path))
+    stages = list(status_dict["stages"].keys())
+
+    result_file_str = "\n".join(
+        [
+            f"  {f} {f'({s})' if s == 'missing' else ''}"
+            for f, s in zip(
+                status_dict["results"]["observed_output_files"]
+                + status_dict["results"]["missing_output_files"],
+                ["observed" for f in status_dict["results"]["observed_output_files"]]
+                + ["missing" for f in status_dict["results"]["missing_output_files"]],
+            )
+        ]
+    )
+
+    max_str_len_stage = max([len(st) for st in stages])
+    max_file_len = len(str(status_dict["total"]["n"]))
+    is_complete = status_dict["total"]["n_observed"] == status_dict["total"]["n"]
+
+    template = env.get_template("cli_status.jinja")
+    result_str = template.render(
+        name=status_dict["name"],
+        version=status_dict["version"],
+        benchmark_structure=" -> ".join(
+            [
+                f"{st:>{max_str_len_stage}} ({status_dict['stages'][st]['n_modules']}, {status_dict['stages'][st]['n_nodes']})"
+                for st in stages
+            ]
+        ),
+        files_total_n_observed=status_dict["total"]["n_observed"],
+        files_total_n=status_dict["total"]["n"],
+        max_str_len_stage=max_str_len_stage,
+        max_file_len=max_file_len,
+        stages=stages,
+        stage_stats={st: status_dict["stages"][st] for st in stages},
+        exec_paths_block=print_exec_path_dict(
+            exec_path_dict,
+            stages,
+            threshold_n_missing=1,
+            full=show_incomplete_reason,
+            logs=show_logs,
+        ),
+        result_file_str=result_file_str,
+        show_incomplete_reason=show_incomplete_reason and not is_complete,
+        show_missing_files=(show_missing_files or show_logs) and not is_complete,
+    )
+    return result_str, is_complete
+
+
 @add_debug_option
 @describe.command(
     name="status",
@@ -156,6 +218,13 @@ def plot_topology(ctx, benchmark, show_params, compact_params):
     help="If HTML file exists, overwrite it.",
     default=False,
 )
+@click.option(
+    "--watch",
+    type=float,
+    default=None,
+    metavar="SECONDS",
+    help="Refresh the text report every SECONDS until all outputs exist.",
+)
 @click.pass_context
 def status(
     ctx,
@@ -168,12 +237,44 @@ def status(
     return_html: bool = False,
     html_file: str = "status_report.html",
     overwrite_html_file: bool = False,
+    watch: float | None = None,
 ):
     """Show the status of a benchmark.
 
     BENCHMARK: Path to benchmark YAML file.
     """
     ctx.ensure_object(dict)
+    if not return_json and not return_html:
+        if watch is None:
+            result_str, _ = _render_text_status(
+                benchmark,
+                out_dir,
+                show_missing_files,
+                show_incomplete_reason,
+                show_logs,
+            )
+            logger.info(result_str)
+            sys.exit(0)
+        # Re-read the output tree on an interval; works for any executor
+        # (local, SLURM, another terminal) since it only looks at files.
+        try:
+            while True:
+                result_str, is_complete = _render_text_status(
+                    benchmark,
+                    out_dir,
+                    show_missing_files,
+                    show_incomplete_reason,
+                    show_logs,
+                )
+                click.clear()
+                click.echo(result_str)
+                if is_complete:
+                    sys.exit(0)
+                click.echo(f"\n(refreshing every {watch:g}s, Ctrl-C to stop)")
+                time.sleep(watch)
+        except KeyboardInterrupt:
+            sys.exit(0)
+
     status_dict, filedict, exec_path_dict = prepare_status(
         benchmark, out_dir, return_all=True, cache_dir=Path(".snakemake") / "repos"
     )
@@ -185,59 +286,7 @@ def status(
     env = Environment(loader=FileSystemLoader(template_path))
     stages = list(status_dict["stages"].keys())
 
-    if not return_html:
-        result_file_str = "\n".join(
-            [
-                f"  {f} {f"({s})" if s=="missing" else ""}"
-                for f, s in zip(
-                    status_dict["results"]["observed_output_files"]
-                    + status_dict["results"]["missing_output_files"],
-                    [
-                        "observed"
-                        for f in status_dict["results"]["observed_output_files"]
-                    ]
-                    + [
-                        "missing"
-                        for f in status_dict["results"]["missing_output_files"]
-                    ],
-                )
-            ]
-        )
-
-        max_str_len_stage = max([len(st) for st in stages])
-        max_file_len = len(str(status_dict["total"]["n"]))
-        is_complete = status_dict["total"]["n_observed"] == status_dict["total"]["n"]
-
-        template = env.get_template("cli_status.jinja")
-        result_str = template.render(
-            name=status_dict["name"],
-            version=status_dict["version"],
-            benchmark_structure=" -> ".join(
-                [
-                    f"{st:>{max_str_len_stage}} ({status_dict["stages"][st]["n_modules"]}, {status_dict["stages"][st]["n_nodes"]})"
-                    for st in stages
-                ]
-            ),
-            files_total_n_observed=status_dict["total"]["n_observed"],
-            files_total_n=status_dict["total"]["n"],
-            max_str_len_stage=max_str_len_stage,
-            max_file_len=max_file_len,
-            stages=stages,
-            stage_stats={st: status_dict["stages"][st] for st in stages},
-            exec_paths_block=print_exec_path_dict(
-                exec_path_dict,
-                stages,
-                threshold_n_missing=1,
-                full=show_incomplete_reason,
-                logs=show_logs,
-            ),
-            result_file_str=result_file_str,
-            show_incomplete_reason=show_incomplete_reason and not is_complete,
-            show_missing_files=(show_missing_files or show_logs) and not is_complete,
-        )
-        logger.info(result_str)
-        sys.exit(0)
-    else:
+    if return_html:
         # Load benchmark to get the graph
         b = BenchmarkExecution(Path(benchmark))
         G = b.G
