@@ -1,7 +1,8 @@
 """Simple DAG implementation to replace NetworkX dependency."""
 
+import heapq
 from typing import Dict, List, Set, Tuple, Any, Iterator
-from collections import defaultdict, deque
+from collections import defaultdict
 
 
 class CyclicDependencyError(Exception):
@@ -11,18 +12,24 @@ class CyclicDependencyError(Exception):
 
 
 class SimpleDAG:
-    """A simple directed acyclic graph implementation."""
+    """A simple directed acyclic graph implementation.
+
+    Deterministic: nodes and edges keep insertion order (dicts used as ordered
+    sets, never `set`, whose iteration order follows string hashes and so
+    changes with PYTHONHASHSEED). Every iteration, and `topological_sort`'s tie
+    order, is therefore the same on every run and every machine.
+    """
 
     def __init__(self) -> None:
         """Initialize an empty DAG."""
-        self.nodes: Set[Any] = set()
-        self._edges: Dict[Any, Set[Any]] = defaultdict(set)
-        self.predecessors: Dict[Any, Set[Any]] = defaultdict(set)
+        self.nodes: Dict[Any, None] = {}
+        self._edges: Dict[Any, Dict[Any, None]] = defaultdict(dict)
+        self.predecessors: Dict[Any, Dict[Any, None]] = defaultdict(dict)
         self.node_attrs: Dict[Any, Dict[str, Any]] = defaultdict(dict)
 
     def add_node(self, node: Any, **attrs: Any) -> None:
         """Add a node to the graph with optional attributes."""
-        self.nodes.add(node)
+        self.nodes.setdefault(node)
         self.node_attrs[node].update(attrs)
 
     def add_nodes_from(
@@ -35,12 +42,12 @@ class SimpleDAG:
     def add_edge(self, from_node: Any, to_node: Any) -> None:
         """Add an edge from from_node to to_node."""
         # Ensure both nodes exist
-        self.nodes.add(from_node)
-        self.nodes.add(to_node)
+        self.nodes.setdefault(from_node)
+        self.nodes.setdefault(to_node)
 
         # Add the edge
-        self._edges[from_node].add(to_node)
-        self.predecessors[to_node].add(from_node)
+        self._edges[from_node].setdefault(to_node)
+        self.predecessors[to_node].setdefault(from_node)
 
     def in_degree(self) -> Iterator[Tuple[Any, int]]:
         """Return an iterator of (node, in_degree) pairs."""
@@ -63,27 +70,30 @@ class SimpleDAG:
         """
         Return a list of nodes in topological order.
 
+        Stable: among the nodes whose predecessors are all placed, the one added
+        first comes next. So the order is the same on every run, and a graph
+        whose insertion order is already topological sorts to exactly that order.
+
         Raises:
             CyclicDependencyError: If the graph contains a cycle.
         """
-        # Count in-degrees
-        in_degree: Dict[Any, int] = defaultdict(int)
-        for node in self.nodes:
-            in_degree[node] = len(self.predecessors[node])
+        index = {node: i for i, node in enumerate(self.nodes)}
+        in_degree = {node: len(self.predecessors[node]) for node in self.nodes}
 
-        # Find all nodes with no incoming edges
-        queue: deque[Any] = deque([node for node in self.nodes if in_degree[node] == 0])
+        # Min-heap of insertion indices of the nodes ready to be placed.
+        ready = [index[node] for node in self.nodes if in_degree[node] == 0]
+        heapq.heapify(ready)
+        order = list(self.nodes)
         result: List[Any] = []
 
-        while queue:
-            node = queue.popleft()
+        while ready:
+            node = order[heapq.heappop(ready)]
             result.append(node)
 
-            # For each neighbor, reduce its in-degree
             for neighbor in self._edges[node]:
                 in_degree[neighbor] -= 1
                 if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
+                    heapq.heappush(ready, index[neighbor])
 
         # If we haven't processed all nodes, there's a cycle
         if len(result) != len(self.nodes):

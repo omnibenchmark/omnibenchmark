@@ -503,7 +503,6 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
         stage_ids_in_order=["A", "C1", "C2", "E"],
-        previous_stage_nodes=[n for n in nodes if n.stage_id == "C2"],
         nodes_by_id=nodes_by_id,
     )
 
@@ -518,7 +517,6 @@ def test_select_input_bundles_pairs_diamond_branches_by_root():
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
         stage_ids_in_order=["A", "C1", "C2", "E"],
-        previous_stage_nodes=[n for n in nodes if n.stage_id == "C2"],
         nodes_by_id=nodes_by_id,
     )
     assert all(len(b) == 1 for b in linear)
@@ -549,7 +547,6 @@ def test_join_partners_drop_shadowed_producers():
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
         stage_ids_in_order=["root", "b1", "b2", "a"],
-        previous_stage_nodes=[],
         nodes_by_id=nodes_by_id,
     )
 
@@ -648,7 +645,6 @@ def test_select_input_bundles_rejects_cross_lineage_partners():
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
         stage_ids_in_order=["A", "B", "C1", "C2", "E"],
-        previous_stage_nodes=[n for n in nodes if n.stage_id == "C2"],
         nodes_by_id=nodes_by_id,
     )
 
@@ -686,7 +682,6 @@ def test_select_input_bundles_join_anchor_sees_parents_ancestry():
         output_to_nodes=output_to_nodes,
         resolved_nodes=nodes,
         stage_ids_in_order=["A", "B", "C", "D", "E"],
-        previous_stage_nodes=[j],
         nodes_by_id=nodes_by_id,
     )
 
@@ -1112,7 +1107,6 @@ def _plan(yaml_text, nesting_strategy="nested"):
                 resolved_nodes=resolved_nodes,
                 nodes_by_id=nodes_by_id,
                 output_to_nodes=output_to_nodes,
-                previous_stage_nodes=previous,
                 stages_to_expand=stages_to_expand,
                 path_exclusions=collect_path_exclusions(bench),
                 nesting_strategy=nesting_strategy,
@@ -1275,7 +1269,6 @@ def test_module_missing_from_the_resolution_cache_is_skipped():
         resolved_nodes=[],
         nodes_by_id={},
         output_to_nodes={},
-        previous_stage_nodes=[],
         stages_to_expand=[data_stage],
         path_exclusions={},
         nesting_strategy="nested",

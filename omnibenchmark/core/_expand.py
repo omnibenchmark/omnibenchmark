@@ -270,7 +270,6 @@ def expand_scatter_stage(
     resolved_nodes: list,
     nodes_by_id: dict,
     output_to_nodes: dict,
-    previous_stage_nodes: list,
     stages_to_expand: list,
     path_exclusions,
     nesting_strategy: str,
@@ -317,9 +316,11 @@ def expand_scatter_stage(
 
     # Input bundles depend only on stage-level state — compute once, not per
     # module. None (vs []) distinguishes "no inputs declared" from "inputs
-    # declared but nothing resolvable".
+    # declared but nothing resolvable". Inputs come only from their producers
+    # in `output_to_nodes`, never from whichever stage expanded last: a stage
+    # with no modules can sort between producer and consumer.
     input_bundles = None
-    if stage.inputs and previous_stage_nodes:
+    if stage.inputs:
         declared_input_ids = [
             entry
             for input_col in stage.inputs
@@ -331,7 +332,6 @@ def expand_scatter_stage(
             output_to_nodes=output_to_nodes,
             resolved_nodes=resolved_nodes,
             stage_ids_in_order=[s.id for s in stages_to_expand],
-            previous_stage_nodes=previous_stage_nodes,
             nodes_by_id=nodes_by_id,
         )
 

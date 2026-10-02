@@ -113,10 +113,13 @@ def select_input_nodes(
     output_to_nodes: dict,
     resolved_nodes: list,
     stage_ids_in_order: list[str],
-    previous_stage_nodes: list,
     nodes_by_id: dict | None = None,
 ) -> list:
     """Return the node list to use as the cartesian expansion base for a stage.
+
+    A pure function of the declared inputs and the producer registry: which
+    stage happened to expand last plays no part, so the result does not depend
+    on expansion order. An input with no producing node selects nothing.
 
     Per design 010 §3.1: a producer with another producer downstream of it is
     shadowed and drops out, so producers on one chain collapse to the deepest;
@@ -130,7 +133,7 @@ def select_input_nodes(
     resolver fix. To gate later, thread a flag from the caller.
     """
     if not declared_input_ids:
-        return previous_stage_nodes
+        return []
 
     if nodes_by_id is None:
         nodes_by_id = {n.id: n for n in resolved_nodes}
@@ -152,7 +155,10 @@ def select_input_nodes(
                     providing_stage_id_to_depth[node_obj.stage_id] = depth
 
     if not providing_stage_id_to_depth:
-        return previous_stage_nodes
+        # Every producer expanded to zero nodes (pruned by capability, requires,
+        # exclude). The stage just before is unrelated; chaining onto it would
+        # invent a lineage.
+        return []
 
     deepest_stage_id = max(
         providing_stage_id_to_depth,
@@ -266,7 +272,6 @@ def select_input_bundles(
     output_to_nodes: dict,
     resolved_nodes: list,
     stage_ids_in_order: list,
-    previous_stage_nodes: list,
     nodes_by_id: dict,
 ) -> list:
     """Return input *bundles* — each a tuple of producer nodes to join into one
@@ -286,7 +291,6 @@ def select_input_bundles(
         output_to_nodes,
         resolved_nodes,
         stage_ids_in_order,
-        previous_stage_nodes,
         nodes_by_id,
     )
     if not declared_input_ids:

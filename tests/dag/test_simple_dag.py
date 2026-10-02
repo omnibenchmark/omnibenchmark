@@ -263,3 +263,75 @@ class TestSimpleDAG:
         assert ("A", "B") in edges
         assert ("A", "C") in edges
         assert ("B", "D") in edges
+
+
+# The stage-graph shape that broke input resolution: two producers feed
+# consumers that tie in the sort, with an empty stage among them.
+_PLAN_EDGES = [
+    ("DATA", "FILT"),
+    ("FILT", "NORM"),
+    ("NORM", "FEAT"),
+    ("FEAT", "PCA"),
+    ("FEAT", "CNTFCT"),
+    ("PCA", "ISOMAP"),
+    ("DATA", "ANNO"),
+]
+
+
+def _plan_dag():
+    dag = SimpleDAG()
+    for stage in ["DATA", "FILT", "NORM", "FEAT", "PCA", "ISOMAP", "ANNO", "CNTFCT"]:
+        dag.add_node(stage)
+    for a, b in _PLAN_EDGES:
+        dag.add_edge(a, b)
+    return dag
+
+
+@pytest.mark.short
+class TestDeterministicOrder:
+    def test_insertion_order_kept_when_already_topological(self):
+        assert _plan_dag().topological_sort() == [
+            "DATA",
+            "FILT",
+            "NORM",
+            "FEAT",
+            "PCA",
+            "ISOMAP",
+            "ANNO",
+            "CNTFCT",
+        ]
+
+    def test_ties_break_by_insertion_order(self):
+        dag = SimpleDAG()
+        for n in ["root", "zeta", "alpha", "mid"]:
+            dag.add_node(n)
+        for b in ["zeta", "alpha", "mid"]:
+            dag.add_edge("root", b)
+        assert dag.topological_sort() == ["root", "zeta", "alpha", "mid"]
+
+    def test_nodes_and_edges_iterate_in_insertion_order(self):
+        dag = _plan_dag()
+        assert list(dag.nodes)[:3] == ["DATA", "FILT", "NORM"]
+        assert list(dag.edges)[:2] == [("DATA", "FILT"), ("DATA", "ANNO")]
+
+    def test_order_does_not_depend_on_hash_seed(self):
+        # str hashing is randomised per process, so only a fresh interpreter
+        # per seed can show a set-ordering dependence.
+        import subprocess
+        import sys
+
+        code = (
+            "from tests.dag.test_simple_dag import _plan_dag;"
+            "print(','.join(_plan_dag().topological_sort()))"
+        )
+        orders = {
+            subprocess.run(
+                [sys.executable, "-c", code],
+                env={"PYTHONHASHSEED": str(seed), "PATH": ""},
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+            for seed in range(8)
+        }
+        assert len(orders) == 1
