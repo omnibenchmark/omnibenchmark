@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
 - ...
+- fix: a `modules:` (or `stages:`) entry with no value — and an empty YAML
+  document — now raises a `BenchmarkParseError` that names the stage and shows
+  what to write instead, instead of a bare `'NoneType' object is not iterable`
+  (#391)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
