@@ -713,7 +713,7 @@ def create_benchmark(
             sys.exit(1)
 
         # Run copier
-        copier_data: Dict[str, Any] = {"omnibenchmark_version": __version__}
+        copier_data: dict[str, Any] = {"omnibenchmark_version": __version__}
 
         # If non-interactive, include provided parameters and enable defaults
         if non_interactive:
@@ -986,6 +986,7 @@ def create_module(
             copier_data["stage_inputs"] = stage_inputs_with_vars
 
         if non_interactive:
+            assert name is not None  # validated above: sys.exit(1) if missing
             # Use provided parameters for non-interactive mode
             module_data = {
                 "module_name": name,
