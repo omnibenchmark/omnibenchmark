@@ -1245,7 +1245,6 @@ def _generate_explicit_snakefile(
     resolved_nodes = []
     nodes_by_id = {}
     output_to_nodes = {}
-    previous_stage_nodes = []
     dag_errors: list[tuple[str, str, str]] = []
     # Count pruned combinations by reason, so a silently absent result cell is
     # observable (see docs/design/008-filtering.md, "No silent absence").
@@ -1281,14 +1280,14 @@ def _generate_explicit_snakefile(
                 resolved_nodes.append(node)
                 nodes_by_id[node.id] = node
         else:
-            current_stage_nodes = expand_scatter_stage(
+            # Registers its nodes in resolved_nodes/nodes_by_id/output_to_nodes.
+            expand_scatter_stage(
                 stage=stage,
                 benchmark=benchmark,
                 resolved_modules_cache=resolved_modules_cache,
                 resolved_nodes=resolved_nodes,
                 nodes_by_id=nodes_by_id,
                 output_to_nodes=output_to_nodes,
-                previous_stage_nodes=previous_stage_nodes,
                 stages_to_expand=stages_to_expand,
                 path_exclusions=path_exclusions,
                 nesting_strategy=nesting_strategy,
@@ -1300,8 +1299,6 @@ def _generate_explicit_snakefile(
                 available_capabilities=available_capabilities,
                 picks=picks,
             )
-
-        previous_stage_nodes = current_stage_nodes
 
     total_pruned = sum(prune_counts.values())
     if total_pruned:

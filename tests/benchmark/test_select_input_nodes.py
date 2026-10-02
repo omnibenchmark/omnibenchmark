@@ -43,30 +43,27 @@ def _reg(*pairs):
 class TestSelectInputNodes:
     """Tests for select_input_nodes pure function."""
 
-    def test_no_declared_inputs_returns_previous(self):
-        """When declared_input_ids is empty fall back to previous_stage_nodes."""
-        prev = [_StubNode("n1", "stage_a")]
+    def test_no_declared_inputs_select_nothing(self):
+        """No declared inputs: nothing to anchor on (expansion order is never
+        consulted)."""
         result = select_input_nodes(
             declared_input_ids=[],
             output_to_nodes={},
-            resolved_nodes=[],
+            resolved_nodes=[_StubNode("n1", "stage_a")],
             stage_ids_in_order=["stage_a"],
-            previous_stage_nodes=prev,
         )
-        assert result is prev
+        assert result == []
 
     def test_unresolvable_inputs_select_nothing(self):
         """When every producer of a declared input expanded to zero nodes
         (pruned by capability, requires or exclude), select nothing: the
         previous stage is unrelated, and chaining onto it would invent a
         lineage."""
-        prev = [_StubNode("n1", "stage_a")]
         result = select_input_nodes(
             declared_input_ids=["unknown_output"],
             output_to_nodes={},
             resolved_nodes=[],
             stage_ids_in_order=["stage_a"],
-            previous_stage_nodes=prev,
         )
         assert result == []
 
@@ -80,7 +77,6 @@ class TestSelectInputNodes:
             output_to_nodes=reg,
             resolved_nodes=[n1],
             stage_ids_in_order=["stage_a"],
-            previous_stage_nodes=[],
         )
         assert result == [n1]
 
@@ -94,7 +90,7 @@ class TestSelectInputNodes:
         """
         n_pca = _StubNode("pca-M1-default", "pca")
         n_leiden = _StubNode("leiden-M1-default", "leiden")
-        # leiden is the previous_stage_nodes (most recent predecessor)
+        # leiden expanded most recently, but is not a producer
         # umap declares "neighbors.h5ad" which was produced by pca
         reg = _reg(("neighbors.h5ad", "pca-M1-default"))
 
@@ -103,7 +99,6 @@ class TestSelectInputNodes:
             output_to_nodes=reg,
             resolved_nodes=[n_pca, n_leiden],
             stage_ids_in_order=["data", "pca", "leiden", "umap"],
-            previous_stage_nodes=[n_leiden],
         )
         assert result == [n_pca]
         assert n_leiden not in result
@@ -125,7 +120,6 @@ class TestSelectInputNodes:
             output_to_nodes=reg,
             resolved_nodes=[n_data, n_pca],
             stage_ids_in_order=["data", "pca", "harmony"],
-            previous_stage_nodes=[],
         )
         # pca is deeper (index 1 > 0) → return pca nodes
         assert result == [n_pca]
@@ -141,7 +135,6 @@ class TestSelectInputNodes:
             output_to_nodes=reg,
             resolved_nodes=[n1, n2],
             stage_ids_in_order=["data", "pca"],
-            previous_stage_nodes=[],
         )
         assert set(n.id for n in result) == {"pca-M1-default", "pca-M2-default"}
 
@@ -158,7 +151,6 @@ class TestSelectInputNodes:
             output_to_nodes=reg,
             resolved_nodes=[n1],
             stage_ids_in_order=["data", "pca"],
-            previous_stage_nodes=[],
         )
         # Only n1 should be in result; ghost is silently skipped
         assert result == [n1]
@@ -180,7 +172,6 @@ class TestSelectInputNodes:
             output_to_nodes=reg,
             resolved_nodes=[n_orphan, n_real],
             stage_ids_in_order=["data", "pca"],
-            previous_stage_nodes=[],
         )
         assert result == [n_real]
 
@@ -191,7 +182,7 @@ class TestSelectInputNodes:
         umap inputs: harmony.csv, neighbors.h5ad
         harmony.csv produced by harmony stage
         neighbors.h5ad produced by harmony stage (same depth as harmony, deepest of the two)
-        leiden is previous_stage_nodes.
+        leiden expanded most recently, but is not a producer.
         """
         n_pca = _StubNode("pca-S1-default", "pca")
         n_harmony = _StubNode("harmony-H1-default", "harmony")
@@ -202,14 +193,12 @@ class TestSelectInputNodes:
             ("neighbors.h5ad", "harmony-H1-default"),
         )
         stage_order = ["data", "pca", "harmony", "leiden", "umap"]
-        previous = [n_leiden_s, n_leiden_r]
 
         result = select_input_nodes(
             declared_input_ids=["harmony.csv", "neighbors.h5ad"],
             output_to_nodes=reg,
             resolved_nodes=[n_pca, n_harmony, n_leiden_s, n_leiden_r],
             stage_ids_in_order=stage_order,
-            previous_stage_nodes=previous,
         )
         assert result == [n_harmony]
         assert n_leiden_s not in result
@@ -257,7 +246,6 @@ class TestSharedOutputIdProducers:
             output_to_nodes=reg,
             resolved_nodes=[n_feat, n_pca, n_cnt],
             stage_ids_in_order=["feat", "pca", "cntfct", "embed"],
-            previous_stage_nodes=[],
         )
         assert sorted(n.id for n in result) == sorted([n_pca.id, n_cnt.id])
 
@@ -271,7 +259,6 @@ class TestSharedOutputIdProducers:
             output_to_nodes=reg,
             resolved_nodes=[n_feat, n_pca, n_cnt],
             stage_ids_in_order=["feat", "pca", "cntfct", "embed"],
-            previous_stage_nodes=[],
         )
         assert sorted(n.id for n in result) == sorted([n_pca.id, n_cnt.id])
         assert n_feat not in result
@@ -288,7 +275,6 @@ class TestSharedOutputIdProducers:
             output_to_nodes=reg,
             resolved_nodes=[n_up, n_down],
             stage_ids_in_order=["up", "down", "consumer"],
-            previous_stage_nodes=[],
         )
         assert result == [n_down]
 
@@ -306,7 +292,6 @@ class TestSharedOutputIdProducers:
             output_to_nodes=reg,
             resolved_nodes=[n_root, n_left, n_right],
             stage_ids_in_order=["root", "left", "right", "join"],
-            previous_stage_nodes=[],
         )
         assert len(result) == 1
         assert result == [n_right]

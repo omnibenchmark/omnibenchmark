@@ -39,12 +39,11 @@ def _stage(stage_id, inputs, output_id):
     )
 
 
-def _expand(stage, benchmark, state, previous_stage_nodes):
+def _expand(stage, benchmark, state):
     return expand_scatter_stage(
         stage=stage,
         benchmark=benchmark,
         resolved_modules_cache={(stage.id, m.id): object() for m in stage.modules},
-        previous_stage_nodes=previous_stage_nodes,
         stages_to_expand=benchmark.stages,
         path_exclusions={},
         nesting_strategy="nested",
@@ -76,11 +75,11 @@ def test_consumer_after_empty_stage_still_resolves_its_inputs():
     benchmark = SimpleNamespace(model=model, stages=stages)
     state = {"errors": [], "resolved": [], "by_id": {}, "outputs": {}}
 
-    data_nodes = _expand(data, benchmark, state, [])
-    empty_nodes = _expand(empty, benchmark, state, data_nodes)
+    data_nodes = _expand(data, benchmark, state)
+    empty_nodes = _expand(empty, benchmark, state)
     assert data_nodes and empty_nodes == []
 
-    pca_nodes = _expand(pca, benchmark, state, empty_nodes)
+    pca_nodes = _expand(pca, benchmark, state)
 
     assert not state["errors"]
     assert len(pca_nodes) == 1
