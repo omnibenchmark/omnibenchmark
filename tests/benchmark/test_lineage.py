@@ -342,9 +342,8 @@ def _make_node(node_id, stage_id):
 @pytest.mark.short
 class TestSelectInputNodes:
     def test_empty_declared_inputs_returns_previous(self):
-        prev = [_make_node("n1", "data")]
-        result = select_input_nodes([], {}, [], [], prev)
-        assert result is prev
+        result = select_input_nodes([], {}, [], [])
+        assert result == []
 
     def test_single_input_selects_correct_stage(self):
         node_data = _make_node("data-D1", "data")
@@ -352,10 +351,7 @@ class TestSelectInputNodes:
         resolved = [node_data, node_methods]
         output_to_nodes = {"data.raw": [("data-D1", "data/D1/out.json")]}
         stage_ids = ["data", "methods"]
-        prev = []
-        result = select_input_nodes(
-            ["data.raw"], output_to_nodes, resolved, stage_ids, prev
-        )
+        result = select_input_nodes(["data.raw"], output_to_nodes, resolved, stage_ids)
         assert all(n.stage_id == "data" for n in result)
 
     def test_selects_deepest_providing_stage(self):
@@ -367,14 +363,12 @@ class TestSelectInputNodes:
             "prep.out": [("prep-P1", "p2.json")],
         }
         stage_ids = ["data", "preprocessing", "methods"]
-        prev = []
         result = select_input_nodes(
-            ["data.raw", "prep.out"], output_to_nodes, resolved, stage_ids, prev
+            ["data.raw", "prep.out"], output_to_nodes, resolved, stage_ids
         )
         assert all(n.stage_id == "preprocessing" for n in result)
 
     def test_node_not_in_resolved_skipped(self):
         output_to_nodes = {"data.raw": [("ghost-node", "p.json")]}
-        prev = [_make_node("unrelated", "data")]
-        result = select_input_nodes(["data.raw"], output_to_nodes, [], ["data"], prev)
+        result = select_input_nodes(["data.raw"], output_to_nodes, [], ["data"])
         assert result == []
