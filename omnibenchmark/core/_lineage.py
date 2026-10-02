@@ -152,7 +152,10 @@ def select_input_nodes(
                     providing_stage_id_to_depth[node_obj.stage_id] = depth
 
     if not providing_stage_id_to_depth:
-        return previous_stage_nodes
+        # Every producer expanded to zero nodes (pruned by capability, requires,
+        # exclude). The stage just before is unrelated; chaining onto it would
+        # invent a lineage.
+        return []
 
     deepest_stage_id = max(
         providing_stage_id_to_depth,

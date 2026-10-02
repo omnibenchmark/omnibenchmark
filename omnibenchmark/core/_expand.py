@@ -317,9 +317,12 @@ def expand_scatter_stage(
 
     # Input bundles depend only on stage-level state — compute once, not per
     # module. None (vs []) distinguishes "no inputs declared" from "inputs
-    # declared but nothing resolvable".
+    # declared but nothing resolvable". Not gated on previous_stage_nodes: that
+    # is whichever stage expanded last, which need not be a producer — a stage
+    # with no modules can sort between producer and consumer (ties are hash
+    # order), and the consumer would then expand as a root with no inputs.
     input_bundles = None
-    if stage.inputs and previous_stage_nodes:
+    if stage.inputs:
         declared_input_ids = [
             entry
             for input_col in stage.inputs

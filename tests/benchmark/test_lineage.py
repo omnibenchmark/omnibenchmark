@@ -346,11 +346,6 @@ class TestSelectInputNodes:
         result = select_input_nodes([], {}, [], [], prev)
         assert result is prev
 
-    def test_no_matching_outputs_returns_previous(self):
-        prev = [_make_node("n1", "data")]
-        result = select_input_nodes(["data.raw"], {}, [], ["data"], prev)
-        assert result is prev
-
     def test_single_input_selects_correct_stage(self):
         node_data = _make_node("data-D1", "data")
         node_methods = _make_node("methods-M1", "methods")
@@ -380,6 +375,6 @@ class TestSelectInputNodes:
 
     def test_node_not_in_resolved_skipped(self):
         output_to_nodes = {"data.raw": [("ghost-node", "p.json")]}
-        prev = [_make_node("fallback", "data")]
+        prev = [_make_node("unrelated", "data")]
         result = select_input_nodes(["data.raw"], output_to_nodes, [], ["data"], prev)
-        assert result is prev
+        assert result == []

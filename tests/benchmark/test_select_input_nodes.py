@@ -55,8 +55,11 @@ class TestSelectInputNodes:
         )
         assert result is prev
 
-    def test_unresolvable_inputs_return_previous(self):
-        """When no declared input exists in the registry fall back to previous."""
+    def test_unresolvable_inputs_select_nothing(self):
+        """When every producer of a declared input expanded to zero nodes
+        (pruned by capability, requires or exclude), select nothing: the
+        previous stage is unrelated, and chaining onto it would invent a
+        lineage."""
         prev = [_StubNode("n1", "stage_a")]
         result = select_input_nodes(
             declared_input_ids=["unknown_output"],
@@ -65,7 +68,7 @@ class TestSelectInputNodes:
             stage_ids_in_order=["stage_a"],
             previous_stage_nodes=prev,
         )
-        assert result is prev
+        assert result == []
 
     def test_simple_linear_chain(self):
         """Inputs produced by previous stage → return that stage's nodes."""
