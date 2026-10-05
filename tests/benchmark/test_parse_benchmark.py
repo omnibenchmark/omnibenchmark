@@ -79,6 +79,5 @@ def test_empty_yaml_reports_a_yaml_hint():
     from omnibenchmark.model.validation import BenchmarkParseError
 
     with pytest.raises(BenchmarkParseError) as exc_info:
-        Benchmark.from_yaml("# only a comment, no document
-")
+        Benchmark.from_yaml("# only a comment, no document\n")
     assert "no document" in str(exc_info.value)
