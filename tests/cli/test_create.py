@@ -273,18 +273,18 @@ def test_create_benchmark_non_interactive_missing_params():
         assert run.returncode == 1
         assert_in_output(run.stdout, "all mandatory parameters are required")
         assert_in_output(run.stdout, "--name")
-        assert_in_output(run.stdout, "--author-name")
-        assert_in_output(run.stdout, "--author-email")
+        assert "--author-name" not in run.stdout
 
 
 @pytest.mark.short
-def test_create_benchmark_partial_params_requires_all():
-    """Test that providing some parameters requires all mandatory ones"""
+def test_create_benchmark_author_optional(tmp_path):
+    """Author flags are optional; they default from config, git or the template"""
     with OmniCLISetup() as omni:
-        run = omni.call(["create", "benchmark", "/tmp/test", "--name", "My Benchmark"])
-        assert run.returncode == 1
-        assert_in_output(run.stdout, "all mandatory parameters are required")
-        assert_in_output(run.stdout, "--author-name, --author-email")
+        run = omni.call(
+            ["create", "benchmark", str(tmp_path / "b"), "--name", "My Benchmark"]
+        )
+        assert run.returncode == 0
+        assert (tmp_path / "b" / "CITATION.cff").exists()
 
 
 @pytest.mark.short
@@ -367,13 +367,14 @@ def test_create_module_non_interactive_success(tmp_path):
 
 
 @pytest.mark.short
-def test_create_module_partial_params_requires_all():
-    """Test that providing some module parameters requires all mandatory ones"""
+def test_create_module_author_optional(tmp_path):
+    """Author flags are optional; they default from config, git or the template"""
     with OmniCLISetup() as omni:
-        run = omni.call(["create", "module", "/tmp/test", "--name", "my-module"])
-        assert run.returncode == 1
-        assert_in_output(run.stdout, "all mandatory parameters are required")
-        assert_in_output(run.stdout, "--author-name, --author-email")
+        run = omni.call(
+            ["create", "module", str(tmp_path / "m"), "--name", "my-module"]
+        )
+        assert run.returncode == 0
+        assert (tmp_path / "m" / "CITATION.cff").exists()
 
 
 @pytest.mark.short

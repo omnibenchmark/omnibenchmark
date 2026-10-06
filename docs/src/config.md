@@ -34,6 +34,12 @@ Omnibenchmark uses the following standard configuration sections:
   - `datasets`: Path to store benchmark datasets
   - `git_modules`: Path to cache cloned git repositories (default: `.omnibenchmark/git`)
 
+- `user`: Default author for `ob create benchmark` / `ob create module`; falls back to git's `user.name` / `user.email`
+  - `name`
+  - `email`
+
+Values can be read and written from the command line with `ob config section.key [value]`, listed with `ob config --list`, and removed with `ob config --unset section.key`.
+
 ## Programmatic Access
 
 The configuration system provides a Python API for reading and writing configuration values.

@@ -273,6 +273,24 @@ This creates a benchmark directory with:
 - `envs/` - software environment definitions
 - `.git/` - initialized git repository
 
+## Set the default author for new benchmarks and modules
+
+`ob create benchmark` and `ob create module` prefill the author name and email
+from git's `user.name` and `user.email` (repository config first, then global).
+To use a different identity for omnibenchmark, set it with `ob config`:
+
+```bash
+ob config user.name "Ada Lovelace"
+ob config user.email ada@example.org
+ob config user.name        # print the current value
+ob config --list           # print all settings
+ob config --unset user.email  # fall back to git again
+```
+
+These are stored under `[user]` in the [configuration file](config.md) and take
+precedence over git. `--author-name` / `--author-email` override both; with `--non-interactive` they are
+optional, and if no identity is found the template placeholders are used.
+
 ## Create a new module
 
 Create a standalone module:

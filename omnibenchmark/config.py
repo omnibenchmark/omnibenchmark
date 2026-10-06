@@ -139,6 +139,15 @@ class ConfigAccessor:
 
         self.config[section][key] = value
 
+    def unset(self, section: str, key: str) -> bool:
+        """Remove a key, dropping its section if empty. Returns False if absent."""
+        if not self.config.has_section(section):
+            return False
+        removed = self.config.remove_option(section, key)
+        if not self.config.options(section):
+            self.config.remove_section(section)
+        return removed
+
     def save(self) -> None:
         """
         Save the current configuration to the config file.
