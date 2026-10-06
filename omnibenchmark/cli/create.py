@@ -13,9 +13,40 @@ import questionary
 import yaml
 
 from omnibenchmark import __version__
+from omnibenchmark.config import config
 from omnibenchmark.logging import logger
 
 from .debug import add_debug_option
+
+
+def _git_config(key: str) -> Optional[str]:
+    try:
+        out = subprocess.run(
+            ["git", "config", "--get", key], capture_output=True, text=True
+        )
+    except OSError:
+        return None
+    return out.stdout.strip() or None
+
+
+def _author_defaults() -> Dict[str, str]:
+    """Copier defaults for author_name/author_email.
+
+    Precedence: `[user]` in omnibenchmark.cfg, then git's user.name/user.email
+    (local, then global), then the template's placeholder.
+    """
+    defaults = {}
+    for field, key in (("author_name", "name"), ("author_email", "email")):
+        value = config.get("user", key) or _git_config(f"user.{key}")
+        if value:
+            defaults[field] = value
+    return defaults
+
+
+def _author_flags(name: Optional[str], email: Optional[str]) -> Dict[str, str]:
+    """Author values given on the command line; unset ones fall to the defaults."""
+    given = {"author_name": name, "author_email": email}
+    return {k: v for k, v in given.items() if v}
 
 
 def _check_target_directory(target_path: Path, no_input: bool) -> bool:
@@ -662,10 +693,6 @@ def create_benchmark(
         missing_flags = []
         if name is None:
             missing_flags.append("--name")
-        if author_name is None:
-            missing_flags.append("--author-name")
-        if author_email is None:
-            missing_flags.append("--author-email")
 
         if missing_flags:
             logger.error(
@@ -721,12 +748,11 @@ def create_benchmark(
             copier_data.update(
                 {
                     "benchmark_name": name,
-                    "author_name": author_name,
-                    "author_email": author_email,
                     "license": license or "MIT",
                     "description": description or "",
                 }
             )
+            copier_data.update(_author_flags(author_name, author_email))
 
         # Determine whether to run copier with defaults (no questionnaire).
         # We want to use defaults when:
@@ -759,6 +785,7 @@ def create_benchmark(
             quiet=False,
             pretend=False,
             unsafe=True,
+            user_defaults=_author_defaults(),
         )
 
         # Read benchmark name and software backend for post-processing
@@ -945,10 +972,6 @@ def create_module(
         missing_flags = []
         if name is None:
             missing_flags.append("--name")
-        if author_name is None:
-            missing_flags.append("--author-name")
-        if author_email is None:
-            missing_flags.append("--author-email")
 
         if missing_flags:
             logger.error(
@@ -993,14 +1016,13 @@ def create_module(
                 .replace("-", " ")
                 .replace("_", " ")
                 .title(),
-                "author_name": author_name,
-                "author_email": author_email,
                 "license": license or "GPL-3.0-or-later",
                 "description": description or "",
                 "entrypoint": entrypoint or "run.sh",
             }
 
             copier_data.update(module_data)
+            copier_data.update(_author_flags(author_name, author_email))
             copier.run_copy(
                 src_path=str(template_path),
                 dst_path=str(target_path),
@@ -1009,6 +1031,7 @@ def create_module(
                 quiet=False,
                 pretend=False,
                 unsafe=True,
+                user_defaults=_author_defaults(),
             )
         elif no_input:
             # Use defaults for non-interactive mode
@@ -1020,6 +1043,7 @@ def create_module(
                 quiet=False,
                 pretend=False,
                 unsafe=True,
+                user_defaults=_author_defaults(),
             )
 
             # For --no-input mode, make the default entrypoint executable
@@ -1037,6 +1061,7 @@ def create_module(
                 quiet=False,
                 pretend=False,
                 unsafe=True,
+                user_defaults=_author_defaults(),
             )
 
         # Make entrypoint and related files executable
