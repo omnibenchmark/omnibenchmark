@@ -21,6 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: reject gates that can never fire at parse time (#354)
 - fix: compare `api_version` by components, not lexicographically (#354)
 - fix: `ob describe status` no longer crashes with a `KeyError` on benchmarks whose DAG has more than one terminal stage (#371)
+- fix: `ob describe status` counts a stage's nodes once per lineage, instead of once per module and parameter set
+- feat: `ob describe status --watch SECONDS` redraws the text report on an interval and exits once every expected output exists; it only reads the output tree, so it works with any executor
 - fix(archive): skip internal state dirs (`.snakemake`, `.modules`, `.envs`, `.logs`, `.cache`) when sweeping the results dir, instead of archiving gigabytes of execution state as results (#324)
 - feat: explicit `gather:` stages — fan-in by shared output id, grouped by an ancestor stage (design 010, #289)
 - feat: a stage consumes an output id from every stage producing it; parallel producers of the same id are alternatives, so the consumer expands once per producer (design 010 §3.1)
