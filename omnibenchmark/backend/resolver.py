@@ -108,7 +108,7 @@ class ModuleResolver:
         repo = module.repository
         logger.info(f"Populating cache for {module.id}: {repo.url}@{repo.commit}")
 
-        cache_path = get_or_update_cached_repo(repo.url, self.cache_dir)
+        cache_path = get_or_update_cached_repo(repo.url, self.cache_dir, repo.commit)
         logger.debug(f"Cached at: {cache_path}")
 
         return cache_path

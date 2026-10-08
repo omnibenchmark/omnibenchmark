@@ -9,7 +9,6 @@ from omnibenchmark.config import get_git_cache_dir
 from omnibenchmark.git.cache import (
     get_or_update_cached_repo,
     is_local_path,
-    parse_repo_url,
 )
 
 if TYPE_CHECKING:
@@ -76,31 +75,11 @@ def populate_git_cache(
 
     def _fetch_one(repo_url: str, commit: str | None) -> tuple[str, bool, str | None]:
         """Fetch a single repo; skip if it's a pinned commit already in cache."""
-        repo_cache_dir = cache_dir / parse_repo_url(repo_url)
-
-        # Skip the network round-trip when the exact pinned commit is already local
-        if (
-            repo_cache_dir.exists()
-            and commit
-            and len(commit) == 40
-            and all(c in "0123456789abcdef" for c in commit.lower())
-        ):
-            try:
-                from dulwich import porcelain
-                from dulwich.repo import Repo as _Repo
-                from typing import cast as _cast
-
-                _repo = _cast(_Repo, porcelain.open_repo(str(repo_cache_dir)))
-                _repo[commit.encode("ascii")]
-                return (repo_url, True, None)
-            except Exception:
-                pass
-
         if not quiet:
             logger.info(f"Caching {repo_url}")
 
         try:
-            get_or_update_cached_repo(repo_url, cache_dir)
+            get_or_update_cached_repo(repo_url, cache_dir, commit)
             return (repo_url, True, None)
         except Exception as e:
             return (repo_url, False, str(e))

@@ -225,6 +225,35 @@ class TestGetOrUpdateCachedRepoFetches:
 
         assert cached_sha == sha_new
 
+    def test_unreachable_remote_keeps_cache(self, local_remote_with_cache, tmp_path):
+        """Offline: a failed fetch must not wipe a healthy cache."""
+        origin, cache_dir, fake_url, initial_sha = local_remote_with_cache
+        origin.rename(tmp_path / "gone")
+
+        work = tmp_path / "work"
+        _, resolved = _patched_checkout(fake_url, initial_sha, work, cache_dir)
+
+        assert resolved == initial_sha
+        assert (cache_dir / _CACHE_KEY / ".git").exists()
+        assert (work / "sentinel.txt").read_text() == "v1"
+
+    def test_pinned_commit_in_cache_skips_fetch(self, local_remote_with_cache):
+        """A full SHA already in the cache is immutable: no network round-trip."""
+        _, cache_dir, fake_url, initial_sha = local_remote_with_cache
+
+        with (
+            patch(
+                "omnibenchmark.git.cache.parse_repo_url",
+                return_value=_CACHE_KEY,
+            ),
+            patch("omnibenchmark.git.cache.porcelain.fetch") as mock_fetch,
+        ):
+            get_or_update_cached_repo(fake_url, cache_dir, ref=initial_sha)
+            mock_fetch.assert_not_called()
+
+            get_or_update_cached_repo(fake_url, cache_dir, ref="main")
+            mock_fetch.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Tests: local copy path (no cache involved)
