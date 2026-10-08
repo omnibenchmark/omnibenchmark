@@ -332,7 +332,9 @@ def parse_repo_url(url: str) -> str:
     return url.replace(":", "/")
 
 
-def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -> Path:
+def get_or_update_cached_repo(
+    repo_url: str, cache_dir: Optional[Path] = None, ref: Optional[str] = None
+) -> Path:
     """
     Get or clone a full repository to the cache.
 
@@ -345,6 +347,8 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
     Args:
         repo_url: Git repository URL
         cache_dir: Base cache directory (defaults to ~/.cache/omnibenchmark/git)
+        ref: Ref the caller needs. A full commit SHA already in the cache
+            skips the fetch.
 
     Returns:
         Path to the cached repository
@@ -375,7 +379,21 @@ def get_or_update_cached_repo(repo_url: str, cache_dir: Optional[Path] = None) -
                 # refs/remotes/origin/*; fetching by URL alone retrieves
                 # objects but does not update tracking refs.
                 with cast(Repo, porcelain.open_repo(str(repo_cache_dir))) as repo:
-                    porcelain.fetch(repo, "origin", errstream=_DEVNULL)
+                    if (
+                        ref
+                        and re.fullmatch(r"[0-9a-fA-F]{40}", ref)
+                        and ref.lower().encode("ascii") in repo
+                    ):
+                        return repo_cache_dir
+                    try:
+                        porcelain.fetch(repo, "origin", errstream=_DEVNULL)
+                    except Exception as e:
+                        # Remote unreachable (offline) says nothing about the
+                        # cache's health; serve what we have.
+                        logging.warning(
+                            f"Could not fetch {repo_url}: {e}. Using cached copy."
+                        )
+                        return repo_cache_dir
 
                     # Update the working tree to match the remote tracking branch
                     # so the cache directory reflects the latest fetched state
@@ -463,7 +481,7 @@ def checkout_to_work_dir(
     from dulwich.objectspec import parse_commit
 
     # Ensure the repo is cached (fetch updates or fresh clone)
-    repo_cache_dir = get_or_update_cached_repo(repo_url, cache_dir)
+    repo_cache_dir = get_or_update_cached_repo(repo_url, cache_dir, ref)
 
     # Open cached repo read-only — we never mutate its working tree
     cached_repo = cast(Repo, porcelain.open_repo(str(repo_cache_dir)))
