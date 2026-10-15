@@ -27,7 +27,7 @@ class BenchmarkNode:
         self.stage_id = stage.id
         self.module_id = module.id
         self.param_id = (
-            "default" if not self.parameters else f".{self.parameters.hash_short()}"
+            ".default" if not self.parameters else f".{self.parameters.hash_short()}"
         )
 
     def is_entrypoint(self):
