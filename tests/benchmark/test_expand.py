@@ -638,6 +638,46 @@ def test_stage_named_dataset_without_gather_accepted():
 
 
 @pytest.mark.short
+def test_join_partner_supplying_several_inputs_appears_once():
+    """A partner that produces two of the declared inputs is one parent, so
+    the bundle (and the join hash derived from it) does not depend on how many
+    of its outputs the join wires in."""
+    nodes = [
+        _member("d.default", None, "A", "d"),
+        _member("d.default-L1-l.default", "d.default", "L1", "l"),
+        _member(
+            "d.default-L1-l.default-L2-l2.default", "d.default-L1-l.default", "L2", "l2"
+        ),
+        _member("d.default-R-r.default", "d.default", "R", "r"),
+    ]
+    nodes_by_id = {n.id: n for n in nodes}
+    output_to_nodes = {
+        "left": [("d.default-L1-l.default-L2-l2.default", "p")],
+        "right_a": [("d.default-R-r.default", "q")],
+        "right_b": [("d.default-R-r.default", "q")],
+    }
+
+    def bundles_for(inputs):
+        return select_input_bundles(
+            declared_input_ids=inputs,
+            output_to_nodes=output_to_nodes,
+            resolved_nodes=nodes,
+            stage_ids_in_order=["A", "R", "L1", "L2", "J"],
+            nodes_by_id=nodes_by_id,
+        )
+
+    two = bundles_for(["left", "right_a"])
+    three = bundles_for(["left", "right_a", "right_b"])
+
+    assert [tuple(n.id for n in b) for b in three] == [
+        ("d.default-L1-l.default-L2-l2.default", "d.default-R-r.default")
+    ]
+    assert [tuple(n.id for n in b) for b in three] == [
+        tuple(n.id for n in b) for b in two
+    ]
+
+
+@pytest.mark.short
 def test_select_input_bundles_pairs_diamond_branches_by_root():
     """The fan-in join (design 010 §5.2, #289): a stage declaring inputs from
     two divergent branches gets one bundle per (anchor, partner) pair, and

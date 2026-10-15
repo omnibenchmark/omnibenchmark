@@ -389,7 +389,9 @@ def select_input_bundles(
                 for i, x in enumerate(combo)
                 for y in combo[i + 1 :]
             ):
-                bundles.append((anchor,) + combo)
+                # A partner supplying several missing inputs appears once.
+                members = {n.id: n for n in (anchor,) + combo}
+                bundles.append(tuple(members.values()))
                 emitted += 1
         if not emitted:
             logger.warning(
