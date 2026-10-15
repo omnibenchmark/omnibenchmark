@@ -425,6 +425,18 @@ class SnakemakeGenerator:
             f.write(f"{_SHELL_INDENT}{line}\n")
         f.write(f'{_SHELL_INDENT}"""\n')
 
+    @staticmethod
+    def _log_lines() -> list:
+        """Redirect stdout/stderr through tee so both the terminal and the
+        declared log file receive all output."""
+        return [
+            "LOG_FILE=$(pwd)/{log}",
+            'exec > >(tee "$LOG_FILE") 2>&1',
+            "echo '=== Rule: {rule} ==='",
+            "echo 'Started:' $(date -Iseconds)",
+            "echo '---'",
+        ]
+
     def _write_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a regular node (production execution).
 
@@ -452,15 +464,7 @@ class SnakemakeGenerator:
         # an output id never has to be a bash or Snakemake name.
         lines += self._output_file_lines(node)
 
-        # Redirect stdout/stderr through tee so both the terminal and the log
-        # file receive all output.
-        lines += [
-            "LOG_FILE=$(pwd)/{log}",
-            'exec > >(tee "$LOG_FILE") 2>&1',
-            "echo '=== Rule: {rule} ==='",
-            "echo 'Started:' $(date -Iseconds)",
-            "echo '---'",
-        ]
+        lines += self._log_lines()
 
         # Fan-in nodes: record the parents the path prefix cannot carry.
         lines += self._lineage_sidecar_lines(node)
@@ -574,9 +578,11 @@ class SnakemakeGenerator:
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 
-        lines: list = [
-            "mkdir -p {params.output_dir}",
-            "MODULE_DIR={params.module_dir}",
+        # The log block comes first so path-resolution errors are captured too.
+        lines: list = ["mkdir -p {params.output_dir} $(dirname {log})"]
+        lines += self._log_lines()
+        lines += [
+            "MODULE_DIR=$(cd {params.module_dir} && pwd)",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
 
@@ -599,6 +605,12 @@ class SnakemakeGenerator:
                 f'    {var}+=("$(cd $(dirname $_f) && pwd)/$(basename $_f)")',
                 "done",
             ]
+
+        # A gather stage runs an ordinary module, so it gets the regular
+        # contract: cwd = module root. Legacy metric collectors keep running
+        # from the workflow dir. Inputs are absolute by now, so the cd is safe.
+        if not node.is_collector:
+            lines.append('cd "$MODULE_DIR"')
 
         # Build the multi-line command.  Continuation args are indented 4 extra
         # spaces relative to the entrypoint line so they visually align.
