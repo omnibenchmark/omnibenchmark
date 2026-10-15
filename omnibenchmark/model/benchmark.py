@@ -949,6 +949,18 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             # Treat as YAML content string
             data = yaml.safe_load(str(path_or_content))
 
+        # An empty YAML document loads as None; every access below would then
+        # die with a bare TypeError instead of pointing at the file (#391).
+        if data is None:
+            raise BenchmarkParseError(
+                message=(
+                    "The benchmark YAML contains no document. A benchmark "
+                    "needs at least an id and a stages list."
+                ),
+                yaml_file=yaml_file_path,
+                original_error=None,
+            )
+
         # Convert dict-style software_environments to list format
         if "software_environments" in data and isinstance(
             data["software_environments"], dict
@@ -960,10 +972,47 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 envs.append(env_dict)
             data["software_environments"] = envs
 
-        # Generate parameter IDs for modules
+        # Generate parameter IDs for modules. These pre-walks reach the raw
+        # YAML values before pydantic can reject them, so a null where a list
+        # is expected must be caught here — otherwise it surfaces as a bare
+        # "'NoneType' object is not iterable" with no hint of what to fix
+        # (#391).
         if "stages" in data:
+            if data["stages"] is None:
+                raise BenchmarkParseError(
+                    message=(
+                        "'stages:' has no value (null). Set it to a list of "
+                        "stages, e.g.\nstages:\n  - id: my_stage"
+                    ),
+                    yaml_file=yaml_file_path,
+                    line_number=line_map.get("stages") if line_map else None,
+                    original_error=None,
+                )
             for stage_idx, stage in enumerate(data["stages"]):
+                if stage is None:
+                    raise BenchmarkParseError(
+                        message=(
+                            f"stages[{stage_idx}] has no value (null). Every "
+                            "entry under 'stages:' must be a stage mapping."
+                        ),
+                        yaml_file=yaml_file_path,
+                        line_number=line_map.get(f"stages[{stage_idx}]") if line_map else None,
+                        original_error=None,
+                    )
                 if "modules" in stage:
+                    if stage["modules"] is None:
+                        stage_id = stage.get("id", f"<stage index {stage_idx}>")
+                        raise BenchmarkParseError(
+                            message=(
+                                f"Stage '{stage_id}' has 'modules:' with no "
+                                "value (null). Set it to a list of modules, "
+                                "e.g.\nmodules:\n  - id: my_module"
+                            ),
+                            yaml_file=yaml_file_path,
+                            line_number=line_map.get(f"stages[{stage_idx}].modules") if line_map else None,
+                            stage_id=stage_id,
+                            original_error=None,
+                        )
                     for module_idx, module in enumerate(stage["modules"]):
                         if "parameters" in module and module["parameters"]:
                             for param_idx, param in enumerate(module["parameters"]):
