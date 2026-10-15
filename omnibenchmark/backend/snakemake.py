@@ -550,6 +550,18 @@ class SnakemakeGenerator:
             f.write(f"{_SHELL_INDENT}{line}\n")
         f.write(f'{_SHELL_INDENT}"""\n')
 
+    @staticmethod
+    def _log_lines() -> list:
+        """Redirect stdout/stderr through tee so both the terminal and the
+        declared log file receive all output."""
+        return [
+            "LOG_FILE=$(pwd)/{log}",
+            'exec > >(tee "$LOG_FILE") 2>&1',
+            "echo '=== Rule: {rule} ==='",
+            "echo 'Started:' $(date -Iseconds)",
+            "echo '---'",
+        ]
+
     def _write_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a regular node (production execution).
 
@@ -577,15 +589,7 @@ class SnakemakeGenerator:
         # an output id never has to be a bash or Snakemake name.
         lines += self._output_file_lines(node)
 
-        # Redirect stdout/stderr through tee so both the terminal and the log
-        # file receive all output.
-        lines += [
-            "LOG_FILE=$(pwd)/{log}",
-            'exec > >(tee "$LOG_FILE") 2>&1',
-            "echo '=== Rule: {rule} ==='",
-            "echo 'Started:' $(date -Iseconds)",
-            "echo '---'",
-        ]
+        lines += self._log_lines()
 
         # Fan-in nodes: record the parents the path prefix cannot carry.
         lines += self._lineage_sidecar_lines(node)
@@ -709,9 +713,11 @@ class SnakemakeGenerator:
         # its group node's lineage, passed like a scatter node's.
         group_keys = [k for k in (node.inputs or {}) if not _is_member_key(k)]
 
-        lines: list = [
-            "mkdir -p {params.output_dir}",
-            "MODULE_DIR={params.module_dir}",
+        # The log block comes first so path-resolution errors are captured too.
+        lines: list = ["mkdir -p {params.output_dir} $(dirname {log})"]
+        lines += self._log_lines()
+        lines += [
+            "MODULE_DIR=$(cd {params.module_dir} && pwd)",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
 
@@ -729,6 +735,11 @@ class SnakemakeGenerator:
                 f"INPUT_{key}=$(cd $(dirname {{input.{key}}}) && pwd)"
                 f"/$(basename {{input.{key}}})"
             )
+        if manifest:
+            # Absolute before the cd to the module root below.
+            lines.append(
+                "MANIFEST=$(cd $(dirname {input.manifest}) && pwd)/lineage.json"
+            )
 
         # Resolve each input group to absolute paths into a bash array.
         # One loop per distinct flag name — no matter how many files per flag.
@@ -741,6 +752,12 @@ class SnakemakeGenerator:
                 f'    {var}+=("$(cd $(dirname $_f) && pwd)/$(basename $_f)")',
                 "done",
             ]
+
+        # A gather stage runs an ordinary module, so it gets the regular
+        # contract: cwd = module root. Legacy metric collectors keep running
+        # from the workflow dir. Inputs are absolute by now, so the cd is safe.
+        if not node.is_collector:
+            lines.append('cd "$MODULE_DIR"')
 
         # Build the multi-line command.  Continuation args are indented 4 extra
         # spaces relative to the entrypoint line so they visually align.
@@ -756,9 +773,7 @@ class SnakemakeGenerator:
         gather_args = ["--output_dir $OUTPUT_DIR", f"--name {node.module_id}"]
         gather_args += self._output_flags(node)
         if manifest:
-            gather_args.append(
-                '--from-files "$(cd $(dirname {input.manifest}) && pwd)/lineage.json"'
-            )
+            gather_args.append('--from-files "$MANIFEST"')
         for key in group_keys:
             gather_args.append(
                 f"--{node.input_name_mapping.get(key, key)} $INPUT_{key}"
