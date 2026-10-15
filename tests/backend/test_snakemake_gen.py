@@ -684,7 +684,9 @@ class TestFanInManifest:
         assert len(shell) == len(small[small.index("shell:") :])
         assert len(shell) < 8 * 1024
         assert "--from-files" in shell and "input_1999" not in shell
-        assert "lineage.json" not in shell.split("--from-files")[0]  # no echo
+        assert "> $OUTPUT_DIR/lineage.json" not in shell  # no echo
+        # absolute before the cd to the module root
+        assert shell.index("MANIFEST=") < shell.index('cd "$MODULE_DIR"')
 
     def test_manifest_rule_lists_every_member(self, tmp_path):
         import ast
@@ -1080,3 +1082,46 @@ def test_metadata_records_every_module_not_just_every_repo(tmp_path):
 
     assert "FILT/fi-scrapper" in listed
     assert "NORM/nr-scrapper" in listed
+
+
+@pytest.mark.short
+class TestGatherShellMatchesRegularNode:
+    """The gather shell follows the same contract as a regular node."""
+
+    def _gather_out(self):
+        module = _make_module(entrypoint="integrate.R", has_shebang=True)
+        node = _make_node(
+            node_id="gather_s2-m2-default",
+            stage_id="s2",
+            module=module,
+            inputs={"score_0": "out/a/score.csv"},
+            outputs=["out/gather/result.csv"],
+            input_name_mapping={"score_0": "score"},
+            is_gather=True,
+        )
+        return _capture(_gen()._write_node_rule, node)
+
+    def test_runs_from_module_root_after_resolving_inputs(self):
+        out = self._gather_out()
+        assert "MODULE_DIR=$(cd {params.module_dir} && pwd)" in out
+        assert out.index("for _f in") < out.index('cd "$MODULE_DIR"')
+        assert out.index('cd "$MODULE_DIR"') < out.index("{params.entrypoint}")
+
+    def test_writes_to_declared_log_before_anything_else(self):
+        out = self._gather_out()
+        assert 'exec > >(tee "$LOG_FILE") 2>&1' in out
+        assert out.index("LOG_FILE=") < out.index("for _f in")
+
+    def test_metric_collector_stays_in_workflow_dir(self):
+        module = _make_module(entrypoint="collect.py", has_shebang=True)
+        node = _make_node(
+            node_id="collector_MC1-default",
+            stage_id="metric_collectors",
+            module=module,
+            inputs={"score_0": "out/a/score.csv"},
+            outputs=["out/metrics/result.json"],
+            input_name_mapping={"score_0": "score"},
+            is_collector=True,
+        )
+        out = _capture(_gen()._write_node_rule, node)
+        assert 'cd "$MODULE_DIR"' not in out
