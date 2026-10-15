@@ -116,6 +116,15 @@
         </div>
         {% endfor %}
     </div>
+    <div class="graph-legend">
+        <span style="margin-right:6px;font-size:12px;color:#666;">Validation ring:</span>
+        {% for v in validation_legend %}
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ffffff; border: 3px solid {{ v.color }};"></div>
+            <span>{{ v.name }}</span>
+        </div>
+        {% endfor %}
+    </div>
 
     <h2>Detailed File Status</h2>
     {{ table2|safe }}
@@ -186,7 +195,21 @@ $(document).ready(function() {
             details += '<h3>Node: ' + node.module + '</h3>';
             details += '<p><strong>Stage:</strong> ' + node.stage + '</p>';
             details += '<p><strong>Status:</strong> ' + node.status + '</p>';
-            
+            if (node.validation) {
+                var vcolors = {pass: '#2ECC40', fail: '#FF4136', not_validated: '#999999'};
+                details += '<p><strong>Validation:</strong> <span style="color:' +
+                    (vcolors[node.validation] || '#999999') + ';font-weight:bold;">' +
+                    node.validation + '</span></p>';
+                if (node.validation_logs && node.validation_logs.length > 0) {
+                    details += '<p><strong>Validator Logs:</strong></p><ul>';
+                    node.validation_logs.forEach(function(log) {
+                        details += '<li><a href="file://' + log + '" target="_blank">' +
+                            log.split('/').pop() + '</a></li>';
+                    });
+                    details += '</ul>';
+                }
+            }
+
             // Add output files
             if (node.files && node.files.length > 0) {
                 details += '<p><strong>Output Files:</strong></p><ul>';
@@ -333,6 +356,31 @@ $(document).ready(function() {
                             'word-wrap': 'break-word'
                         });
                     }
+                },
+                {
+                    // Validation column - coloured pass / fail / not_validated
+                    targets: 9,
+                    width: '8%',
+                    render: function(data, type, row) {
+                        if (type === 'display' && data) {
+                            var colors = {pass: '#2ECC40', fail: '#FF4136', not_validated: '#999999'};
+                            var c = colors[data] || '#999999';
+                            return '<span style="color:' + c + ';font-weight:bold;">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    // Validator log column - clickable link to the captured log
+                    targets: 10,
+                    width: '10%',
+                    render: function(data, type, row) {
+                        if (type === 'display' && data) {
+                            var fileName = data.split('/').pop();
+                            return '<a href="file://' + data + '" title="' + data + '">' + fileName + '</a>';
+                        }
+                        return data;
+                    }
                 }
             ],
         initComplete: function () {
@@ -344,7 +392,7 @@ $(document).ready(function() {
                 var title = $(cell).text();
                 
                 // Boolean columns (columns 1-4) and stage column (7) - use select dropdown
-                if (colIdx === 1 || colIdx === 2 || colIdx === 3 || colIdx === 4 || colIdx === 7) {
+                if (colIdx === 1 || colIdx === 2 || colIdx === 3 || colIdx === 4 || colIdx === 7 || colIdx === 9) {
                     var select = $('<select><option value="">All</option></select>')
                         .appendTo($(cell).empty())
                         .on('change', function () {
