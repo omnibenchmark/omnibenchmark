@@ -464,6 +464,9 @@ class ModuleResolver:
             ResolvedEnvironment with backend type and reference,
             or None if no environment needed (host backend)
         """
+        if self.software_backend == SoftwareBackendEnum.host:
+            # Host backend doesn't need environment files
+            return None
         if not self.software_backend or not self.software_environments:
             logger.warning(
                 f"No software backend/environments configured for module '{module_id}'. "
@@ -492,9 +495,6 @@ class ModuleResolver:
             return self._resolve_docker_environment(env, environment_id)
         elif self.software_backend == SoftwareBackendEnum.envmodules:
             return self._resolve_envmodules_environment(env, environment_id)
-        elif self.software_backend == SoftwareBackendEnum.host:
-            # Host backend doesn't need environment files
-            return None
         else:
             logger.warning(
                 f"Unsupported software backend '{self.software_backend}' for environment resolution"

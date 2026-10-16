@@ -1121,7 +1121,7 @@ def _generate_explicit_snakefile(
         for module in kept:
             cache_key = (stage.id, module.id)
             if cache_key not in unique_modules:
-                unique_modules[cache_key] = (module, module.software_environment)
+                unique_modules[cache_key] = (module, module.software_environment or "")
 
     if pruned_modules:
         logger.warning(capability_prune_summary(pruned_modules, available_capabilities))

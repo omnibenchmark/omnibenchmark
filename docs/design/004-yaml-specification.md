@@ -63,7 +63,7 @@ version: <string>                      # Required: semantic version
 description: <string>                  # Optional: human-readable description
 api_version: <string>                  # Optional: spec version (default: "0.4")
 software_backend: <string>             # Optional: default backend (e.g., "conda")
-software_environments: <object>        # Optional: named environments
+software_environments: <object>        # Optional: named environments (§3.2)
 stages: <array>                        # Required: pipeline stages (≥1)
 provenance:                            # Optional: lineage metadata
   canonical_url: <string>             #   URL of the authoritative publication
@@ -126,11 +126,21 @@ software_environments:
 
 #### Environment Resolution
 
-When a module references `software_environment: "env_name"`:
+Environments are declared once, in the header. A module or metric collector
+references one by id with `software_environment:`, or omits the reference:
 
-1. Lookup `env_name` in `software_environments`
-2. Validation error if not found
-3. Backend receives resolved environment for directive generation
+| Reference | Declared environments | `software_backend` | Result |
+|-----------|-----------------------|--------------------|--------|
+| `env_name` | any | any | `env_name` if declared, else validation error |
+| omitted | exactly one | any | the sole environment |
+| omitted | none, or more than one | `host` | no environment |
+| omitted | none, or more than one | other | validation error |
+
+The `software_environments` block may be left out entirely under the `host`
+backend. An explicit reference is always checked, also under `host`, so a typo
+fails even where environments are ignored.
+
+The backend receives the resolved environment for directive generation.
 
 ### 3.3 Stages
 
@@ -168,7 +178,7 @@ Modules are concrete implementations within stages.
 ```yaml
 modules:
   - id: <string>                       # Required: unique module ID
-    software_environment: <string>     # Required: environment reference
+    software_environment: <string>     # Optional: environment reference (§3.2)
     repository: <object>               # Required: source location
     name: <string>                     # Optional: human-readable name
     parameters: <array>                # Optional: module parameters
@@ -183,7 +193,11 @@ modules:
 
 - `id`: Unique identifier within stage (used as wildcard value; charset §3.13)
 - `software_environment`: Reference to defined environment
+- `id`: Unique identifier within stage (used as wildcard value)
 - `repository`: Source code specification
+
+`software_environment` may be omitted when exactly one environment is declared
+or the backend is `host` (§3.2).
 
 #### Repository Specification
 
