@@ -609,18 +609,22 @@ stages:
         path: "{dataset}.png"
 ```
 
-`shared/environments.yaml` maps each environment id to the backends it can run under:
+`shared/environments.yaml` maps each environment id to the backends it can run under, with optional descriptions beside them:
 
 ```yaml
-python:
-  - {type: conda, uri: envs/python.yaml}          # shared/envs/python.yaml
-  - {type: apptainer, uri: oras://registry.example/python.sif}
+software_environments:
+  python:
+    - {type: conda, uri: envs/python.yaml}          # shared/envs/python.yaml
+    - {type: apptainer, uri: oras://registry.example/python.sif}
+software_environments_metadata:
+  python: {name: Python, description: "Python 3.12 with numpy"}
 ```
 
 - The include path is relative to the benchmark YAML.
 - Local paths inside the file (conda files, apptainer images that are not URLs) are relative to the file itself, so the file and its `envs/` directory can move together.
 - Each `type` (`conda`, `apptainer`, `docker`, `envmodules`) may appear once per environment, and the only keys are `type` and `uri`.
-- The benchmark hash covers the file's contents, not its path: editing an environment changes the hash, just like editing it inline would.
+- The file holds only those two blocks. Descriptions stay in the file, beside the definitions; the benchmark YAML cannot add its own.
+- The benchmark hash covers the environment definitions in the file, not its path: editing an environment changes the hash, just like editing it inline would. Metadata is left out, so editing a description does not.
 - Errors in the file are reported with its name and line, e.g. `Error in shared/environments.yaml:2`.
 
 With a single environment, as here, modules can leave out `software_environment`; it defaults to that one. With `software_backend: host` you can leave out the reference and the whole `software_environments` block, since host runs ignore environments.

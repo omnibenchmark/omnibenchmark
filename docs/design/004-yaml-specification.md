@@ -25,7 +25,7 @@
 | 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
 | 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
-| 11      | 2026-10-16 | §3.2: optional `software_environment` reference (#127); api 0.9.0 `{type, uri}` environments and an included environments file | ben |
+| 11      | 2026-10-16 | §3.2: optional `software_environment` reference (#127); api 0.9.0 `{type, uri}` environments, `software_environments_metadata`, and an included environments file | ben |
 
 ## 1. Problem Statement
 
@@ -128,7 +128,9 @@ software_environments:
 #### Structured Form (api ≥ 0.9.0)
 
 From api 0.9.0 an environment is a list of backends, one `{type, uri}` per
-backend it can run under; `software_backend` picks one at run time:
+backend it can run under; `software_backend` picks one at run time.
+Descriptive fields move to `software_environments_metadata`, keyed by
+environment id:
 
 ```yaml
 software_backend: conda
@@ -136,6 +138,8 @@ software_environments:
   py:
     - {type: conda, uri: envs/py.yaml}
     - {type: apptainer, uri: oras://registry.example/py.sif}
+software_environments_metadata:          # Optional
+  py: {name: Python, description: "3.12 + numpy"}
 ```
 
 - `type` is one of `conda`, `apptainer`, `docker`, `envmodules`. Each may
@@ -144,17 +148,31 @@ software_environments:
   or an environment module name.
 - No other keys are accepted. The pre-0.9 mapping form (`conda:`, `apptainer:`,
   `description:` …) is rejected at 0.9.0, and the list form below 0.9.0.
+- `software_environments_metadata` takes `name` and `description` per declared
+  environment. It has no runtime effect and is not part of `summary_hash`, so
+  editing a description does not invalidate artifacts.
 
 #### Environments File (api ≥ 0.9.0)
 
-`software_environments` may instead be a path to a YAML file holding the same
-mapping, so environments can be shared across plans or swapped per site:
+`software_environments` may instead be a path to a YAML file, so environments
+can be shared across plans or swapped per site:
 
 ```yaml
+# plan.yaml
 software_backend: apptainer
 software_environments: shared/environments.yaml
+
+# shared/environments.yaml
+software_environments:
+  py:
+    - {type: conda, uri: envs/py.yaml}       # shared/envs/py.yaml
+software_environments_metadata:              # Optional
+  py: {name: Python, description: "3.12 + numpy"}
 ```
 
+- The file holds `software_environments:` and, optionally,
+  `software_environments_metadata:`, nothing else. Metadata sits beside the
+  definitions: a plan that includes a file may not declare its own.
 - The path is relative to the plan file; a plan loaded from a YAML string
   cannot include one.
 - Local `uri`s inside the file (conda files, apptainer images that are not
@@ -162,6 +180,7 @@ software_environments: shared/environments.yaml
 - The include is resolved before validation. `summary_hash` covers the
   resolved environments, not the path: editing the file changes the hash, and
   an included plan hashes the same as the equivalent inline one.
+- Errors in the file report its name and line.
 
 #### Environment Resolution
 
