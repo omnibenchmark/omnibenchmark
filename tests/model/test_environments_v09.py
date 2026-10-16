@@ -126,12 +126,15 @@ class TestStructuredBackends:
 @pytest.mark.short
 class TestIncludedFile:
     def test_include_next_to_plan(self, tmp_path):
-        _write(tmp_path / "environments.yaml", {"py": PY})
+        _write(tmp_path / "environments.yaml", {"software_environments": {"py": PY}})
         plan = _write(tmp_path / "plan.yaml", _doc("environments.yaml"))
         assert _env(Benchmark.from_yaml(plan)).conda == "envs/py.yaml"
 
     def test_local_uris_are_relative_to_the_included_file(self, tmp_path):
-        _write(tmp_path / "shared" / "environments.yaml", {"py": PY})
+        _write(
+            tmp_path / "shared" / "environments.yaml",
+            {"software_environments": {"py": PY}},
+        )
         plan = _write(tmp_path / "plan.yaml", _doc("shared/environments.yaml"))
         env = _env(Benchmark.from_yaml(plan))
         assert env.conda == "shared/envs/py.yaml"
@@ -139,7 +142,9 @@ class TestIncludedFile:
 
     def test_absolute_uri_untouched(self, tmp_path):
         envs = {"py": [{"type": "conda", "uri": "/opt/envs/py.yaml"}]}
-        _write(tmp_path / "shared" / "environments.yaml", envs)
+        _write(
+            tmp_path / "shared" / "environments.yaml", {"software_environments": envs}
+        )
         plan = _write(tmp_path / "plan.yaml", _doc("shared/environments.yaml"))
         assert _env(Benchmark.from_yaml(plan)).conda == "/opt/envs/py.yaml"
 
@@ -150,21 +155,32 @@ class TestIncludedFile:
                 {"type": "docker", "uri": "python:3.12"},
             ]
         }
-        _write(tmp_path / "shared" / "environments.yaml", envs)
+        _write(
+            tmp_path / "shared" / "environments.yaml", {"software_environments": envs}
+        )
         plan = _write(tmp_path / "plan.yaml", _doc("shared/environments.yaml"))
         env = _env(Benchmark.from_yaml(plan))
         assert env.envmodule == "Python/3.12"
         assert env.docker == "python:3.12"
 
     def test_hash_follows_included_contents(self, tmp_path):
-        inc = _write(tmp_path / "environments.yaml", {"py": PY})
+        inc = _write(
+            tmp_path / "environments.yaml", {"software_environments": {"py": PY}}
+        )
         plan = _write(tmp_path / "plan.yaml", _doc("environments.yaml"))
         before = Benchmark.from_yaml(plan).summary_hash()
-        _write(inc, {"py": [{"type": "conda", "uri": "envs/py2.yaml"}]})
+        _write(
+            inc,
+            {
+                "software_environments": {
+                    "py": [{"type": "conda", "uri": "envs/x.yaml"}]
+                }
+            },
+        )
         assert Benchmark.from_yaml(plan).summary_hash() != before
 
     def test_hash_same_as_inline(self, tmp_path):
-        _write(tmp_path / "environments.yaml", {"py": PY})
+        _write(tmp_path / "environments.yaml", {"software_environments": {"py": PY}})
         included = Benchmark.from_yaml(
             _write(tmp_path / "a.yaml", _doc("environments.yaml"))
         )
@@ -176,10 +192,24 @@ class TestIncludedFile:
         with pytest.raises(BenchmarkParseError, match="not found"):
             Benchmark.from_yaml(plan)
 
-    def test_included_file_must_be_a_mapping(self, tmp_path):
-        (tmp_path / "environments.yaml").write_text("- py\n")
+    @pytest.mark.parametrize("content", ["- py\n", "py:\n  - {type: conda, uri: x}\n"])
+    def test_included_file_needs_the_envs_key(self, tmp_path, content):
+        (tmp_path / "environments.yaml").write_text(content)
         plan = _write(tmp_path / "plan.yaml", _doc("environments.yaml"))
-        with pytest.raises(BenchmarkParseError, match="mapping of environment ids"):
+        with pytest.raises(
+            BenchmarkParseError, match="must hold a `software_environments:`"
+        ):
+            Benchmark.from_yaml(plan)
+
+    def test_included_file_unexpected_key(self, tmp_path):
+        _write(
+            tmp_path / "environments.yaml",
+            {"software_environments": {"py": PY}, "stages": []},
+        )
+        plan = _write(tmp_path / "plan.yaml", _doc("environments.yaml"))
+        with pytest.raises(
+            BenchmarkParseError, match=r"unexpected key\(s\) \['stages'\]"
+        ):
             Benchmark.from_yaml(plan)
 
     def test_error_points_into_included_file(self, tmp_path):
@@ -187,11 +217,12 @@ class TestIncludedFile:
         inc.write_text(
             textwrap.dedent(
                 """\
-                py:
-                  - type: conda
-                    uri: envs/py.yaml
-                  - type: pip
-                    uri: x
+                software_environments:
+                  py:
+                    - type: conda
+                      uri: envs/py.yaml
+                    - type: pip
+                      uri: x
                 """
             )
         )
@@ -199,14 +230,100 @@ class TestIncludedFile:
         with pytest.raises(BenchmarkParseError) as exc:
             Benchmark.from_yaml(plan)
         assert exc.value.yaml_file == inc
-        assert exc.value.line_number == 4
+        assert exc.value.line_number == 5
 
     def test_include_needs_a_plan_file(self):
         with pytest.raises(BenchmarkParseError, match="loaded from a file"):
             Benchmark.from_yaml(yaml.safe_dump(_doc("environments.yaml")))
 
     def test_include_rejected_before_0_9(self, tmp_path):
-        _write(tmp_path / "environments.yaml", {"py": PY})
+        _write(tmp_path / "environments.yaml", {"software_environments": {"py": PY}})
         plan = _write(tmp_path / "plan.yaml", _doc("environments.yaml", api="0.7.0"))
         with pytest.raises(BenchmarkParseError, match="api_version ≥ 0.9.0"):
             Benchmark.from_yaml(plan)
+
+
+META = {"py": {"name": "Python", "description": "3.12 + numpy"}}
+
+
+@pytest.mark.short
+class TestEnvironmentMetadata:
+    def test_inline_metadata(self):
+        doc = _doc({"py": PY})
+        doc["software_environments_metadata"] = META
+        b = Benchmark.from_yaml(yaml.safe_dump(doc))
+        meta = b.software_environments_metadata
+        assert meta is not None
+        assert meta["py"].name == "Python"
+        assert meta["py"].description == "3.12 + numpy"
+
+    def test_metadata_in_included_file(self, tmp_path):
+        _write(
+            tmp_path / "environments.yaml",
+            {
+                "software_environments": {"py": PY},
+                "software_environments_metadata": META,
+            },
+        )
+        b = Benchmark.from_yaml(
+            _write(tmp_path / "plan.yaml", _doc("environments.yaml"))
+        )
+        assert b.software_environments_metadata is not None
+        assert b.software_environments_metadata["py"].description == "3.12 + numpy"
+
+    def test_metadata_is_optional(self):
+        b = Benchmark.from_yaml(yaml.safe_dump(_doc({"py": PY})))
+        assert b.software_environments_metadata is None
+
+    def test_metadata_not_hashed(self):
+        plain = Benchmark.from_yaml(yaml.safe_dump(_doc({"py": PY})))
+        doc = _doc({"py": PY})
+        doc["software_environments_metadata"] = META
+        described = Benchmark.from_yaml(yaml.safe_dump(doc))
+        assert plain.summary_hash() == described.summary_hash()
+
+    def test_plan_metadata_with_include_rejected(self, tmp_path):
+        _write(tmp_path / "environments.yaml", {"software_environments": {"py": PY}})
+        doc = _doc("environments.yaml")
+        doc["software_environments_metadata"] = META
+        with pytest.raises(BenchmarkParseError, match="goes in environments.yaml"):
+            Benchmark.from_yaml(_write(tmp_path / "plan.yaml", doc))
+
+    def test_undeclared_env(self):
+        doc = _doc({"py": PY})
+        doc["software_environments_metadata"] = {"r": {"name": "R"}}
+        with pytest.raises(BenchmarkParseError, match="undeclared environment 'r'"):
+            Benchmark.from_yaml(yaml.safe_dump(doc))
+
+    @pytest.mark.parametrize("fields", [{"version": "1"}, "Python"])
+    def test_bad_fields(self, fields):
+        doc = _doc({"py": PY})
+        doc["software_environments_metadata"] = {"py": fields}
+        with pytest.raises(BenchmarkParseError, match="takes only"):
+            Benchmark.from_yaml(yaml.safe_dump(doc))
+
+    def test_rejected_before_0_9(self):
+        doc = _doc({"py": {"conda": "envs/py.yaml"}}, api="0.7.0")
+        doc["software_environments_metadata"] = META
+        with pytest.raises(BenchmarkParseError, match="api_version ≥ 0.9.0"):
+            Benchmark.from_yaml(yaml.safe_dump(doc))
+
+    def test_error_line_in_included_file(self, tmp_path):
+        inc = tmp_path / "environments.yaml"
+        inc.write_text(
+            textwrap.dedent(
+                """\
+                software_environments:
+                  py:
+                    - {type: conda, uri: envs/py.yaml}
+                software_environments_metadata:
+                  r:
+                    name: R
+                """
+            )
+        )
+        plan = _write(tmp_path / "plan.yaml", _doc("environments.yaml"))
+        with pytest.raises(BenchmarkParseError) as exc:
+            Benchmark.from_yaml(plan)
+        assert exc.value.yaml_file == inc
+        assert exc.value.line_number == 5  # the `r:` key

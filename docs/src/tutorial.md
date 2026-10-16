@@ -79,7 +79,7 @@ Hence, the header acts as a preamble, defining general attributes of the benchma
 
 #### Software environments from api 0.9.0
 
-From `api_version: "0.9.0"`, each environment lists the backends it can run under as `{type, uri}` pairs, and `software_backend` picks one of them. The header above becomes:
+From `api_version: "0.9.0"`, each environment lists the backends it can run under as `{type, uri}` pairs, and `software_backend` picks one of them. Descriptions move to a separate block keyed by environment id. The header above becomes:
 
 ```yaml
 api_version: "0.9.0"
@@ -91,9 +91,12 @@ software_environments:
   python:
     - {type: apptainer, uri: http://registry.ch/python_vX-gfbf-2023b.sif}
     - {type: conda, uri: envs/python.yaml}
+software_environments_metadata:
+  R: {description: "R 4.3.3 with gfbf-2023 toolchain"}
+  python: {description: "Python3.12.0 with gfbf-2023 toolchain"}
 ```
 
-Switching the benchmark to conda is then a one-line change: `software_backend: conda`. `type` is one of `conda`, `apptainer`, `docker` or `envmodules`.
+Switching the benchmark to conda is then a one-line change: `software_backend: conda`. `type` is one of `conda`, `apptainer`, `docker` or `envmodules`. The metadata block is optional and only for people reading the file: editing a description does not change the benchmark's hash.
 
 The environments can also live in their own file, so several benchmarks can share them, or each site can keep its own:
 
@@ -103,7 +106,7 @@ software_backend: apptainer
 software_environments: envs/environments.yaml
 ```
 
-where `envs/environments.yaml` holds the same mapping (`R: [...]`, `python: [...]`). That path is relative to the benchmark YAML, and local paths inside the file are relative to the file itself, so the conda entries above would read `uri: r.yaml` and `uri: python.yaml`. See [Keep software environments in a separate file](howto.md#keep-software-environments-in-a-separate-file).
+where `envs/environments.yaml` holds the `software_environments:` and `software_environments_metadata:` blocks above. That path is relative to the benchmark YAML, and local paths inside the file are relative to the file itself, so the conda entries would read `uri: r.yaml` and `uri: python.yaml`. See [Keep software environments in a separate file](howto.md#keep-software-environments-in-a-separate-file).
 
 ### Benchmark YAML body
 
