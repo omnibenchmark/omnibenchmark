@@ -110,7 +110,9 @@ stages:
       - id: D1
         ## module name in a longer form
         name: "Dataset 1"
-        ## software environment to run this module; maps to the header `software_environments`
+        ## software environment to run this module; maps to the header `software_environments`.
+        ##   May be omitted when the header declares a single environment, or with
+        ##   `software_backend: host`. Here there are two (python, R), so it is required.
         software_environment: "python"
         ## the git-compatible remote, and a particular pinned commit
         repository:
