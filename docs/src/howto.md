@@ -627,6 +627,20 @@ software_environments_metadata:
 - The benchmark hash covers the environment definitions in the file, not its path: editing an environment changes the hash, just like editing it inline would. Metadata is left out, so editing a description does not.
 - Errors in the file are reported with its name and line, e.g. `Error in shared/environments.yaml:2`.
 
+To see what a benchmark declares, which backends each environment has a recipe for, and which modules use it:
+
+```
+$ ob describe environments benchmark.yaml
+Software backend: conda
+
+ID      NAME    BACKENDS           USED BY  DESCRIPTION
+python  Python  apptainer, conda*  D1       Python 3.12 with numpy
+
+* active backend
+```
+
+An environment without a `*` has no recipe for the active backend.
+
 With a single environment, as here, modules can leave out `software_environment`; it defaults to that one. With `software_backend: host` you can leave out the reference and the whole `software_environments` block, since host runs ignore environments.
 
 ## Simplify benchmark YAMLs using branch names instead of commit names
