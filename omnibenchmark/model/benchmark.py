@@ -104,6 +104,9 @@ _ENV_TYPE_FIELDS = {
     "envmodules": "envmodule",
 }
 _ENV_PATH_TYPES = {"apptainer", "conda"}
+_ENVS = "software_environments"
+_ENVS_META = "software_environments_metadata"
+_ENV_META_KEYS = {"name", "description"}
 
 
 def _normalize_software_environments(
@@ -111,53 +114,59 @@ def _normalize_software_environments(
 ) -> None:
     """Rewrite api 0.9.0 `software_environments` into the inline legacy form.
 
-    From 0.9.0 the block is either a path to a YAML file holding the mapping,
-    or the mapping itself, and each environment is a list of `{type, uri}`.
-    Both are lowered here, before validation, so everything downstream (and
-    `summary_hash`) sees resolved contents, never the include path.
+    From 0.9.0 the block is either the mapping itself or a path to a YAML file
+    holding `software_environments:` (and optionally
+    `software_environments_metadata:`). Each environment is a list of
+    `{type, uri}`. Both are lowered here, before validation, so everything
+    downstream (and `summary_hash`) sees resolved contents, never the path.
+    Descriptions live in `software_environments_metadata`, keyed by
+    environment id, outside the hash.
     """
-    envs = data.get("software_environments")
     try:
-        is_v09 = APIVersion(str(data.get("api_version", "0.4.0"))) >= APIVersion.V0_9_0
+        api = APIVersion(str(data.get("api_version", "0.4.0")))
     except ValueError:
         return  # unknown version: the api_version validator reports it
+    is_v09 = api >= APIVersion.V0_9_0
 
-    source = plan_file
+    source, lines = plan_file, line_map
+    envs = data.get(_ENVS)
+    meta = data.get(_ENVS_META)
     rebase_from: Optional[Path] = None
-    lines = {
-        k[len("software_environments.") :]: v
-        for k, v in line_map.items()
-        if k.startswith("software_environments.")
-    }
 
-    def fail(message: str, key: Optional[str] = None) -> BenchmarkParseError:
-        if key:
-            line = lines.get(key)
-        else:
-            line = (
-                line_map.get("software_environments") if source is plan_file else None
-            )
-        return BenchmarkParseError(message=message, yaml_file=source, line_number=line)
+    def fail(message: str, path: str = _ENVS) -> BenchmarkParseError:
+        return BenchmarkParseError(
+            message=message,
+            yaml_file=source,
+            line_number=lines.get(path) or lines.get(path.split(".")[0]),
+        )
+
+    if meta is not None and not is_v09:
+        raise fail(f"`{_ENVS_META}` requires api_version ≥ 0.9.0.", _ENVS_META)
 
     if isinstance(envs, str):
         if not is_v09:
-            raise fail(
-                "`software_environments` as a file path requires api_version ≥ 0.9.0."
-            )
+            raise fail(f"`{_ENVS}` as a file path requires api_version ≥ 0.9.0.")
         if plan_file is None:
             raise fail(
-                f"`software_environments: {envs}` includes a file, which needs "
-                "the plan to be loaded from a file."
+                f"`{_ENVS}: {envs}` includes a file, which needs the plan to be "
+                "loaded from a file."
+            )
+        if meta is not None:
+            raise fail(
+                f"`{_ENVS_META}` goes in {envs}, beside the definitions.", _ENVS_META
             )
         inc = plan_file.parent / envs
         if not inc.is_file():
             raise fail(f"Software environments file not found: {inc}")
-        envs, lines = load_yaml_with_lines(inc)
+        inc_data, lines = load_yaml_with_lines(inc)
         source = inc
-        if not isinstance(envs, dict):
+        if not isinstance(inc_data, dict) or _ENVS not in inc_data:
+            raise fail(f"{inc} must hold a `{_ENVS}:` mapping.", "")
+        if extra := inc_data.keys() - {_ENVS, _ENVS_META}:
             raise fail(
-                f"{inc} must hold a mapping of environment ids to backend lists."
+                f"{inc} has unexpected key(s) {sorted(extra)}.", sorted(extra)[0]
             )
+        envs, meta = inc_data[_ENVS], inc_data.get(_ENVS_META)
         if inc.parent.resolve() != plan_file.parent.resolve():
             rebase_from = inc.parent
 
@@ -175,23 +184,24 @@ def _normalize_software_environments(
     if not all(shapes):
         raise fail(
             "From api_version 0.9.0 each software environment is a list of "
-            "{type, uri}, e.g. `py: [{type: conda, uri: envs/py.yaml}]`."
+            "{type, uri}, e.g. `py: [{type: conda, uri: envs/py.yaml}]`; "
+            f"descriptions go in `{_ENVS_META}`."
         )
 
     lowered: Dict[str, Any] = {}
     for env_id, entries in envs.items():
         env: Dict[str, Any] = {}
         for i, entry in enumerate(entries):
-            key = f"{env_id}[{i}]"
+            path = f"{_ENVS}.{env_id}[{i}]"
             if not isinstance(entry, dict) or not {"type", "uri"} <= entry.keys():
                 raise fail(
-                    f"Environment '{env_id}' entry {i} needs `type` and `uri`.", key
+                    f"Environment '{env_id}' entry {i} needs `type` and `uri`.", path
                 )
             if extra := entry.keys() - {"type", "uri"}:
                 raise fail(
                     f"Environment '{env_id}' entry {i} has unexpected key(s) "
                     f"{sorted(extra)}.",
-                    key,
+                    path,
                 )
             kind, uri = str(entry["type"]), str(entry["uri"])
             field = _ENV_TYPE_FIELDS.get(kind)
@@ -199,10 +209,12 @@ def _normalize_software_environments(
                 raise fail(
                     f"Environment '{env_id}' has unknown backend type '{kind}'; "
                     f"expected one of {sorted(_ENV_TYPE_FIELDS)}.",
-                    key,
+                    path,
                 )
             if field in env:
-                raise fail(f"Environment '{env_id}' lists backend '{kind}' twice.", key)
+                raise fail(
+                    f"Environment '{env_id}' lists backend '{kind}' twice.", path
+                )
             if (
                 rebase_from is not None
                 and plan_file is not None
@@ -215,7 +227,25 @@ def _normalize_software_environments(
                 uri = os.path.relpath(rebase_from / uri, plan_file.parent)
             env[field] = uri
         lowered[env_id] = env
-    data["software_environments"] = lowered
+    data[_ENVS] = lowered
+
+    if meta is None:
+        return
+    if not isinstance(meta, dict):
+        raise fail(f"`{_ENVS_META}` must map environment ids to metadata.", _ENVS_META)
+    for env_id, fields in meta.items():
+        path = f"{_ENVS_META}.{env_id}"
+        if env_id not in lowered:
+            raise fail(
+                f"`{_ENVS_META}` describes undeclared environment '{env_id}'.", path
+            )
+        if not isinstance(fields, dict) or not fields.keys() <= _ENV_META_KEYS:
+            raise fail(
+                f"Metadata for environment '{env_id}' takes only "
+                f"{sorted(_ENV_META_KEYS)}.",
+                path,
+            )
+    data[_ENVS_META] = meta
 
 
 # Validators
@@ -647,6 +677,13 @@ class SoftwareEnvironment(DescribableEntity):
         return self
 
 
+class SoftwareEnvironmentMetadata(BaseModel):
+    """Descriptive metadata for one software environment (api ≥ 0.9.0)."""
+
+    name: Optional[str] = Field(None, description="Human-readable name")
+    description: Optional[str] = Field(None, description="Human-readable description")
+
+
 class SoftwareEnvironmentReference(BaseModel):
     """Reference to a software environment."""
 
@@ -1034,6 +1071,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     )
     api_version: APIVersion = Field(APIVersion.V0_4_0, description="API version")
     provenance: Optional[Provenance] = Field(None, description="Lineage metadata")
+    software_environments_metadata: Optional[Dict[str, SoftwareEnvironmentMetadata]] = (
+        Field(
+            None,
+            description=(
+                "Descriptive metadata per software environment id (api ≥ 0.9.0). "
+                "Not part of summary_hash."
+            ),
+        )
+    )
 
     @field_validator("api_version", mode="before")
     @classmethod
