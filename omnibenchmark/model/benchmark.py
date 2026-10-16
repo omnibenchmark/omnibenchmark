@@ -95,6 +95,129 @@ def _is_environment_url(string: str) -> bool:
         return False
 
 
+# api 0.9.0 environment entries: `{type, uri}` → the SoftwareEnvironment field
+# that backend reads. Only conda files and local apptainer images are paths.
+_ENV_TYPE_FIELDS = {
+    "apptainer": "apptainer",
+    "conda": "conda",
+    "docker": "docker",
+    "envmodules": "envmodule",
+}
+_ENV_PATH_TYPES = {"apptainer", "conda"}
+
+
+def _normalize_software_environments(
+    data: Dict[str, Any], plan_file: Optional[Path], line_map: Dict[str, int]
+) -> None:
+    """Rewrite api 0.9.0 `software_environments` into the inline legacy form.
+
+    From 0.9.0 the block is either a path to a YAML file holding the mapping,
+    or the mapping itself, and each environment is a list of `{type, uri}`.
+    Both are lowered here, before validation, so everything downstream (and
+    `summary_hash`) sees resolved contents, never the include path.
+    """
+    envs = data.get("software_environments")
+    try:
+        is_v09 = APIVersion(str(data.get("api_version", "0.4.0"))) >= APIVersion.V0_9_0
+    except ValueError:
+        return  # unknown version: the api_version validator reports it
+
+    source = plan_file
+    rebase_from: Optional[Path] = None
+    lines = {
+        k[len("software_environments.") :]: v
+        for k, v in line_map.items()
+        if k.startswith("software_environments.")
+    }
+
+    def fail(message: str, key: Optional[str] = None) -> BenchmarkParseError:
+        if key:
+            line = lines.get(key)
+        else:
+            line = (
+                line_map.get("software_environments") if source is plan_file else None
+            )
+        return BenchmarkParseError(message=message, yaml_file=source, line_number=line)
+
+    if isinstance(envs, str):
+        if not is_v09:
+            raise fail(
+                "`software_environments` as a file path requires api_version ≥ 0.9.0."
+            )
+        if plan_file is None:
+            raise fail(
+                f"`software_environments: {envs}` includes a file, which needs "
+                "the plan to be loaded from a file."
+            )
+        inc = plan_file.parent / envs
+        if not inc.is_file():
+            raise fail(f"Software environments file not found: {inc}")
+        envs, lines = load_yaml_with_lines(inc)
+        source = inc
+        if not isinstance(envs, dict):
+            raise fail(
+                f"{inc} must hold a mapping of environment ids to backend lists."
+            )
+        if inc.parent.resolve() != plan_file.parent.resolve():
+            rebase_from = inc.parent
+
+    if not isinstance(envs, dict):
+        return  # absent, or a shape the model validation reports
+
+    shapes = [isinstance(v, list) for v in envs.values()]
+    if not is_v09:
+        if any(shapes):
+            raise fail(
+                "Software environments as a list of {type, uri} require "
+                "api_version ≥ 0.9.0."
+            )
+        return
+    if not all(shapes):
+        raise fail(
+            "From api_version 0.9.0 each software environment is a list of "
+            "{type, uri}, e.g. `py: [{type: conda, uri: envs/py.yaml}]`."
+        )
+
+    lowered: Dict[str, Any] = {}
+    for env_id, entries in envs.items():
+        env: Dict[str, Any] = {}
+        for i, entry in enumerate(entries):
+            key = f"{env_id}[{i}]"
+            if not isinstance(entry, dict) or not {"type", "uri"} <= entry.keys():
+                raise fail(
+                    f"Environment '{env_id}' entry {i} needs `type` and `uri`.", key
+                )
+            if extra := entry.keys() - {"type", "uri"}:
+                raise fail(
+                    f"Environment '{env_id}' entry {i} has unexpected key(s) "
+                    f"{sorted(extra)}.",
+                    key,
+                )
+            kind, uri = str(entry["type"]), str(entry["uri"])
+            field = _ENV_TYPE_FIELDS.get(kind)
+            if field is None:
+                raise fail(
+                    f"Environment '{env_id}' has unknown backend type '{kind}'; "
+                    f"expected one of {sorted(_ENV_TYPE_FIELDS)}.",
+                    key,
+                )
+            if field in env:
+                raise fail(f"Environment '{env_id}' lists backend '{kind}' twice.", key)
+            if (
+                rebase_from is not None
+                and plan_file is not None
+                and kind in _ENV_PATH_TYPES
+                and not _is_environment_url(uri)
+                and not os.path.isabs(uri)
+            ):
+                # Local paths are written relative to the included file; the
+                # rest of ob resolves them against the plan directory.
+                uri = os.path.relpath(rebase_from / uri, plan_file.parent)
+            env[field] = uri
+        lowered[env_id] = env
+    data["software_environments"] = lowered
+
+
 # Validators
 def validate_non_empty_string(v: str) -> str:
     """Validate that a string is not empty."""
@@ -132,10 +255,11 @@ class APIVersion(str, Enum):
     V0_5_0 = "0.5.0"
     V0_6_0 = "0.6.0"
     V0_7_0 = "0.7.0"
+    V0_9_0 = "0.9.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_7_0
+        return cls.V0_9_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -949,6 +1073,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         else:
             # Treat as YAML content string
             data = yaml.safe_load(str(path_or_content))
+
+        _normalize_software_environments(data, yaml_file_path, line_map)
 
         # Convert dict-style software_environments to list format
         if "software_environments" in data and isinstance(

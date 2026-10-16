@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v7)
+# 004: Omnibenchmark YAML Specification (v9)
 
 [![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 7](https://img.shields.io/badge/Version-7-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 7](https://img.shields.io/badge/Version-9-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
 **Status**: Accepted
-**Version**: 7
+**Version**: 9
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
@@ -23,6 +23,7 @@
 | 6       | 2026-08-25 | `gather[].group_by` is optional; omitting it is the global form (§3.12) | ben |
 | 7       | 2026-08-28 | Drop `prefix`; a gather's outputs root at the stage id (§3.12) | ben |
 | 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
+| 9       | 2026-10-16 | §3.2: optional `software_environment` reference (#127); api 0.9.0 `{type, uri}` environments and an included environments file | ben |
 
 ## 1. Problem Statement
 
@@ -121,6 +122,44 @@ software_environments:
     description: "Conda environment"
     conda: "environment.yml"  # Path to conda environment file
 ```
+
+#### Structured Form (api ≥ 0.9.0)
+
+From api 0.9.0 an environment is a list of backends, one `{type, uri}` per
+backend it can run under; `software_backend` picks one at run time:
+
+```yaml
+software_backend: conda
+software_environments:
+  py:
+    - {type: conda, uri: envs/py.yaml}
+    - {type: apptainer, uri: oras://registry.example/py.sif}
+```
+
+- `type` is one of `conda`, `apptainer`, `docker`, `envmodules`. Each may
+  appear once per environment.
+- `uri` is a conda file, an apptainer image (local path or URL), a docker image
+  or an environment module name.
+- No other keys are accepted. The pre-0.9 mapping form (`conda:`, `apptainer:`,
+  `description:` …) is rejected at 0.9.0, and the list form below 0.9.0.
+
+#### Environments File (api ≥ 0.9.0)
+
+`software_environments` may instead be a path to a YAML file holding the same
+mapping, so environments can be shared across plans or swapped per site:
+
+```yaml
+software_backend: apptainer
+software_environments: shared/environments.yaml
+```
+
+- The path is relative to the plan file; a plan loaded from a YAML string
+  cannot include one.
+- Local `uri`s inside the file (conda files, apptainer images that are not
+  URLs, not absolute) are relative to the included file.
+- The include is resolved before validation. `summary_hash` covers the
+  resolved environments, not the path: editing the file changes the hash, and
+  an included plan hashes the same as the equivalent inline one.
 
 #### Environment Resolution
 

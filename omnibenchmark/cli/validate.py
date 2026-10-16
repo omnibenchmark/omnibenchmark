@@ -117,9 +117,7 @@ def validate_plan(ctx, benchmark: str):
         ctx.exit(1)
 
     except BenchmarkParseError as e:
-        logger.error(
-            f"Error: Failed to parse YAML as a valid OmniBenchmark: {e.message}"
-        )
+        logger.error(f"Error: Failed to parse YAML as a valid OmniBenchmark: {e}")
         ctx.exit(1)
 
     except ValueError as e:
