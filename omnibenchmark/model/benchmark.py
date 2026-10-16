@@ -649,6 +649,16 @@ class SoftwareEnvironment(DescribableEntity):
     envmodule: Optional[str] = Field(None, description="Environment module name")
     easyconfig: Optional[str] = Field(None, description="EasyBuild config path")
 
+    def backends(self) -> List["SoftwareBackendEnum"]:
+        """Backends this environment has a recipe for, in enum order."""
+        fields = {
+            SoftwareBackendEnum.apptainer: self.apptainer,
+            SoftwareBackendEnum.conda: self.conda,
+            SoftwareBackendEnum.docker: self.docker,
+            SoftwareBackendEnum.envmodules: self.envmodule,
+        }
+        return [backend for backend, recipe in fields.items() if recipe]
+
     @model_validator(mode="after")
     def validate_backend_config(self) -> "SoftwareEnvironment":
         """Ensure at least one backend configuration is provided."""
