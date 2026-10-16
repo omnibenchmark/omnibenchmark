@@ -820,7 +820,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     version: str = Field(..., description="Benchmark version")
     software_backend: SoftwareBackendEnum = Field(..., description="Software backend")
     software_environments: List[SoftwareEnvironment] = Field(
-        ..., description="Available software environments"
+        default_factory=list,
+        description="Available software environments (optional for host backend)",
     )
     stages: List[Stage] = Field(..., description="Benchmark stages")
     metric_collectors: Optional[List[MetricCollector]] = Field(
