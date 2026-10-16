@@ -77,6 +77,34 @@ software_environments:
 
 Hence, the header acts as a preamble, defining general attributes of the benchmark. The body contains the individual benchmark components (methods, metrics, etc) and their linking to each other.
 
+#### Software environments from api 0.9.0
+
+From `api_version: "0.9.0"`, each environment lists the backends it can run under as `{type, uri}` pairs, and `software_backend` picks one of them. The header above becomes:
+
+```yaml
+api_version: "0.9.0"
+software_backend: apptainer
+software_environments:
+  R:
+    - {type: apptainer, uri: http://registry.ch/R_4.3.3-gfbf-2023b.sif}
+    - {type: conda, uri: envs/r.yaml}
+  python:
+    - {type: apptainer, uri: http://registry.ch/python_vX-gfbf-2023b.sif}
+    - {type: conda, uri: envs/python.yaml}
+```
+
+Switching the benchmark to conda is then a one-line change: `software_backend: conda`. `type` is one of `conda`, `apptainer`, `docker` or `envmodules`.
+
+The environments can also live in their own file, so several benchmarks can share them, or each site can keep its own:
+
+```yaml
+api_version: "0.9.0"
+software_backend: apptainer
+software_environments: envs/environments.yaml
+```
+
+where `envs/environments.yaml` holds the same mapping (`R: [...]`, `python: [...]`). That path is relative to the benchmark YAML, and local paths inside the file are relative to the file itself, so the conda entries above would read `uri: r.yaml` and `uri: python.yaml`. See [Keep software environments in a separate file](howto.md#keep-software-environments-in-a-separate-file).
+
 ### Benchmark YAML body
 
 The benchmark body is structured in stages grouping benchmarking components that produce similarly shaped outputs and ingest similarly shaped inputs. That is:
@@ -111,7 +139,7 @@ stages:
         ## module name in a longer form
         name: "Dataset 1"
         ## software environment to run this module; maps to the header `software_environments`.
-        ##   May be omitted when the header declares a single environment, or with
+        ##   It can be left out when the header declares a single environment, or with
         ##   `software_backend: host`. Here there are two (python, R), so it is required.
         software_environment: "python"
         ## the git-compatible remote, and a particular pinned commit
