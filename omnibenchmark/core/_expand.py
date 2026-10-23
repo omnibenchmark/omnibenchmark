@@ -27,7 +27,11 @@ from omnibenchmark.core._lineage import (
     satisfies_requires,
     select_input_bundles,
 )
-from omnibenchmark.core._paths import is_lineage_excluded, truncate_path_filename
+from omnibenchmark.core._paths import (
+    is_lineage_excluded,
+    path_wildcards as _wildcards,
+    truncate_path_filename,
+)
 from omnibenchmark.core._prune import empty_stage_warning, select_capable_modules
 from omnibenchmark.logging import logger
 from omnibenchmark.model.params import Params
@@ -496,10 +500,15 @@ def expand_scatter_stage(
                     module_provides=module.provides,
                 )
 
+                foreach = None
                 outputs = {}
                 for output_spec in stage.outputs:
+                    keep = ()
+                    if getattr(output_spec, "foreach", None):
+                        foreach = (output_spec.foreach, output_spec.id)
+                        keep = (output_spec.foreach,)
                     output_path_template = ctx.substitute(
-                        output_spec.path, params=params
+                        output_spec.path, params=params, keep=keep
                     )
 
                     seg = expansion_segment(param_id, members)
@@ -526,6 +535,25 @@ def expand_scatter_stage(
                         output_to_nodes[output_spec.id] = []
                     output_to_nodes[output_spec.id].append((node_id, output_path))
 
+                # A resolved path holds `{` only below a foreach (design 012).
+                # Every wildcard an input carries must reach the outputs, or
+                # the rule cannot be instantiated: rejects nested foreach, flat
+                # nesting, and joins anchored outside the foreach branch.
+                in_wild = {w for p in inputs.values() for w in _wildcards(p)}
+                if in_wild and foreach:
+                    raise ValueError(
+                        f"Stage '{stage.id}' declares foreach below another "
+                        f"foreach ({', '.join(sorted(in_wild))}); nesting is "
+                        f"not supported."
+                    )
+                lost = in_wild - {w for p in outputs.values() for w in _wildcards(p)}
+                if lost:
+                    raise ValueError(
+                        f"Node {node_id} consumes foreach '{sorted(lost)[0]}' "
+                        f"but its outputs do not carry it (flat nesting, or a "
+                        f"join whose deepest input is outside the foreach)."
+                    )
+
                 node_resources = None
                 if hasattr(module, "resources") and module.resources:
                     node_resources = module.resources
@@ -549,6 +577,7 @@ def expand_scatter_stage(
                     benchmark_author=benchmark.model.get_author(),
                     resources=node_resources,
                     template_context=ctx,
+                    foreach=foreach,
                 )
 
                 resolved_nodes.append(node)

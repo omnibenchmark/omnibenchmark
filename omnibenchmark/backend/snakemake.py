@@ -26,6 +26,7 @@ from typing import List, TextIO
 from omnibenchmark.core._paths import (
     _UNSAFE_CHARS,
     make_human_name as _make_human_name,
+    path_wildcards,
     sanitize_rule_name,
     truncate_filename,
 )
@@ -39,6 +40,27 @@ __all__ = ["SnakemakeGenerator", "_make_human_name", "_UNSAFE_CHARS"]
 # Shell block content lives at 8 spaces (2 levels × 4 spaces).
 _RULE_INDENT = "    "
 _SHELL_INDENT = "        "
+
+
+# Emitted once when a plan has a `foreach` output (design 012). A rule outside
+# the wildcard that needs paths below it waits for the checkpoint, then expands
+# the paths over the values found on disk. Sorted: glob order is not stable,
+# and it becomes a gather's CLI order. `checkpoint` is a Snakefile keyword.
+_FOREACH_HELPER = """\
+def _ob_foreach(ckpt, pattern, name, template):
+    ckpt.get()
+    found = glob_wildcards(pattern.replace("{%s}" % name, "{%s,[^/]+}" % name))
+    return expand(template, **{name: sorted(getattr(found, name))})
+
+"""
+
+
+def _foreach_dir(node: ResolvedNode) -> str:
+    """Node directory of a foreach producer: its pattern up to `/{name}/`."""
+    assert node.foreach is not None
+    name, output_id = node.foreach
+    pattern = node.outputs[output_id]
+    return pattern[: pattern.index(f"/{{{name}}}/")]
 
 
 def _bash_var(name: str) -> str:
@@ -134,8 +156,10 @@ class SnakemakeGenerator:
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
         self._nodes_by_id = {n.id: n for n in nodes}
+        self._foreach_producers = [n for n in nodes if n.foreach]
         with open(output_path, "w") as f:
             self._write_header(f)
+            self._write_foreach_header(f)
             for node in nodes:
                 self._write_node_rule(f, node)
             self._write_all_rule(f, nodes)
@@ -155,6 +179,47 @@ class SnakemakeGenerator:
         ]
         f.write("\n".join(lines))
 
+    def _write_foreach_header(self, f: TextIO):
+        """Wildcard constraints and the `_ob_foreach` helper (design 012)."""
+        if not self._foreach_producers:
+            return
+        names = sorted({n.foreach[0] for n in self._foreach_producers if n.foreach})
+        f.write("\nwildcard_constraints:\n")
+        for name in names:
+            f.write(f'    {name}="[^/]+",\n')
+        f.write("\n" + _FOREACH_HELPER)
+
+    def _rule_outputs(self, node: ResolvedNode) -> List[str]:
+        """The node's outputs as the rule declares them. A foreach producer's
+        pattern is replaced by a sentinel in its node directory: the
+        checkpoint itself has no wildcard (design 012 §4)."""
+        if not node.foreach:
+            return list(node.outputs.values())
+        name, foreach_id = node.foreach
+        return [
+            f"{_foreach_dir(node)}/.{oid}.foreach" if oid == foreach_id else path
+            for oid, path in node.outputs.items()
+        ]
+
+    def _path_ref(self, path: str, rule_wildcards: set) -> str:
+        """A path as a rule input: a literal, or an `_ob_foreach` call when it
+        carries a wildcard the referencing rule does not. Anything else is
+        written as given, as before foreach existed."""
+        literal = f'"{path}"'
+        if not isinstance(path, str) or path_wildcards(path) <= rule_wildcards:
+            return literal
+        for producer in self._foreach_producers:
+            assert producer.foreach is not None
+            name, output_id = producer.foreach
+            if path.startswith(f"{_foreach_dir(producer)}/{{{name}}}/"):
+                rule = self._sanitize_rule_name(producer.id)
+                pattern = producer.outputs[output_id]
+                return (
+                    f"lambda wc: _ob_foreach(checkpoints.{rule}, "
+                    f'"{pattern}", "{name}", "{path}")'
+                )
+        return literal
+
     def _write_node_rule(self, f: TextIO, node: ResolvedNode):
         """Write a complete rule block for one resolved node."""
         is_collector = node.is_collector
@@ -167,18 +232,22 @@ class SnakemakeGenerator:
             f.write("# Type: Gather Stage\n")
         f.write(f"# Repository: {node.module.repository_url}\n")
         f.write(f"# Commit: {node.module.commit}\n")
-        f.write(f"rule {self._sanitize_rule_name(node.id)}:\n")
+        keyword = "checkpoint" if node.foreach else "rule"
+        f.write(f"{keyword} {self._sanitize_rule_name(node.id)}:\n")
+
+        outputs = self._rule_outputs(node)
+        wildcards = {w for p in outputs for w in path_wildcards(p)}
 
         if node.inputs:
             f.write("    input:\n")
             for key, path in node.inputs.items():
-                f.write(f'        {key}="{path}",\n')
+                f.write(f"        {key}={self._path_ref(path, wildcards)},\n")
 
-        if node.outputs:
+        if outputs:
             # Positional at every api version: output ids never become Snakemake
             # names, so they need not be Python identifiers (009 §3.3).
             f.write("    output:\n")
-            for path in node.outputs.values():
+            for path in outputs:
                 f.write(f'        "{path}",\n')
 
         f.write("    params:\n")
@@ -196,7 +265,7 @@ class SnakemakeGenerator:
 
         # benchmark: directive (performance tracking, skipped for aggregate nodes)
         if not is_collector and not is_gather and node.outputs:
-            first_output = next(iter(node.outputs.values()))
+            first_output = outputs[0]
             benchmark_dir = (
                 os.path.dirname(first_output) if "/" in first_output else "."
             )
@@ -213,7 +282,9 @@ class SnakemakeGenerator:
             f.write(f'        "{benchmark_file}"\n')
 
         rule_name = self._sanitize_rule_name(node.id)
-        log_filename = truncate_filename(f"{rule_name}.log")
+        # Output, log and benchmark must share wildcards.
+        suffix = "".join(f".{{{w}}}" for w in sorted(wildcards))
+        log_filename = truncate_filename(f"{rule_name}{suffix}.log")
         f.write("    log:\n")
         f.write(f'        ".logs/{log_filename}"\n')
 
@@ -234,8 +305,8 @@ class SnakemakeGenerator:
         f.write("rule all:\n")
         f.write("    input:\n")
         for node in nodes:
-            for output in node.outputs.values():
-                f.write(f'        "{output}",\n')
+            for output in self._rule_outputs(node):
+                f.write(f"        {self._path_ref(output, set())},\n")
         f.write("    default_target: True\n")
         f.write("\n")
 
@@ -409,11 +480,24 @@ class SnakemakeGenerator:
         # checkout. Spec §3.2 promises absolute paths. Indexed by position, so
         # an output id never has to be a bash or Snakemake name.
         if self.api_version >= APIVersion.V0_8_0:
-            for i in range(len(node.outputs)):
+            foreach_id = node.foreach[1] if node.foreach else None
+            for i, output_id in enumerate(node.outputs):
+                lines.append(f"mkdir -p $(dirname {{output[{i}]}})")
+                if output_id != foreach_id:
+                    lines.append(
+                        f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
+                        f"/$(basename {{output[{i}]}})"
+                    )
+                    continue
+                # output[i] is the sentinel in the node directory; the module
+                # gets the pattern, `{name}` kept for it to fill. Files from a
+                # previous run go first so a dropped value is not globbed.
+                name = node.foreach[0] if node.foreach else ""
+                rest = node.outputs[output_id].split(f"/{{{name}}}/", 1)[1]
                 lines += [
-                    f"mkdir -p $(dirname {{output[{i}]}})",
-                    f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
-                    f"/$(basename {{output[{i}]}})",
+                    f"FOREACH_DIR=$(cd $(dirname {{output[{i}]}}) && pwd)",
+                    f"rm -f $FOREACH_DIR/*/{rest}",
+                    f"OUTPUT_FILE_{i}=$FOREACH_DIR/{{{{{name}}}}}/{rest}",
                 ]
 
         # Redirect stdout/stderr through tee so both the terminal and the log
@@ -495,6 +579,9 @@ class SnakemakeGenerator:
         for part in cmd[:-1]:
             lines.append(f"{part} \\\\")
         lines.append(cmd[-1])
+        if node.foreach:
+            i = list(node.outputs).index(node.foreach[1])
+            lines.append(f"touch $FOREACH_DIR/$(basename {{output[{i}]}})")
 
         self._write_shell_lines(f, lines)
 

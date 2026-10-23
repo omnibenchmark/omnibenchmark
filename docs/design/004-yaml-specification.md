@@ -25,6 +25,7 @@
 | 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
 | 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
+| 11      | 2026-10-23 | §3.14: `foreach` outputs (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -563,6 +564,29 @@ whitespace, which would break `--output id=PATH` (009 §3.2). Output ids are
 never used as Snakemake or bash names (009 §3.3).
 
 Output ids are unique within a stage, at every api version.
+
+### 3.14 `foreach` outputs (api ≥ 0.8.0)
+
+An output whose file count the module decides at run time declares the name it
+captures. The path starts with that name as its first segment and uses it
+nowhere else:
+
+```yaml
+outputs:
+  - id: counts
+    path: "{sample}/counts.h5"
+    foreach: sample
+```
+
+The module receives `--output counts=<abs node dir>/{sample}/counts.h5` and
+writes one file per value it chooses, substituting `{sample}` itself; values
+match `[^/]+`. Each file feeds its own node in every downstream stage, and a
+`gather` (§3.12) collects them like any other members. Downstream modules see
+a single input path.
+
+A captured value is not a lineage label: `requires`, `exclude` and `group_by`
+cannot refer to it. At most one `foreach` output per stage, none on metric
+collectors, and no `foreach` below another. Design: 012.
 
 ## 4. Complete Example
 

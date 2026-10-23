@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: named outputs — modules receive one `--output id=path` flag per declared stage output, decoupling module code from benchmark filenames; `--output` paths are absolute. See "Upgrade a benchmark to api 0.8.0" in the how-to guides (#329)
 - deprecate: `{dataset}` in output path templates now warns at load time for api ≥ 0.5.0, naming the offending path; prefer `{module.id}` or `{params.KEY}`
 - feat: `ob create benchmark` scaffolds an api 0.8.0 plan using `{module.id}` and identifier output ids
+- feat: `foreach` outputs — a stage output whose file count the module decides at run time (e.g. one file per downloaded sample); each file gets its own downstream node and a `gather` collects them (api 0.8.0, design 012)
 
 ## [0.7.0](UNRELEASED)
 
