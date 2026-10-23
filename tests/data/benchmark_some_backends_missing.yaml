@@ -37,11 +37,11 @@ stages:
           commit: 63b7b36
     outputs:
       - id: data.counts
-        path: "{dataset}.txt.gz"
+        path: "{module.id}.txt.gz"
       - id: data.meta
-        path: "{dataset}.meta.json"
+        path: "{module.id}.meta.json"
       - id: data.data_specific_params
-        path: "{dataset}_params.txt"
+        path: "{module.id}_params.txt"
 
   - id: process
     modules:

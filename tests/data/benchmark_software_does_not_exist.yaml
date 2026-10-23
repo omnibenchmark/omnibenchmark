@@ -24,6 +24,6 @@ stages:
           commit: 63b7b36
     outputs:
       - id: data.counts
-        path: "{dataset}.txt.gz"
+        path: "{module.id}.txt.gz"
       - id: data.meta
-        path: "{dataset}.meta.json"
+        path: "{module.id}.meta.json"

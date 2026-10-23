@@ -37,14 +37,14 @@ _BENIGN = """
       - {id: dA, software_environment: py, repository: {url: u, commit: c}}
       - {id: dB, software_environment: py, repository: {url: u, commit: c}}
     outputs:
-      - {id: raw, path: "{dataset}.txt"}
+      - {id: raw, path: "{module.id}.txt"}
   - id: PROC
     inputs: [raw]
     modules:
       - {id: pA, software_environment: py, exclude: [dB], repository: {url: u, commit: c}}
       - {id: pB, software_environment: py, exclude: [dA], repository: {url: u, commit: c}}
     outputs:
-      - {id: proc.out, path: "{dataset}.out"}
+      - {id: proc.out, path: "{module.id}.out"}
 """
 
 # FEAT excludes dB (runs only on dA); PCA excludes dA (runs only on dB) but consumes
@@ -55,19 +55,19 @@ _ZERO_NODE = """
       - {id: dA, software_environment: py, repository: {url: u, commit: c}}
       - {id: dB, software_environment: py, repository: {url: u, commit: c}}
     outputs:
-      - {id: raw, path: "{dataset}.txt"}
+      - {id: raw, path: "{module.id}.txt"}
   - id: FEAT
     inputs: [raw]
     modules:
       - {id: fe, software_environment: py, exclude: [dB], repository: {url: u, commit: c}}
     outputs:
-      - {id: feat.out, path: "{dataset}.feat"}
+      - {id: feat.out, path: "{module.id}.feat"}
   - id: PCA
     inputs: [feat.out]
     modules:
       - {id: pc, software_environment: py, exclude: [dA], repository: {url: u, commit: c}}
     outputs:
-      - {id: pca.out, path: "{dataset}.pca"}
+      - {id: pca.out, path: "{module.id}.pca"}
 """
 
 

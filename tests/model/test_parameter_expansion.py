@@ -1,5 +1,7 @@
 """Tests for parameter expansion with combinatorial validation."""
 
+import warnings
+
 import pytest
 
 from omnibenchmark.model.benchmark import Benchmark, _warn_if_disjoint_parameter_keys
@@ -613,3 +615,44 @@ def test_disjoint_warning_metric_collector(capsys):
     assert "inconsistent" in err.lower()
     assert "metric_type" in err
     assert "cutoff" in err
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "api, path, warns",
+    [
+        ("0.5.0", "{dataset}.h5ad", True),
+        ("0.5.0", "{module.id}.h5ad", False),
+        # below 0.5 `--name` is the dataset id: {dataset} is still correct
+        ("0.4.0", "{dataset}.h5ad", False),
+    ],
+)
+def test_deprecated_dataset_template_var_warns(api, path, warns):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        Benchmark.from_yaml(
+            f"""
+id: b
+version: "1.0"
+benchmarker: t
+api_version: "{api}"
+software_backend: host
+software_environments:
+  host:
+    description: host
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: host
+        repository: {{url: https://example.com/r.git, commit: abc123}}
+    outputs:
+      - id: raw
+        path: "{path}"
+"""
+        )
+    msgs = [str(w.message) for w in caught if w.category is FutureWarning]
+    hits = [m for m in msgs if "deprecated '{dataset}'" in m]
+    assert bool(hits) is warns
+    if warns:
+        assert "{module.id}" in hits[0]
