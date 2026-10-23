@@ -12,6 +12,7 @@ Covers:
 - generate_snakefile (integration: writes a parseable file)
 """
 
+import dataclasses
 import io
 import json
 from pathlib import Path
@@ -920,3 +921,50 @@ def test_metadata_records_every_module_not_just_every_repo(tmp_path):
 
     assert "FILT/fi-scrapper" in listed
     assert "NORM/nr-scrapper" in listed
+
+
+# ---------------------------------------------------------------------------
+# foreach outputs (design 012)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_foreach_lowering(tmp_path):
+    """Producer → checkpoint + sentinel; wildcard node keeps the pattern and a
+    suffixed log; gather and `all` wrap wildcard paths in `_ob_foreach`."""
+    pattern = "data/D1/.default/{sample}/counts.h5"
+    below = "data/D1/.default/{sample}/process/M/.default/x.h5ad"
+    producer = _make_node(node_id="data-D1.default", outputs={"counts": pattern})
+    producer = dataclasses.replace(producer, foreach=("sample", "counts"))
+    per_sample = _make_node(
+        node_id="data-D1.default-process-M.default",
+        inputs={"counts": pattern},
+        outputs={"processed": below},
+    )
+    gather = _make_node(
+        node_id="gather-G-D1.default",
+        inputs={"input_0": below},
+        input_name_mapping={"input_0": "processed"},
+        outputs={"summary": "gather/D1/G/.default/s.txt"},
+        is_gather=True,
+    )
+    out = tmp_path / "Snakefile"
+    SnakemakeGenerator("b", "1", "a", api_version=APIVersion.V0_8_0).generate_snakefile(
+        [producer, per_sample, gather], out
+    )
+    text = out.read_text()
+
+    sentinel = '"data/D1/.default/.counts.foreach"'
+    wrapped = (
+        "lambda wc: _ob_foreach(checkpoints.data_D1_default, "
+        f'"{pattern}", "sample", "{below}")'
+    )
+    assert 'sample="[^/]+"' in text and "def _ob_foreach(" in text
+    assert "checkpoint data_D1_default:\n    output:\n        " + sentinel in text
+    assert "--output counts=$OUTPUT_FILE_0" in text
+    assert "OUTPUT_FILE_0=$FOREACH_DIR/{{sample}}/counts.h5" in text
+    assert f'counts="{pattern}"' in text  # same wildcard: plain input
+    assert ".{sample}.log" in text
+    assert f"input_0={wrapped}," in text
+    all_rule = text.split("rule all:")[1]
+    assert sentinel in all_rule and wrapped in all_rule

@@ -1,0 +1,52 @@
+id: Foreach
+description: E2E test for foreach outputs (design 012)
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.8.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+        parameters:
+          - samples: "s1,s2,s3"
+    outputs:
+      - id: counts
+        path: "{sample}/counts.txt"
+        foreach: sample
+
+  - id: process
+    modules:
+      - id: upper
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+    inputs:
+      - counts
+    outputs:
+      - id: processed
+        path: "processed.txt"
+
+  - id: per_dataset
+    modules:
+      - id: collect
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+    gather:
+      - from: processed
+        group_by: data
+    outputs:
+      - id: summary
+        path: "summary.txt"

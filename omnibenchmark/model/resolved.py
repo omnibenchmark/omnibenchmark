@@ -16,7 +16,7 @@ Design Principles:
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 from omnibenchmark.model.params import Params
 from omnibenchmark.model.benchmark import SoftwareBackendEnum
@@ -46,10 +46,12 @@ class TemplateContext:
 
     _UNRESOLVED_RE = re.compile(r"\{([^}]+)\}")
 
-    def substitute(self, template: str, params=None) -> str:
+    def substitute(self, template: str, params=None, keep: tuple = ()) -> str:
         """Apply all template variables to *template*.
 
-        Resolution order: provides → module attrs → params.
+        Resolution order: provides → module attrs → params. Names in *keep*
+        are left as `{name}`: a `foreach` capture is a Snakemake wildcard, not
+        a plan-time value (design 012).
 
         Raises:
             ValueError: If any ``{variable}`` placeholders remain unresolved
@@ -62,6 +64,8 @@ class TemplateContext:
 
         # 1. Provides-derived variables: {label}
         for label, value in self.provides.items():
+            if label in keep:
+                continue
             result = result.replace(f"{{{label}}}", str(value))
 
         # 2. Module attributes: {module.attr}
@@ -84,7 +88,7 @@ class TemplateContext:
             result = self._PARAMS_RE.sub(_replace_params, result)
 
         # Raise on any unresolved placeholders
-        unresolved = self._UNRESOLVED_RE.findall(result)
+        unresolved = [u for u in self._UNRESOLVED_RE.findall(result) if u not in keep]
         if unresolved:
             try:
                 param_keys = [f"params.{k}" for k in params] if params else []
@@ -269,6 +273,11 @@ class ResolvedNode:
     # does NOT encode its lineage. Ancestry recovery walks `parents` in addition
     # to the id-prefix chain, so a stage downstream of a fan-in sees every branch.
     parents: List[str] = field(default_factory=list)
+
+    # (captured name, output id) when one of this node's outputs is a `foreach`
+    # pattern (design 012): the node lowers to a Snakemake checkpoint. Nodes
+    # below it need no flag; their paths carry the `{name}` wildcard.
+    foreach: Optional[Tuple[str, str]] = None
 
     def __post_init__(self):
         # Normalize outputs from List[str] (legacy test/compat format) to Dict[str, str].

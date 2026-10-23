@@ -12,6 +12,13 @@ MAX_FILENAME_LEN = 255
 # last suffix only. Covers .tar.gz, .tar.bz2, .tar.zst, .nii.gz, etc.
 _MAX_COMPOUND_SUFFIX_LEN = 16
 _EXT_RE = re.compile(r"\.[A-Za-z0-9]+")
+_WILDCARD_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def path_wildcards(path: str) -> Set[str]:
+    """`foreach` wildcards left in a resolved path (design 012). Substitution
+    leaves no other `{...}` behind, so this is the whole set."""
+    return set(_WILDCARD_RE.findall(path))
 
 
 def _split_extension(name: str) -> tuple[str, str]:
