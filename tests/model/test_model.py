@@ -783,7 +783,8 @@ outputs:
 
 @pytest.mark.short
 class TestIdCharset:
-    """Stage and module ids are [A-Za-z0-9_] from api 0.8.0 (004 §3.13)."""
+    """Stage and module ids are [A-Za-z0-9_] from api 0.8.0; output ids are
+    free-form (004 §3.13)."""
 
     @pytest.mark.parametrize("bad", ["kmeans-sklearn", "m.v2", "a:b"])
     @pytest.mark.parametrize("where", ["stage", "module"])
@@ -801,19 +802,33 @@ class TestIdCharset:
         with pytest.warns(FutureWarning, match="error at api_version 0.8.0"):
             make_benchmark(api_version=APIVersion.V0_7_0, stages=[stage])
 
-    def test_dotted_output_id_rejected_at_0_8(self):
-        stage = make_stage(outputs=[make_iofile(id="data.raw", path="x.txt")])
-        with pytest.raises(ValueError, match="Output id 'data.raw'"):
-            make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])
-
-    def test_dotted_output_id_silent_before_0_8(self):
-        import warnings
-
-        stage = make_stage(outputs=[make_iofile(id="data.raw", path="x.txt")])
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", FutureWarning)
-            make_benchmark(api_version=APIVersion.V0_7_0, stages=[stage])
-
     def test_underscores_accepted(self):
         stage = make_stage(id="pre_proc", modules=[make_module(id="k_means_2")])
         make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])
+
+    @pytest.mark.parametrize(
+        "output_id", ["data.raw", "rawdata-h5ad", "class", "count"]
+    )
+    def test_output_ids_free_form_at_0_8(self, output_id):
+        """Output ids never become Snakemake names (009 §3.3)."""
+        import warnings
+
+        stage = make_stage(outputs=[make_iofile(id=output_id, path="x.txt")])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])
+
+    @pytest.mark.parametrize("bad", ["a=b", "a b", "a\tb"])
+    def test_output_id_breaking_id_equals_path_rejected_at_0_8(self, bad):
+        stage = make_stage(outputs=[make_iofile(id=bad, path="x.txt")])
+        with pytest.raises(ValueError, match="may not contain '=' or whitespace"):
+            make_benchmark(api_version=APIVersion.V0_8_0, stages=[stage])
+
+    def test_duplicate_output_ids_rejected(self):
+        with pytest.raises(ValueError, match="Duplicate output ids"):
+            make_stage(
+                outputs=[
+                    make_iofile(id="raw", path="a.txt"),
+                    make_iofile(id="raw", path="b.txt"),
+                ]
+            )

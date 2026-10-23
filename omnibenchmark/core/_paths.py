@@ -138,8 +138,11 @@ _TEMPLATE_VAR_RE = re.compile(r"\{([^}]+)\}")
 
 
 def substitute_node_vars(template: str, node, prefix: Path) -> str:
-    """Fill the variables the run path fills (``core/_expand.py``) for *node*.
+    """Fill the node-level variables of an output template for *node*.
 
+    Covers ``{input}``, ``{stage}``, ``{module}``, ``{params}``, ``{name}`` and
+    ``{module.*}``. Not the same set as the run path (``core/_expand.py``): that
+    also fills ``provides`` labels and rejects ``{stage}``/``{module}``.
     ``{dataset}`` and anything unknown are left in place; ``{dataset}`` is
     resolved later by :func:`normalize_dataset_path`.
     """

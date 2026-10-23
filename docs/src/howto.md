@@ -742,3 +742,44 @@ stages:
       - id: data.image
         path: "{module.id}.png"
 ```
+
+## Upgrade a benchmark to api 0.8.0
+
+api 0.8.0 passes each module the exact path of every output it must write
+(`--output id=PATH`). Upgrading is opt-in per benchmark: bump `api_version` in
+the plan once its modules are ready.
+
+### In the plan
+
+- **Stage and module ids** may only contain letters, digits and underscores,
+  and must not start with a digit. `M1-foo` becomes `M1_foo`. On 0.7 these
+  ids already load with a deprecation warning, so `ob validate plan` lists
+  what to rename.
+- **Output ids** do not change. `data.raw` is still valid, so the `--data.raw`
+  flags downstream modules read stay the same. Only `=` and whitespace are
+  rejected.
+- **Output paths**: prefer `{module.id}` to the deprecated `{dataset}`.
+
+Renaming a stage or module id renames its output directory, so those nodes
+and everything downstream of them are recomputed on the next run. Results
+under the old names are not reused.
+
+### In each module
+
+Every module receives one `--output id=PATH` flag per output its stage
+declares, a single-output stage included. Paths are absolute. `--output_dir`
+and `--name` are still passed, so a module that ignores `--output` keeps
+working, unless it rejects unknown flags. Such a module must accept
+`--output` before the benchmark moves to 0.8.
+
+```python
+parser.add_argument("--output", action="append", default=[])
+args, _ = parser.parse_known_args()
+outputs = dict(o.split("=", 1) for o in args.output)
+# outputs == {"data.raw": "/abs/out/data/D1/.../D1_data.json"}
+```
+
+Write each output to `outputs[id]` instead of building the filename from
+`--output_dir` and `--name`. Then the module no longer depends on the
+filenames a particular benchmark chooses. `--output_dir` and `--name` are
+dropped in api 0.10.

@@ -272,7 +272,9 @@ class TelemetryEmitter:
                 "node_id": node.id,
                 "param_id": node.param_id,
                 "inputs": node.inputs if hasattr(node, "inputs") else {},
-                "outputs": node.outputs if hasattr(node, "outputs") else [],
+                "outputs": list(node.outputs.values())
+                if hasattr(node, "outputs")
+                else [],
                 "parameters": node.get_parameter_json()
                 if hasattr(node, "get_parameter_json")
                 else None,
