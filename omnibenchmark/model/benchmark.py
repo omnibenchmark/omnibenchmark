@@ -23,7 +23,7 @@ from pydantic import (
 from omnibenchmark.model._merge import merge_dict_list
 
 from ._parsing import convert_pydantic_error_to_parse_error
-from .params import Params
+from .params import Params, expand_ranges
 from .validation import BenchmarkParseError, BenchmarkValidator, ValidationError
 
 
@@ -1513,6 +1513,20 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"requires api_version ≥ 0.7.0 (this benchmark "
                             f"declares {self.api_version.value})."
                         )
+
+        # `{a..b}` ranges in parameter values expand to lists from 0.8.0;
+        # older plans keep such strings literal.
+        if self.api_version >= APIVersion.V0_8_0:
+            owners: List[Union[Module, MetricCollector]] = [
+                m for s in self.stages for m in s.modules
+            ]
+            owners += self.metric_collectors or []
+            for owner in owners:
+                for param in owner.parameters or []:
+                    if param.params is not None:
+                        param.params = {
+                            k: expand_ranges(v) for k, v in param.params.items()
+                        }
 
         # Node ids join stage and module ids with `-` and `.`; keeping those out
         # of the ids makes a node id parse back into its segments. Enforced from
