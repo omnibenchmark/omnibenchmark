@@ -272,6 +272,8 @@ class ResolvedNode:
 
     def __post_init__(self):
         # Normalize outputs from List[str] (legacy test/compat format) to Dict[str, str].
+        # TODO: only test fixtures still pass a list; migrate them and drop this,
+        # since it would hide a missed migration behind `output_N` ids.
         if isinstance(self.outputs, list):
             d = {f"output_{i}": p for i, p in enumerate(self.outputs)}
             object.__setattr__(self, "outputs", d)

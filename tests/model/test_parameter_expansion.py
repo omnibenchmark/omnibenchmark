@@ -1,5 +1,7 @@
 """Tests for parameter expansion with combinatorial validation."""
 
+import warnings
+
 import pytest
 
 from omnibenchmark.model.benchmark import Benchmark, _warn_if_disjoint_parameter_keys
@@ -625,15 +627,11 @@ def test_disjoint_warning_metric_collector(capsys):
         ("0.4.0", "{dataset}.h5ad", False),
     ],
 )
-def test_deprecated_dataset_template_var_warns(capsys, api, path, warns):
-    from omnibenchmark.model.benchmark import (
-        _warn_if_deprecated_dataset_var,
-        _warned_dataset_paths,
-    )
-
-    _warned_dataset_paths.clear()
-    Benchmark.from_yaml(
-        f"""
+def test_deprecated_dataset_template_var_warns(api, path, warns):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        Benchmark.from_yaml(
+            f"""
 id: b
 version: "1.0"
 benchmarker: t
@@ -652,11 +650,9 @@ stages:
       - id: raw
         path: "{path}"
 """
-    )
-    err = capsys.readouterr().err
-    assert ("deprecated '{dataset}'" in err) is warns
+        )
+    msgs = [str(w.message) for w in caught if w.category is FutureWarning]
+    hits = [m for m in msgs if "deprecated '{dataset}'" in m]
+    assert bool(hits) is warns
     if warns:
-        assert "{module.id}" in err
-        # the same path warns once, not once per parse
-        _warn_if_deprecated_dataset_var(path)
-        assert capsys.readouterr().err == ""
+        assert "{module.id}" in hits[0]

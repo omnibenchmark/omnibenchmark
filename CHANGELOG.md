@@ -13,9 +13,10 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: a stage resolves its inputs from their producers, not from whichever stage expanded just before it. A stage with no modules sorting between producer and consumer (ties are hash order) made the consumer expand as a root with no inputs, depending on PYTHONHASHSEED; and a stage whose producers were all pruned no longer chains onto an unrelated stage
 - fix: the DAG is deterministic. Nodes and edges keep insertion order instead of set (hash) order, and the topological sort breaks ties by declaration order, so the same plan expands in the same order on every run and machine
 - refactor: input resolution is a pure function of a stage's declared inputs and their producers; the `previous_stage_nodes` parameter is gone from `select_input_nodes`, `select_input_bundles` and `expand_scatter_stage`, so expansion order cannot change which nodes a stage chains onto
-- feat(breaking)!: stage, module and output ids may only contain letters, digits and underscores (api 0.8.0); older plans get a deprecation warning for stage and module ids
+- feat(breaking)!: stage and module ids may only contain letters, digits and underscores (api 0.8.0); older plans get a deprecation warning. Output ids stay free-form; only `=` and whitespace are rejected
+- fix: duplicate output ids within a stage are rejected instead of silently dropping one
 - fix: `ob archive`, `ob describe status` and remote storage predicted wrong paths for output templates using `{name}` or `{module.*}`, and crashed on `{module.id}`
-- feat: named outputs — modules receive one `--output` flag per declared stage output (positional path for single-output stages, `id=path` otherwise), decoupling module code from benchmark filenames; `--output` paths are absolute (#329)
+- feat: named outputs — modules receive one `--output id=path` flag per declared stage output, decoupling module code from benchmark filenames; `--output` paths are absolute. See "Upgrade a benchmark to api 0.8.0" in the how-to guides (#329)
 - deprecate: `{dataset}` in output path templates now warns at load time for api ≥ 0.5.0, naming the offending path; prefer `{module.id}` or `{params.KEY}`
 - feat: `ob create benchmark` scaffolds an api 0.8.0 plan using `{module.id}` and identifier output ids
 
@@ -66,6 +67,11 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: correctly mark all entrypoints as executable (Closes: #346)
 
 ## [0.5.1](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.1) (May 8th 2026)
+
+- fix: raise warning for disjoint keys (Closes: #313)
+- fix: clearer error on missing entrypoint (Closes: #321)
+- fix: truncate filename to avoid hitting filesystem limits (#334)
+- chore(pkg): unpin snakemake dependency (#269)
 
 ## [0.5.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.5.0) (Apr 23th 2026)
 

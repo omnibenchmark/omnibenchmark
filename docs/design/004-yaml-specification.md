@@ -24,6 +24,7 @@
 | 7       | 2026-08-28 | Drop `prefix`; a gather's outputs root at the stage id (§3.12) | ben |
 | 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
 | 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
+| 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -549,21 +550,19 @@ The contributing nodes a path can no longer encode are recorded in a
 
 ### 3.13 Identifier charset (api ≥ 0.8.0)
 
-Stage, module and output ids (including metric collector outputs) match
-`[A-Za-z_][A-Za-z0-9_]*`: letters, digits and underscores, not starting with a
-digit.
+Stage and module ids match `[A-Za-z_][A-Za-z0-9_]*`: letters, digits and
+underscores, not starting with a digit. Node ids join stage and module ids
+with `-` and `.` (`{parent}-{stage}-{module}.{params}`). Keeping both out of
+the ids makes a node id parse back into its segments, which the un-nested
+output layout relies on. Below 0.8.0, an id that breaks the rule loads with a
+deprecation warning.
 
-- Node ids join stage and module ids with `-` and `.`
-  (`{parent}-{stage}-{module}.{params}`). Keeping both out of the ids makes a
-  node id parse back into its segments, which the un-nested output layout
-  relies on.
-- Output ids are used as-is as Snakemake output names and `--output` ids
-  (009), with no sanitization step.
+Output ids (including metric collector outputs) are free-form and keep the
+pre-0.8 charset (`data.raw` is fine). From 0.8.0 they may not contain `=` or
+whitespace, which would break `--output id=PATH` (009 §3.2). Output ids are
+never used as Snakemake or bash names (009 §3.3).
 
-Below 0.8.0, a stage or module id that breaks the rule loads with a
-deprecation warning. A dotted output id (`data.raw`) loads silently: renaming
-it renames the `--<input id>` flag downstream modules parse, so it belongs to
-the 0.8.0 migration.
+Output ids are unique within a stage, at every api version.
 
 ## 4. Complete Example
 

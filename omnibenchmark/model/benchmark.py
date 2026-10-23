@@ -182,9 +182,11 @@ class APIVersion(str, Enum):
 # then drop it from this set at the next major api bump, which also frees
 # `dataset` as an ordinary label and stage name. Until then it stays reserved.
 _RESERVED_PROVIDES_LABELS = frozenset({"name", "dataset"})
-# Stage, module and output ids (004 §3.13). The leading-digit rule is enforced for
-# every id by IdentifiableEntity.
+# Stage and module ids (004 §3.13). The leading-digit rule is enforced for every
+# id by IdentifiableEntity.
 _ID_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Output ids are free-form, except what would break `--output id=PATH`.
+_BAD_OUTPUT_ID = re.compile(r"[=\s]")
 
 
 class SoftwareBackendEnum(str, Enum):
@@ -578,9 +580,6 @@ def _warn_if_disjoint_parameter_keys(
     )
 
 
-_warned_dataset_paths: set = set()
-
-
 def _warn_if_deprecated_dataset_var(path: str) -> None:
     """Warn when an output path still templates on the legacy ``{dataset}``.
 
@@ -589,22 +588,16 @@ def _warn_if_deprecated_dataset_var(path: str) -> None:
     stage is a single dispatcher module varying datasets by parameter. ``{module.id}``
     resolves to the current module's own id and has no such coupling.
     """
-    if "{dataset}" not in path or path in _warned_dataset_paths:
+    if "{dataset}" not in path:
         return
-    _warned_dataset_paths.add(path)
-
-    YELLOW = "\033[33m"
-    BOLD = "\033[1m"
-    RESET = "\033[0m"
-    indent = "      "
-    sys.stderr.write(
-        f"{BOLD}{YELLOW}WARN{RESET}{YELLOW}: output path '{path}' uses the "
-        f"deprecated '{{dataset}}' template variable.\n"
-        f"{indent}It resolves to the first stage's module id, so it is a constant "
-        f"whenever that stage\n"
-        f"{indent}dispatches datasets by parameter. Prefer '{{module.id}}' (this "
-        f"module's own id), or\n"
-        f"{indent}'{{params.KEY}}' to name outputs after a parameter.{RESET}\n"
+    warnings.warn(
+        f"Output path '{path}' uses the deprecated '{{dataset}}' template "
+        f"variable. It resolves to the first stage's module id, so it is a "
+        f"constant whenever that stage dispatches datasets by parameter. Prefer "
+        f"'{{module.id}}' (this module's own id), or '{{params.KEY}}' to name "
+        f"outputs after a parameter.",
+        FutureWarning,
+        stacklevel=3,
     )
 
 
@@ -765,9 +758,15 @@ class Stage(DescribableEntity):
     @field_validator("outputs")
     @classmethod
     def validate_outputs(cls, v, info):
-        """Warn about old-style full paths in stage outputs."""
+        """Reject duplicate output ids; warn about old-style full paths."""
         if not v:
             return v
+
+        # Outputs are keyed by id downstream; a duplicate would drop silently.
+        ids = [o.id for o in v]
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        if dupes:
+            raise ValueError(f"Duplicate output ids in stage: {dupes}")
 
         for idx, output in enumerate(v):
             if "/" in output.path:
@@ -1516,18 +1515,11 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         )
 
         # Node ids join stage and module ids with `-` and `.`; keeping those out
-        # of the ids makes a node id parse back into its segments. Output ids
-        # become Snakemake output names as-is (009). Enforced from 0.8.0, a
-        # warning before so existing plans keep loading. See 004 §3.13.
-        collector_outputs = [
-            o for c in self.metric_collectors or [] for o in c.outputs or []
-        ]
-        for entity, kind in (
-            [(s, "Stage") for s in self.stages]
-            + [(m, "Module") for s in self.stages for m in s.modules]
-            + [(o, "Output") for s in self.stages for o in s.outputs or []]
-            + [(o, "Output") for o in collector_outputs]
-        ):
+        # of the ids makes a node id parse back into its segments. Enforced from
+        # 0.8.0, a warning before so existing plans keep loading. See 004 §3.13.
+        for entity, kind in [(s, "Stage") for s in self.stages] + [
+            (m, "Module") for s in self.stages for m in s.modules
+        ]:
             if _ID_PATTERN.fullmatch(entity.id):
                 continue
             msg = (
@@ -1536,16 +1528,26 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             )
             if self.api_version >= APIVersion.V0_8_0:
                 raise ValueError(msg)
-            if kind == "Output":
-                # Renaming an output id renames the `--<input id>` flag
-                # downstream modules parse, so it only makes sense together
-                # with the 0.8.0 migration. No warning before.
-                continue
             warnings.warn(
                 f"{msg} This becomes an error at api_version 0.8.0.",
                 FutureWarning,
                 stacklevel=2,
             )
+
+        # Output ids reach modules as `--output id=PATH` (009 §3.2) and as
+        # `--<id>` input flags downstream, nowhere else, so only `=` and
+        # whitespace are out.
+        if self.api_version >= APIVersion.V0_8_0:
+            collector_outputs = [
+                o for c in self.metric_collectors or [] for o in c.outputs or []
+            ]
+            for o in [o for s in self.stages for o in s.outputs or []] + (
+                collector_outputs
+            ):
+                if _BAD_OUTPUT_ID.search(o.id):
+                    raise ValueError(
+                        f"Output id '{o.id}' may not contain '=' or whitespace."
+                    )
 
         # Below 0.5 `--name` is the dataset id, so downstream modules write
         # `{dataset}`-named files and the template is still the right one.

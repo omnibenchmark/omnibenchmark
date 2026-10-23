@@ -514,31 +514,27 @@ class TestWriteNodeRuleExec:
 class TestV08NamedOutputs:
     """Tests for API v0.8 named-output contract."""
 
-    def test_single_output_named_rule_syntax(self):
-        """v0.8: output block uses named-output syntax."""
+    def test_output_block_is_positional(self):
+        """v0.8: ids never become Snakemake names, so the block stays positional."""
         node = _make_node(
             outputs={"rawdata_h5ad": "out/one-data/datasets/default/dataset1.h5ad"},
         )
         out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
-        assert 'rawdata_h5ad="out/one-data/datasets/default/dataset1.h5ad"' in out
-        # Not positional
-        assert 'output:\n        "' not in out
+        assert 'output:\n        "out/one-data/datasets/default/dataset1.h5ad",' in out
+        assert "rawdata_h5ad=" not in out.split("params:")[0]
 
-    def test_single_output_shell_flag_positional(self):
-        """v0.8 single output: --output PATH (no id= prefix)."""
+    def test_single_output_shell_flag_has_id(self):
+        """v0.8 single output: still --output id=PATH, same shape as multi."""
         node = _make_node(
             outputs={"rawdata_h5ad": "out/one-data/datasets/default/dataset1.h5ad"},
         )
         out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
         # absolutised before the shell cds into the module dir
-        assert (
-            "OUTPUT_rawdata_h5ad=$(cd $(dirname {output.rawdata_h5ad}) && pwd)" in out
-        )
-        assert "--output $OUTPUT_rawdata_h5ad" in out
-        assert "--output rawdata" not in out  # no id= for single output
+        assert "OUTPUT_FILE_0=$(cd $(dirname {output[0]}) && pwd)" in out
+        assert "--output rawdata_h5ad=$OUTPUT_FILE_0" in out
 
     def test_multi_output_shell_flags_with_ids(self):
-        """v0.8 multi-output: --output id=PATH per output."""
+        """v0.8 multi-output: --output id=PATH per output, in declared order."""
         node = _make_node(
             outputs={
                 "rawdata_h5ad": "out/stage/mod/default/dataset.h5ad",
@@ -546,8 +542,19 @@ class TestV08NamedOutputs:
             },
         )
         out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
-        assert "--output rawdata_h5ad=$OUTPUT_rawdata_h5ad" in out
-        assert "--output rawdata_clusters=$OUTPUT_rawdata_clusters" in out
+        assert "--output rawdata_h5ad=$OUTPUT_FILE_0" in out
+        assert "--output rawdata_clusters=$OUTPUT_FILE_1" in out
+
+    @pytest.mark.parametrize("output_id", ["data.raw", "class", "count", "DIR"])
+    def test_free_form_output_id(self, output_id):
+        """Dotted ids, Python keywords and Snakemake-reserved names pass through
+        as the --output id only; they never reach a Snakemake or bash name."""
+        node = _make_node(outputs={output_id: "out/stage/mod/default/x.txt"})
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        assert f"--output {output_id}=$OUTPUT_FILE_0" in out
+        assert f"{output_id}=" not in out.split("params:")[0]
+        # OUTPUT_DIR is assigned once, from params.output_dir
+        assert out.count("OUTPUT_DIR=") == 1
 
     def test_v08_still_passes_output_dir_and_name(self):
         """v0.8: --output_dir and --name still passed for back-compat."""

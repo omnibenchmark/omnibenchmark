@@ -31,7 +31,7 @@ class FakeNode:
     module_id: str
     param_id: str = ""
     inputs: Dict[str, str] = field(default_factory=dict)
-    outputs: List[str] = field(default_factory=list)
+    outputs: Dict[str, str] = field(default_factory=dict)
     _params: Optional[str] = None
 
     def get_parameter_json(self) -> Optional[str]:
@@ -76,7 +76,7 @@ def _attrs(span_or_log: Dict[str, Any]) -> Dict[str, Any]:
 def _init_simple(emitter: TelemetryEmitter) -> List[FakeNode]:
     """Stage S1 with module M1 (2 rules) and module M2 (1 rule)."""
     nodes = [
-        FakeNode(id="S1-M1-p0", stage_id="S1", module_id="M1", outputs=["a.txt"]),
+        FakeNode(id="S1-M1-p0", stage_id="S1", module_id="M1", outputs={"a": "a.txt"}),
         FakeNode(id="S1-M1-p1", stage_id="S1", module_id="M1"),
         FakeNode(id="S1-M2-p0", stage_id="S1", module_id="M2"),
     ]
@@ -277,8 +277,9 @@ class TestRuleLifecycle:
         assert rs["parentSpanId"] == emitter._modules[("S1", "M1")]["span_id"]
         # Status OK and outputs/stdout reflected
         assert rs["status"]["code"] == SpanStatus.OK.value
-        # Outputs are array-valued; just verify the attribute is present
-        assert any(a["key"] == "rule.outputs" for a in rs["attributes"])
+        # Outputs are array-valued paths, not the str() of the id->path dict
+        (outs,) = [a for a in rs["attributes"] if a["key"] == "rule.outputs"]
+        assert outs["value"] == {"arrayValue": {"values": [{"stringValue": "a.txt"}]}}
         # Events include stdout + stderr
         ev_names = [e["name"] for e in rs.get("events", [])]
         assert "stdout" in ev_names and "stderr" in ev_names

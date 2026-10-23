@@ -175,28 +175,19 @@ class SnakemakeGenerator:
                 f.write(f'        {key}="{path}",\n')
 
         if node.outputs:
+            # Positional at every api version: output ids never become Snakemake
+            # names, so they need not be Python identifiers (009 §3.3).
             f.write("    output:\n")
-            if self.api_version >= APIVersion.V0_8_0:
-                # Output ids are identifiers from 0.8.0 (004 §3.13).
-                for output_id, path in node.outputs.items():
-                    f.write(f'        {output_id}="{path}",\n')
-            else:
-                for path in node.outputs.values():
-                    f.write(f'        "{path}",\n')
+            for path in node.outputs.values():
+                f.write(f'        "{path}",\n')
 
         f.write("    params:\n")
         f.write(f'        module_dir="{node.module.module_dir}",\n')
         f.write(f'        entrypoint="{node.module.entrypoint}",\n')
         if node.outputs:
-            if self.api_version >= APIVersion.V0_8_0:
-                first_key = next(iter(node.outputs))
-                f.write(
-                    f'        output_dir=lambda wildcards, output: os.path.dirname(output.{first_key}) or ".",\n'
-                )
-            else:
-                f.write(
-                    '        output_dir=lambda wildcards, output: os.path.dirname(output[0]) or ".",\n'
-                )
+            f.write(
+                '        output_dir=lambda wildcards, output: os.path.dirname(output[0]) or ".",\n'
+            )
         if node.parameters:
             cli_args = " ".join(node.get_parameter_cli_args())
             f.write(f'        cli_args="{cli_args}",\n')
@@ -415,14 +406,14 @@ class SnakemakeGenerator:
 
         # Same for each declared output: the shell cds into the module directory
         # below, so a workflow-relative --output would land inside the module
-        # checkout. Spec §3.2 promises absolute paths.
+        # checkout. Spec §3.2 promises absolute paths. Indexed by position, so
+        # an output id never has to be a bash or Snakemake name.
         if self.api_version >= APIVersion.V0_8_0:
-            for output_id in node.outputs:
-                var = _bash_var(output_id)
+            for i in range(len(node.outputs)):
                 lines += [
-                    f"mkdir -p $(dirname {{output.{output_id}}})",
-                    f"OUTPUT{var}=$(cd $(dirname {{output.{output_id}}}) && pwd)"
-                    f"/$(basename {{output.{output_id}}})",
+                    f"mkdir -p $(dirname {{output[{i}]}})",
+                    f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
+                    f"/$(basename {{output[{i}]}})",
                 ]
 
         # Redirect stdout/stderr through tee so both the terminal and the log
@@ -490,13 +481,10 @@ class SnakemakeGenerator:
 
         cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
 
-        if self.api_version >= APIVersion.V0_8_0 and node.outputs:
-            if len(node.outputs) == 1:
-                output_id = next(iter(node.outputs))
-                cmd.append(f"--output $OUTPUT{_bash_var(output_id)}")
-            else:
-                for output_id in node.outputs:
-                    cmd.append(f"--output {output_id}=$OUTPUT{_bash_var(output_id)}")
+        # Always `id=PATH`, however many outputs the stage declares (009 §3.2).
+        if self.api_version >= APIVersion.V0_8_0:
+            for i, output_id in enumerate(node.outputs):
+                cmd.append(f"--output {output_id}=$OUTPUT_FILE_{i}")
 
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
