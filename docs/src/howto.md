@@ -585,6 +585,64 @@ software_environments:
     apptainer: /home/user/singularity_image.sif
 ```
 
+## Keep software environments in a separate file
+
+From `api_version: "0.9.0"`, `software_environments` can be a path to a YAML file instead of an inline mapping. The benchmark keeps only the choice of backend:
+
+```yaml
+id: bench1
+benchmarker: "Mary the Benchmarker, mary@uzh.ch"
+version: "1.0"
+api_version: "0.9.0"
+software_backend: conda
+software_environments: shared/environments.yaml
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: 63b7b36
+    outputs:
+      - id: data_image
+        path: "{dataset}.png"
+```
+
+`shared/environments.yaml` maps each environment id to the backends it can run under, with optional descriptions beside them:
+
+```yaml
+software_environments:
+  python:
+    - {type: conda, uri: envs/python.yaml}          # shared/envs/python.yaml
+    - {type: apptainer, uri: oras://registry.example/python.sif}
+software_environments_metadata:
+  python: {name: Python, description: "Python 3.12 with numpy"}
+```
+
+- The include path is relative to the benchmark YAML.
+- Local paths inside the file (conda files, apptainer images that are not URLs) are relative to the file itself, so the file and its `envs/` directory can move together.
+- Each `type` (`conda`, `apptainer`, `docker`, `envmodules`) may appear once per environment, and the only keys are `type` and `uri`.
+- The file holds only those two blocks. Descriptions stay in the file, beside the definitions; the benchmark YAML cannot add its own.
+- The benchmark hash covers the environment definitions in the file, not its path: editing an environment changes the hash, just like editing it inline would. Metadata is left out, so editing a description does not.
+- Errors in the file are reported with its name and line, e.g. `Error in shared/environments.yaml:2`.
+
+To see what a benchmark declares, which backends each environment has a recipe for, and which modules use it:
+
+```
+$ ob describe environments benchmark.yaml
+Software backend: conda
+
+ID      NAME    BACKENDS           USED BY  DESCRIPTION
+python  Python  apptainer, conda*  D1       Python 3.12 with numpy
+
+* active backend
+```
+
+An environment without a `*` has no recipe for the active backend.
+
+With a single environment, as here, modules can leave out `software_environment`; it defaults to that one. With `software_backend: host` you can leave out the reference and the whole `software_environments` block, since host runs ignore environments.
+
 ## Simplify benchmark YAMLs using branch names instead of commit names
 
 The `commit` field within a module stanza can accept branch names or git tags. Using commits or tags is recommended.
