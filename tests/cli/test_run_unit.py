@@ -447,23 +447,13 @@ def test_populate_git_cache_quiet_uses_progress_display(tmp_path):
 
 
 @pytest.mark.short
-def test_populate_git_cache_commit_in_cache_skips_fetch(tmp_path):
-    """When commit already exists in the local dulwich repo, skip fetch."""
-    full_commit = "a" * 40  # 40-char hex commit
-    repo_cache_subdir = tmp_path / "github.com" / "org" / "repo"
-    repo_cache_subdir.mkdir(parents=True)
-
-    mock_repo = MagicMock()
-    # repo[commit_bytes] succeeds → skip_fetch = True
-
+def test_populate_git_cache_passes_pinned_commit(tmp_path):
+    """The pinned commit reaches the cache so it can skip the fetch."""
+    full_commit = "a" * 40
     with (
         patch("omnibenchmark.core.prefetch.get_git_cache_dir", return_value=tmp_path),
         patch("omnibenchmark.core.prefetch.is_local_path", return_value=False),
         patch("omnibenchmark.core.prefetch.get_or_update_cached_repo") as mock_fetch,
-        patch(
-            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
-        ),
-        patch("dulwich.porcelain.open_repo", return_value=mock_repo),
     ):
         populate_git_cache(
             _mock_benchmark(
@@ -472,8 +462,9 @@ def test_populate_git_cache_commit_in_cache_skips_fetch(tmp_path):
             quiet=False,
             cores=1,
         )
-        # Fetch should NOT have been called since commit is in cache
-        mock_fetch.assert_not_called()
+        mock_fetch.assert_called_once_with(
+            "https://github.com/org/repo.git", tmp_path, full_commit
+        )
 
 
 @pytest.mark.short
@@ -533,36 +524,6 @@ def test_populate_git_cache_metric_collector_repo(tmp_path):
         ),
     ):
         populate_git_cache(mock_b, quiet=False, cores=1)
-        mock_fetch.assert_called_once()
-
-
-@pytest.mark.short
-def test_populate_git_cache_commit_lookup_keyerror(tmp_path):
-    """When dulwich raises KeyError for commit lookup, fall through to fetch."""
-    full_commit = "b" * 40
-    repo_cache_subdir = tmp_path / "github.com" / "org" / "repo"
-    repo_cache_subdir.mkdir(parents=True)
-
-    mock_repo = MagicMock()
-    mock_repo.__getitem__ = MagicMock(side_effect=KeyError("not found"))
-
-    with (
-        patch("omnibenchmark.core.prefetch.get_git_cache_dir", return_value=tmp_path),
-        patch("omnibenchmark.core.prefetch.is_local_path", return_value=False),
-        patch("omnibenchmark.core.prefetch.get_or_update_cached_repo") as mock_fetch,
-        patch(
-            "omnibenchmark.git.cache.parse_repo_url", return_value="github.com/org/repo"
-        ),
-        patch("dulwich.porcelain.open_repo", return_value=mock_repo),
-    ):
-        populate_git_cache(
-            _mock_benchmark(
-                repo_url="https://github.com/org/repo.git", commit=full_commit
-            ),
-            quiet=False,
-            cores=1,
-        )
-        # KeyError → skip_fetch=False → fetch is called
         mock_fetch.assert_called_once()
 
 
