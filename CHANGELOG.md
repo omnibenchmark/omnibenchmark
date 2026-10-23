@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: `ob archive`, `ob describe status` and remote storage predicted wrong paths for output templates using `{name}` or `{module.*}`, and crashed on `{module.id}`
 - feat: named outputs — modules receive one `--output id=path` flag per declared stage output, decoupling module code from benchmark filenames; `--output` paths are absolute. See "Upgrade a benchmark to api 0.8.0" in the how-to guides (#329)
 - deprecate: `{dataset}` in output path templates now warns at load time for api ≥ 0.5.0, naming the offending path; prefer `{module.id}` or `{params.KEY}`
+- feat: `{a..b}` ranges in parameter values expand to one Cartesian axis (api 0.8.0): `sample: "s{001..096}"` runs 96 nodes
 - feat: `ob create benchmark` scaffolds an api 0.8.0 plan using `{module.id}` and identifier output ids
 
 ## [0.7.0](UNRELEASED)

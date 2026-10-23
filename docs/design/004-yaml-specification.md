@@ -25,6 +25,7 @@
 | 8       | 2026-09-15 | §3.9: a `provides` label may not equal a stage id; §3.12: `requires` is rejected on a gather module | ben |
 | 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
+| 11      | 2026-10-23 | §3.5: `{a..b}` ranges in parameter values (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -218,6 +219,12 @@ Modules MUST NOT declare these in their YAML configuration.
 #### Parameter Values
 
 - **String**: Passed directly (`evaluate: "1+1"` → `--evaluate 1+1`)
+- **List**: One Cartesian axis; each element runs as its own node.
+- **Range** (api ≥ 0.8.0): a string holding `{a..b}` expands to a list,
+  bounds inclusive: `s{1..3}` → `[s1, s2, s3]`. Zero padding follows the
+  written bounds (`s{08..10}` → `s08, s09, s10`). Ranges inside a list are
+  flattened in place, and several ranges in one string multiply. A
+  descending range is an error. Below 0.8.0 the string stays literal.
 
 #### Wildcard-Based Resolution
 
