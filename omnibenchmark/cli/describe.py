@@ -373,7 +373,7 @@ def status(
             graph_nodes.append(
                 {
                     "id": node_id,
-                    "label": f"{node.module_id}\n{node.param_id if node.param_id != 'default' else ''}",
+                    "label": f"{node.module_id}\n{node.param_id if node.param_id.lstrip('.') != 'default' else ''}",
                     "color": color,
                     "stage": stage,
                     "module": node.module_id,
