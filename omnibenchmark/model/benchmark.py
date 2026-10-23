@@ -433,11 +433,41 @@ class IOFile(IdentifiableEntity):
         default_factory=list,
         description="Validators run against this stage output (004 §3.14)",
     )
+    foreach: Optional[str] = Field(
+        None,
+        description=(
+            "Name captured from the path's first segment: the module writes one "
+            "file per value it chooses, and each feeds its own downstream node "
+            "(design 012). Requires api_version ≥ 0.8.0."
+        ),
+    )
 
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: str) -> str:
         return validate_non_empty_string(v)
+
+    @model_validator(mode="after")
+    def validate_foreach(self) -> "IOFile":
+        name = self.foreach
+        if name is None:
+            return self
+        if not _ID_PATTERN.fullmatch(name) or name in ("module", "params"):
+            raise ValueError(
+                f"Output '{self.id}': foreach '{name}' must be an identifier other "
+                f"than 'module' or 'params'."
+            )
+        # The first segment is the node directory's child, so every descendant
+        # directory carries the value (012 §3, rule 2).
+        if (
+            not self.path.startswith(f"{{{name}}}/")
+            or self.path.count(f"{{{name}}}") != 1
+        ):
+            raise ValueError(
+                f"Output '{self.id}': path '{self.path}' must start with "
+                f"'{{{name}}}/' and use it only there."
+            )
+        return self
 
 
 class InputCollection(BaseModel):
@@ -797,7 +827,11 @@ class Stage(DescribableEntity):
             raise ValueError(f"Duplicate output ids in stage: {dupes}")
 
         for idx, output in enumerate(v):
-            if "/" in output.path:
+            # A foreach path needs its leading `{name}/` (design 012).
+            path = output.path
+            if output.foreach:
+                path = path.removeprefix(f"{{{output.foreach}}}/")
+            if "/" in path:
                 # Try to get line number from context
                 line_info = ""
                 if info.context and "line_map" in info.context:
@@ -1379,6 +1413,9 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             for io in (entity.get("inputs") or []) + (entity.get("outputs") or []):
                 if isinstance(io, dict):
                     io.pop("validators", None)
+                    # An unset foreach must not move the hash of existing plans.
+                    if io.get("foreach") is None:
+                        io.pop("foreach", None)
         canonical = _json.dumps(execution, sort_keys=True)
         return _hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -1671,6 +1708,28 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     raise ValueError(
                         f"Output id '{o.id}' may not contain '=' or whitespace."
                     )
+
+        # `foreach` outputs (design 012): 0.8.0+, one per stage, stages only.
+        for c in self.metric_collectors or []:
+            for o in c.outputs or []:
+                if o.foreach:
+                    raise ValueError(
+                        f"Output '{o.id}': metric collectors cannot declare "
+                        f"foreach."
+                    )
+        for stage in self.stages:
+            foreach = [o for o in stage.outputs or [] if o.foreach]
+            if foreach and self.api_version < APIVersion.V0_8_0:
+                raise ValueError(
+                    f"Stage '{stage.id}' uses `foreach`, which requires "
+                    f"api_version ≥ 0.8.0 (this benchmark declares "
+                    f"{self.api_version.value})."
+                )
+            if len(foreach) > 1:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares foreach on "
+                    f"{', '.join(o.id for o in foreach)}; at most one is allowed."
+                )
 
         # Below 0.5 `--name` is the dataset id, so downstream modules write
         # `{dataset}`-named files and the template is still the right one.

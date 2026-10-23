@@ -44,7 +44,7 @@ code.
 ### Non-Goals
 
 - Removing `--output_dir` / `--name` in this release (dropped in v0.10).
-- Per-file fan-out from directory outputs (checkpoint semantics, deferred).
+- Per-file fan-out from directory outputs (checkpoint semantics): design 012.
 - Module-side output declaration cross-checks (deferred to module metadata
   reading, stage 3).
 - A validation DSL (validators are script-only initially, stage 2).
@@ -182,7 +182,9 @@ fixtures: there `--name` is the dataset id, so those modules really write
 Snakemake's `directory(...)` wrapper handles unknown-cardinality outputs.
 Rejected because downstream consumers require a `checkpoint` rule and input
 functions to fan out over directory contents, adding significant DAG
-complexity. ZIP achieves the same result as a single tracked file.
+complexity. ZIP achieves the same result as a single tracked file. Per-file
+fan-out with per-file parallelism is design 012: a checkpoint confined to one
+path segment, without `directory()`.
 
 ### Alternative 2: Phantom-module-YAML for validators
 
