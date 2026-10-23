@@ -49,6 +49,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: whitespace in a stage or module id is a validation error at every api version, instead of passing `ob validate plan` and failing at run time (#402)
 - feat: `[conda]` config section for conda-backed runs: `cache` shares built environments across benchmarks (`SNAKEMAKE_CONDA_PREFIX`), `channel_alias` fetches named channels from a mirror (`CONDA_CHANNEL_ALIAS`), `proxy` routes downloads through a forward proxy (`HTTP(S)_PROXY`). Exported variables take precedence
 - fix: on api 0.8.0 a gather's directory carries a digest of its member set, as a join's does, so a run that prunes members (`--filter`, `--with-capability`) no longer overwrites the full gather's result under the same path (#405)
+- feat: `foreach` outputs — a stage output whose file count the module decides at run time (e.g. one file per downloaded sample); each file gets its own downstream node and a `gather` collects them (api 0.8.0, design 012)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
