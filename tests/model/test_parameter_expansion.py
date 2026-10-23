@@ -4,6 +4,7 @@ import warnings
 
 import pytest
 
+from omnibenchmark.model.validation import BenchmarkParseError
 from omnibenchmark.model.benchmark import Benchmark, _warn_if_disjoint_parameter_keys
 
 
@@ -656,3 +657,55 @@ stages:
     assert bool(hits) is warns
     if warns:
         assert "{module.id}" in hits[0]
+
+
+_RANGE_PLAN = """
+id: test_benchmark
+description: Test benchmark
+version: "1.0"
+benchmarker: Test
+api_version: {api}
+software_backend: host
+software_environments:
+  - id: python
+    description: Python environment
+stages:
+  - id: data
+    modules:
+      - id: tenx
+        software_environment: python
+        repository:
+          url: https://github.com/test/test.git
+          commit: abc123
+        parameters:
+          - sample: {sample}
+            lane: "L{{1..2}}"
+    outputs:
+      - id: counts
+        path: "{{params.sample}}.h5"
+"""
+
+
+@pytest.mark.short
+def test_range_expansion():
+    plan = _RANGE_PLAN.format(api="0.8.0", sample='["ctrl", "s{08..10}"]')
+    params = Benchmark.from_yaml(plan).get_module_parameters("tenx")
+    assert params is not None
+    got = sorted((p["sample"], p["lane"]) for p in params)
+    assert got == sorted(
+        (s, lane) for s in ["ctrl", "s08", "s09", "s10"] for lane in ["L1", "L2"]
+    )
+
+
+@pytest.mark.short
+def test_range_literal_before_0_8():
+    plan = _RANGE_PLAN.format(api="0.7.0", sample='"s{1..3}"')
+    params = Benchmark.from_yaml(plan).get_module_parameters("tenx")
+    assert params is not None
+    assert [(p["sample"], p["lane"]) for p in params] == [("s{1..3}", "L{1..2}")]
+
+
+@pytest.mark.short
+def test_range_descending_rejected():
+    with pytest.raises(BenchmarkParseError, match="descending"):
+        Benchmark.from_yaml(_RANGE_PLAN.format(api="0.8.0", sample='"s{3..1}"'))

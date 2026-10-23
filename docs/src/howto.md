@@ -383,6 +383,21 @@ stages:
 
 ```
 
+### Number a parameter with a range
+
+From api 0.8.0, a parameter value can hold a bash-style range. It expands
+to a list, so each value runs as its own node:
+
+```yaml
+        parameters:
+          - sample: ["ctrl", "s{08..10}"]   # ctrl, s08, s09, s10
+            lane: "L{1..2}"                 # L1, L2
+```
+
+This module runs 8 times, once per `sample` × `lane` combination. Bounds are
+inclusive, and leading zeros in the bounds set the padding. A descending
+range (`{3..1}`) is an error. Below api 0.8.0 the value is passed literally.
+
 ## Exclude certain module-module chains
 
 Module `M1` won't use inputs from module `D2`.
