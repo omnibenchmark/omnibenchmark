@@ -415,6 +415,8 @@ class BenchmarkValidator:
 
         env_ids = {env.id for env in self.software_environments}  # type: ignore
 
+        from .benchmark import SoftwareBackendEnum
+
         is_host = self.software_backend == SoftwareBackendEnum.host  # type: ignore
 
         def check(env_id, what: str) -> None:
