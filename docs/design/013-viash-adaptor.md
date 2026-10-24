@@ -165,6 +165,16 @@ files). Leaves ~10 CPU methods, 3 control methods, 2 metrics, seconds each.
 
 - Spike: `scratch/viash_spike/viash2ob.py` (gitignored), runs knn + accuracy
   end to end on api 0.8.0 with the ghcr images; accuracy 0.497 on the subsample.
+- §3.3 implemented as a task-level generator in the plan repo
+  `~/phd/omni-label-projection` (`tools/viash2ob.py`): 12 components
+  (process_dataset, 6 methods, 3 control methods, 2 metrics), 4 stages,
+  6 deduplicated environments, one repo with one entrypoint per component.
+  Full run green on the `resources_test` subsample. Found and fixed one ob
+  bug on the way: parameter values were not shell-quoted (`100;100`).
+- Viash defaults are always lists; `multiple` arguments take one
+  `multiple_sep`-joined value. Collapse to a scalar or ob reads a grid.
+- `process_dataset` needs the task's `common/` git submodule (helper scripts
+  listed as resources).
 - Proposed home: `ob create module --from-viash <config.vsh.yaml> --input
   ob_id=arg ... --output ob_id=arg ...` (CLI layer; needs only the config
   parser), then `ob create benchmark --from-viash-task <dir>` for §3.3.
