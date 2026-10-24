@@ -959,7 +959,7 @@ class TestVectorizedModule:
         text = (tmp_path / "Snakefile").read_text()
         assert text.count("rule methods_vec_vectorized:") == 1
         assert "rule methods_vec_1" not in text and "rule methods_vec_2" not in text
-        assert "rule data_D1_default" in text
+        assert "rule data_D1:" in text
         assert '"data/D1/methods/vec/vec.h5ad"' in text
         assert '"data/D2/methods/vec/vec.h5ad"' in text
         assert "--nodes $NODES" in text and "--workdir $WORKDIR" in text

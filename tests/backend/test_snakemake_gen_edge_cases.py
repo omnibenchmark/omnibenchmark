@@ -46,6 +46,7 @@ def minimal_module():
 def generator():
     """Basic SnakemakeGenerator instance."""
     return SnakemakeGenerator(
+        granularity="node",
         benchmark_name="TestBenchmark",
         benchmark_version="1.0.0",
         benchmark_author="Test Author",
@@ -358,6 +359,7 @@ class TestSnakemakeGeneratorEdgeCases:
 
         # Test with v0.4.0
         gen_v0_4 = SnakemakeGenerator(
+            granularity="node",
             benchmark_name="Test",
             benchmark_version="1.0",
             benchmark_author="Author",
@@ -821,6 +823,7 @@ class TestBenchmarkDirective:
 
     def test_v0_5_benchmark_uses_performance_txt(self, tmp_path, minimal_module):
         gen = SnakemakeGenerator(
+            granularity="node",
             benchmark_name="Test",
             benchmark_version="1.0",
             benchmark_author="Author",
@@ -841,6 +844,7 @@ class TestBenchmarkDirective:
 
     def test_v0_4_benchmark_uses_dataset_name(self, tmp_path, minimal_module):
         gen = SnakemakeGenerator(
+            granularity="node",
             benchmark_name="Test",
             benchmark_version="1.0",
             benchmark_author="Author",

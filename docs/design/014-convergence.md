@@ -61,6 +61,20 @@ once with the fan-out inside (channels are the fan-out), how a method loads one
 model for every dataset, and what a Dagster emitter maps to a partitioned asset
 (partition key = lineage id).
 
+**One rule per module** (default on this branch; `ob run --granularity node` keeps
+the old layout for one release). The Snakefile is the plan-level DAG: a rule per
+(stage, module) that depends on the union of its nodes' inputs and produces the
+union of their outputs. Inside, ob's own driver runs each node as a bash function
+with today's per-node CLI, in parallel up to the rule's threads, and skips a node
+whose outputs exist and are newer than its inputs (outputs are flagged `update()`
+so Snakemake does not delete them first; adding a dataset reruns only its nodes).
+A module with `vectorized: true` is handed the records (`--nodes`) instead of the
+driver. Gather and collector nodes keep their own rules. Lost on purpose:
+Snakemake's per-node `benchmark:` file (performance.txt) and cross-module
+pipelining; gained: a readable Snakefile, module-level resources and retries,
+and a one-to-one mapping onto SLURM array jobs, nf-core subworkflows and Dagster
+partitioned assets.
+
 **A module kind that is a Nextflow workflow or process** (`kind: nextflow`). The
 module names a pipeline, a workflow (or a guarded block of one) and the element
 shape of each channel it reads; one generic runner builds the entry `main.nf`

@@ -24,6 +24,12 @@ class DebugSnakemakeGenerator(SnakemakeGenerator):
     any module code.  Drop-in replacement for SnakemakeGenerator.
     """
 
+    def __init__(self, *args, **kwargs):
+        # Debug output is read per node; the module-level rule would bypass the
+        # echo/touch shell below, so this generator always writes one rule per node.
+        kwargs["granularity"] = "node"
+        super().__init__(*args, **kwargs)
+
     def _write_shell(self, f: TextIO, node: ResolvedNode):
         """Write a debug shell: block that echoes the command and touches outputs."""
         lines: list = [

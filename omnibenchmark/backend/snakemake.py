@@ -125,26 +125,36 @@ class SnakemakeGenerator:
         benchmark_version: str,
         benchmark_author: str,
         api_version: APIVersion = APIVersion.V0_4_0,
+        granularity: str = "module",
     ):
         self.benchmark_name = benchmark_name
         self.benchmark_version = benchmark_version
         self.benchmark_author = benchmark_author
         self.api_version = api_version
+        # "module": one rule per (stage, module), the nodes run inside it (design 014);
+        # "node": one rule per resolved node (the pre-0.9 layout of the Snakefile).
+        self.granularity = granularity
         self._nodes_by_id: dict = {}
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
         self._nodes_by_id = {n.id: n for n in nodes}
-        groups: dict = {}  # (stage, module) -> nodes of a vectorized module
+        groups: dict = {}  # (stage, module) -> nodes that share one rule
         with open(output_path, "w") as f:
             self._write_header(f)
             for node in nodes:
-                if node.module.vectorized and not (node.is_gather or node.is_collector):
+                grouped = not (node.is_gather or node.is_collector) and (
+                    node.module.vectorized or self.granularity == "module"
+                )
+                if grouped:
                     groups.setdefault((node.stage_id, node.module_id), []).append(node)
                 else:
                     self._write_node_rule(f, node)
             for group in groups.values():
-                self._write_vectorized_rule(f, group, output_path.parent)
+                if group[0].module.vectorized:
+                    self._write_vectorized_rule(f, group, output_path.parent)
+                else:
+                    self._write_module_rule(f, group)
             self._write_all_rule(f, nodes)
 
     # ------------------------------------------------------------------
@@ -488,51 +498,80 @@ class SnakemakeGenerator:
         f.write(f'{_SHELL_INDENT}"""\n')
 
     def _write_shell(self, f: TextIO, node: ResolvedNode):
-        """Write the shell: block for a regular node (production execution).
+        """Write the shell: block for a regular node (one rule per node)."""
+        self._write_shell_lines(f, self._node_lines(node, self._placeholder_refs()))
 
-        - Streams stdout/stderr through tee to both terminal and {log}
+    @staticmethod
+    def _placeholder_refs() -> dict:
+        """References as Snakemake placeholders, for a rule that is one node."""
+        return dict(
+            output_dir="{params.output_dir}",
+            log="{log}",
+            rule="{rule}",
+            module_dir="{params.module_dir}",
+            entrypoint="{params.entrypoint}",
+            cli_args="{params.cli_args}",
+            input=lambda key: f"{{input.{key}}}",
+            output=lambda i: f"{{output[{i}]}}",
+        )
+
+    def _literal_refs(self, node: ResolvedNode) -> dict:
+        """References as literal paths, for a node that is one function inside a
+        module rule. Only the module checkout stays a placeholder (shared)."""
+        outputs = list(node.outputs.values())
+        first_output = outputs[0] if outputs else ""
+        rule = self._sanitize_rule_name(node.id)
+        cli_args = shlex.join(node.get_parameter_cli_args()) if node.parameters else ""
+        return dict(
+            output_dir=os.path.dirname(first_output) or ".",
+            log=f".logs/{truncate_filename(rule + '.log')}",
+            rule=rule,
+            module_dir="{params.module_dir}",
+            entrypoint="{params.entrypoint}",
+            cli_args=cli_args.replace("{", "{{").replace("}", "}}"),
+            input=lambda key: node.inputs[key],
+            output=lambda i: outputs[i],
+        )
+
+    def _node_lines(self, node: ResolvedNode, R: dict) -> list:
+        """Shell lines running one node: resolve paths, log, sidecars, invoke.
+
+        - Streams stdout/stderr through tee to both terminal and the log
         - Writes parameters.json next to outputs
         - Uses pre-resolved shebang / interpreter info
         """
         lines: list = []
-
         # Resolve output and log directories to absolute paths before cd-ing
         # into the module directory.
         lines += [
-            "mkdir -p {params.output_dir} $(dirname {log})",
-            "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
+            f"mkdir -p {R['output_dir']} $(dirname {R['log']})",
+            f"OUTPUT_DIR=$(cd {R['output_dir']} && pwd)",
         ]
         for key in node.inputs:
-            lines.append(
-                f"INPUT_{key}=$(cd $(dirname {{input.{key}}}) && pwd)"
-                f"/$(basename {{input.{key}}})"
-            )
-
+            ref = R["input"](key)
+            lines.append(f"INPUT_{key}=$(cd $(dirname {ref}) && pwd)/$(basename {ref})")
         # Same for each declared output: the shell cds into the module directory
         # below, so a workflow-relative --output would land inside the module
         # checkout. Spec §3.2 promises absolute paths. Indexed by position, so
         # an output id never has to be a bash or Snakemake name.
         if self.api_version >= APIVersion.V0_8_0:
             for i in range(len(node.outputs)):
+                ref = R["output"](i)
                 lines += [
-                    f"mkdir -p $(dirname {{output[{i}]}})",
-                    f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
-                    f"/$(basename {{output[{i}]}})",
+                    f"mkdir -p $(dirname {ref})",
+                    f"OUTPUT_FILE_{i}=$(cd $(dirname {ref}) && pwd)/$(basename {ref})",
                 ]
-
         # Redirect stdout/stderr through tee so both the terminal and the log
         # file receive all output.
         lines += [
-            "LOG_FILE=$(pwd)/{log}",
+            f"LOG_FILE=$(pwd)/{R['log']}",
             'exec > >(tee "$LOG_FILE") 2>&1',
-            "echo '=== Rule: {rule} ==='",
+            f"echo '=== Rule: {R['rule']} ==='",
             "echo 'Started:' $(date -Iseconds)",
             "echo '---'",
         ]
-
         # Fan-in nodes: record the parents the path prefix cannot carry.
         lines += self._lineage_sidecar_lines(node)
-
         # Write parameters.json and a human-readable symlink to the hash folder.
         if node.parameters:
             params_json = json.dumps(node.parameters._params)
@@ -546,18 +585,15 @@ class SnakemakeGenerator:
                 f'ln -sfn "$(basename $OUTPUT_DIR)"'
                 f" $OUTPUT_DIR/../{shlex.quote(_human_link_name(node))}",
             ]
-
-        lines.append("cd {params.module_dir}")
-
+        lines.append(f"cd {R['module_dir']}")
         # Build command with backslash-continuations between parts.
         # --name is always the current module's own ID (spec §3.5 Reserved Parameters)
         # TODO: do not assume python3, only if .py maybe?
         if node.module.has_shebang:
-            cmd = ["./{params.entrypoint}"]
+            cmd = [f"./{R['entrypoint']}"]
         else:
             interpreter = node.module.interpreter or "python3"
-            cmd = [f"{interpreter} {{params.entrypoint}}"]
-
+            cmd = [f"{interpreter} {R['entrypoint']}"]
         # Determine the value for --name parameter
         # BUG WORKAROUND (API <= 0.4): Legacy modules have a design flaw where they
         # use the --name parameter to construct output filenames ({name}_data.json),
@@ -582,25 +618,92 @@ class SnakemakeGenerator:
             if len(parts) > 1:
                 dataset_name = parts[1]
                 name_param = dataset_name
-
         cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
-
         # Always `id=PATH`, however many outputs the stage declares (009 §3.2).
         if self.api_version >= APIVersion.V0_8_0:
             for i, output_id in enumerate(node.outputs):
                 cmd.append(f"--output {output_id}=$OUTPUT_FILE_{i}")
-
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
             cmd.append(f"--{original_name} $INPUT_{key}")
-        if node.parameters:
-            cmd.append("{params.cli_args}")
-
+        if node.parameters and R["cli_args"]:
+            cmd.append(R["cli_args"])
         for part in cmd[:-1]:
             lines.append(f"{part} \\\\")
         lines.append(cmd[-1])
+        return lines
 
+    def _write_module_rule(self, f: TextIO, nodes: List[ResolvedNode]):
+        """One rule per (stage, module); its nodes run as bash functions inside,
+        in parallel up to the rule's threads. A node whose outputs exist and are
+        newer than its inputs is skipped, so adding a dataset reruns only the new
+        node. The DAG downstream is unchanged: the rule produces every node's files.
+        """
+        first = nodes[0]
+        name = self._sanitize_rule_name(f"{first.stage_id}_{first.module_id}")
+        per_node = (
+            first.resources.cores if first.resources and first.resources.cores else 1
+        )
+        f.write(f"# Stage: {first.stage_id}, Module: {first.module_id}\n")
+        f.write(f"# Type: Module ({len(nodes)} nodes)\n")
+        f.write(f"# Repository: {first.module.repository_url}\n")
+        f.write(f"# Commit: {first.module.commit}\n")
+        f.write(f"rule {name}:\n")
+        inputs = sorted({p for n in nodes for p in n.inputs.values()})
+        if inputs:
+            f.write("    input:\n")
+            for path in inputs:
+                f.write(f'        "{path}",\n')
+        # update(): Snakemake must not delete the files it already has before the
+        # rule runs, or the up-to-date check below could never skip a node.
+        f.write("    output:\n")
+        for n in nodes:
+            for path in n.outputs.values():
+                f.write(f'        update("{path}"),\n')
+        f.write("    params:\n")
+        f.write(f'        module_dir="{first.module.module_dir}",\n')
+        f.write(f'        entrypoint="{first.module.entrypoint}",\n')
+        f.write("    log:\n")
+        f.write(f'        ".logs/{truncate_filename(name + ".log")}"\n')
+        self._write_environment_directive(f, first.module)
+        f.write(f"    threads: min({len(nodes) * per_node}, workflow.cores)\n")
+        self._write_resources_directive(f, first)
+
+        lines: list = [
+            "mkdir -p $(dirname {log})",
+            'exec > >(tee "{log}") 2>&1',
+            f"PAR=$(( {{threads}} / {per_node} )); [ $PAR -ge 1 ] || PAR=1",
+        ]
+        fns = []
+        for n in nodes:
+            fn = "node_" + self._sanitize_rule_name(n.id)
+            fns.append(fn)
+            outs = list(n.outputs.values())
+            fresh = (
+                " && ".join(
+                    [f"[ -e {o} ]" for o in outs]
+                    + [f"[ {o} -nt {i} ]" for o in outs for i in n.inputs.values()]
+                )
+                or "false"
+            )  # no outputs: nothing to be up to date
+            lines.append(f"{fn}() (")
+            lines.append(f"    if {fresh}; then echo 'up to date: {n.id}'; exit 0; fi")
+            lines.append("    set -e")
+            lines += [
+                "    " + line for line in self._node_lines(n, self._literal_refs(n))
+            ]
+            lines.append(")")
+        lines += [
+            "fail=0; pids=()",
+            f"for fn in {' '.join(fns)}; do",
+            "    while [ $(jobs -rp | wc -l) -ge $PAR ]; do sleep 0.5; done",
+            "    $fn & pids+=($!)",
+            "done",
+            'for p in "${{pids[@]}}"; do wait $p || fail=1; done',
+            "exit $fail",
+        ]
         self._write_shell_lines(f, lines)
+        f.write("\n")
 
     def _write_gather_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a gather/collector node (production execution).

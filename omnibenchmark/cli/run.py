@@ -66,6 +66,15 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=1,
 )
 @click.option(
+    "--granularity",
+    type=click.Choice(["module", "node"]),
+    default="module",
+    help=(
+        "Unit of the generated Snakefile: one rule per module whose nodes run "
+        "inside it (default), or one rule per resolved node (pre-0.9 layout)."
+    ),
+)
+@click.option(
     "-d",
     "--dry",
     help="Dry run (only generate Snakefile, don't execute).",
@@ -186,6 +195,7 @@ def run(
     ctx,
     benchmark,
     cores,
+    granularity,
     dry,
     continue_on_error,
     out_dir,
@@ -282,6 +292,7 @@ def run(
     _run_benchmark(
         benchmark_path=benchmark,
         cores=cores,
+        granularity=granularity,
         dry=dry,
         continue_on_error=continue_on_error,
         out_dir=out_dir,
@@ -318,6 +329,7 @@ def _run_benchmark(
     filter_blob=None,
     allow_drift=False,
     snakemake_args=None,
+    granularity="module",
 ):
     """Run a full benchmark, or a single-module sub-graph when module_filter is set."""
     start_time = time.time()
@@ -384,6 +396,7 @@ def _run_benchmark(
             until_stage=until_stage,
             filter_blob=filter_blob,
             allow_drift=allow_drift,
+            granularity=granularity,
         )
     except ValueError as e:
         log_error_and_quit(logger, str(e))
@@ -963,6 +976,7 @@ def _generate_explicit_snakefile(
     until_stage: Optional[str] = None,
     filter_blob: Optional[dict] = None,
     allow_drift: bool = False,
+    granularity: str = "module",
 ):
     """Generate explicit Snakefile from resolved modules."""
     from omnibenchmark.progress import ProgressDisplay
@@ -1375,6 +1389,7 @@ def _generate_explicit_snakefile(
         benchmark_version=benchmark.model.get_version(),
         benchmark_author=benchmark.model.get_author(),
         api_version=benchmark.model.api_version,
+        granularity=granularity,
     )
 
     generator.generate_snakefile(
