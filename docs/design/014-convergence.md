@@ -86,10 +86,12 @@ native module (template rendering) stays as an export path.
 **The backend is a property of the environment** (on this branch, with #398's
 `{type, uri}` environments cherry-picked). `software_backend` is the plan's
 preference; an environment that does not declare it runs under one it does
-declare, a module without an environment runs on the host, and `ob run` passes
-one `--use-*` flag per backend actually in use. This is what lets one methods
-stage hold a native conda module, an Apptainer image from OpenProblems and a
-Nextflow block (host, bringing its own containers) side by side.
+declare, and `ob run` passes one `--use-*` flag per backend actually in use.
+Every module still names a pinned environment: host stays a development
+backend, never a default. A Nextflow block's environment is a conda file with
+Nextflow and Apptainer pinned; Nextflow runs the processes' own containers from
+inside it. This is what lets one methods stage hold a native conda module, an
+Apptainer image from OpenProblems and a Nextflow block side by side.
 
 **Not changed: lineage.** `Stage.provides` + `Module.provides: {label: value}` +
 `Module.requires` is `meta` declared in the plan, and `{label}` substitution

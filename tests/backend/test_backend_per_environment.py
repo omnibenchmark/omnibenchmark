@@ -1,5 +1,5 @@
 """An environment runs under the backend it declares when the plan's choice is
-missing from it; a module without an environment runs on the host (design 014)."""
+missing from it (design 014). Omitting the environment stays an error outside host."""
 
 from types import SimpleNamespace
 
