@@ -83,6 +83,14 @@ become methods without lowering their subworkflows, and how an nf-core module
 runs in ob unchanged: no partial evaluation of `script:` blocks. The compiled
 native module (template rendering) stays as an export path.
 
+**The backend is a property of the environment** (on this branch, with #398's
+`{type, uri}` environments cherry-picked). `software_backend` is the plan's
+preference; an environment that does not declare it runs under one it does
+declare, a module without an environment runs on the host, and `ob run` passes
+one `--use-*` flag per backend actually in use. This is what lets one methods
+stage hold a native conda module, an Apptainer image from OpenProblems and a
+Nextflow block (host, bringing its own containers) side by side.
+
 **Not changed: lineage.** `Stage.provides` + `Module.provides: {label: value}` +
 `Module.requires` is `meta` declared in the plan, and `{label}` substitution
 makes it readable downstream. The gap is run-time `meta` (values produced by

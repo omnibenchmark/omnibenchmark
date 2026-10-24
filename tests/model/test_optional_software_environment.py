@@ -92,15 +92,13 @@ class TestSoleEnvironment:
 
 @pytest.mark.short
 class TestSeveralEnvironments:
-    def test_omitted_module_env_is_an_error_naming_the_module(self):
-        with pytest.raises(ERRORS, match="software_environment for module 'D1'"):
-            _plan(envs=["py", "r"])
+    def test_omitted_module_env_means_host(self):
+        # design 014: no environment = the module runs on the host, whatever the backend
+        assert _module(_plan(envs=["py", "r"])).software_environment is None
 
-    def test_omitted_collector_env_is_an_error_naming_the_collector(self):
-        with pytest.raises(
-            ERRORS, match="software_environment for metric collector 'c'"
-        ):
-            _plan(envs=["py", "r"], module_env="py", with_collector=True)
+    def test_omitted_collector_env_means_host(self):
+        b = _plan(envs=["py", "r"], module_env="py", with_collector=True)
+        assert b.metric_collectors[0].software_environment is None
 
     def test_explicit_refs_valid(self):
         b = _plan(
@@ -109,9 +107,8 @@ class TestSeveralEnvironments:
         assert _module(b).software_environment == "r"
         assert b.metric_collectors[0].software_environment == "py"
 
-    def test_omitted_with_no_environments_block_is_an_error(self):
-        with pytest.raises(ERRORS, match="software_environment for module 'D1'"):
-            _plan(envs=None)
+    def test_omitted_with_no_environments_block_means_host(self):
+        assert _module(_plan(envs=None)).software_environment is None
 
 
 @pytest.mark.short

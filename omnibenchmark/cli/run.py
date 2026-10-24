@@ -479,6 +479,30 @@ def _read_rule_log(out_dir: Path, rule_name: str) -> Optional[str]:
     return None
 
 
+_BACKEND_FLAG = {
+    SoftwareBackendEnum.conda: "--use-conda",
+    SoftwareBackendEnum.apptainer: "--use-singularity",
+    SoftwareBackendEnum.docker: "--use-singularity",
+    SoftwareBackendEnum.envmodules: "--use-envmodules",
+}
+
+
+def _backend_flags(software_backend: SoftwareBackendEnum, resolved_nodes: list) -> list:
+    """Snakemake flags for the plan's backend and for every backend some node's
+    environment resolved to (an environment without the plan's backend runs
+    under one it declares; a module without an environment runs on the host)."""
+    backends = {software_backend}
+    for node in resolved_nodes:
+        env = getattr(getattr(node, "module", None), "resolved_environment", None)
+        if env is not None:
+            backends.add(SoftwareBackendEnum(env.backend_type.value))
+    flags = []
+    for b in SoftwareBackendEnum:
+        if b in backends and _BACKEND_FLAG.get(b) and _BACKEND_FLAG[b] not in flags:
+            flags.append(_BACKEND_FLAG[b])
+    return flags
+
+
 def _run_snakemake(
     out_dir: Path,
     cores: int,
@@ -541,14 +565,7 @@ def _run_snakemake(
 
     cmd = [snakemake_bin, "--snakefile", "Snakefile", "--cores", str(cores)]
 
-    if software_backend == SoftwareBackendEnum.conda:
-        cmd.append("--use-conda")
-    elif software_backend == SoftwareBackendEnum.apptainer:
-        cmd.append("--use-singularity")
-    elif software_backend == SoftwareBackendEnum.docker:
-        cmd.append("--use-singularity")
-    elif software_backend == SoftwareBackendEnum.envmodules:
-        cmd.append("--use-envmodules")
+    cmd += _backend_flags(software_backend, resolved_nodes or [])
 
     if continue_on_error:
         cmd.append("--keep-going")

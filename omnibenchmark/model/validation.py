@@ -412,20 +412,13 @@ class BenchmarkValidator:
         `validate_model_structure_post_init`), and is fine under the host
         backend, which ignores environments.
         """
-        from .benchmark import SoftwareBackendEnum
 
         env_ids = {env.id for env in self.software_environments}  # type: ignore
-        is_host = self.software_backend == SoftwareBackendEnum.host  # type: ignore
 
         def check(env_id, what: str) -> None:
             if env_id is None:
-                if not is_host:
-                    errors.append(
-                        f"Missing software_environment for {what}. It may be "
-                        "omitted only when exactly one software environment is "
-                        "declared or software_backend is host."
-                    )
-            elif env_id not in env_ids:
+                return  # no environment: the module runs on the host (design 014)
+            if env_id not in env_ids:
                 errors.append(
                     f"Software environment with id '{env_id}' for {what} is not declared. It should be listed as part of the stanza software_environments within the benchmarking YAML header."
                 )

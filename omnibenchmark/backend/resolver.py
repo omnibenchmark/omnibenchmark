@@ -37,6 +37,26 @@ from omnibenchmark.model.resolved import ResolvedModule, ResolvedEnvironment
 logger = logging.getLogger(__name__)
 
 
+_ENV_FIELD = {
+    SoftwareBackendEnum.conda: "conda",
+    SoftwareBackendEnum.apptainer: "apptainer",
+    SoftwareBackendEnum.docker: "docker",
+    SoftwareBackendEnum.envmodules: "envmodule",
+}
+
+
+def _backend_for(env, preferred: SoftwareBackendEnum) -> Optional[SoftwareBackendEnum]:
+    """The backend an environment runs under: the plan's choice when the environment
+    declares it, else the first one it does declare (design 014: the backend is a
+    property of the environment; the plan's `software_backend` is the preference)."""
+    if getattr(env, _ENV_FIELD.get(preferred, ""), None):
+        return preferred
+    for backend, field in _ENV_FIELD.items():
+        if getattr(env, field, None):
+            return backend
+    return None
+
+
 class ModuleResolver:
     """
     Resolves modules by cloning repositories and dereferencing entrypoints.
@@ -464,8 +484,8 @@ class ModuleResolver:
             ResolvedEnvironment with backend type and reference,
             or None if no environment needed (host backend)
         """
-        if self.software_backend == SoftwareBackendEnum.host:
-            # Host backend doesn't need environment files
+        if self.software_backend == SoftwareBackendEnum.host or not environment_id:
+            # Host backend, or a module without an environment: nothing to prepare
             return None
         if not self.software_backend or not self.software_environments:
             logger.warning(
@@ -486,20 +506,29 @@ class ModuleResolver:
         envs_dir = self.output_dir / ".envs"
         envs_dir.mkdir(parents=True, exist_ok=True)
 
-        # Handle based on backend type
-        if self.software_backend == SoftwareBackendEnum.conda:
-            return self._resolve_conda_environment(env, environment_id, envs_dir)
-        elif self.software_backend == SoftwareBackendEnum.apptainer:
-            return self._resolve_apptainer_environment(env, environment_id, envs_dir)
-        elif self.software_backend == SoftwareBackendEnum.docker:
-            return self._resolve_docker_environment(env, environment_id)
-        elif self.software_backend == SoftwareBackendEnum.envmodules:
-            return self._resolve_envmodules_environment(env, environment_id)
-        else:
+        backend = _backend_for(env, self.software_backend)
+        if backend is None:
             logger.warning(
-                f"Unsupported software backend '{self.software_backend}' for environment resolution"
+                f"Environment '{environment_id}' declares no backend; module '{module_id}' runs on the host"
             )
             return None
+        if backend != self.software_backend:
+            logger.info(
+                f"Environment '{environment_id}' has no {self.software_backend.value} entry; "
+                f"module '{module_id}' runs under {backend.value}"
+            )
+        if backend == SoftwareBackendEnum.conda:
+            return self._resolve_conda_environment(env, environment_id, envs_dir)
+        elif backend == SoftwareBackendEnum.apptainer:
+            return self._resolve_apptainer_environment(env, environment_id, envs_dir)
+        elif backend == SoftwareBackendEnum.docker:
+            return self._resolve_docker_environment(env, environment_id)
+        elif backend == SoftwareBackendEnum.envmodules:
+            return self._resolve_envmodules_environment(env, environment_id)
+        logger.warning(
+            f"Unsupported software backend '{backend}' for environment resolution"
+        )
+        return None
 
     def _resolve_conda_environment(
         self, env: SoftwareEnvironment, env_id: str, envs_dir: Path
