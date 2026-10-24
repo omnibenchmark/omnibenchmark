@@ -436,6 +436,16 @@ class InputCollection(BaseModel):
     entries: List[str] = Field(..., description="List of input file IDs")
 
 
+class StageRole(str, Enum):
+    """The part a stage plays in a benchmark (design 014)."""
+
+    data = "data"
+    method = "method"
+    metric = "metric"
+    collect = "collect"
+    report = "report"
+
+
 class GatherSpec(BaseModel):
     """A single fan-in: collect nodes producing a shared output id, grouped by
     a stage they descend from (design 010).
@@ -749,6 +759,17 @@ class Stage(DescribableEntity):
             "shared output id, grouped by a stage they descend from. A gather "
             "cuts the lineage chain; its outputs root at the stage id. "
             "Requires api_version ≥ 0.7.0."
+        ),
+    )
+    role: Optional[StageRole] = Field(
+        None,
+        description=(
+            "What the stage is for: data (produces the benchmark's inputs), "
+            "method (an alternative under evaluation), metric (scores a "
+            "method's output), collect (fan-in over metrics), report (renders "
+            "collected results). Informational for the Snakemake backend; "
+            "emitters that need the plan-level shape (nf-core, OpenEBench, "
+            "Dagster) read it instead of guessing from position (design 014)."
         ),
     )
 

@@ -832,3 +832,16 @@ class TestIdCharset:
                     make_iofile(id="raw", path="b.txt"),
                 ]
             )
+
+
+@pytest.mark.short
+class TestStageRole:
+    def test_role_parses_and_rejects_unknown(self):
+        from omnibenchmark.model.benchmark import Stage, StageRole
+
+        base = dict(
+            id="methods", modules=[], outputs=[{"id": "x", "path": "x"}], role="method"
+        )
+        assert Stage(**base).role is StageRole.method
+        with pytest.raises(Exception):
+            Stage(**{**base, "role": "evaluator"})
