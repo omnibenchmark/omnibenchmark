@@ -51,6 +51,14 @@ a list). Nextflow has both (`[]`, `path(reads)`); nf-core modules assume them;
 ob modules fake them with placeholder files today. Aligns with 012's typed
 ports.
 
+**A module kind that is a Nextflow workflow or process** (`kind: nextflow`). The
+module names a pipeline, a workflow (or a guarded block of one) and the element
+shape of each channel it reads; one generic runner builds the entry `main.nf`
+from argv and publishes the emitted files. This is how sarek's variant callers
+become methods without lowering their subworkflows, and how an nf-core module
+runs in ob unchanged: no partial evaluation of `script:` blocks. The compiled
+native module (template rendering) stays as an export path.
+
 **Not changed: lineage.** `Stage.provides` + `Module.provides: {label: value}` +
 `Module.requires` is `meta` declared in the plan, and `{label}` substitution
 makes it readable downstream. The gap is run-time `meta` (values produced by
@@ -69,7 +77,16 @@ the data); that is the dynamic-filtering proposal, separate.
   container with a fixed argv.
 - **Viash/OpenProblems**: already mechanical (013).
 
-## 5. Open
+## 5. Emitters
+
+Roles make the plan-level DAG readable without heuristics, so backends and
+exports are the same kind of thing: Snakemake (today), an nf-core subworkflow
+plus modules (the group's export need), an OpenEBench three-step workflow, and
+Dagster (one asset per node, lineage as asset keys). None of them should read
+ResolvedNodes; they read stages, modules and the lineage, which is why the
+emitter lives at the plan level (worklog: plan-level DAG and stage roles).
+
+## 6. Open
 
 - Subworkflows as methods (sarek): recursive lowering vs subworkflow-as-module.
   First stop reason from the compiler bench, 2026-10-24.
