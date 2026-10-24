@@ -51,6 +51,16 @@ a list). Nextflow has both (`[]`, `path(reads)`); nf-core modules assume them;
 ob modules fake them with placeholder files today. Aligns with 012's typed
 ports.
 
+**Vectorized modules** (`Module.vectorized: true`, prototyped on this branch). One
+invocation for all nodes of the module: the entrypoint gets `--nodes PATH`, a
+JSON list of `{id, inputs, parameters, outputs}` records, and writes every
+listed output. The Snakemake rule depends on the union of the nodes' inputs and
+produces the union of their outputs, so lineage, `exclude` and the layout are
+unchanged and downstream nodes are oblivious. This is how a Nextflow block runs
+once with the fan-out inside (channels are the fan-out), how a method loads one
+model for every dataset, and what a Dagster emitter maps to a partitioned asset
+(partition key = lineage id).
+
 **A module kind that is a Nextflow workflow or process** (`kind: nextflow`). The
 module names a pipeline, a workflow (or a guarded block of one) and the element
 shape of each channel it reads; one generic runner builds the entry `main.nf`

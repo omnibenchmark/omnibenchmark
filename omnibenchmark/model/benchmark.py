@@ -651,6 +651,19 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
         None,
         description="Resource requirements (overrides stage-level resources)",
     )
+    vectorized: Optional[bool] = Field(
+        None,
+        description=(
+            "Run this module once for all of its nodes instead of once per node. "
+            "The entrypoint receives `--nodes PATH`, a JSON list with one record "
+            "per node ({id, inputs, parameters, outputs}; paths relative to "
+            "`--workdir`), plus `--output_dir` (a scratch directory) and `--name`, "
+            "and must write every listed output path. Lineage, exclude and the "
+            "output layout are unchanged: downstream nodes depend on the same "
+            "per-node files. For modules that fan out internally (a Nextflow "
+            "block, a method that loads one model for every dataset)."
+        ),
+    )
     requires_capabilities: Optional[List[str]] = Field(
         None,
         description=(

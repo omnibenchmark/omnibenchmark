@@ -135,10 +135,16 @@ class SnakemakeGenerator:
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
         self._nodes_by_id = {n.id: n for n in nodes}
+        groups: dict = {}  # (stage, module) -> nodes of a vectorized module
         with open(output_path, "w") as f:
             self._write_header(f)
             for node in nodes:
-                self._write_node_rule(f, node)
+                if node.module.vectorized and not (node.is_gather or node.is_collector):
+                    groups.setdefault((node.stage_id, node.module_id), []).append(node)
+                else:
+                    self._write_node_rule(f, node)
+            for group in groups.values():
+                self._write_vectorized_rule(f, group, output_path.parent)
             self._write_all_rule(f, nodes)
 
     # ------------------------------------------------------------------
@@ -229,6 +235,101 @@ class SnakemakeGenerator:
         else:
             self._write_shell(f, node)
 
+        f.write("\n")
+
+    def _write_vectorized_rule(
+        self, f: TextIO, nodes: List[ResolvedNode], out_dir: Path
+    ):
+        """One rule for every node of a vectorized module.
+
+        The node records go to `.vectorized/<stage>_<module>.json` (paths relative
+        to the Snakemake working directory); the rule depends on the union of the
+        nodes' inputs and produces the union of their outputs, so the rest of the
+        DAG sees ordinary per-node files.
+        """
+        first = nodes[0]
+        name = self._sanitize_rule_name(
+            f"{first.stage_id}_{first.module_id}_vectorized"
+        )
+        records = [
+            {
+                "id": n.id,
+                "inputs": n.inputs,
+                "parameters": n.parameters._params if n.parameters else {},
+                "outputs": n.outputs,
+            }
+            for n in nodes
+        ]
+        nodes_file = Path(".vectorized") / f"{first.stage_id}_{first.module_id}.json"
+        (out_dir / nodes_file).parent.mkdir(parents=True, exist_ok=True)
+        (out_dir / nodes_file).write_text(json.dumps(records, indent=1))
+
+        f.write(f"# Stage: {first.stage_id}, Module: {first.module_id}\n")
+        f.write(f"# Type: Vectorized ({len(nodes)} nodes in one invocation)\n")
+        f.write(f"# Repository: {first.module.repository_url}\n")
+        f.write(f"# Commit: {first.module.commit}\n")
+        f.write(f"rule {name}:\n")
+        f.write("    input:\n")
+        for path in sorted({p for n in nodes for p in n.inputs.values()}):
+            f.write(f'        "{path}",\n')
+        f.write(f'        nodes="{nodes_file}",\n')  # keyword last: Snakemake syntax
+        f.write("    output:\n")
+        for n in nodes:
+            for path in n.outputs.values():
+                f.write(f'        "{path}",\n')
+        f.write("    params:\n")
+        f.write(f'        module_dir="{first.module.module_dir}",\n')
+        f.write(f'        entrypoint="{first.module.entrypoint}",\n')
+        f.write(
+            f'        output_dir=".vectorized/{first.stage_id}_{first.module_id}",\n'
+        )
+        log_filename = truncate_filename(f"{name}.log")
+        f.write("    log:\n")
+        f.write(f'        ".logs/{log_filename}"\n')
+        self._write_environment_directive(f, first.module)
+        self._write_threads_directive(f, first)
+        self._write_resources_directive(f, first)
+
+        lines: list = [
+            "mkdir -p {params.output_dir} $(dirname {log})",
+            "WORKDIR=$(pwd)",
+            "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
+            "NODES=$WORKDIR/{input.nodes}",
+            "LOG_FILE=$(pwd)/{log}",
+            'exec > >(tee "$LOG_FILE") 2>&1',
+            "echo '=== Rule: {rule} ==='",
+            "echo 'Started:' $(date -Iseconds)",
+            "echo '---'",
+        ]
+        for n in nodes:
+            first_output = next(iter(n.outputs.values()))
+            node_dir = os.path.dirname(first_output) or "."
+            lines.append(f"mkdir -p {node_dir}")
+            if n.parameters:
+                params_json = json.dumps(n.parameters._params)
+                params_json = params_json.replace("{", "{{").replace("}", "}}")
+                params_json = params_json.replace("'", "'\\''")
+                lines += [
+                    f"echo '{params_json}' > {node_dir}/parameters.json",
+                    f'ln -sfn "$(basename {node_dir})"'
+                    f" {node_dir}/../{shlex.quote(_human_link_name(n))}",
+                ]
+        lines.append("cd {params.module_dir}")
+        if first.module.has_shebang:
+            cmd = ["./{params.entrypoint}"]
+        else:
+            interpreter = first.module.interpreter or "python3"
+            cmd = [f"{interpreter} {{params.entrypoint}}"]
+        cmd += [
+            "--output_dir $OUTPUT_DIR",
+            f"--name {first.module_id}",
+            "--nodes $NODES",
+            "--workdir $WORKDIR",
+        ]
+        for part in cmd[:-1]:
+            lines.append(f"{part} \\\\")
+        lines.append(cmd[-1])
+        self._write_shell_lines(f, lines)
         f.write("\n")
 
     def _write_all_rule(self, f: TextIO, nodes: List[ResolvedNode]):

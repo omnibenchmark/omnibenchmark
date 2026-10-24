@@ -340,6 +340,7 @@ class ModuleResolver:
             has_shebang=has_shebang,
             interpreter=interpreter,
             dirty=_is_local and dirty,
+            vectorized=bool(module.vectorized),
         )
 
         logger.debug(

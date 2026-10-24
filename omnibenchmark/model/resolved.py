@@ -189,6 +189,9 @@ class ResolvedModule:
     # Development flag
     dirty: bool = False
 
+    # One rule for all nodes of this module (Module.vectorized)
+    vectorized: bool = False
+
     def __post_init__(self):
         """Validate module configuration."""
         # In production mode (dirty=False), commit must be specified

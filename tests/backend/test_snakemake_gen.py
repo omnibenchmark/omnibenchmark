@@ -935,3 +935,37 @@ def test_metadata_records_every_module_not_just_every_repo(tmp_path):
 
     assert "FILT/fi-scrapper" in listed
     assert "NORM/nr-scrapper" in listed
+
+
+@pytest.mark.short
+class TestVectorizedModule:
+    def test_one_rule_for_all_nodes(self, tmp_path):
+        module = _make_module()
+        module = ResolvedModule(**{**module.__dict__, "vectorized": True})
+        nodes = [
+            _make_node(
+                node_id=f"methods-vec-{i}",
+                stage_id="methods",
+                module_id="vec",
+                module=module,
+                inputs={"h5ad": f"data/D{i}/D{i}.h5ad"},
+                outputs={"h5ad": f"data/D{i}/methods/vec/vec.h5ad"},
+            )
+            for i in (1, 2)
+        ]
+        plain = _make_node(node_id="data-D1-default", stage_id="data", module_id="D1")
+        gen = SnakemakeGenerator("b", "1", "a", api_version=APIVersion.V0_8_0)
+        gen.generate_snakefile([plain, *nodes], tmp_path / "Snakefile")
+        text = (tmp_path / "Snakefile").read_text()
+        assert text.count("rule methods_vec_vectorized:") == 1
+        assert "rule methods_vec_1" not in text and "rule methods_vec_2" not in text
+        assert "rule data_D1_default" in text
+        assert '"data/D1/methods/vec/vec.h5ad"' in text
+        assert '"data/D2/methods/vec/vec.h5ad"' in text
+        assert "--nodes $NODES" in text and "--workdir $WORKDIR" in text
+        records = json.loads(
+            (tmp_path / ".vectorized" / "methods_vec.json").read_text()
+        )
+        assert [r["id"] for r in records] == ["methods-vec-1", "methods-vec-2"]
+        assert records[0]["inputs"] == {"h5ad": "data/D1/D1.h5ad"}
+        assert records[1]["outputs"] == {"h5ad": "data/D2/methods/vec/vec.h5ad"}
