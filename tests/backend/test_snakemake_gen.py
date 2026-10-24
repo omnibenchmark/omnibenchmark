@@ -20,7 +20,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from omnibenchmark.backend._manifest import write_run_manifest
-from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
+from omnibenchmark.backend.snakemake import (
+    SnakemakeGenerator,
+    _lineage_segments,
+    _make_human_name,
+)
 from omnibenchmark.backend._snakemake_debug import DebugSnakemakeGenerator
 from omnibenchmark.model.resolved import (
     ResolvedNode,
@@ -968,4 +972,8 @@ class TestVectorizedModule:
         )
         assert [r["id"] for r in records] == ["methods-vec-1", "methods-vec-2"]
         assert records[0]["inputs"] == {"h5ad": "data/D1/D1.h5ad"}
+        assert _lineage_segments("data-D1.default-methods-vec.4514a0c6") == [
+            {"stage": "data", "module": "D1"},
+            {"stage": "methods", "module": "vec"},
+        ]
         assert records[1]["outputs"] == {"h5ad": "data/D2/methods/vec/vec.h5ad"}

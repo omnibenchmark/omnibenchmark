@@ -96,6 +96,21 @@ def _input_key_index(key: str) -> int:
     return int(key.rsplit("_", 1)[1])
 
 
+def _lineage_segments(node_id: str) -> list:
+    """[{stage, module}] along a node id such as `data-D1.default-methods-M1.4514a0c6`.
+
+    From api 0.8 ids are `[A-Za-z_][A-Za-z0-9_]*`, so `-` separates segments and `.`
+    separates a module from its parameter hash. Anything else yields [].
+    """
+    parts = node_id.split("-")
+    if len(parts) % 2:
+        return []
+    out = []
+    for stage, module in zip(parts[::2], parts[1::2]):
+        out.append({"stage": stage, "module": module.split(".")[0]})
+    return out
+
+
 def _human_link_name(node: ResolvedNode) -> str:
     """Name of the readable sibling symlink for a node's output directory.
 
@@ -264,6 +279,7 @@ class SnakemakeGenerator:
         records = [
             {
                 "id": n.id,
+                "lineage": _lineage_segments(n.id),
                 "inputs": n.inputs,
                 "parameters": n.parameters._params if n.parameters else {},
                 "outputs": n.outputs,
