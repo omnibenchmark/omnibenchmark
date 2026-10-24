@@ -18,6 +18,7 @@ see omnibenchmark.backend._snakemake_debug.DebugSnakemakeGenerator.
 
 import json
 import os
+import shlex
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -189,8 +190,10 @@ class SnakemakeGenerator:
                 '        output_dir=lambda wildcards, output: os.path.dirname(output[0]) or ".",\n'
             )
         if node.parameters:
-            cli_args = " ".join(node.get_parameter_cli_args())
-            f.write(f'        cli_args="{cli_args}",\n')
+            # Shell-quote each value: a parameter such as "100;100" or
+            # "a b" is one argv word, not a command separator.
+            cli_args = shlex.join(node.get_parameter_cli_args())
+            f.write(f"        cli_args={cli_args!r},\n")
         else:
             f.write('        cli_args="",\n')
 
@@ -440,7 +443,7 @@ class SnakemakeGenerator:
                 # a fan-in node's segment carries the parent-set digest as well
                 # as the parameter hash, so recomputing it here would dangle.
                 f'ln -sfn "$(basename $OUTPUT_DIR)"'
-                f" $OUTPUT_DIR/../{_human_link_name(node)}",
+                f" $OUTPUT_DIR/../{shlex.quote(_human_link_name(node))}",
             ]
 
         lines.append("cd {params.module_dir}")

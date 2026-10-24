@@ -435,6 +435,21 @@ class TestWriteNodeRuleExec:
         out = _capture(_gen()._write_node_rule, node)
         assert "touch" not in out
 
+    @pytest.mark.short
+    def test_cli_args_are_shell_quoted(self):
+        # A value with a shell metacharacter must reach the module as one word.
+        params = _make_params({"hidden_layer_sizes": "100;100", "max_iter": "1000"})
+        node = _make_node(parameters=params)
+        out = _capture(_gen()._write_node_rule, node)
+        line = next(ln for ln in out.splitlines() if "cli_args=" in ln)
+        assert "'100;100'" in line
+        assert eval(line.split("=", 1)[1].rstrip(",")) == (
+            "--hidden_layer_sizes '100;100' --max_iter 1000"
+        )
+        # The readable symlink is named after the same values.
+        ln = next(ln for ln in out.splitlines() if "ln -sfn" in ln)
+        assert "$OUTPUT_DIR/../'hidden_layer_sizes-100;100_max_iter-1000'" in ln
+
     def test_has_shebang_direct_exec(self):
         module = _make_module(has_shebang=True)
         node = _make_node(module=module, outputs=["out/stage1/mod1/default/result.csv"])
