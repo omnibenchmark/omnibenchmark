@@ -597,7 +597,7 @@ class TestWriteNodeRuleCollectorV2:
             node_id="gather_stage2-mod2-default",
             stage_id="stage2",
             inputs={"score_0": "out/a/score.csv", "score_1": "out/b/score.csv"},
-            outputs=["out/gather/result.csv"],
+            outputs=kwargs.pop("outputs", ["out/gather/result.csv"]),
             input_name_mapping={"score_0": "score", "score_1": "score"},
             is_gather=True,
             **kwargs,
@@ -620,6 +620,18 @@ class TestWriteNodeRuleCollectorV2:
         out = _capture(_gen()._write_node_rule, node)
         # Both inputs share original name 'score', so --score should appear once
         assert "--score" in out
+
+    def test_gather_v08_passes_output_flags(self):
+        """v0.8: a gather module gets --output id=PATH like any other (009 §3.2)."""
+        node = self._gather_node(outputs={"report_html": "out/gather/report.html"})
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        assert "OUTPUT_FILE_0=$(cd $(dirname {output[0]}) && pwd)" in out
+        assert "--output report_html=$OUTPUT_FILE_0" in out
+
+    def test_gather_v07_no_output_flags(self):
+        node = self._gather_node()
+        out = _capture(_gen(api_version=APIVersion.V0_7_0)._write_node_rule, node)
+        assert "--output " not in out
 
     def test_gather_exec_shebang(self):
         module = _make_module(has_shebang=True)
