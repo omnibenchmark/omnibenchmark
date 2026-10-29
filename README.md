@@ -11,13 +11,19 @@
 
 ## Install
 
-Recent versions of omnibenchmark should be installable [from pypi](https://pypi.org/project/omnibenchmark/):
+Install omnibenchmark [from pypi](https://pypi.org/project/omnibenchmark/):
 
-```
+```bash
 pip install omnibenchmark
 ```
 
-Do note that if you plan to use `conda` as a software execution backend, you will want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend miniforge. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
+The `ob` command is now available:
+
+```bash
+ob --version
+```
+
+If you want to use `conda` as a software execution backend, you might want to use omnibenchmark from within a conda environment manager. At the time of this writing, we recommend miniforge. See [the tutorial](https://omnibenchmark.org/tutorial/) for more details.
 
 ### Releases
 
@@ -40,7 +46,7 @@ Check [CONTRIBUTING.md](https://github.com/omnibenchmark/omnibenchmark/blob/main
 
 ## Acknowledgements
 
-Omnibenchmark incorporates great FOSS components, including but not limited to: [snakemake](https://snakemake.readthedocs.io/en/stable/), [easybuild](https://easybuild.io/), [apptainer](https://apptainer.org/), [lmod](https://lmod.readthedocs.io/en/latest/) and [git](https://git-scm.com/). Thank you!
+Omnibenchmark builds on great FOSS components, including but not limited to: [snakemake](https://snakemake.readthedocs.io/en/stable/), [easybuild](https://easybuild.io/), [apptainer](https://apptainer.org/), [lmod](https://lmod.readthedocs.io/en/latest/) and [git](https://git-scm.com/). Thank you!
 
 ## Publications
 
