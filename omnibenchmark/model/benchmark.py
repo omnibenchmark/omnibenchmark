@@ -132,10 +132,11 @@ class APIVersion(str, Enum):
     V0_5_0 = "0.5.0"
     V0_6_0 = "0.6.0"
     V0_7_0 = "0.7.0"
+    V0_8_0 = "0.8.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_7_0
+        return cls.V0_8_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -181,6 +182,11 @@ class APIVersion(str, Enum):
 # then drop it from this set at the next major api bump, which also frees
 # `dataset` as an ordinary label and stage name. Until then it stays reserved.
 _RESERVED_PROVIDES_LABELS = frozenset({"name", "dataset"})
+# Stage and module ids (004 §3.13). The leading-digit rule is enforced for every
+# id by IdentifiableEntity.
+_ID_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Output ids are free-form, except what would break `--output id=PATH`.
+_BAD_OUTPUT_ID = re.compile(r"[=\s]")
 
 
 class SoftwareBackendEnum(str, Enum):
@@ -574,6 +580,27 @@ def _warn_if_disjoint_parameter_keys(
     )
 
 
+def _warn_if_deprecated_dataset_var(path: str) -> None:
+    """Warn when an output path still templates on the legacy ``{dataset}``.
+
+    ``{dataset}`` resolves to the *first stage's* module id, which couples every
+    downstream filename to it and degenerates to a constant as soon as the first
+    stage is a single dispatcher module varying datasets by parameter. ``{module.id}``
+    resolves to the current module's own id and has no such coupling.
+    """
+    if "{dataset}" not in path:
+        return
+    warnings.warn(
+        f"Output path '{path}' uses the deprecated '{{dataset}}' template "
+        f"variable. It resolves to the first stage's module id, so it is a "
+        f"constant whenever that stage dispatches datasets by parameter. Prefer "
+        f"'{{module.id}}' (this module's own id), or '{{params.KEY}}' to name "
+        f"outputs after a parameter.",
+        FutureWarning,
+        stacklevel=3,
+    )
+
+
 class Module(DescribableEntity, SoftwareEnvironmentReference):
     """Module definition."""
 
@@ -592,7 +619,6 @@ class Module(DescribableEntity, SoftwareEnvironmentReference):
             "Non-module-id entries are silently ignored."
         ),
     )
-    outputs: Optional[List[IOFile]] = Field(None, description="Module outputs")
     requires: Optional[Dict[str, str]] = Field(
         None,
         description=(
@@ -732,9 +758,15 @@ class Stage(DescribableEntity):
     @field_validator("outputs")
     @classmethod
     def validate_outputs(cls, v, info):
-        """Warn about old-style full paths in stage outputs."""
+        """Reject duplicate output ids; warn about old-style full paths."""
         if not v:
             return v
+
+        # Outputs are keyed by id downstream; a duplicate would drop silently.
+        ids = [o.id for o in v]
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        if dupes:
+            raise ValueError(f"Duplicate output ids in stage: {dupes}")
 
         for idx, output in enumerate(v):
             if "/" in output.path:
@@ -1482,6 +1514,48 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"declares {self.api_version.value})."
                         )
 
+        # Node ids join stage and module ids with `-` and `.`; keeping those out
+        # of the ids makes a node id parse back into its segments. Enforced from
+        # 0.8.0, a warning before so existing plans keep loading. See 004 §3.13.
+        for entity, kind in [(s, "Stage") for s in self.stages] + [
+            (m, "Module") for s in self.stages for m in s.modules
+        ]:
+            if _ID_PATTERN.fullmatch(entity.id):
+                continue
+            msg = (
+                f"{kind} id '{entity.id}' may only contain letters, digits "
+                f"and underscores."
+            )
+            if self.api_version >= APIVersion.V0_8_0:
+                raise ValueError(msg)
+            warnings.warn(
+                f"{msg} This becomes an error at api_version 0.8.0.",
+                FutureWarning,
+                stacklevel=2,
+            )
+
+        # Output ids reach modules as `--output id=PATH` (009 §3.2) and as
+        # `--<id>` input flags downstream, nowhere else, so only `=` and
+        # whitespace are out.
+        if self.api_version >= APIVersion.V0_8_0:
+            collector_outputs = [
+                o for c in self.metric_collectors or [] for o in c.outputs or []
+            ]
+            for o in [o for s in self.stages for o in s.outputs or []] + (
+                collector_outputs
+            ):
+                if _BAD_OUTPUT_ID.search(o.id):
+                    raise ValueError(
+                        f"Output id '{o.id}' may not contain '=' or whitespace."
+                    )
+
+        # Below 0.5 `--name` is the dataset id, so downstream modules write
+        # `{dataset}`-named files and the template is still the right one.
+        if self.api_version >= APIVersion.V0_5_0:
+            for stage in self.stages:
+                for output in stage.outputs or []:
+                    _warn_if_deprecated_dataset_var(output.path)
+
         # The runtime auto-populates `name` (current module id) and `dataset`
         # (root dataset identity) on every node; letting a stage advertise
         # either would silently clobber the user's value and make a downstream
@@ -1705,9 +1779,8 @@ def expand_output_path(file: IOFile) -> str:
     """
     Expands a relative output path into a standardized templated format.
 
-    This function ensures output paths follow a consistent structure by:
-    1. Prepending the standard OUTPUT_PATH_PREFIX if not already present
-    2. Adding a {dataset} placeholder to the filename if not already included
+    Prepends the standard OUTPUT_PATH_PREFIX if not already present. The
+    filename is kept as written, as the run path does.
     """
     # Import here to avoid circular imports
     OUTPUT_PATH_PREFIX = os.path.join("{input}", "{stage}", "{module}", "{params}")
@@ -1723,15 +1796,6 @@ def expand_output_path(file: IOFile) -> str:
 
     if not output_path.startswith(OUTPUT_PATH_PREFIX):
         output_path = os.path.join(OUTPUT_PATH_PREFIX, output_path)
-
-    if "{dataset}" not in output_path:
-        parts = output_path.rsplit(os.path.sep, 1)
-        if len(parts) == 2:
-            directory, filename = parts
-            output_path = os.path.join(directory, f"{{dataset}}.{filename}")
-        else:
-            filename = parts[0]
-            output_path = f"{{dataset}}.{filename}"
 
     return output_path
 

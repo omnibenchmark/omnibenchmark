@@ -47,7 +47,7 @@ stages:
       - id: data.raw
         description: "Raw data for archive testing"
         format: json
-        path: "{dataset}_data.json"
+        path: "{module.id}_data.json"
 
   - id: methods
     modules:

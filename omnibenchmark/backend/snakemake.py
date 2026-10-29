@@ -175,9 +175,11 @@ class SnakemakeGenerator:
                 f.write(f'        {key}="{path}",\n')
 
         if node.outputs:
+            # Positional at every api version: output ids never become Snakemake
+            # names, so they need not be Python identifiers (009 §3.3).
             f.write("    output:\n")
-            for output in node.outputs:
-                f.write(f'        "{output}",\n')
+            for path in node.outputs.values():
+                f.write(f'        "{path}",\n')
 
         f.write("    params:\n")
         f.write(f'        module_dir="{node.module.module_dir}",\n')
@@ -194,7 +196,7 @@ class SnakemakeGenerator:
 
         # benchmark: directive (performance tracking, skipped for aggregate nodes)
         if not is_collector and not is_gather and node.outputs:
-            first_output = node.outputs[0]
+            first_output = next(iter(node.outputs.values()))
             benchmark_dir = (
                 os.path.dirname(first_output) if "/" in first_output else "."
             )
@@ -232,7 +234,7 @@ class SnakemakeGenerator:
         f.write("rule all:\n")
         f.write("    input:\n")
         for node in nodes:
-            for output in node.outputs:
+            for output in node.outputs.values():
                 f.write(f'        "{output}",\n')
         f.write("    default_target: True\n")
         f.write("\n")
@@ -324,7 +326,9 @@ class SnakemakeGenerator:
             "module": member.module_id,
             "commit": member.module.commit,
             "params": member.get_parameter_hash(),
-            "dir": os.path.dirname(member.outputs[0]) if member.outputs else None,
+            "dir": os.path.dirname(next(iter(member.outputs.values())))
+            if member.outputs
+            else None,
         }
 
     def _lineage_record(self, node: ResolvedNode):
@@ -400,6 +404,18 @@ class SnakemakeGenerator:
                 f"/$(basename {{input.{key}}})"
             )
 
+        # Same for each declared output: the shell cds into the module directory
+        # below, so a workflow-relative --output would land inside the module
+        # checkout. Spec §3.2 promises absolute paths. Indexed by position, so
+        # an output id never has to be a bash or Snakemake name.
+        if self.api_version >= APIVersion.V0_8_0:
+            for i in range(len(node.outputs)):
+                lines += [
+                    f"mkdir -p $(dirname {{output[{i}]}})",
+                    f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
+                    f"/$(basename {{output[{i}]}})",
+                ]
+
         # Redirect stdout/stderr through tee so both the terminal and the log
         # file receive all output.
         lines += [
@@ -452,7 +468,7 @@ class SnakemakeGenerator:
         # --name for filename construction. Remove this workaround when 0.4 support ends.
         name_param = node.module_id
         if self.api_version <= APIVersion.V0_4_0 and node.outputs:
-            first_output = node.outputs[0]
+            first_output = next(iter(node.outputs.values()))
             parts = first_output.split("/")
             # Output path structure: data/{dataset}/.../[methods/{module}/...]/filename
             # We extract parts[1] which is the dataset identifier
@@ -464,6 +480,12 @@ class SnakemakeGenerator:
                 name_param = dataset_name
 
         cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
+
+        # Always `id=PATH`, however many outputs the stage declares (009 §3.2).
+        if self.api_version >= APIVersion.V0_8_0:
+            for i, output_id in enumerate(node.outputs):
+                cmd.append(f"--output {output_id}=$OUTPUT_FILE_{i}")
+
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
             cmd.append(f"--{original_name} $INPUT_{key}")

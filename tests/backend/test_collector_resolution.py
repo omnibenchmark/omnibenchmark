@@ -185,7 +185,7 @@ class TestResolveMetricCollectors:
 
         # Check output path resolution
         assert len(node.outputs) == 1
-        assert node.outputs[0] == "plotting/report.html"
+        assert list(node.outputs.values())[0] == "plotting/report.html"
 
     def test_resolve_collector_with_parameters(
         self,
@@ -215,7 +215,7 @@ class TestResolveMetricCollectors:
 
         # Check output paths include param_id
         for node in result:
-            assert node.param_id in node.outputs[0]
+            assert node.param_id in list(node.outputs.values())[0]
 
     def test_empty_collectors_list(
         self, sample_resolved_nodes, mock_benchmark, mock_resolver
@@ -365,7 +365,7 @@ class TestResolveCollectorOutputs:
         outputs = _resolve_collector_outputs(collector, "default")
 
         assert len(outputs) == 1
-        assert outputs[0] == "test_collector/report.html"
+        assert outputs["report"] == "test_collector/report.html"
 
     def test_strip_input_placeholder(self):
         """Test stripping {input} placeholder."""
@@ -380,7 +380,7 @@ class TestResolveCollectorOutputs:
 
         outputs = _resolve_collector_outputs(collector, "default")
 
-        assert outputs[0] == "plotter/plot.png"
+        assert outputs["plot"] == "plotter/plot.png"
 
     def test_path_with_parameters(self):
         """Test path resolution with parameter hash."""
@@ -395,8 +395,7 @@ class TestResolveCollectorOutputs:
 
         outputs = _resolve_collector_outputs(collector, "abc123")
 
-        # Should insert param_id before filename
-        assert outputs[0] == "analyzer/abc123/result.json"
+        assert outputs["result"] == "analyzer/abc123/result.json"
 
     def test_clean_double_slashes(self):
         """Test cleaning up double slashes from path."""
@@ -411,9 +410,8 @@ class TestResolveCollectorOutputs:
 
         outputs = _resolve_collector_outputs(collector, "default")
 
-        # Should clean up double slashes
-        assert "//" not in outputs[0]
-        assert outputs[0] == "test/output.txt"
+        assert "//" not in outputs["out"]
+        assert outputs["out"] == "test/output.txt"
 
 
 @pytest.mark.short

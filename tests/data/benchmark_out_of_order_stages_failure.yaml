@@ -23,11 +23,11 @@ stages:
           commit: 63b7b36
     outputs:
       - id: data.counts
-        path: "{dataset}.txt.gz"
+        path: "{module.id}.txt.gz"
       - id: data.meta
-        path: "{dataset}.meta.json"
+        path: "{module.id}.meta.json"
       - id: data.data_specific_params
-        path: "{dataset}_params.txt"
+        path: "{module.id}_params.txt"
   - id: B
     inputs:
       - data.counts
@@ -40,7 +40,7 @@ stages:
           commit: 3b17081
     outputs:
       - id: process.filtered
-        path: "{dataset}.txt.gz"
+        path: "{module.id}.txt.gz"
   # C1 and C2 both consume process.filtered -> two divergent sibling branches off B.
   - id: C1
     inputs:
@@ -55,7 +55,7 @@ stages:
           commit: 8f2f835
     outputs:
       - id: methods.mapping
-        path: "{dataset}.model.out.gz"
+        path: "{module.id}.model.out.gz"
   - id: C2
     inputs:
       - process.filtered
@@ -69,7 +69,7 @@ stages:
           commit: 8f2f835
     outputs:
       - id: methods.mapping2
-        path: "{dataset}.model.out.gz"
+        path: "{module.id}.model.out.gz"
   # E joins the two divergent branches C1 and C2 -> the unsupported diamond.
   - id: E
     inputs:
@@ -85,4 +85,4 @@ stages:
           commit: 579c643
     outputs:
       - id: metrics.mapping
-        path: "{dataset}.results.txt"
+        path: "{module.id}.results.txt"

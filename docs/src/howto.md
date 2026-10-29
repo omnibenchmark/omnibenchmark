@@ -601,7 +601,7 @@ stages:
           commit: main # pointing to the latest commit in branch main
     outputs:
       - id: data.image
-        path: "{dataset}.png"
+        path: "{module.id}.png"
 ```
 
 
@@ -643,20 +643,20 @@ Output `path` fields in the benchmark YAML accept template variables that are re
 
 | Variable | Resolves to | Notes |
 |----------|-------------|-------|
-| `{dataset}` | Root dataset ID (e.g. `D1`) | Inherited from the first stage; see deprecation note below |
-| `{name}` | Current module's own ID (e.g. `M1`) | Always the *current* module — never inherited |
-| `{module.id}` | Current module's own ID | Same as `{name}` |
+| `{dataset}` | Root dataset ID (e.g. `D1`) | **Deprecated** — inherited from the first stage; warns on load, see below |
+| `{module.id}` | Current module's own ID (e.g. `M1`) | Always the *current* module — never inherited |
+| `{name}` | Current module's own ID | Alias of `{module.id}`; prefer `{module.id}`, since `{name}` reads like `{module.name}` |
 | `{module.name}` | Module's human-readable `name` attribute | Falls back to the module ID if `name` is not set |
 | `{module.stage}` | Current stage ID (e.g. `methods`) | |
 | `{params.KEY}` | Value of parameter `KEY` for this node | Fully resolved before Snakemake sees the path; one output path per parameter combination |
 
-### When to use `{dataset}` vs `{name}`
+### When to use `{dataset}` vs `{module.id}`
 
-Use **`{name}`** when you want the filename to reflect *which module produced the file* — this is the recommended choice for method and metric stages, where each module's output should be independently identifiable.
+Use **`{module.id}`** when you want the filename to reflect *which module produced the file* — this is the recommended choice for method and metric stages, where each module's output should be independently identifiable.
 
-Use **`{dataset}`** when the first-stage module IDs are themselves meaningful dataset identifiers (e.g. `D1`, `pbmc3k`) and you want that identity to propagate through the whole pipeline. **`{dataset}` is only useful if the first-stage module `id` values are semantically meaningful.** If the first stage uses a single dispatcher module with a fixed ID (e.g. `id: loader`) and instead varies datasets via parameters, `{dataset}` will always resolve to `"loader"` — which is not useful. In that case use `{params.dataset}` or `{name}` instead.
+Use **`{dataset}`** when the first-stage module IDs are themselves meaningful dataset identifiers (e.g. `D1`, `pbmc3k`) and you want that identity to propagate through the whole pipeline. **`{dataset}` is only useful if the first-stage module `id` values are semantically meaningful.** If the first stage uses a single dispatcher module with a fixed ID (e.g. `id: loader`) and instead varies datasets via parameters, `{dataset}` will always resolve to `"loader"` — which is not useful. In that case use `{params.dataset}` or `{module.id}` instead.
 
-> **Deprecation notice:** `{dataset}` is a legacy variable that couples output filenames to first-stage module IDs. It will be deprecated in a future release. Prefer `{name}` for new benchmarks.
+> **Deprecated:** `{dataset}` couples output filenames to first-stage module IDs. Loading a benchmark that uses it prints a warning naming the offending path, and it will be removed in a future release. Prefer `{module.id}`, or `{params.KEY}` to name outputs after a parameter.
 
 ```yaml
 stages:
@@ -667,7 +667,7 @@ stages:
         ...
     outputs:
       - id: data.counts
-        path: "{dataset}.txt.gz"     # → D1.txt.gz  (dataset ID)
+        path: "{module.id}.txt.gz"   # → D1.txt.gz
 
   - id: methods
     inputs: [data.counts]
@@ -680,12 +680,10 @@ stages:
         ...
     outputs:
       - id: methods.result
-        path: "{name}_result.txt"    # → M1_result.txt / M2_result.txt  (own module ID)
-        # or equivalently:
-        # path: "{module.id}_result.txt"
+        path: "{module.id}_result.txt"  # → M1_result.txt / M2_result.txt
 ```
 
-The `--name` CLI argument passed to each module script always receives the current module's own ID, matching the `{name}` template variable.
+From api_version 0.5.0, the `--name` CLI argument passed to each module script receives the current module's own ID, matching `{module.id}`. Below 0.5.0 it receives the dataset ID, so downstream stages of those plans still need `{dataset}`.
 
 ### Using the human-readable module name
 
@@ -719,7 +717,7 @@ stages:
           - k: "5"
     outputs:
       - id: data.result
-        path: "{name}_k{params.k}_result.txt"
+        path: "{module.id}_k{params.k}_result.txt"
         # → D1_k3_result.txt  (k=3 node)
         # → D1_k5_result.txt  (k=5 node)
 ```
@@ -760,5 +758,46 @@ stages:
           commit: 41aaa0a            # note the commit is still needed
     outputs:
       - id: data.image
-        path: "{dataset}.png"
+        path: "{module.id}.png"
 ```
+
+## Upgrade a benchmark to api 0.8.0
+
+api 0.8.0 passes each module the exact path of every output it must write
+(`--output id=PATH`). Upgrading is opt-in per benchmark: bump `api_version` in
+the plan once its modules are ready.
+
+### In the plan
+
+- **Stage and module ids** may only contain letters, digits and underscores,
+  and must not start with a digit. `M1-foo` becomes `M1_foo`. On 0.7 these
+  ids already load with a deprecation warning, so `ob validate plan` lists
+  what to rename.
+- **Output ids** do not change. `data.raw` is still valid, so the `--data.raw`
+  flags downstream modules read stay the same. Only `=` and whitespace are
+  rejected.
+- **Output paths**: prefer `{module.id}` to the deprecated `{dataset}`.
+
+Renaming a stage or module id renames its output directory, so those nodes
+and everything downstream of them are recomputed on the next run. Results
+under the old names are not reused.
+
+### In each module
+
+Every module receives one `--output id=PATH` flag per output its stage
+declares, a single-output stage included. Paths are absolute. `--output_dir`
+and `--name` are still passed, so a module that ignores `--output` keeps
+working, unless it rejects unknown flags. Such a module must accept
+`--output` before the benchmark moves to 0.8.
+
+```python
+parser.add_argument("--output", action="append", default=[])
+args, _ = parser.parse_known_args()
+outputs = dict(o.split("=", 1) for o in args.output)
+# outputs == {"data.raw": "/abs/out/data/D1/.../D1_data.json"}
+```
+
+Write each output to `outputs[id]` instead of building the filename from
+`--output_dir` and `--name`. Then the module no longer depends on the
+filenames a particular benchmark chooses. `--output_dir` and `--name` are
+dropped in api 0.10.

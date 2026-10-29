@@ -114,7 +114,7 @@ stages:
       - id: out1
         description: test output
         format: json
-        path: "{dataset}_output.json"
+        path: "{module.id}_output.json"
 """)
 
         # Test valid bzip2 extension - should not raise error
@@ -177,7 +177,7 @@ stages:
       - id: out1
         description: test output
         format: json
-        path: "{dataset}_output.json"
+        path: "{module.id}_output.json"
 """)
 
         for compression, output_file in invalid_combinations:
@@ -240,7 +240,7 @@ stages:
       - id: out1
         description: test output
         format: json
-        path: "{dataset}_output.json"
+        path: "{module.id}_output.json"
 """)
 
         for compression, output_file in valid_combinations:
@@ -367,7 +367,7 @@ stages:
       - id: out1
         description: test output
         format: json
-        path: "{dataset}_output.json"
+        path: "{module.id}_output.json"
 """)
 
         for compression, output_file in valid_cases:
@@ -424,7 +424,7 @@ stages:
       - id: out1
         description: test output
         format: json
-        path: "{dataset}_output.json"
+        path: "{module.id}_output.json"
 """)
 
         result = runner.invoke(
