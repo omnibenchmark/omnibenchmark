@@ -450,13 +450,7 @@ class SnakemakeGenerator:
         # below, so a workflow-relative --output would land inside the module
         # checkout. Spec §3.2 promises absolute paths. Indexed by position, so
         # an output id never has to be a bash or Snakemake name.
-        if self.api_version >= APIVersion.V0_8_0:
-            for i in range(len(node.outputs)):
-                lines += [
-                    f"mkdir -p $(dirname {{output[{i}]}})",
-                    f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
-                    f"/$(basename {{output[{i}]}})",
-                ]
+        lines += self._output_file_lines(node)
 
         # Redirect stdout/stderr through tee so both the terminal and the log
         # file receive all output.
@@ -522,10 +516,7 @@ class SnakemakeGenerator:
 
         cmd += ["--output_dir $OUTPUT_DIR", f"--name {name_param}"]
 
-        # Always `id=PATH`, however many outputs the stage declares (009 §3.2).
-        if self.api_version >= APIVersion.V0_8_0:
-            for i, output_id in enumerate(node.outputs):
-                cmd.append(f"--output {output_id}=$OUTPUT_FILE_{i}")
+        cmd += self._output_flags(node)
 
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
@@ -538,6 +529,35 @@ class SnakemakeGenerator:
         lines.append(cmd[-1])
 
         self._write_shell_lines(f, lines)
+
+    def _output_file_lines(self, node: ResolvedNode) -> list:
+        """From 0.8, absolutise each declared output into $OUTPUT_FILE_<i>.
+
+        The shell cds into the module directory, so a workflow-relative
+        --output would land inside the module checkout; spec 009 §3.2 promises
+        absolute paths. Indexed by position, so an output id never has to be a
+        bash or Snakemake name.
+        """
+        if self.api_version < APIVersion.V0_8_0:
+            return []
+        lines = []
+        for i in range(len(node.outputs)):
+            lines += [
+                f"mkdir -p $(dirname {{output[{i}]}})",
+                f"OUTPUT_FILE_{i}=$(cd $(dirname {{output[{i}]}}) && pwd)"
+                f"/$(basename {{output[{i}]}})",
+            ]
+        return lines
+
+    def _output_flags(self, node: ResolvedNode) -> list:
+        """From 0.8, one `--output id=PATH` per declared output, for every kind
+        of node (009 §3.2), however many outputs the stage declares."""
+        if self.api_version < APIVersion.V0_8_0:
+            return []
+        return [
+            f"--output {output_id}=$OUTPUT_FILE_{i}"
+            for i, output_id in enumerate(node.outputs)
+        ]
 
     def _write_gather_shell(self, f: TextIO, node: ResolvedNode):
         """Write the shell: block for a gather/collector node (production execution).
@@ -566,6 +586,7 @@ class SnakemakeGenerator:
         # (pre-0.8.0) rules keep their text so existing trees do not rerun.
         if node.parameters and self.api_version >= APIVersion.V0_8_0:
             lines.append(self._parameters_json_line(node.parameters))
+        lines += self._output_file_lines(node)
 
         # Resolve each input group to absolute paths into a bash array.
         # One loop per distinct flag name — no matter how many files per flag.
@@ -591,6 +612,7 @@ class SnakemakeGenerator:
         # Array expansion: ${{var[@]}} in the Snakefile so Snakemake unescapes {{ → {
         # and }} → } leaving bash with ${var[@]}.
         gather_args = ["--output_dir $OUTPUT_DIR", f"--name {node.module_id}"]
+        gather_args += self._output_flags(node)
         for input_name in inputs_by_name:
             var = _bash_var(input_name)
             array_ref = '"${{' + var + '[@]}}"'
