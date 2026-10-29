@@ -5,8 +5,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from omnibenchmark.core._paths import normalize_dataset_path, substitute_node_vars
+from omnibenchmark.core._paths import (
+    construct_output_paths,
+    normalize_dataset_path,
+    substitute_node_vars,
+)
 from omnibenchmark.model import IOFile, expand_output_path
+from omnibenchmark.model.benchmark import APIVersion
 
 
 def _node(parameters=None, name=None):
@@ -60,3 +65,29 @@ def test_expand_output_path_keeps_filename():
     assert expand_output_path(IOFile(id="o", path="{module.id}.txt")) == (
         "{input}/{stage}/{module}/{params}/{module.id}.txt"
     )
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "api, expected",
+    [
+        (APIVersion.V0_7_0, "out/data/D1/.default/methods/M1/.abc123/M1.txt"),
+        (APIVersion.V0_8_0, "out/data.D1.default/methods.M1.abc123/M1.txt"),
+    ],
+)
+def test_predicted_paths_follow_the_layout(api, expected):
+    """`ob describe status`, archive and remote storage predict run paths."""
+    flat = api >= APIVersion.V0_8_0
+    tmpl = expand_output_path(IOFile(id="o", path="{module.id}.txt"), flat=flat)
+    model = SimpleNamespace(
+        api_version=api, get_stage_outputs=lambda _stage: {"o": tmpl}
+    )
+    data = SimpleNamespace(
+        stage_id="data",
+        module_id="D1",
+        param_id=".default",
+        module=SimpleNamespace(name=None),
+        parameters=None,
+    )
+    paths = construct_output_paths(Path("out"), [data, _node()], model)
+    assert paths[-1] == expected
