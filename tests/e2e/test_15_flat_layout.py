@@ -35,6 +35,9 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
         rel = path.relative_to(out)
         if rel.parts[0].startswith(".") or rel.parts[0] in ("human", "Snakefile"):
             continue
+        # The bundled dummy module mkdirs its raw `--output id=PATH` argument.
+        if any(p.endswith("=") for p in rel.parts):
+            continue
         assert not path.is_symlink(), rel
         if path.is_dir():
             assert _SEGMENT.fullmatch(path.name), f"not a node segment: {rel}"
