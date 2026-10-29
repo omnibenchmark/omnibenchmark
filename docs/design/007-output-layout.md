@@ -133,7 +133,7 @@ Nothing in the result tree is hidden and nothing in it is a symlink. `parameters
 
 #### 3.1.2 Readable view: `human/`
 
-`out/human/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`k-5_alpha-0.1`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
+`out/human/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`alpha-0.1_k-5`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
 
 - `ob run` rebuilds it from the resolved node list after Snakemake exits, including after partial and failed runs. It is not written by rules, so it never appears in rule text.
 - It is a derived view. Archives and remote storage skip it, and deleting it loses nothing.
@@ -149,7 +149,7 @@ Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule'
 
 #### 3.1.5 Deprecation of v1
 
-- api < 0.8.0: v1 layout, plus a deprecation warning at plan load.
+- api < 0.8.0: v1 layout, plus a deprecation warning from `ob run`.
 - api 0.10.0: the v1 writer is removed, and plans below 0.8.0 are rejected with a pointer to the migration.
 - Migration means raising `api_version`. Every output path changes, so the next run recomputes everything. Relocating an existing v1 tree is out of scope.
 
