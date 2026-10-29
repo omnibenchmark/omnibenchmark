@@ -5,6 +5,8 @@ import re
 from pathlib import PurePosixPath, Path
 from typing import List, Dict, Set, Optional
 
+from omnibenchmark.model.benchmark import APIVersion
+
 # Per-component limit on most modern filesystems (ext4, xfs, apfs, ntfs).
 MAX_FILENAME_LEN = 255
 
@@ -200,9 +202,12 @@ def construct_output_paths(
     else:
         stage_outputs = model.get_stage_outputs(head.stage_id).values()
 
-    current_path = f"{head.stage_id}/{head.module_id}"
-    if any(["{params}" in o for o in stage_outputs]):
-        current_path += f"/{head.param_id}"
+    if model.api_version >= APIVersion.V0_8_0:  # flat layout, 007 §3.1
+        current_path = f"{head.stage_id}.{head.module_id}{head.param_id}"
+    else:
+        current_path = f"{head.stage_id}/{head.module_id}"
+        if any(["{params}" in o for o in stage_outputs]):
+            current_path += f"/{head.param_id}"
 
     new_prefix = f"{prefix}/{current_path}"
     paths = [substitute_node_vars(x, head, prefix) for x in stage_outputs]
