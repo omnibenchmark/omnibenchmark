@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from omnibenchmark.core._expand import expand_scatter_stage
+from omnibenchmark.model.benchmark import APIVersion
 
 
 def _module(module_id):
@@ -46,7 +47,6 @@ def _expand(stage, benchmark, state):
         resolved_modules_cache={(stage.id, m.id): object() for m in stage.modules},
         stages_to_expand=benchmark.stages,
         path_exclusions={},
-        nesting_strategy="nested",
         module_filter=None,
         target_stage=None,
         dag_errors=state["errors"],
@@ -67,6 +67,7 @@ def test_consumer_after_empty_stage_still_resolves_its_inputs():
     pca = _stage("pca", ["counts"], "embedding")
     stages = [data, empty, pca]
     model = SimpleNamespace(
+        api_version=APIVersion.V0_8_0,
         get_name=lambda: "b",
         get_version=lambda: "1.0",
         get_author=lambda: "me",
