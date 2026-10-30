@@ -8,8 +8,7 @@ pass/fail by EXIT CODE (0 = pass, non-zero = fail); stdout/stderr are captured t
 a per-output log.
 
 Targets are the concrete files the benchmark produced (from the status machinery),
-matched to a validator by ``(stage_id, output_id)`` via the output's path template
-(see :func:`build_targets`).
+keyed by the output id they were produced for, so no filename matching is needed.
 We do NOT glob the filesystem: real output trees are deeply nested under hidden
 ``.{param}`` dirs that globbing won't traverse.
 
@@ -20,7 +19,6 @@ generated Snakefile is run from the benchmark out/ dir; results and logs land un
 
 import json
 import os
-import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
@@ -60,65 +58,23 @@ def discover_validators(validators_dir: Path) -> ValidatorMap:
     return validators
 
 
-def _template_regex(path_template: str, datasets: Iterable[str]) -> "re.Pattern[str]":
-    """Regex for an output template's filename.
-
-    ``{dataset}`` matches only the known dataset names; any other placeholder
-    matches within one path segment.
-    """
-    names = "|".join(re.escape(d) for d in sorted(datasets, key=len, reverse=True))
-    parts = re.split(r"(\{[^}]*\})", Path(path_template).name)
-    regex = "".join(
-        (f"(?:{names})" if p == "{dataset}" and names else "[^/]*")
-        if p.startswith("{") and p.endswith("}")
-        else re.escape(p)
-        for p in parts
-    )
-    return re.compile(regex)
-
-
 def build_targets(
-    produced: Iterable[Tuple[str, str]],
+    produced: Iterable[Tuple[str, str, str]],
     validators: ValidatorMap,
-    stage_outputs: Dict[str, Dict[str, str]],
     out_dir: Path,
-    datasets: Iterable[str] = (),
 ) -> Dict[str, List[str]]:
-    """Match produced files to validators -> ``{relpath: [interp, script]}``.
+    """Map produced files to validators -> ``{relpath: [interp, script]}``.
 
-    *produced* is an iterable of ``(stage_id, file_path)`` for files that exist on
-    disk. *stage_outputs* maps ``stage_id -> {output_id: path_template}``. Each file
-    is matched against every output its stage declares, not just the validated
-    ones, so ``{dataset}.tsv`` cannot claim ``D_extra.tsv`` when ``{dataset}_extra.tsv``
-    is also declared. Among matches the template with the most literal characters
-    wins. ``relpath`` is relative to *out_dir* (where snakemake runs).
+    *produced* is an iterable of ``(stage_id, output_id, file_path)`` for files
+    that exist on disk. ``relpath`` is relative to *out_dir* (where snakemake runs).
     """
-    datasets = list(datasets)
-    patterns: Dict[str, List[Tuple[int, str, "re.Pattern[str]"]]] = {}
-    for stage_id, outputs in stage_outputs.items():
-        patterns[stage_id] = sorted(
-            (
-                (
-                    -len(re.sub(r"\{[^}]*\}", "", Path(t).name)),
-                    oid,
-                    _template_regex(t, datasets),
-                )
-                for oid, t in outputs.items()
-            ),
-            key=lambda x: x[0],
+    return {
+        os.path.relpath(str(file_path), str(out_dir)): list(
+            validators[(stage_id, output_id)]
         )
-
-    targets: Dict[str, List[str]] = {}
-    for stage_id, file_path in produced:
-        base = os.path.basename(file_path)
-        output_id = next(
-            (oid for _, oid, rx in patterns.get(stage_id, []) if rx.fullmatch(base)),
-            None,
-        )
-        spec = validators.get((stage_id, output_id)) if output_id else None
-        if spec:
-            targets[os.path.relpath(str(file_path), str(out_dir))] = list(spec)
-    return targets
+        for stage_id, output_id, file_path in produced
+        if (stage_id, output_id) in validators
+    }
 
 
 # Static body of the generated Snakefile. Snakemake placeholders are kept verbatim
