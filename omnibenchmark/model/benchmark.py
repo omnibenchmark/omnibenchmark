@@ -1539,6 +1539,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"declares {self.api_version.value})."
                         )
 
+        # Validators key by output id, which only named outputs (0.8.0) pin down.
+        if self.validators and self.api_version < APIVersion.V0_8_0:
+            raise ValueError(
+                f"`validators` requires api_version ≥ 0.8.0 (this benchmark "
+                f"declares {self.api_version.value})."
+            )
+
         # Node ids join stage and module ids with `-` and `.`; keeping those out
         # of the ids makes a node id parse back into its segments. Enforced from
         # 0.8.0, a warning before so existing plans keep loading. See 004 §3.13.

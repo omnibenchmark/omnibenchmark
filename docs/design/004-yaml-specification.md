@@ -572,7 +572,7 @@ Output ids are unique within a stage, at every api version.
 
 Validators are ad-hoc scripts that check the files a stage produces. They are an
 optional, post-run quality gate — pass/fail per output, surfaced (read-only) as a
-green/red status per module in the status report.
+green/red status per module in the status report. Requires api_version ≥ 0.8.0.
 
 ```yaml
 validators:
