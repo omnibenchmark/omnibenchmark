@@ -298,7 +298,8 @@ jobs:
 
   e2e-clustering-apptainer:
     name: E2E Clustering Example (Apptainer)
-    runs-on: ubuntu-latest
+    # the apptainer PPA has no 26.04 build; ubuntu-latest falls back to Ubuntu's 1.4.5
+    runs-on: ubuntu-24.04
     needs: [build]
     steps:
       - name: Check out repository
@@ -353,6 +354,7 @@ jobs:
         with:
           name: clustbench-apptainer-output
           path: clustering_example/
+          include-hidden-files: true
           retention-days: 7
 
   test-e2e-s3:
