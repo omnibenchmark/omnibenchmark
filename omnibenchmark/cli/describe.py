@@ -489,6 +489,7 @@ def status(
                 all_files += [
                     [
                         str(Path(f).absolute()),
+                        _validation_for(f, validation_index)[0],
                         f in filedict[st][nd]["observed_output_files"],
                         f in filedict[st][nd]["missing_output_files"],
                         f
@@ -498,23 +499,20 @@ def status(
                         nd.get_id(),
                         st,
                         logs_str,
-                        _validation_for(f, validation_index)[0],
-                        _validation_for(f, validation_index)[1],
                     ]
                     for j, f in enumerate(filedict[st][nd]["output_files"])
                 ]
         all_columns = [
             "file",
+            "validation",
             "observed",
             "missing",
-            "dependent file newer",
-            "dependent repo newer",
+            "stale: input changed",
+            "stale: module changed",
             "module",
             "node",
             "stage",
             "logs",
-            "validation",
-            "validator log",
         ]
         sum_columns = ["Stage", "Completed", "Missing", "Total", "Progress %"]
         sum_rows = [
