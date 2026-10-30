@@ -7,22 +7,7 @@ from pathlib import Path
 from omnibenchmark.core.validators import (
     build_targets,
     discover_validators,
-    path_to_glob,
 )
-
-
-@pytest.mark.short
-@pytest.mark.parametrize(
-    "template,expected",
-    [
-        ("{dataset}_pcas.tsv", "*_pcas.tsv"),
-        ("{dataset}.h5ad", "*.h5ad"),
-        ("{dataset}_{params}_out.txt", "*_*_out.txt"),
-        ("static.json", "static.json"),
-    ],
-)
-def test_path_to_glob(template, expected):
-    assert path_to_glob(template) == expected
 
 
 @pytest.mark.short
@@ -68,7 +53,9 @@ def test_build_targets_matches_produced_files_to_validators():
         ("PCA", "out/DATA/data/.fa42/FILT/f/.default/PCA/p/.77f7/data_pcas.tsv"),
         ("PCA", "out/DATA/data/.fa42/FILT/f/.default/PCA/p/.77f7/data_loadings.tsv"),
     ]
-    targets = build_targets(produced, validators, stage_outputs, Path("out"))
+    targets = build_targets(
+        produced, validators, stage_outputs, Path("out"), datasets=["data"]
+    )
 
     assert targets["DATA/data/.fa42/data.h5ad"] == ["python3", "/y/validate.py"]
     assert targets["DATA/data/.fa42/FILT/f/.default/PCA/p/.77f7/data_pcas.tsv"] == [
@@ -77,3 +64,25 @@ def test_build_targets_matches_produced_files_to_validators():
     ]
     # loadings.tsv has no validator (no pcas match) -> not a target
     assert len(targets) == 2
+
+
+@pytest.mark.short
+def test_build_targets_prefers_the_most_specific_output():
+    # {dataset}.tsv would also match D_extra.tsv; the extra output must win.
+    validators = {("m", "scores"): ("bash", "/s.sh"), ("m", "extra"): ("bash", "/e.sh")}
+    stage_outputs = {"m": {"scores": "{dataset}.tsv", "extra": "{dataset}_extra.tsv"}}
+    produced = [("m", "out/m/a/D.tsv"), ("m", "out/m/a/D_extra.tsv")]
+    targets = build_targets(produced, validators, stage_outputs, Path("out"), ["D"])
+    assert targets == {
+        "m/a/D.tsv": ["bash", "/s.sh"],
+        "m/a/D_extra.tsv": ["bash", "/e.sh"],
+    }
+
+
+@pytest.mark.short
+def test_build_targets_skips_files_of_unvalidated_outputs():
+    # Only "scores" has a validator; D_extra.tsv belongs to "extra" and is skipped.
+    validators = {("m", "scores"): ("bash", "/s.sh")}
+    stage_outputs = {"m": {"scores": "{dataset}.tsv", "extra": "{dataset}_extra.tsv"}}
+    produced = [("m", "out/m/a/D_extra.tsv")]
+    assert build_targets(produced, validators, stage_outputs, Path("out"), ["D"]) == {}

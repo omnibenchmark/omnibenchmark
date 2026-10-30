@@ -349,7 +349,11 @@ def run_validators(
     cores: int = 1,
     force: bool = False,
 ) -> int:
-    """Discover validators, generate the wildcard Snakefile, run it. Returns rc."""
+    """Discover validators, generate the wildcard Snakefile, run it.
+
+    Returns non-zero if snakemake fails or any validator rejects its output.
+    """
+    import json
     import os
     import shutil
     import subprocess
@@ -409,7 +413,11 @@ def run_validators(
     stage_outputs = {
         stage_id: model.get_stage_outputs(stage_id) for stage_id in model.get_stages()
     }
-    targets = build_targets(produced, validators, stage_outputs, out_path)
+    # Exec paths name their dataset after the entrypoint module.
+    datasets = {
+        nd.module_id for st in filedict for nd in filedict[st] if nd.is_entrypoint()
+    }
+    targets = build_targets(produced, validators, stage_outputs, out_path, datasets)
     if not targets:
         logger.warning(
             "No produced outputs matched a validator; nothing to validate. "
@@ -449,7 +457,24 @@ def run_validators(
         result = subprocess.run(cmd)
     finally:
         os.chdir(original_dir)
-    return result.returncode
+    if result.returncode != 0:
+        return result.returncode
+
+    # The rule records a failing validator instead of failing itself, so read
+    # the results back to make the command usable as a CI gate.
+    failed = []
+    for rel in targets:
+        result_json = out_path / VALIDATION_DIR / f"{rel}.json"
+        try:
+            if json.loads(result_json.read_text())["exit_code"] != 0:
+                failed.append(rel)
+        except (OSError, ValueError, KeyError):
+            failed.append(rel)
+    for rel in failed:
+        logger.error(
+            f"Validation failed: {rel} (log: {out_path / VALIDATION_DIR / rel}.log)"
+        )
+    return 1 if failed else 0
 
 
 def _format_warning_message(message: str) -> str:
