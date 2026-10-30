@@ -1,0 +1,114 @@
+id: FlatLayout
+description: >-
+  Flat output layout (007 §3.1, api 0.8.0). Every segment kind in one plan:
+  a plain chain (data -> shallow, deep), a join (join, one per data module,
+  its directory carrying the parent-set digest), a grouped gather over the
+  join (metrics, one per data module), and a scatter after the gather (report).
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.8.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+      - id: D2
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "2+2"]
+    outputs:
+      - id: data_out
+        path: "{module.id}_data.json"
+
+  - id: shallow
+    inputs:
+      - data_out
+    modules:
+      - id: S1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+1", "--input", "data_out", "--kind", "s"]
+    outputs:
+      - id: shallow_out
+        path: "{module.id}_s.json"
+
+  - id: deep
+    inputs:
+      - data_out
+    modules:
+      - id: P1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+2", "--input", "data_out", "--kind", "d"]
+    outputs:
+      - id: deep_out
+        path: "{module.id}_d.json"
+
+  - id: join
+    inputs:
+      - shallow_out
+      - deep_out
+    modules:
+      - id: J1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+10", "--input", "deep_out", "--kind", "j"]
+    outputs:
+      - id: join_out
+        path: "{module.id}_j.json"
+
+  - id: metrics
+    gather:
+      - from: join_out
+        group_by: data
+    modules:
+      # dummycollector only reads `--methods.result`, an id 0.8.0 rejects;
+      # test_13 covers gather membership, this stage only needs a directory.
+      - id: MC
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1", "--kind", "g"]
+    outputs:
+      - id: metrics_summary
+        path: "{module.id}_g.json"
+
+  - id: report
+    inputs:
+      - metrics_summary
+    modules:
+      - id: R1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1", "--kind", "r"]
+    outputs:
+      - id: report_out
+        path: "{module.id}_r.json"

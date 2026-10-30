@@ -27,3 +27,19 @@ def test_fan_in_lineage_sidecar_is_archived(tmp_path, monkeypatch):
 
     assert "out/metrics/D1/MC/.default/lineage.json" in found
     assert "out/metrics/D1/MC/.default/parameters.json" in found
+
+
+@pytest.mark.short
+def test_human_view_is_not_versioned_twice(tmp_path, monkeypatch):
+    """`human/` symlinks to results; only the real file is kept (007 §3.1.2)."""
+    node = tmp_path / "out" / "methods.M1.abcd1234"
+    node.mkdir(parents=True)
+    (node / "parameters.json").write_text("{}")
+    human = tmp_path / "out" / "human" / "methods.M1.k-5"
+    human.mkdir(parents=True)
+    (human / "parameters.json").symlink_to(node / "parameters.json")
+    monkeypatch.chdir(tmp_path)
+
+    found = get_expected_benchmark_output_files(_FakeBenchmark(), StorageOptions("out"))
+
+    assert found == ["out/methods.M1.abcd1234/parameters.json"]

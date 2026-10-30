@@ -1387,7 +1387,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 return {}
             stage = stage_obj
 
-        return {output.id: expand_output_path(output) for output in stage.outputs}
+        flat = self.api_version >= APIVersion.V0_8_0  # 007 §3.1
+        return {
+            output.id: expand_output_path(output, flat=flat) for output in stage.outputs
+        }
 
     def _resolve_module_attr(self, module: Union[str, Module], attr: str):
         """Resolve a module attribute by module/module_id."""
@@ -1775,15 +1778,19 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         return errors
 
 
-def expand_output_path(file: IOFile) -> str:
+def expand_output_path(file: IOFile, flat: bool = False) -> str:
     """
     Expands a relative output path into a standardized templated format.
 
     Prepends the standard OUTPUT_PATH_PREFIX if not already present. The
-    filename is kept as written, as the run path does.
+    filename is kept as written, as the run path does. ``flat`` selects the
+    api 0.8.0 layout (007 §3.1); ``{params}`` carries its leading dot, so
+    ``{stage}.{module}{params}`` is ``stage.module.<hash>``.
     """
-    # Import here to avoid circular imports
-    OUTPUT_PATH_PREFIX = os.path.join("{input}", "{stage}", "{module}", "{params}")
+    if flat:
+        OUTPUT_PATH_PREFIX = os.path.join("{input}", "{stage}.{module}{params}")
+    else:
+        OUTPUT_PATH_PREFIX = os.path.join("{input}", "{stage}", "{module}", "{params}")
 
     output_path = file.path
     if output_path.strip() == "":
