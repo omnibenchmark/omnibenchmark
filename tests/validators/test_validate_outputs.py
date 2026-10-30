@@ -107,7 +107,7 @@ def test_validate_outputs_pass_and_fail(project):
             ["validate", "outputs", "benchmark.yaml", "--out-dir", "out", "--force"],
             cwd=str(project),
         )
-    assert val.returncode == 0, val.stdout + val.stderr
+    assert val.returncode == 1, val.stdout + val.stderr
     verdicts = _verdicts(out)
     assert verdicts, verdicts
     assert all(code == 1 for name, code in verdicts.items() if "D2" in name)
