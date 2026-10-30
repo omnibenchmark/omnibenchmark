@@ -28,6 +28,8 @@
     <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
 
 <style>
+    /* CSV button sits right, just left of the search box */
+    #all_table_wrapper .dt-buttons { float: right; margin-left: 0.5em; }
     body { 
         font-family: Arial, sans-serif; 
         margin: 20px; 
@@ -269,7 +271,7 @@ $(document).ready(function() {
         pageLength: 25,
         autoWidth: false,
         responsive: true,
-        dom: 'Blfrtip',
+        dom: 'lfBrtip',
         buttons: [{extend: 'csv', text: 'Download CSV', filename: 'status_report'}],
             columnDefs: [
                 {
