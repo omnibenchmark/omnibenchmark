@@ -34,55 +34,18 @@ def test_discover_validators_rejects_multiple(tmp_path):
 
 
 @pytest.mark.short
-def test_build_targets_matches_produced_files_to_validators():
+def test_build_targets_keys_by_output_id():
     validators = {
         ("PCA", "pcas_tsv"): ("Rscript", "/x/validate.R"),
         ("DATA", "rawdata_h5ad"): ("python3", "/y/validate.py"),
     }
-    # get_stage_outputs returns the full expanded path; only the leaf is matched
-    stage_outputs = {
-        "PCA": {
-            "pcas_tsv": "{input}/{stage}/{module}/{params}/{dataset}_pcas.tsv",
-            "loadings_tsv": "{input}/{stage}/{module}/{params}/{dataset}_loadings.tsv",
-        },
-        "DATA": {"rawdata_h5ad": "{input}/{stage}/{module}/{dataset}.h5ad"},
-    }
-    # produced files are deeply nested under hidden .{param} dirs (real layout)
     produced = [
-        ("DATA", "out/DATA/data/.fa42/data.h5ad"),
-        ("PCA", "out/DATA/data/.fa42/FILT/f/.default/PCA/p/.77f7/data_pcas.tsv"),
-        ("PCA", "out/DATA/data/.fa42/FILT/f/.default/PCA/p/.77f7/data_loadings.tsv"),
+        ("DATA", "rawdata_h5ad", "out/data.data/data.h5ad"),
+        ("PCA", "pcas_tsv", "out/data.data/pca.p/data_pcas.tsv"),
+        # no validator for loadings -> not a target
+        ("PCA", "loadings_tsv", "out/data.data/pca.p/data_loadings.tsv"),
     ]
-    targets = build_targets(
-        produced, validators, stage_outputs, Path("out"), datasets=["data"]
-    )
-
-    assert targets["DATA/data/.fa42/data.h5ad"] == ["python3", "/y/validate.py"]
-    assert targets["DATA/data/.fa42/FILT/f/.default/PCA/p/.77f7/data_pcas.tsv"] == [
-        "Rscript",
-        "/x/validate.R",
-    ]
-    # loadings.tsv has no validator (no pcas match) -> not a target
-    assert len(targets) == 2
-
-
-@pytest.mark.short
-def test_build_targets_prefers_the_most_specific_output():
-    # {dataset}.tsv would also match D_extra.tsv; the extra output must win.
-    validators = {("m", "scores"): ("bash", "/s.sh"), ("m", "extra"): ("bash", "/e.sh")}
-    stage_outputs = {"m": {"scores": "{dataset}.tsv", "extra": "{dataset}_extra.tsv"}}
-    produced = [("m", "out/m/a/D.tsv"), ("m", "out/m/a/D_extra.tsv")]
-    targets = build_targets(produced, validators, stage_outputs, Path("out"), ["D"])
-    assert targets == {
-        "m/a/D.tsv": ["bash", "/s.sh"],
-        "m/a/D_extra.tsv": ["bash", "/e.sh"],
+    assert build_targets(produced, validators, Path("out")) == {
+        "data.data/data.h5ad": ["python3", "/y/validate.py"],
+        "data.data/pca.p/data_pcas.tsv": ["Rscript", "/x/validate.R"],
     }
-
-
-@pytest.mark.short
-def test_build_targets_skips_files_of_unvalidated_outputs():
-    # Only "scores" has a validator; D_extra.tsv belongs to "extra" and is skipped.
-    validators = {("m", "scores"): ("bash", "/s.sh")}
-    stage_outputs = {"m": {"scores": "{dataset}.tsv", "extra": "{dataset}_extra.tsv"}}
-    produced = [("m", "out/m/a/D_extra.tsv")]
-    assert build_targets(produced, validators, stage_outputs, Path("out"), ["D"]) == {}

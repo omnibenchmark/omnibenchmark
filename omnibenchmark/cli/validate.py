@@ -395,29 +395,23 @@ def run_validators(
         logger.warning(f"No validators found under {vdir}; nothing to validate.")
         return 0
 
-    # Match validators to the concrete files the benchmark produced. We reuse the
-    # status machinery (rather than globbing) because outputs are nested under
-    # hidden .{param} dirs that a glob won't traverse.
-    _, filedict, _ = prepare_status(
+    # Each node resolves its outputs in declaration order, so pairing them with
+    # the output ids gives the file for every (stage, output id) without
+    # matching filenames.
+    _, _, exec_path_dict = prepare_status(
         str(benchmark_path),
         str(out_path),
         return_all=True,
         cache_dir=Path(".snakemake") / "repos",
     )
-    produced = [
-        (stage_id, f)
-        for stage_id in filedict
-        for node in filedict[stage_id]
-        for f in filedict[stage_id][node]["observed_output_files"]
-    ]
-    stage_outputs = {
-        stage_id: model.get_stage_outputs(stage_id) for stage_id in model.get_stages()
+    produced = {
+        (st.stage_id, output_id, f.output_file_path)
+        for ep in exec_path_dict.values()
+        for st in ep.exec_path.values()
+        for output_id, f in zip(st.node.get_outputs(), st.output_stage_files)
+        if f.output_file.exists()
     }
-    # Exec paths name their dataset after the entrypoint module.
-    datasets = {
-        nd.module_id for st in filedict for nd in filedict[st] if nd.is_entrypoint()
-    }
-    targets = build_targets(produced, validators, stage_outputs, out_path, datasets)
+    targets = build_targets(produced, validators, out_path)
     if not targets:
         logger.warning(
             "No produced outputs matched a validator; nothing to validate. "
