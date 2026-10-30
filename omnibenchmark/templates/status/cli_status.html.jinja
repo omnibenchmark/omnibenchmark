@@ -4,8 +4,8 @@
     <title>{{ name }} - Status Report</title>
     <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
 
     <!-- Vis.js Network -->
     <link rel="stylesheet" href="https://unpkg.com/vis-network@latest/styles/vis-network.min.css">
@@ -20,19 +20,16 @@
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
-
-    <!-- Buttons extension -->
+    <!-- CSV export of the file table -->
     <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
 
     <!-- Vis.js Network -->
     <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
 
 <style>
+    /* CSV button sits right, just left of the search box */
+    #all_table_wrapper .dt-buttons { float: right; margin-left: 0.5em; }
     body { 
         font-family: Arial, sans-serif; 
         margin: 20px; 
@@ -116,6 +113,15 @@
         </div>
         {% endfor %}
     </div>
+    <div class="graph-legend">
+        <span style="margin-right:6px;font-size:12px;color:#666;">Validation ring:</span>
+        {% for v in validation_legend %}
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ffffff; border: 3px solid {{ v.color }};"></div>
+            <span>{{ v.name }}</span>
+        </div>
+        {% endfor %}
+    </div>
 
     <h2>Detailed File Status</h2>
     {{ table2|safe }}
@@ -186,7 +192,21 @@ $(document).ready(function() {
             details += '<h3>Node: ' + node.module + '</h3>';
             details += '<p><strong>Stage:</strong> ' + node.stage + '</p>';
             details += '<p><strong>Status:</strong> ' + node.status + '</p>';
-            
+            if (node.validation) {
+                var vcolors = {pass: '#2ECC40', fail: '#FF4136', not_validated: '#999999'};
+                details += '<p><strong>Validation:</strong> <span style="color:' +
+                    (vcolors[node.validation] || '#999999') + ';font-weight:bold;">' +
+                    node.validation + '</span></p>';
+                if (node.validation_logs && node.validation_logs.length > 0) {
+                    details += '<p><strong>Validator Logs:</strong></p><ul>';
+                    node.validation_logs.forEach(function(log) {
+                        details += '<li><a href="file://' + log + '" target="_blank">' +
+                            log.split('/').pop() + '</a></li>';
+                    });
+                    details += '</ul>';
+                }
+            }
+
             // Add output files
             if (node.files && node.files.length > 0) {
                 details += '<p><strong>Output Files:</strong></p><ul>';
@@ -230,7 +250,7 @@ $(document).ready(function() {
         }
     });
     
-    // Stage summary table - simple with export buttons
+    // Stage summary table
     $('#status_table').DataTable({
         order: [[4, 'desc']],
         pageLength: 10,
@@ -238,35 +258,21 @@ $(document).ready(function() {
         paging: false,
         info: false,
         autoWidth: false,
-        responsive: true,
-        dom: 'Bfrtip',
-        buttons: [
-            'copy', 'csv', 'excel', 'pdf', 'print'
-        ]
+        responsive: true
     });
     
-    // Detailed file table - with column filtering and export
+    // Detailed file table - with column filtering
     $('#all_table thead tr').clone(true).addClass('filters').appendTo('#all_table thead');
     
     var table = $('#all_table').DataTable({
         orderCellsTop: true,
         fixedHeader: true,
-        order: [[1, 'desc']],  // Sort by observed
+        order: [[2, 'desc']],  // Sort by observed
         pageLength: 25,
         autoWidth: false,
         responsive: true,
-        dom: 'Blfrtip',
-        buttons: [
-            'copy', 
-            'csv', 
-            'excel', 
-            {
-                extend: 'pdf',
-                orientation: 'landscape',
-                pageSize: 'A4'
-            },
-            'print'
-        ],
+        dom: 'lfBrtip',
+        buttons: [{extend: 'csv', text: 'Download CSV', filename: 'status_report'}],
             columnDefs: [
                 {
                     // File column - wrap long paths and add clickable links
@@ -294,13 +300,26 @@ $(document).ready(function() {
                     }
                 },
                 {
+                    // Validation - coloured pass / fail; logs are in the node details
+                    targets: 1,
+                    width: '8%',
+                    render: function(data, type, row) {
+                        if (type === 'display' && data) {
+                            var colors = {pass: '#2ECC40', fail: '#FF4136', not_validated: '#999999'};
+                            return '<span style="color:' + (colors[data] || '#999999') +
+                                ';font-weight:bold;">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                },
+                {
                     // Boolean columns - narrower
-                    targets: [1, 2, 3, 4],
+                    targets: [2, 3, 4, 5],
                     width: '8%'
                 },
                 {
                     // Module and node columns
-                    targets: [5, 6],
+                    targets: [6, 7],
                     width: '12%',
                     createdCell: function(td, cellData, rowData, row, col) {
                         $(td).css({
@@ -310,12 +329,12 @@ $(document).ready(function() {
                 },
                 {
                     // Stage column
-                    targets: 7,
+                    targets: 8,
                     width: '8%'
                 },
                 {
                     // Logs column - make clickable links for log files
-                    targets: 8,
+                    targets: 9,
                     width: '10%',
                     render: function(data, type, row) {
                         if (type === 'display' && data) {
@@ -343,8 +362,8 @@ $(document).ready(function() {
                 var cell = $('.filters th').eq(colIdx);
                 var title = $(cell).text();
                 
-                // Boolean columns (columns 1-4) and stage column (7) - use select dropdown
-                if (colIdx === 1 || colIdx === 2 || colIdx === 3 || colIdx === 4 || colIdx === 7) {
+                // Validation, boolean and stage columns - use select dropdown
+                if ([1, 2, 3, 4, 5, 8].indexOf(colIdx) !== -1) {
                     var select = $('<select><option value="">All</option></select>')
                         .appendTo($(cell).empty())
                         .on('change', function () {

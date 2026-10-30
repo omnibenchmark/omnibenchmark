@@ -513,6 +513,24 @@ class SoftwareEnvironment(DescribableEntity):
         return self
 
 
+class ValidatorsConfig(BaseModel):
+    """Configuration for output validators.
+
+    Validators are ad-hoc scripts dropped at ``{directory}/{stage}/{output}/``
+    that receive a single output file path and signal pass/fail via exit code
+    (0 = pass, non-zero = fail). All validators run in the single software
+    environment referenced by ``env``.
+    """
+
+    env: str = Field(
+        ..., description="software_environments id used to run all validators"
+    )
+    directory: Optional[str] = Field(
+        "validators",
+        description="Path to the validators directory, relative to the plan file",
+    )
+
+
 class SoftwareEnvironmentReference(BaseModel):
     """Reference to a software environment."""
 
@@ -875,6 +893,9 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     )
     api_version: APIVersion = Field(APIVersion.V0_4_0, description="API version")
     provenance: Optional[Provenance] = Field(None, description="Lineage metadata")
+    validators: Optional[ValidatorsConfig] = Field(
+        None, description="Output validators configuration"
+    )
 
     @field_validator("api_version", mode="before")
     @classmethod
@@ -1297,6 +1318,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         """Get software environments as a dict."""
         return {env.id: env for env in self.software_environments}
 
+    def get_validators_config(self) -> Optional["ValidatorsConfig"]:
+        """Get the output validators configuration, if declared."""
+        return self.validators
+
     def get_stages(self) -> Dict[str, Stage]:
         """Get benchmark stages as a dict."""
         return {stage.id: stage for stage in self.stages}
@@ -1513,6 +1538,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"requires api_version ≥ 0.7.0 (this benchmark "
                             f"declares {self.api_version.value})."
                         )
+
+        # Validators key by output id, which only named outputs (0.8.0) pin down.
+        if self.validators and self.api_version < APIVersion.V0_8_0:
+            raise ValueError(
+                f"`validators` requires api_version ≥ 0.8.0 (this benchmark "
+                f"declares {self.api_version.value})."
+            )
 
         # Node ids join stage and module ids with `-` and `.`; keeping those out
         # of the ids makes a node id parse back into its segments. Enforced from
