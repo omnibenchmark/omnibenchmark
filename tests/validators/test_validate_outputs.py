@@ -13,13 +13,13 @@ import pytest
 from tests.cli.cli_setup import OmniCLISetup
 
 # Host-backend plan: two dummy modules under stage `data`, each writing
-# {dataset}_data.json. Validators run in the `host` env.
+# {module.id}_data.json. Validators run in the `host` env.
 BENCHMARK = """\
 id: ValidatorsIntegration
 description: validators integration test
 version: "1.0"
 benchmarker: "test"
-benchmark_yaml_spec: "0.3"
+api_version: "0.8.0"
 software_backend: host
 software_environments:
   host:
@@ -44,8 +44,8 @@ stages:
         parameters:
           - evaluate: "2+2"
     outputs:
-      - id: data.raw
-        path: "{dataset}_data.json"
+      - id: raw
+        path: "{module.id}_data.json"
 validators:
   env: host
 """
@@ -64,8 +64,8 @@ def project(tmp_path):
     bundles = Path(__file__).parent.parent / "data" / "bundles"
     (tmp_path / "bundles").symlink_to(bundles, target_is_directory=True)
     (tmp_path / "benchmark.yaml").write_text(BENCHMARK)
-    # keyed by (stage_id, output_id): stage "data", output id "data.raw"
-    vdir = tmp_path / "validators" / "data" / "data.raw"
+    # keyed by (stage_id, output_id): stage "data", output id "raw"
+    vdir = tmp_path / "validators" / "data" / "raw"
     vdir.mkdir(parents=True)
     (vdir / "validate.py").write_text(NONEMPTY_VALIDATOR)
     return tmp_path

@@ -49,3 +49,32 @@ def test_build_targets_keys_by_output_id():
         "data.data/data.h5ad": ["python3", "/y/validate.py"],
         "data.data/pca.p/data_pcas.tsv": ["Rscript", "/x/validate.R"],
     }
+
+
+@pytest.mark.short
+def test_validators_require_api_0_8():
+    from omnibenchmark.model.benchmark import Benchmark
+
+    plan = """\
+id: b
+version: "1.0"
+benchmarker: t
+api_version: "0.7.0"
+software_backend: host
+software_environments:
+  host:
+    description: host
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: host
+        repository: {url: https://example.org/x.git, commit: abc1234}
+    outputs:
+      - id: raw
+        path: "{module.id}_data.json"
+validators:
+  env: host
+"""
+    with pytest.raises(Exception, match="requires api_version"):
+        Benchmark.from_yaml(plan)
