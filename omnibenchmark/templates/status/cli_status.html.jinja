@@ -5,6 +5,7 @@
     <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
 
     <!-- Vis.js Network -->
     <link rel="stylesheet" href="https://unpkg.com/vis-network@latest/styles/vis-network.min.css">
@@ -19,6 +20,9 @@
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <!-- CSV export of the file table -->
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
 
     <!-- Vis.js Network -->
     <script src="https://unpkg.com/vis-network@latest/dist/vis-network.min.js"></script>
@@ -265,6 +269,8 @@ $(document).ready(function() {
         pageLength: 25,
         autoWidth: false,
         responsive: true,
+        dom: 'Blfrtip',
+        buttons: [{extend: 'csv', text: 'Download CSV', filename: 'status_report'}],
             columnDefs: [
                 {
                     // File column - wrap long paths and add clickable links
