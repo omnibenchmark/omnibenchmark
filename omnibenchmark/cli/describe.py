@@ -161,6 +161,68 @@ def _render_text_status(
 
 
 @add_debug_option
+@describe.command("environments")
+@click.argument(
+    "benchmark",
+    type=click.Path(exists=True),
+)
+@click.pass_context
+def environments(ctx, benchmark: str):
+    """List software environments: backends, users and metadata.
+
+    BENCHMARK: Path to benchmark YAML file.
+
+    The active backend is marked with `*`; an environment with no `*` has no
+    recipe for it.
+    """
+    from omnibenchmark.model import Benchmark as BenchmarkModel
+    from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
+
+    try:
+        b = BenchmarkModel.from_yaml(Path(benchmark))
+    except (BenchmarkParseError, ValidationError, ValueError) as e:
+        click.echo(f"Error: {e}", err=True)
+        ctx.exit(1)
+        return
+
+    click.echo(f"Software backend: {b.software_backend.value}")
+    if not b.software_environments:
+        click.echo("No software environments declared.")
+        return
+
+    users: dict = {}
+    for stage in b.stages:
+        for module in stage.modules:
+            users.setdefault(module.software_environment, []).append(module.id)
+    for collector in b.metric_collectors or []:
+        users.setdefault(collector.software_environment, []).append(collector.id)
+
+    metadata = b.software_environments_metadata or {}
+    rows = [["ID", "NAME", "BACKENDS", "USED BY", "DESCRIPTION"]]
+    for env in b.software_environments:
+        meta = metadata.get(env.id)
+        backends = ", ".join(
+            backend.value + ("*" if backend == b.software_backend else "")
+            for backend in env.backends()
+        )
+        rows.append(
+            [
+                env.id,
+                (meta.name if meta else env.name) or "",
+                backends,
+                ", ".join(users.get(env.id, [])),
+                (meta.description if meta else env.description) or "",
+            ]
+        )
+    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]) - 1)]
+    click.echo()
+    for row in rows:
+        cells = [cell.ljust(width) for cell, width in zip(row, widths)]
+        click.echo("  ".join(cells + [row[-1]]).rstrip())
+    click.echo("\n* active backend")
+
+
+@add_debug_option
 @describe.command(
     name="status",
     context_settings=dict(

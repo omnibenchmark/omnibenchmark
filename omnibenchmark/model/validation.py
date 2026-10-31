@@ -405,24 +405,41 @@ class BenchmarkValidator:
         return None
 
     def _validate_software_environments(self, errors: List[str]) -> None:
-        """Validate software environment references without checking file paths."""
-        env_ids = {env.id for env in self.software_environments}  # type: ignore
+        """Validate software environment references without checking file paths.
 
-        # Check modules
-        all_modules = self.get_modules()  # type: ignore
-        for module in all_modules.values():  # type: ignore
-            if module.software_environment not in env_ids:  # type: ignore
+        An explicit reference must name a declared environment. An omitted one
+        is filled in when exactly one is declared (see
+        `validate_model_structure_post_init`), and is fine under the host
+        backend, which ignores environments.
+        """
+        from .benchmark import SoftwareBackendEnum
+
+        env_ids = {env.id for env in self.software_environments}  # type: ignore
+        is_host = self.software_backend == SoftwareBackendEnum.host  # type: ignore
+
+        def check(env_id, what: str) -> None:
+            if env_id is None:
+                if not is_host:
+                    errors.append(
+                        f"Missing software_environment for {what}. It may be "
+                        "omitted only when exactly one software environment is "
+                        "declared or software_backend is host."
+                    )
+            elif env_id not in env_ids:
                 errors.append(
-                    f"Software environment with id '{module.software_environment}' is not declared. It should be listed as part of the stanza software_environments within the benchmarking YAML header."  # type: ignore
+                    f"Software environment with id '{env_id}' for {what} is not declared. It should be listed as part of the stanza software_environments within the benchmarking YAML header."
                 )
+
+        for module in self.get_modules().values():  # type: ignore
+            check(module.software_environment, f"module '{module.id}'")  # type: ignore
 
         # Check metric collectors
         if self.metric_collectors:  # type: ignore
             for collector in self.metric_collectors:  # type: ignore
-                if collector.software_environment not in env_ids:  # type: ignore
-                    errors.append(
-                        f"Software environment with id '{collector.software_environment}' for metric collector '{collector.id}' is not declared."  # type: ignore
-                    )
+                check(
+                    collector.software_environment,  # type: ignore
+                    f"metric collector '{collector.id}'",  # type: ignore
+                )
 
                 # Validate metric collector inputs
                 all_outputs = self.get_outputs()  # type: ignore

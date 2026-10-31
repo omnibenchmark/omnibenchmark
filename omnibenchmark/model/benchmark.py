@@ -95,6 +95,159 @@ def _is_environment_url(string: str) -> bool:
         return False
 
 
+# api 0.9.0 environment entries: `{type, uri}` → the SoftwareEnvironment field
+# that backend reads. Only conda files and local apptainer images are paths.
+_ENV_TYPE_FIELDS = {
+    "apptainer": "apptainer",
+    "conda": "conda",
+    "docker": "docker",
+    "envmodules": "envmodule",
+}
+_ENV_PATH_TYPES = {"apptainer", "conda"}
+_ENVS = "software_environments"
+_ENVS_META = "software_environments_metadata"
+_ENV_META_KEYS = {"name", "description"}
+
+
+def _normalize_software_environments(
+    data: Dict[str, Any], plan_file: Optional[Path], line_map: Dict[str, int]
+) -> None:
+    """Rewrite api 0.9.0 `software_environments` into the inline legacy form.
+
+    From 0.9.0 the block is either the mapping itself or a path to a YAML file
+    holding `software_environments:` (and optionally
+    `software_environments_metadata:`). Each environment is a list of
+    `{type, uri}`. Both are lowered here, before validation, so everything
+    downstream (and `summary_hash`) sees resolved contents, never the path.
+    Descriptions live in `software_environments_metadata`, keyed by
+    environment id, outside the hash.
+    """
+    try:
+        api = APIVersion(str(data.get("api_version", "0.4.0")))
+    except ValueError:
+        return  # unknown version: the api_version validator reports it
+    is_v09 = api >= APIVersion.V0_9_0
+
+    source, lines = plan_file, line_map
+    envs = data.get(_ENVS)
+    meta = data.get(_ENVS_META)
+    rebase_from: Optional[Path] = None
+
+    def fail(message: str, path: str = _ENVS) -> BenchmarkParseError:
+        return BenchmarkParseError(
+            message=message,
+            yaml_file=source,
+            line_number=lines.get(path) or lines.get(path.split(".")[0]),
+        )
+
+    if meta is not None and not is_v09:
+        raise fail(f"`{_ENVS_META}` requires api_version ≥ 0.9.0.", _ENVS_META)
+
+    if isinstance(envs, str):
+        if not is_v09:
+            raise fail(f"`{_ENVS}` as a file path requires api_version ≥ 0.9.0.")
+        if plan_file is None:
+            raise fail(
+                f"`{_ENVS}: {envs}` includes a file, which needs the plan to be "
+                "loaded from a file."
+            )
+        if meta is not None:
+            raise fail(
+                f"`{_ENVS_META}` goes in {envs}, beside the definitions.", _ENVS_META
+            )
+        inc = plan_file.parent / envs
+        if not inc.is_file():
+            raise fail(f"Software environments file not found: {inc}")
+        inc_data, lines = load_yaml_with_lines(inc)
+        source = inc
+        if not isinstance(inc_data, dict) or _ENVS not in inc_data:
+            raise fail(f"{inc} must hold a `{_ENVS}:` mapping.", "")
+        if extra := inc_data.keys() - {_ENVS, _ENVS_META}:
+            raise fail(
+                f"{inc} has unexpected key(s) {sorted(extra)}.", sorted(extra)[0]
+            )
+        envs, meta = inc_data[_ENVS], inc_data.get(_ENVS_META)
+        if inc.parent.resolve() != plan_file.parent.resolve():
+            rebase_from = inc.parent
+
+    if not isinstance(envs, dict):
+        return  # absent, or a shape the model validation reports
+
+    shapes = [isinstance(v, list) for v in envs.values()]
+    if not is_v09:
+        if any(shapes):
+            raise fail(
+                "Software environments as a list of {type, uri} require "
+                "api_version ≥ 0.9.0."
+            )
+        return
+    if not all(shapes):
+        raise fail(
+            "From api_version 0.9.0 each software environment is a list of "
+            "{type, uri}, e.g. `py: [{type: conda, uri: envs/py.yaml}]`; "
+            f"descriptions go in `{_ENVS_META}`."
+        )
+
+    lowered: Dict[str, Any] = {}
+    for env_id, entries in envs.items():
+        env: Dict[str, Any] = {}
+        for i, entry in enumerate(entries):
+            path = f"{_ENVS}.{env_id}[{i}]"
+            if not isinstance(entry, dict) or not {"type", "uri"} <= entry.keys():
+                raise fail(
+                    f"Environment '{env_id}' entry {i} needs `type` and `uri`.", path
+                )
+            if extra := entry.keys() - {"type", "uri"}:
+                raise fail(
+                    f"Environment '{env_id}' entry {i} has unexpected key(s) "
+                    f"{sorted(extra)}.",
+                    path,
+                )
+            kind, uri = str(entry["type"]), str(entry["uri"])
+            field = _ENV_TYPE_FIELDS.get(kind)
+            if field is None:
+                raise fail(
+                    f"Environment '{env_id}' has unknown backend type '{kind}'; "
+                    f"expected one of {sorted(_ENV_TYPE_FIELDS)}.",
+                    path,
+                )
+            if field in env:
+                raise fail(
+                    f"Environment '{env_id}' lists backend '{kind}' twice.", path
+                )
+            if (
+                rebase_from is not None
+                and plan_file is not None
+                and kind in _ENV_PATH_TYPES
+                and not _is_environment_url(uri)
+                and not os.path.isabs(uri)
+            ):
+                # Local paths are written relative to the included file; the
+                # rest of ob resolves them against the plan directory.
+                uri = os.path.relpath(rebase_from / uri, plan_file.parent)
+            env[field] = uri
+        lowered[env_id] = env
+    data[_ENVS] = lowered
+
+    if meta is None:
+        return
+    if not isinstance(meta, dict):
+        raise fail(f"`{_ENVS_META}` must map environment ids to metadata.", _ENVS_META)
+    for env_id, fields in meta.items():
+        path = f"{_ENVS_META}.{env_id}"
+        if env_id not in lowered:
+            raise fail(
+                f"`{_ENVS_META}` describes undeclared environment '{env_id}'.", path
+            )
+        if not isinstance(fields, dict) or not fields.keys() <= _ENV_META_KEYS:
+            raise fail(
+                f"Metadata for environment '{env_id}' takes only "
+                f"{sorted(_ENV_META_KEYS)}.",
+                path,
+            )
+    data[_ENVS_META] = meta
+
+
 # Validators
 def validate_non_empty_string(v: str) -> str:
     """Validate that a string is not empty."""
@@ -133,10 +286,11 @@ class APIVersion(str, Enum):
     V0_6_0 = "0.6.0"
     V0_7_0 = "0.7.0"
     V0_8_0 = "0.8.0"
+    V0_9_0 = "0.9.0"
 
     @classmethod
     def latest(cls) -> "APIVersion":
-        return cls.V0_8_0
+        return cls.V0_9_0
 
     @classmethod
     def supported_versions(cls) -> set[str]:
@@ -495,6 +649,16 @@ class SoftwareEnvironment(DescribableEntity):
     envmodule: Optional[str] = Field(None, description="Environment module name")
     easyconfig: Optional[str] = Field(None, description="EasyBuild config path")
 
+    def backends(self) -> List["SoftwareBackendEnum"]:
+        """Backends this environment has a recipe for, in enum order."""
+        fields = {
+            SoftwareBackendEnum.apptainer: self.apptainer,
+            SoftwareBackendEnum.conda: self.conda,
+            SoftwareBackendEnum.docker: self.docker,
+            SoftwareBackendEnum.envmodules: self.envmodule,
+        }
+        return [backend for backend, recipe in fields.items() if recipe]
+
     @model_validator(mode="after")
     def validate_backend_config(self) -> "SoftwareEnvironment":
         """Ensure at least one backend configuration is provided."""
@@ -511,6 +675,13 @@ class SoftwareEnvironment(DescribableEntity):
         #         "At least one software backend must be configured (conda, apptainer, docker, envmodule, or easyconfig)"
         #     )
         return self
+
+
+class SoftwareEnvironmentMetadata(BaseModel):
+    """Descriptive metadata for one software environment (api ≥ 0.9.0)."""
+
+    name: Optional[str] = Field(None, description="Human-readable name")
+    description: Optional[str] = Field(None, description="Human-readable description")
 
 
 class SoftwareEnvironmentReference(BaseModel):
@@ -852,7 +1023,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     version: str = Field(..., description="Benchmark version")
     software_backend: SoftwareBackendEnum = Field(..., description="Software backend")
     software_environments: List[SoftwareEnvironment] = Field(
-        ..., description="Available software environments"
+        default_factory=list,
+        description="Available software environments (optional for host backend)",
     )
     stages: List[Stage] = Field(..., description="Benchmark stages")
     metric_collectors: Optional[List[MetricCollector]] = Field(
@@ -875,6 +1047,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     )
     api_version: APIVersion = Field(APIVersion.V0_4_0, description="API version")
     provenance: Optional[Provenance] = Field(None, description="Lineage metadata")
+    software_environments_metadata: Optional[Dict[str, SoftwareEnvironmentMetadata]] = (
+        Field(
+            None,
+            description=(
+                "Descriptive metadata per software environment id (api ≥ 0.9.0). "
+                "Not part of summary_hash."
+            ),
+        )
+    )
 
     @field_validator("api_version", mode="before")
     @classmethod
@@ -992,6 +1173,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 yaml_file=yaml_file_path,
                 original_error=None,
             )
+
+        _normalize_software_environments(data, yaml_file_path, line_map)
 
         # Convert dict-style software_environments to list format
         if "software_environments" in data and isinstance(
