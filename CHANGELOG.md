@@ -25,6 +25,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
   (#391)
 - feat(breaking)!: flat output layout (layout v2, api 0.8.0): each node adds one directory `stage.module[.group].param[-join]` instead of three (`stage/module/.param`), with no hidden directories or symlinks in the result tree. Readable parameter names move to a derived `out/human/` view that `ob run` rebuilds after every run; `ob archive`, `ob collect` and remote storage skip it. Raising `api_version` changes every output path, so the next run recomputes everything (design 007 §3.1, #387)
 - deprecate: plans below api 0.8.0 keep the nested layout and warn at `ob run`; the nested layout is removed at api 0.10.0
+- fix: on api 0.8.0 a gather's directory carries a digest of its member set, as a join's does, so a run that prunes members (`--filter`, `--with-capability`) no longer overwrites the full gather's result under the same path (#405)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 

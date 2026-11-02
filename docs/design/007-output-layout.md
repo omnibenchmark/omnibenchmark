@@ -116,7 +116,7 @@ param   = "default" | <hash8>
 ```
 
 - `<group>`: the group value of a grouped gather (010 §3.3). A global gather omits it.
-- `<join>`: the parent-set digest of a fan-in node (010 §5.2).
+- `<join>`: the parent-set digest of a join (010 §5.2), or the member-set digest of a gather with more than one member. A run that prunes members (`--filter`, capability gating) therefore gets its own directory instead of overwriting the full gather (#405).
 - Parsing: split on `.`. Three fields means no group, four means a group. Split the last field on `-` to get the join digest.
 - This parse is unambiguous because stage and module ids, and therefore group values, match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
 
@@ -124,8 +124,8 @@ param   = "default" | <hash8>
 out/data.D1.default/data.raw.tsv
 out/data.D1.default/methods.M1.a1b2c3d4/result.tsv
 out/data.D1.default/methods.M1.a1b2c3d4/metrics.acc.default/score.json
-out/summary.collect.default/table.tsv                 # global gather
-out/summary.collect.D1.default/table.tsv              # grouped gather, group D1
+out/summary.collect.default-1a2b3c4d/table.tsv        # global gather
+out/summary.collect.D1.default-5e6f7a8b/table.tsv     # grouped gather, group D1
 out/data.D1.default/merge.J.default-9f8e7d6c/out.tsv  # fan-in
 ```
 
