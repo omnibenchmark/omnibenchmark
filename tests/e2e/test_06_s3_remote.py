@@ -129,7 +129,16 @@ class S3TestEnvironment:
             else self.setup_local_environment()
         )
 
+    _ENV_VARS = (
+        "OB_STORAGE_S3_ACCESS_KEY",
+        "OB_STORAGE_S3_SECRET_KEY",
+        "OB_STORAGE_S3_ENDPOINT_URL",
+        "AWS_DEFAULT_REGION",
+    )
+
     def set_environment_variables(self):
+        # Restored on cleanup, so the next layout's bucket still finds them.
+        self._saved_env = {v: os.environ.get(v) for v in self._ENV_VARS}
         if self.access_key and self.secret_key:
             os.environ["OB_STORAGE_S3_ACCESS_KEY"] = self.access_key
             os.environ["OB_STORAGE_S3_SECRET_KEY"] = self.secret_key
@@ -139,13 +148,11 @@ class S3TestEnvironment:
             os.environ["AWS_DEFAULT_REGION"] = self.region
 
     def cleanup_environment_variables(self):
-        for var in [
-            "OB_STORAGE_S3_ACCESS_KEY",
-            "OB_STORAGE_S3_SECRET_KEY",
-            "OB_STORAGE_S3_ENDPOINT_URL",
-            "AWS_DEFAULT_REGION",
-        ]:
-            os.environ.pop(var, None)
+        for var, value in getattr(self, "_saved_env", {}).items():
+            if value is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = value
 
     def test_bucket_creation_permissions(self) -> bool:
         s3_client = self.get_s3_client()
@@ -323,9 +330,13 @@ class S3TestEnvironment:
 
 
 def update_config_with_s3_settings(
-    config_path: Path, tmp_path: Path, s3_env: S3TestEnvironment
+    config_path: Path,
+    tmp_path: Path,
+    s3_env: S3TestEnvironment,
+    api_version: Optional[str] = None,
 ) -> Path:
-    """Write a copy of the config with the test bucket name and endpoint injected."""
+    """Write a copy of the config with the test bucket name and endpoint injected,
+    and *api_version* (with ``{module.id}`` for ``{dataset}``) when given."""
     import yaml
 
     with open(config_path) as f:
@@ -334,6 +345,13 @@ def update_config_with_s3_settings(
     config["storage"]["bucket_name"] = s3_env.bucket_name
     if s3_env.endpoint:
         config["storage"]["endpoint"] = s3_env.endpoint
+    if api_version:
+        config["api_version"] = api_version
+        # The dummy module names its file after `--name`; on the nested layout
+        # it also recovered the dataset from the path, which a flat one lacks.
+        for stage in config["stages"]:
+            for out in stage.get("outputs", []):
+                out["path"] = out["path"].replace("{dataset}", "{module.id}")
 
     out = tmp_path / "06_s3_remote_updated.yaml"
     with open(out, "w") as f:
@@ -384,19 +402,22 @@ def s3_config_path():
 
 
 @pytest.fixture(scope="module")
-def s3_environment(s3_config_path):
-    """Single bucket that persists across all tests in this module."""
-    use_remote = (
-        os.getenv("OB_E2E_USE_REMOTE_S3", "false").lower() == "true"
-        or os.getenv("CI", "false").lower() == "true"
-    )
+def s3_environment(s3_config_path, s3_api_version, request):
+    """One bucket per layout, shared by all tests in this module.
+
+    Remote S3 only when OB_E2E_USE_REMOTE_S3 is set; otherwise a RustFS on
+    port 9000, else the testcontainers one the other S3 tests use (as in CI).
+    """
+    use_remote = os.getenv("OB_E2E_USE_REMOTE_S3", "false").lower() == "true"
     env = S3TestEnvironment(use_remote=use_remote)
-    if not env.setup():
-        pytest.skip(
-            "Remote S3 credentials not available"
-            if use_remote
-            else "Local RustFS setup failed - docker may not be available"
-        )
+    if use_remote:
+        if not env.setup():
+            pytest.skip("Remote S3 credentials not available")
+    elif not env.setup_local_environment():
+        rustfs = request.getfixturevalue("_rustfs_container_e2e").container
+        env.endpoint = "http://" + rustfs.get_config()["endpoint"]
+        env.access_key, env.secret_key = rustfs.access_key, rustfs.secret_key
+        env.region = "us-east-1"
     env.set_environment_variables()
 
     yield env
@@ -419,7 +440,7 @@ class S3WorkflowState:
 
 
 @pytest.fixture(scope="module")
-def s3_workflow(s3_environment, s3_config_path, tmp_path_factory):
+def s3_workflow(s3_environment, s3_config_path, s3_api_version, tmp_path_factory):
     """Run the S3 pipeline once; all tests in this module share the result."""
     tmp_path = tmp_path_factory.mktemp("s3_workflow")
 
@@ -437,7 +458,7 @@ def s3_workflow(s3_environment, s3_config_path, tmp_path_factory):
         )
 
     config_path = update_config_with_s3_settings(
-        s3_config_path, tmp_path, s3_environment
+        s3_config_path, tmp_path, s3_environment, s3_api_version
     )
     # Copy to the working directory so relative paths resolve correctly
     config_in_cwd = tmp_path / "06_s3_remote.yaml"
@@ -558,15 +579,14 @@ def test_s3_file_content_and_checksums(s3_workflow, s3_environment):
 
 @pytest.mark.e2e_s3
 @pytest.mark.timeout(60)
-def test_s3_version_create_and_list(s3_workflow):
-    """Version 1.0 is created and appears in the version list."""
+def test_s3_version_create_and_list(s3_workflow, s3_environment):
+    """Version 1.0 is created, appears in the version list, and tags the results."""
     with OmniCLISetup() as omni:
         result = omni.call(
             [
                 "remote",
                 "version",
                 "create",
-                "--benchmark",
                 str(s3_workflow.config_path),
             ],
             cwd=str(s3_workflow.tmp_path),
@@ -576,9 +596,15 @@ def test_s3_version_create_and_list(s3_workflow):
     ), f"version create failed\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
     assert "Creating benchmark version" in result.stdout
 
+    manifest = s3_environment.download_object("versions/1.0.csv")
+    assert manifest is not None, "versions/1.0.csv was not written"
+    tagged = [line.split(",")[0] for line in manifest.decode().splitlines()[1:]]
+    assert len([k for k in tagged if k.endswith("_data.json")]) == 3, tagged
+    assert len([k for k in tagged if k.endswith("_method.json")]) == 5, tagged
+
     with OmniCLISetup() as omni:
         result = omni.call(
-            ["remote", "version", "list", "--benchmark", str(s3_workflow.config_path)],
+            ["remote", "version", "list", str(s3_workflow.config_path)],
             cwd=str(s3_workflow.tmp_path),
         )
     assert (
@@ -636,7 +662,7 @@ def test_s3_benchmark_modification_and_version_2(s3_workflow):
 
     with OmniCLISetup() as omni:
         result = omni.call(
-            ["remote", "version", "create", "--benchmark", str(v2_config)],
+            ["remote", "version", "create", str(v2_config)],
             cwd=str(s3_workflow.tmp_path),
         )
     assert (
@@ -646,7 +672,7 @@ def test_s3_benchmark_modification_and_version_2(s3_workflow):
     # List all versions using the original config (same bucket)
     with OmniCLISetup() as omni:
         result = omni.call(
-            ["remote", "version", "list", "--benchmark", str(s3_workflow.config_path)],
+            ["remote", "version", "list", str(s3_workflow.config_path)],
             cwd=str(s3_workflow.tmp_path),
         )
     assert result.returncode == 0
