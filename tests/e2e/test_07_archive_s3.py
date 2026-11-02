@@ -85,7 +85,7 @@ def validate_archive_structure(
 
 @pytest.mark.e2e_s3
 def test_archive_remote_storage_workflow(
-    s3_config_path, s3_environment, tmp_path, bundled_repos, keep_files
+    s3_config_path, s3_environment, s3_api_version, tmp_path, bundled_repos, keep_files
 ):
     """
     Test complete archive workflow with S3 remote storage.
@@ -103,7 +103,7 @@ def test_archive_remote_storage_workflow(
 
     # Update config with dynamic S3 settings
     updated_config = update_config_with_s3_settings(
-        s3_config_path, tmp_path, s3_environment
+        s3_config_path, tmp_path, s3_environment, s3_api_version
     )
 
     # Setup test environment
@@ -422,7 +422,7 @@ def test_archive_remote_storage_workflow(
 
 @pytest.mark.e2e_s3
 def test_archive_version_limitation(
-    s3_config_path, s3_environment, tmp_path, bundled_repos, keep_files
+    s3_config_path, s3_environment, s3_api_version, tmp_path, bundled_repos, keep_files
 ):
     """
     Test and document the current limitation that archive always uses
@@ -438,7 +438,7 @@ def test_archive_version_limitation(
 
     # Update config with dynamic S3 settings
     updated_config = update_config_with_s3_settings(
-        s3_config_path, tmp_path, s3_environment
+        s3_config_path, tmp_path, s3_environment, s3_api_version
     )
     config_file_in_tmp = setup_test_environment(updated_config, tmp_path)
 

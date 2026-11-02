@@ -306,6 +306,13 @@ class S3TestEnvironment:
             return False
 
 
+@pytest.fixture(scope="module", params=[None, "0.8.0"], ids=["nested", "flat"])
+def s3_api_version(request):
+    """api_version injected into the S3 plans: unset keeps the nested layout,
+    0.8.0 the flat one (007 §3.1)."""
+    return request.param
+
+
 @pytest.fixture
 def s3_config_path():
     """Get the path to the S3 remote config."""
