@@ -181,3 +181,23 @@ class TestBenchmarkLogicValidation:
         assert len(collector.inputs) == 1
         assert collector.inputs[0] == "methods.result"
         assert isinstance(collector.inputs[0], str)
+
+
+@pytest.mark.short
+@pytest.mark.parametrize("api_version", ["0.7.0", "0.8.0"])
+def test_module_id_with_whitespace_is_rejected(api_version):
+    """A space in a module id passed validation and failed at run time (#402)."""
+    with pytest.raises(ValidationError, match="osta-r Method"):
+        make_benchmark(
+            api_version=api_version,
+            stages=[{"id": "methods", "modules": [{"id": "osta-r Method"}]}],
+        )
+
+
+@pytest.mark.short
+def test_module_id_with_hyphen_still_warns_before_0_8_0():
+    with pytest.warns(FutureWarning, match="osta-r-Method"):
+        make_benchmark(
+            api_version="0.7.0",
+            stages=[{"id": "methods", "modules": [{"id": "osta-r-Method"}]}],
+        )

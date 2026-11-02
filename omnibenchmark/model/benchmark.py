@@ -1648,7 +1648,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 f"{kind} id '{entity.id}' may only contain letters, digits "
                 f"and underscores."
             )
-            if self.api_version >= APIVersion.V0_8_0:
+            # Whitespace breaks the generated rules at every api version (#402).
+            if self.api_version >= APIVersion.V0_8_0 or re.search(r"\s", entity.id):
                 raise ValueError(msg)
             warnings.warn(
                 f"{msg} This becomes an error at api_version 0.8.0.",
