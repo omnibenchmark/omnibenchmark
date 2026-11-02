@@ -143,6 +143,8 @@ Nothing in the result tree is hidden and nothing in it is a symlink. `parameters
 
 Any code that splits output paths into `stage/module/param` triples must dispatch on the plan's api version: `ob collect`, `ob status`, the metric collector, and storage globs.
 
+The path predictor behind `ob status`, archive and remote storage (`construct_output_paths`) is exact for linear chains only. Joins, gathers and everything downstream of a gather are mispredicted, on v1 as on v2. Out of scope here; the fix is to read the resolved nodes' outputs instead of re-deriving paths.
+
 #### 3.1.4 Snakefile
 
 Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule's body no longer depends on its parameter names.
