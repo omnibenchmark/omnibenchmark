@@ -94,6 +94,9 @@ Both fan-in shapes break that, differently:
 - **Neither path encodes its members.** A gather's records only the group key, a
   join's only its deepest input, so the rest of the closure survives only if
   written down — `gathered_from`/`parents` in the plan, `lineage.json` on disk.
+  From api 0.8.0 a gather's segment also carries a digest of its member set,
+  as a join's does (007 §3.1.1): it tells member sets apart but does not name
+  them, so `lineage.json` stays the record.
 
 This document defines what a gather node is, what its lineage means, and how the
 metadata that used to live on the chain is represented once the chain is cut.
