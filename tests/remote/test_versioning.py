@@ -109,6 +109,25 @@ class TestGetObjectsToTag:
         assert result_names == ["data/file1.txt"]
         assert result_versions == ["v1"]
 
+    def test_tags_flat_node_directories(self):
+        """Flat-layout keys (007 §3.1) are tracked by their stage."""
+        v1 = {"v1": {"last_modified": datetime(2025, 1, 1), "is_delete_marker": False}}
+        objdic = {
+            "data.D1.94686c86/D1_data.json": v1,
+            "preprocess.P1.default/P1.json": v1,  # any stage name
+            "results.2026/x.json": v1,  # a dotted out dir is not a node
+            "v1.0.0/f.txt": v1,
+        }
+        storage_options = FakeStorageOptions(tracked_dirs=["results.2026"])
+
+        result_names, _ = get_objects_to_tag(objdic, storage_options)
+
+        assert result_names == [
+            "data.D1.94686c86/D1_data.json",
+            "preprocess.P1.default/P1.json",
+            "results.2026/x.json",
+        ]
+
     def test_handles_nested_paths(self):
         """Should handle nested directory paths correctly."""
         objdic = {
@@ -218,6 +237,19 @@ class TestFilterObjectsToTag:
 
         assert set(result_objs) == {"data/output1.txt", "data/output2.txt"}
         assert len(result_vers) == 2
+
+    def test_keeps_flat_node_keys_like_stage_directories(self):
+        """Flat keys (007 §3.1) are kept as nested `data/...` keys are."""
+        objects = ["data/D1/.default/D1.json", "data.D1.default/D1.json", "junk/x"]
+        storage_options = FakeStorageOptions(
+            tracked_dirs=["out", "data"], results_dirs=["out"]
+        )
+
+        result_objs, _ = filter_objects_to_tag(
+            objects, ["v1", "v2", "v3"], storage_options, FakeBenchmark()
+        )
+
+        assert result_objs == objects[:2]
 
     def test_keeps_objects_in_non_results_directories(self):
         """Should keep all objects in tracked directories that are not results directories."""

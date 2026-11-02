@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from omnibenchmark.core._paths import (
+    collect_output_paths,
     construct_output_paths,
     normalize_dataset_path,
     substitute_node_vars,
@@ -91,3 +92,26 @@ def test_predicted_paths_follow_the_layout(api, expected):
     )
     paths = construct_output_paths(Path("out"), [data, _node()], model)
     assert paths[-1] == expected
+
+
+@pytest.mark.short
+@pytest.mark.parametrize("api", [APIVersion.V0_7_0, APIVersion.V0_8_0])
+def test_collected_paths_keep_first_stage(api):
+    """The {dataset} normaliser must not drop the one-segment flat data path."""
+    flat = api >= APIVersion.V0_8_0
+    tmpl = expand_output_path(IOFile(id="o", path="{dataset}_data.json"), flat=flat)
+    model = SimpleNamespace(
+        api_version=api,
+        get_stages=lambda: {"data": None},
+        get_stage_outputs=lambda _stage: {"o": tmpl},
+    )
+    data = SimpleNamespace(
+        stage_id="data",
+        module_id="D1",
+        param_id=".default",
+        module=SimpleNamespace(name=None),
+        parameters=None,
+    )
+    paths = collect_output_paths([[data]], Path("out"), model)
+    assert len(paths) == 1
+    assert next(iter(paths)).endswith("/D1_data.json")
