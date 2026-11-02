@@ -121,7 +121,7 @@ segment = <stage> "." <module> [ "." <hash8> ] [ "-" <join> ]
 ```
 
 - `<hash8>`: the parameter hash. A node without parameters has no such field (no `default` placeholder).
-- `<join>`: the parent-set digest of a fan-in node (010 §5.2).
+- `<join>`: the parent-set digest of a join (010 §5.2), or the member-set digest of a gather with more than one member. A run that prunes members (`--filter`, capability gating) therefore gets its own directory instead of overwriting the full gather.
 - This parse is unambiguous because stage and module ids match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
 - Readers still accept a `default` param field, so trees written before it was dropped parse.
 - The name alone identifies a node directory. A module output directory named like `counts.zarr` reads as one too.
@@ -130,8 +130,8 @@ segment = <stage> "." <module> [ "." <hash8> ] [ "-" <join> ]
 out/data.D1/data.raw.tsv
 out/data.D1/methods.M1.a1b2c3d4/result.tsv
 out/data.D1/methods.M1.a1b2c3d4/metrics.acc/score.json
-out/summary.collect/table.tsv                         # global gather (§3.1.6)
-out/data.D1/summary.collect/table.tsv                 # gather with group_by: data
+out/summary.collect-1a2b3c4d/table.tsv                # global gather (§3.1.6)
+out/data.D1/summary.collect-5e6f7a8b/table.tsv        # gather with group_by: data
 out/data.D1/merge.J-9f8e7d6c/out.tsv                  # fan-in
 ```
 

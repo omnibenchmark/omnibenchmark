@@ -192,6 +192,32 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
+@pytest.mark.short
+def test_gather_whose_producers_were_all_pruned_is_skipped():
+    # `metrics` gathers clusters_tsv, which stage `clu` declares, but a filter
+    # pruned every `clu` node: skip the gather instead of failing the DAG.
+    bench = _fake_benchmark()
+    bench.model.stages = [
+        SimpleNamespace(id="clu", outputs=[SimpleNamespace(id="clusters_tsv")]),
+        SimpleNamespace(id="metrics", outputs=[SimpleNamespace(id="summary")]),
+    ]
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clusters_tsv", group_by="data")],
+        modules=[],
+        outputs=[],
+        resources=None,
+    )
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=bench,
+        resolved_modules_cache={},
+        output_to_nodes={},
+        nodes_by_id={},
+    )
+    assert nodes == []
+
+
 def _node(node_id, parent_id, stage_id, module_id, node_dir, provides=None):
     ctx = SimpleNamespace(provides=dict(provides or {}))
     return SimpleNamespace(
@@ -265,7 +291,8 @@ def test_group_by_partitions_by_node_from_0_8():
         "d2.default-norm-nb.default",
     }
     n = g["d2.default-norm-nb.default"]
-    assert n.id == "d2.default-norm-nb.default-metrics-summ.default"
+    # Two members, so the member-set digest applies (#406).
+    assert n.id == "d2.default-norm-nb.default-metrics-summ.default-d4f66a17"
     assert n.parents == []
     assert n.gathered_from == [
         "d2.default-norm-nb.default-clu-ma.default",
@@ -273,7 +300,7 @@ def test_group_by_partitions_by_node_from_0_8():
     ]
     # Under the group node's dir, with its labels (data) plus the group key.
     assert n.get_output_list() == [
-        "data.d2.default/norm.nb.default/metrics.summ/d2_nb_summary.tsv"
+        "data.d2.default/norm.nb.default/metrics.summ-d4f66a17/d2_nb_summary.tsv"
     ]
 
 
@@ -295,32 +322,6 @@ def test_gather_absent_from_picks_is_dropped_before_producer_check():
         output_to_nodes={},
         nodes_by_id={},
         picks={"data": {"*": "all"}},
-    )
-    assert nodes == []
-
-
-@pytest.mark.short
-def test_gather_whose_producers_were_all_pruned_is_skipped():
-    # `metrics` gathers clusters_tsv, which stage `clu` declares, but a filter
-    # pruned every `clu` node: skip the gather instead of failing the DAG.
-    bench = _fake_benchmark()
-    bench.model.stages = [
-        SimpleNamespace(id="clu", outputs=[SimpleNamespace(id="clusters_tsv")]),
-        SimpleNamespace(id="metrics", outputs=[SimpleNamespace(id="summary")]),
-    ]
-    stage = SimpleNamespace(
-        id="metrics",
-        gather=[SimpleNamespace(from_="clusters_tsv", group_by="data")],
-        modules=[],
-        outputs=[],
-        resources=None,
-    )
-    nodes = expand_gather_stage(
-        stage=stage,
-        benchmark=bench,
-        resolved_modules_cache={},
-        output_to_nodes={},
-        nodes_by_id={},
     )
     assert nodes == []
 
@@ -1614,6 +1615,51 @@ def test_flat_layout_from_api_0_8_0():
     nodes, _, _ = _plan(_chain_yaml())
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
     assert method[0] == "data/D1/.default/method/M1/.default/M1_m.txt"
+
+
+@pytest.mark.short
+def test_pruned_gather_gets_its_own_directory_on_0_8():
+    """#405: a gather built from fewer members (`--filter`, capabilities)
+    must not share its id or directory with the full gather."""
+    nodes_by_id = {
+        "d1.default": _node("d1.default", None, "data", "d1", "data.d1.default"),
+        "d1-clu-ma": _node("d1-clu-ma", "d1.default", "clu", "ma", "x/a"),
+        "d1-clu-mb": _node("d1-clu-mb", "d1.default", "clu", "mb", "x/b"),
+    }
+    full = [("d1-clu-ma", "d1/a.tsv"), ("d1-clu-mb", "d1/b.tsv")]
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="data")],
+        modules=[
+            SimpleNamespace(
+                id="summ", name="summ", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="metrics.summary", path="summary.tsv")],
+        resources=None,
+    )
+    benchmark = _fake_benchmark()
+    benchmark.model.api_version = APIVersion.V0_8_0
+
+    def gather(producers):
+        (node,) = expand_gather_stage(
+            stage=stage,
+            benchmark=benchmark,
+            resolved_modules_cache={("metrics", "summ"): object()},
+            output_to_nodes={"clustering": producers},
+            nodes_by_id=nodes_by_id,
+        )
+        return node
+
+    whole, pruned = gather(full), gather(full[:1])
+
+    # 0.8.0 groups by node: the gather sits under its data node (010 §3.2.1).
+    by = "data.d1.default/"
+    assert whole.node_dir.startswith(by + "metrics.summ-")
+    assert pruned.node_dir == by + "metrics.summ"  # no digest
+    assert whole.id != pruned.id
+    # The digest names the member set, so it is stable under member order.
+    assert gather(full[::-1]).node_dir == whole.node_dir
 
 
 def _gather_inputs_yaml(api="0.8.0", group_by="group_by: feat", inputs="[feat_out]"):
