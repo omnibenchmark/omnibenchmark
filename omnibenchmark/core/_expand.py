@@ -182,10 +182,18 @@ def expand_gather_stage(
                 )
 
             param_id = f".{params.hash_short()}" if params else ".default"
+            member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
+            # From 0.8.0 a gather carries its member-set digest, as a join
+            # does: a run that prunes members (`--filter`, capabilities) gets
+            # its own id and directory instead of overwriting the full
+            # gather (#405).
+            segment = param_id
+            if flat and len(member_ids) > 1:
+                segment = f"{param_id}-{join_hash(member_ids)}"
             # A global gather has no group value, so neither its id nor its
             # path carries a group segment.
             group_seg = f"-{gval}" if gval is not None else ""
-            node_id = f"{stage.id}-{module_id}{group_seg}{param_id}"
+            node_id = f"{stage.id}-{module_id}{group_seg}{segment}"
 
             # Enumerated keys + name mapping: same shape metric collectors
             # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
@@ -194,7 +202,6 @@ def expand_gather_stage(
             for idx, (_mid, from_id, path) in enumerate(kept):
                 inputs[f"input_{idx}"] = path
                 input_name_mapping[f"input_{idx}"] = from_id
-            member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
 
             ctx = build_template_context(
                 stage=stage,
@@ -210,7 +217,7 @@ def expand_gather_stage(
 
             # The cut chain roots at the stage id: unique by construction,
             # so two gathers cannot share a tree.
-            d = node_dir(stage.id, module_id, param_id, group=gval, flat=flat)
+            d = node_dir(stage.id, module_id, segment, group=gval, flat=flat)
             outputs = {}
             for output_spec in stage.outputs:
                 # Only the group label is bound: a template referencing any
