@@ -175,3 +175,12 @@ def test_build_record_flat_below_a_grouped_gather(tmp_path):
     assert record["dataset"] == "D1"
     assert record["lineage"] == "metrics/MC/report/R1"
     assert json.loads(record["params"]) == {"report": {"top": 5}}
+
+
+@pytest.mark.short
+def test_build_record_flat_skips_dotted_template_subdir(tmp_path):
+    """`v1.0.0` splits into three fields but is not a 007 §3.1.1 segment."""
+    leaf = tmp_path / "data.D1.default" / "v1.0.0" / "methods.M1.default"
+    record = _build_record(tmp_path, _write_perf(leaf))
+
+    assert record["lineage"] == "data/D1/methods/M1"

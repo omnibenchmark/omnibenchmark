@@ -20,6 +20,7 @@ from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
     build_template_context,
     inherited_provides,
+    node_depth,
     node_dir,
     iter_ancestors,
     join_hash,
@@ -473,8 +474,14 @@ def expand_scatter_stage(
                         if inputs:
                             from pathlib import Path as PathLib
 
+                            # Node segments first: a flat node adds one part,
+                            # so a template subdir must not outweigh a node.
                             deepest_input = max(
-                                inputs.values(), key=lambda p: len(PathLib(p).parts)
+                                inputs.values(),
+                                key=lambda p: (
+                                    node_depth(p) if flat else 0,
+                                    len(PathLib(p).parts),
+                                ),
                             )
                             base_path = str(PathLib(deepest_input).parent)
                         resolution_cache[bundle_key] = (

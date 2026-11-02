@@ -945,7 +945,7 @@ def _run_snakemake(
         os.chdir(original_dir)
         if benchmark and benchmark.model.api_version >= APIVersion.V0_8_0:
             try:
-                build_human_view(out_dir, resolved_nodes or [])
+                build_human_view(out_dir)
             except OSError as e:  # the view is disposable; never fail the run
                 logger.warning(f"Could not build {out_dir}/human: {e}")
 

@@ -9,6 +9,7 @@ isolation.
 """
 
 import hashlib
+import re
 from collections import deque
 from itertools import product
 from typing import Optional
@@ -402,6 +403,27 @@ def node_dir(
         return ".".join([stage_id, module_id, *group_field, seg.lstrip(".")])
     group_dir = f"{group}/" if group is not None else ""
     return f"{stage_id}/{group_dir}{module_id}/{seg}"
+
+
+_ID = r"[A-Za-z_][A-Za-z0-9_]*"
+_SEGMENT_RE = re.compile(
+    rf"({_ID})\.({_ID})(?:\.({_ID}))?\.(default|[0-9a-f]{{8}})(?:-([0-9a-f]{{8}}))?"
+)
+
+
+def parse_node_segment(part: str) -> Optional[tuple]:
+    """``(stage, module, group, param, join)`` of a flat node segment, else None.
+
+    The grammar of 007 §3.1.1; ``group`` and ``join`` are None when absent.
+    Anything else (a template subdirectory such as ``v1.0.0``) is not a node.
+    """
+    m = _SEGMENT_RE.fullmatch(part)
+    return m.groups() if m else None
+
+
+def node_depth(path: str) -> int:
+    """How many flat node segments *path* passes through (0 on the v1 layout)."""
+    return sum(1 for part in path.split("/") if parse_node_segment(part))
 
 
 def resolve_label_value(label: str, module_provides, module_id: str) -> str:

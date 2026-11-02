@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import click
 
+from omnibenchmark.core._lineage import parse_node_segment
 from omnibenchmark.constants import INTERNAL_OUT_DIRS
 from omnibenchmark.logging import logger
 from .debug import add_debug_option
@@ -104,38 +105,37 @@ def _segments(rel_parts: List[str]) -> tuple:
     """``(group, [(stage, module, param_dir, node_dir), ...])`` for a node path.
 
     Flat layout (api ≥ 0.8.0, 007 §3.1): one ``stage.module[.group].param``
-    part per node; parts that do not split into 3 or 4 fields are template
+    part per node, parsed by the 007 §3.1.1 grammar; other parts are template
     subdirectories. Nested layout: ``stage/module/param_dir`` triples.
     """
-    if (
-        rel_parts
-        and len(rel_parts[0].split(".")) in (3, 4)
-        and not any(p.startswith(".") for p in rel_parts)
-    ):
-        group, segs = None, []
+    if rel_parts and parse_node_segment(rel_parts[0]):
+        group, segments = None, []
         for i, part in enumerate(rel_parts):
-            fields = part.split(".")
-            if len(fields) == 4:  # a grouped gather roots the chain
-                group = fields.pop(2)
-            if len(fields) == 3:
-                segs.append((*fields, "/".join(rel_parts[: i + 1])))
-        return group, segs
+            parsed = parse_node_segment(part)
+            if parsed is None:
+                continue
+            stage, module, seg_group, param, join = parsed
+            if seg_group is not None:  # a grouped gather roots the chain
+                group = seg_group
+            param_dir = f"{param}-{join}" if join else param
+            segments.append((stage, module, param_dir, "/".join(rel_parts[: i + 1])))
+        return group, segments
 
     group, chain = _split_gather_group(list(rel_parts))
-    segs, cursor = [], []
+    segments, cursor = [], []
     for index, (stage, module, param_dir) in enumerate(_triples(chain)):
         cursor.append(stage)
         if index == 0 and group is not None:
             cursor.append(group)
         cursor += [module, param_dir]
-        segs.append((stage, module, param_dir, "/".join(cursor)))
-    return group, segs
+        segments.append((stage, module, param_dir, "/".join(cursor)))
+    return group, segments
 
 
-def _collect_params(out_dir: Path, segs: List[tuple]) -> Dict[str, Any]:
+def _collect_params(out_dir: Path, segments: List[tuple]) -> Dict[str, Any]:
     """Read every ``parameters.json`` along the lineage into ``{stage: params}``."""
     params: Dict[str, Any] = {}
-    for stage, _module, param_dir, node_dir in segs:
+    for stage, _module, param_dir, node_dir in segments:
         if _is_default_param_dir(param_dir):
             continue
         param_file = out_dir / node_dir / "parameters.json"
@@ -155,25 +155,25 @@ def _build_record(out_dir: Path, perf_file: Path) -> Optional[Dict[str, Any]]:
         return None
 
     rel_parts = perf_file.relative_to(out_dir).parts[:-1]  # drop filename
-    group, segs = _segments(list(rel_parts))
-    if not segs:
+    group, segments = _segments(list(rel_parts))
+    if not segments:
         logger.warning(f"Unexpected path layout for {perf_file}; skipping.")
         return None
 
-    leaf_stage, leaf_module, leaf_param_dir, _ = segs[-1]
-    params = _collect_params(out_dir, segs)
+    leaf_stage, leaf_module, leaf_param_dir, _ = segments[-1]
+    params = _collect_params(out_dir, segments)
 
     # Metadata columns; names match what `ob dashboard` excludes from metrics.
     row["stage"] = leaf_stage
     row["module"] = leaf_module
     # Below a gather the chain is cut, so the group key is the only thing left
     # identifying the data the row came from.
-    row["dataset"] = group if group is not None else segs[0][1]
+    row["dataset"] = group if group is not None else segments[0][1]
     row["param_hash"] = (
         "" if _is_default_param_dir(leaf_param_dir) else leaf_param_dir.lstrip(".")
     )
     row["params"] = json.dumps(params) if params else ""
-    row["lineage"] = "/".join(f"{s}/{m}" for s, m, _, _ in segs)
+    row["lineage"] = "/".join(f"{s}/{m}" for s, m, _, _ in segments)
     row["path"] = str(perf_file.relative_to(out_dir))
     return row
 
