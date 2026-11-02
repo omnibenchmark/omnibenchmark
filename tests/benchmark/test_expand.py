@@ -1457,3 +1457,46 @@ def test_flat_layout_from_api_0_8_0():
     nodes, _, _ = _plan(_chain_yaml())
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
     assert method[0] == "data/D1/.default/method/M1/.default/M1_m.txt"
+
+
+@pytest.mark.short
+def test_pruned_gather_gets_its_own_directory_on_0_8():
+    """#405: a gather built from fewer members (`--filter`, capabilities)
+    must not share its id or directory with the full gather."""
+    nodes_by_id = {
+        "d1.default": _member("d1.default", None, "data", "d1"),
+        "d1-clu-ma": _member("d1-clu-ma", "d1.default", "clu", "ma"),
+        "d1-clu-mb": _member("d1-clu-mb", "d1.default", "clu", "mb"),
+    }
+    full = [("d1-clu-ma", "d1/a.tsv"), ("d1-clu-mb", "d1/b.tsv")]
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="data")],
+        modules=[
+            SimpleNamespace(
+                id="summ", name="summ", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="metrics.summary", path="summary.tsv")],
+        resources=None,
+    )
+    benchmark = _fake_benchmark()
+    benchmark.model.api_version = APIVersion.V0_8_0
+
+    def gather(producers):
+        (node,) = expand_gather_stage(
+            stage=stage,
+            benchmark=benchmark,
+            resolved_modules_cache={("metrics", "summ"): object()},
+            output_to_nodes={"clustering": producers},
+            nodes_by_id=nodes_by_id,
+        )
+        return node
+
+    whole, pruned = gather(full), gather(full[:1])
+
+    assert whole.node_dir.startswith("metrics.summ.d1.default-")
+    assert pruned.node_dir == "metrics.summ.d1.default"  # one member: no digest
+    assert whole.id != pruned.id
+    # The digest names the member set, so it is stable under member order.
+    assert gather(full[::-1]).node_dir == whole.node_dir
