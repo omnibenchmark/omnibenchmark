@@ -371,6 +371,12 @@ class SnakemakeGenerator:
         body = body.replace("'", "'\\''")
         return [f"echo '{body}' > $OUTPUT_DIR/lineage.json"]
 
+    def _parameters_json_line(self, parameters) -> str:
+        params_json = json.dumps(parameters._params)
+        params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
+        params_json_escaped = params_json_escaped.replace("'", "'\\''")
+        return f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json"
+
     def _write_shell_lines(self, f: TextIO, lines: list) -> None:
         """Write a shell: block from a list of content lines.
 
@@ -431,10 +437,7 @@ class SnakemakeGenerator:
 
         # Write parameters.json (and, before 0.8.0, a readable sibling link).
         if node.parameters:
-            params_json = json.dumps(node.parameters._params)
-            params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
-            params_json_escaped = params_json_escaped.replace("'", "'\\''")
-            lines.append(f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json")
+            lines.append(self._parameters_json_line(node.parameters))
             # From 0.8.0 readable names live in the `human/` view (007 §3.1.2).
             if self.api_version < APIVersion.V0_8_0:
                 # Link to the real directory name rather than re-deriving it:
@@ -523,6 +526,10 @@ class SnakemakeGenerator:
 
         # A gather cuts the chain, so its members exist nowhere in the path.
         lines += self._lineage_sidecar_lines(node)
+        # `human/` and `ob collect` read parameter names from here. Nested
+        # (pre-0.8.0) rules keep their text so existing trees do not rerun.
+        if node.parameters and self.api_version >= APIVersion.V0_8_0:
+            lines.append(self._parameters_json_line(node.parameters))
 
         # Resolve each input group to absolute paths into a bash array.
         # One loop per distinct flag name — no matter how many files per flag.

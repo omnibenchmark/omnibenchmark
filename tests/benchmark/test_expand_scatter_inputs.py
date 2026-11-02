@@ -87,3 +87,34 @@ def test_consumer_after_empty_stage_still_resolves_its_inputs():
     (node,) = pca_nodes
     assert node.parent_id == data_nodes[0].id
     assert set(node.inputs) == {"counts"}
+
+
+@pytest.mark.short
+def test_child_nests_under_deepest_producer_not_deepest_subdir():
+    # 007 §3.1.1: on the flat layout a node adds one path part, so a producer's
+    # template subdirectory (sub/dir/x/) must not outweigh a deeper node.
+    a = _stage("A", None, "a_deep")
+    a.outputs.append(SimpleNamespace(id="a_top", path="{name}_top"))
+    a.outputs[0].path = "sub/dir/x/{name}_a"
+    b = _stage("B", ["a_top"], "b")
+    j = _stage("J", ["a_deep", "b"], "j")
+    stages = [a, b, j]
+    for s in stages:
+        s.modules = [_module(f"{s.id.lower()}_m")]  # identifiers, as on 0.8.0
+    model = SimpleNamespace(
+        api_version=APIVersion.V0_8_0,
+        get_name=lambda: "b",
+        get_version=lambda: "1.0",
+        get_author=lambda: "me",
+        get_stage=lambda sid: next((s for s in stages if s.id == sid), None),
+    )
+    benchmark = SimpleNamespace(model=model, stages=stages)
+    state = {"errors": [], "resolved": [], "by_id": {}, "outputs": {}}
+
+    (a_node,) = _expand(a, benchmark, state)
+    (b_node,) = _expand(b, benchmark, state)
+    (j_node,) = _expand(j, benchmark, state)
+
+    assert not state["errors"]
+    assert b_node.node_dir == f"{a_node.node_dir}/B.b_m.default"
+    assert j_node.node_dir.startswith(b_node.node_dir + "/"), j_node.node_dir

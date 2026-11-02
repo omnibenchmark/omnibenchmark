@@ -135,7 +135,7 @@ Nothing in the result tree is hidden and nothing in it is a symlink. `parameters
 
 `out/human/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`alpha-0.1_k-5`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
 
-- `ob run` rebuilds it from the resolved node list after Snakemake exits, including after partial and failed runs. It is not written by rules, so it never appears in rule text.
+- `ob run` rebuilds it from the node directories on disk after Snakemake exits, including after partial, filtered and failed runs. Readable names come from each node's `parameters.json`. It is not written by rules, so it never appears in rule text.
 - It is a derived view. Archives and remote storage skip it, and deleting it loses nothing.
 - Readable names are not parsed. They are sanitized, and truncated with the hash appended when too long.
 
