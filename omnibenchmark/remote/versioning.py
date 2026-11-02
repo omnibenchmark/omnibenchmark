@@ -3,7 +3,21 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 from omnibenchmark.core import Benchmark
+from omnibenchmark.core._lineage import parse_node_segment
 from omnibenchmark.storage import StorageOptions, get_expected_benchmark_output_files
+
+
+def _is_tracked(root: str, storage_options: StorageOptions) -> bool:
+    """A tracked directory, or a flat node segment (007 §3.1).
+
+    Rules run inside the out dir, so a flat tree uploads keys such as
+    ``data.D1.94686c86/D1_data.json`` whose root is the node, not a stage
+    directory; the segment grammar recognises it whatever the stage is called.
+    """
+    return (
+        root in storage_options.tracked_directories
+        or parse_node_segment(root) is not None
+    )
 
 
 def get_objects_to_tag(
@@ -38,7 +52,7 @@ def get_objects_to_tag(
                 break
         # check if newest version exists and
         # if object is in tracked directories
-        if (object_name_red in storage_options.tracked_directories) and (
+        if _is_tracked(object_name_red, storage_options) and (
             not objdic[object_name][newest_version]["is_delete_marker"]
         ):
             object_names_to_tag.append(object_name)
@@ -69,7 +83,9 @@ def filter_objects_to_tag(
         filtered_items = [
             (obj, versionid_of_objects_to_tag[i])
             for i, obj in enumerate(object_names_to_tag)
-            if obj in object_names_to_keep or rootdirs[i] in overwrite_dirs_to_keep
+            if obj in object_names_to_keep
+            or rootdirs[i] in overwrite_dirs_to_keep
+            or parse_node_segment(rootdirs[i]) is not None
         ]
         if filtered_items:
             objects, versions = zip(*filtered_items)

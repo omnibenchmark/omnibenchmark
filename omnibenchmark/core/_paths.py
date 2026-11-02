@@ -108,11 +108,12 @@ def truncate_path_filename(path: str, limit: int = MAX_FILENAME_LEN) -> str:
     return f"{parent}{sep}{truncated}" if sep else truncated
 
 
-def normalize_dataset_path(path: str, prefix: Path) -> str:
+def normalize_dataset_path(path: str, prefix: Path, flat: bool = False) -> str:
     """Normalizes a benchmark output path by extracting and formatting the dataset identifier.
 
     Takes a path string containing a dataset identifier segment and formats it consistently.
-    The path is expected to follow the structure: {prefix}/.../{dataset}/...
+    The path is expected to follow the structure: {prefix}/.../{dataset}/...,
+    or ``{prefix}/stage.{dataset}.param/...`` on the flat layout (``flat=True``).
 
     Args:
         path: The output path string containing a dataset identifier
@@ -126,7 +127,10 @@ def normalize_dataset_path(path: str, prefix: Path) -> str:
         >>> normalize_dataset_path("out/stage1/dataset123/results", Path("out"))
         'out/stage1/dataset123/results'
     """
-    pattern = rf"{prefix.as_posix()}/.+?/([^/]+)/.+?$"
+    if flat:  # 007 §3.1: ids are identifiers, so the first two dots are separators
+        pattern = rf"{prefix.as_posix()}/[^/.]+\.([^/.]+)\.[^/]+/.+$"
+    else:
+        pattern = rf"{prefix.as_posix()}/.+?/([^/]+)/.+?$"
     matched = re.match(pattern, path)
     if matched is None:
         # we probably should raise a ValueError here, but
@@ -233,6 +237,7 @@ def collect_output_paths(execution_paths: List[List], out_dir: Path, model) -> S
     for stage_id, stage in model.get_stages().items():
         stage_outputs_cache[stage_id] = model.get_stage_outputs(stage)
 
+    flat = model.api_version >= APIVersion.V0_8_0
     output_paths = []
     for path in execution_paths:
         path_outputs = construct_output_paths(
@@ -242,7 +247,7 @@ def collect_output_paths(execution_paths: List[List], out_dir: Path, model) -> S
             stage_outputs_cache=stage_outputs_cache,
         )
         for output in path_outputs:
-            normalized_path = normalize_dataset_path(output, out_dir)
+            normalized_path = normalize_dataset_path(output, out_dir, flat=flat)
             if normalized_path:  # Only add non-empty paths
                 output_paths.append(normalized_path)
 
