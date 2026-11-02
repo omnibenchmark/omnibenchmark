@@ -607,7 +607,7 @@ stages:
 
 ## Collect performance metrics
 
-Every executed node writes a Snakemake benchmark file (`performance.txt`) next to its outputs, recording wall-clock time, memory, I/O and CPU usage. These files are scattered across the output tree, one per `stage/module/parameter` combination.
+Every executed node writes a Snakemake benchmark file (`performance.txt`) next to its outputs, recording wall-clock time, memory, I/O and CPU usage. These files are scattered across the output tree, one per node: under a `stage.module.param` directory on api 0.8.0, under `stage/module/.param` on older plans.
 
 To gather them into a single table, run:
 
@@ -623,7 +623,7 @@ This walks the output directory, parses every `performance.txt`, and writes a co
 - `lineage` — the full `stage/module` chain that produced the result
 - `path` — the original performance file, relative to the output directory
 
-Collection is a plain filesystem walk: it does not run Snakemake and can be invoked against any existing output directory, including ones produced by earlier runs.
+Collection is a plain filesystem walk: it does not run Snakemake and can be invoked against any existing output directory, including ones produced by earlier runs. It reads both layouts and skips `out/human/`.
 
 ### Build a dashboard from the metrics
 
@@ -778,9 +778,37 @@ the plan once its modules are ready.
   rejected.
 - **Output paths**: prefer `{module.id}` to the deprecated `{dataset}`.
 
-Renaming a stage or module id renames its output directory, so those nodes
-and everything downstream of them are recomputed on the next run. Results
-under the old names are not reused.
+### Output layout
+
+Every output path changes shape on 0.8.0: each node adds one directory
+`stage.module.param` instead of three (`stage/module/.param`), so bumping
+`api_version` recomputes the whole benchmark on the next run. Results under
+the old layout are not reused.
+
+```
+# api 0.7.0
+out/data/D1/.default/D1_data.json
+out/data/D1/.default/methods/M1/.a1b2c3d4/M1.txt
+out/data/D1/.default/methods/M1/k-5 -> .a1b2c3d4
+
+# api 0.8.0
+out/data.D1.default/D1_data.json
+out/data.D1.default/methods.M1.a1b2c3d4/M1.txt
+out/human/data.D1.default/methods.M1.k-5/M1.txt -> ../../../data.D1.default/methods.M1.a1b2c3d4/M1.txt
+```
+
+The readable `k-5` symlinks next to each parameter directory are gone. `ob run`
+rebuilds `out/human/` after every run instead: the same tree with readable
+parameter names, made of links into the real one. It is derived: deleting it
+loses nothing, and `ob archive`, `ob collect` and remote storage skip it. Do
+not read results through it in scripts; use the real paths, or the
+`--output` paths a module is given.
+
+Plans below 0.8.0 keep the nested layout and warn at `ob run`. The nested
+layout is removed at api 0.10.0.
+
+Renaming a stage or module id renames its output directory too, so those
+nodes and everything downstream of them are recomputed.
 
 ### In each module
 
@@ -794,7 +822,7 @@ working, unless it rejects unknown flags. Such a module must accept
 parser.add_argument("--output", action="append", default=[])
 args, _ = parser.parse_known_args()
 outputs = dict(o.split("=", 1) for o in args.output)
-# outputs == {"data.raw": "/abs/out/data/D1/.../D1_data.json"}
+# outputs == {"data.raw": "/abs/out/data.D1.default/D1_data.json"}
 ```
 
 Write each output to `outputs[id]` instead of building the filename from
