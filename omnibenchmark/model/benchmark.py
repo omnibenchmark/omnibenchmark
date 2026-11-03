@@ -420,7 +420,7 @@ class Parameter(BaseModel):
 
 
 class Validator(BaseModel):
-    """A validator declared on a stage output (004 §3.9)."""
+    """A validator declared on a stage output (004 §3.14)."""
 
     script: str = Field(..., description="Validator script, relative to the plan")
 
@@ -429,12 +429,9 @@ class IOFile(IdentifiableEntity):
     """Input/Output file definition."""
 
     path: str = Field(..., description="File path")
-    validator: Optional[Validator] = Field(
-        None,
-        description=(
-            "Validator for this stage output. Overrides "
-            "`{validators.directory}/{stage}/{output}/validate.*`."
-        ),
+    validators: List[Validator] = Field(
+        default_factory=list,
+        description="Validators run against this stage output (004 §3.14)",
     )
 
     @field_validator("path")
@@ -529,10 +526,10 @@ class SoftwareEnvironment(DescribableEntity):
 class ValidatorsConfig(BaseModel):
     """Configuration for output validators.
 
-    Validators are scripts declared on a stage output, or dropped at
-    ``{directory}/{stage}/{output}/validate.*``. Each receives a single output
-    file path and passes with exit code 0. All validators run in ``env``, or in
-    the current environment when ``env`` is omitted.
+    Validators are declared on stage outputs (``outputs[].validators``). Each
+    receives a single output file path and passes with exit code 0. All
+    validators run in ``env``, or in the current environment when ``env`` is
+    omitted.
     """
 
     env: Optional[str] = Field(
@@ -541,10 +538,6 @@ class ValidatorsConfig(BaseModel):
             "software_environments id used to run all validators "
             "(default: the current environment)"
         ),
-    )
-    directory: Optional[str] = Field(
-        "validators",
-        description="Path to the validators directory, relative to the plan file",
     )
 
 
@@ -1614,7 +1607,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         # Validators key by output id, which only named outputs (0.8.0) pin down.
         declares_validator = any(
-            o.validator for stage in self.stages for o in stage.outputs
+            o.validators for stage in self.stages for o in stage.outputs
         )
         if (
             self.validators or declares_validator
@@ -1812,14 +1805,12 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         for stage in self.stages:
             for output in stage.outputs:
-                if (
-                    output.validator
-                    and not (benchmark_dir / output.validator.script).is_file()
-                ):
-                    errors.append(
-                        f"Validator for output '{stage.id}/{output.id}' not found: "
-                        f"{output.validator.script}"
-                    )
+                for v in output.validators:
+                    if not (benchmark_dir / v.script).is_file():
+                        errors.append(
+                            f"Validator for output '{stage.id}/{output.id}' "
+                            f"not found: {v.script}"
+                        )
 
         # Validate software environment paths (if benchmark_dir provided)
         if self.software_backend != SoftwareBackendEnum.host:

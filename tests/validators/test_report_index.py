@@ -49,8 +49,8 @@ def test_validation_index_bridges_symlink_and_hash(tmp_path):
     assert _validation_for(out / "data" / "D1" / "x.json", index)[0] == "not_validated"
 
 
-def _verdict(out, rel, exit_code):
-    result = out / ".validation" / f"{rel}.json"
+def _verdict(out, rel, exit_code, i=0):
+    result = out / ".validation" / f"{rel}.{i}.json"
     result.parent.mkdir(parents=True, exist_ok=True)
     result.write_text(json.dumps({"output_file": rel, "exit_code": exit_code}))
     return result
@@ -77,3 +77,14 @@ def test_validation_index_stale_missing_and_error(tmp_path):
     os.utime(out / "a.txt", (t + 10, t + 10))
     index = _load_validation_index(out)
     assert _validation_for(out / "a.txt", index)[0] == "stale"
+
+
+@pytest.mark.short
+def test_validation_index_shows_worst_of_several_validators(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "a.txt").write_text("x")
+    _verdict(out, "a.txt", 0, i=0)
+    _verdict(out, "a.txt", 1, i=1)
+    _verdict(out, "a.txt", 127, i=2)
+    assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "fail"

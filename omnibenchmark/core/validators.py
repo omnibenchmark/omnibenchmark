@@ -1,8 +1,7 @@
 """Output validators: discover validator scripts, generate the Snakefile that runs
 them against the exact produced files, and read back per-output pass/fail results.
 
-A validator is declared on a stage output (``validator: {script}``) or dropped at
-``{validators_dir}/{stage_id}/{output_id}/validate.*``; a declared one wins. It
+Validators are declared on a stage output (``validators: [{script}]``). Each
 receives a single produced output file path and signals pass/fail by EXIT CODE
 (0 = pass, 126/127 = could not run, anything else = fail); stdout/stderr are
 captured to a per-output log.
@@ -21,61 +20,31 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 # Interpreter by validator extension. Anything else falls back to bash.
 INTERP = {".py": "python3", ".R": "Rscript", ".sh": "bash"}
 
 VALIDATION_DIR = ".validation"
 
-# Key: (stage_id, output_id). Value: (interpreter, absolute script path).
-ValidatorMap = Dict[Tuple[str, str], Tuple[str, str]]
+# Key: (stage_id, output_id). Value: [(interpreter, absolute script path), ...].
+ValidatorMap = Dict[Tuple[str, str], List[Tuple[str, str]]]
 
 
-def discover_validators(validators_dir: Path) -> ValidatorMap:
-    """Map ``(stage_id, output_id) -> (interpreter, abs_script)``.
-
-    Walks ``{validators_dir}/{stage_id}/{output_id}/validate.*``. Raises if a
-    directory holds more than one ``validate.*`` (multiple-per-output is not
-    supported yet).
-    """
-    validators: ValidatorMap = {}
-    if not validators_dir.is_dir():
-        return validators
-    for stage_dir in sorted(p for p in validators_dir.iterdir() if p.is_dir()):
-        for out_dir in sorted(p for p in stage_dir.iterdir() if p.is_dir()):
-            scripts = sorted(p for p in out_dir.glob("validate.*") if p.is_file())
-            if not scripts:
-                continue
-            if len(scripts) > 1:
-                raise ValueError(
-                    f"multiple validators in {out_dir}: {[s.name for s in scripts]}"
-                )
-            script = scripts[0]
-            validators[(stage_dir.name, out_dir.name)] = (
-                INTERP.get(script.suffix, "bash"),
-                str(script.resolve()),
+def declared_validators(model, benchmark_dir: Path) -> ValidatorMap:
+    """Map ``(stage_id, output_id)`` to the validators declared on that output."""
+    return {
+        (st.id, o.id): [
+            (
+                INTERP.get(Path(v.script).suffix, "bash"),
+                str((benchmark_dir / v.script).resolve()),
             )
-    return validators
-
-
-def collect_validators(
-    model, benchmark_dir: Path, validators_dir: Path
-) -> Tuple[ValidatorMap, Set[Tuple[str, str]]]:
-    """Discovered validators overlaid with the plan's declared ones.
-
-    Returns ``(validators, unmatched)``; *unmatched* are discovered
-    ``(stage, output)`` keys the plan does not declare, usually a typo.
-    """
-    found = discover_validators(validators_dir)
-    plan_keys = {(st.id, o.id) for st in model.stages for o in st.outputs}
-    for st in model.stages:
-        for o in st.outputs:
-            if o.validator:
-                script = (benchmark_dir / o.validator.script).resolve()
-                found[(st.id, o.id)] = (INTERP.get(script.suffix, "bash"), str(script))
-    unmatched = set(found) - plan_keys
-    return {k: v for k, v in found.items() if k in plan_keys}, unmatched
+            for v in o.validators
+        ]
+        for st in model.stages
+        for o in st.outputs
+        if o.validators
+    }
 
 
 def verdict_status(exit_code: Optional[int]) -> str:
@@ -99,29 +68,25 @@ def build_targets(
     validators: ValidatorMap,
     out_dir: Path,
 ) -> Dict[str, List[str]]:
-    """Map produced files to validators -> ``{relpath: [interp, script, sha256]}``.
+    """``{key: [relpath, interp, script, sha256]}``, one entry per (file, validator).
 
     *produced* is an iterable of ``(stage_id, output_id, file_path)`` for files
-    that exist on disk. ``relpath`` is relative to *out_dir* (where snakemake runs).
+    that exist on disk. ``relpath`` is relative to *out_dir* (where snakemake
+    runs); ``key`` is ``{relpath}.{i}``, *i* the validator's position on the
+    output, and names the result ``.validation/{key}.json``.
     """
-    shas = {script: _sha256(script) for _, script in validators.values()}
-    return {
-        os.path.relpath(str(file_path), str(out_dir)): [
-            *validators[(stage_id, output_id)],
-            shas[validators[(stage_id, output_id)][1]],
-        ]
-        for stage_id, output_id, file_path in produced
-        if (stage_id, output_id) in validators
-    }
+    shas = {script: _sha256(script) for vs in validators.values() for _, script in vs}
+    targets: Dict[str, List[str]] = {}
+    for stage_id, output_id, file_path in produced:
+        rel = os.path.relpath(str(file_path), str(out_dir))
+        for i, (interp, script) in enumerate(validators.get((stage_id, output_id), [])):
+            targets[f"{rel}.{i}"] = [rel, interp, script, shas[script]]
+    return targets
 
 
 # Static body of the generated Snakefile. Snakemake placeholders are kept verbatim
 # (no str.format here); only the TARGETS literal and __ENV_LINE__ are injected.
 _SNAKEFILE_BODY = r'''
-wildcard_constraints:
-    relpath = r"(?!\.validation/).+"
-
-
 rule all:
     input:
         [f".validation/{t}.json" for t in TARGETS]
@@ -129,18 +94,18 @@ rule all:
 
 rule validate:
     input:
-        "{relpath}"
+        lambda wc: TARGETS[wc.key][0]
     output:
-        ".validation/{relpath}.json"
+        ".validation/{key}.json"
     log:
-        ".validation/{relpath}.log"
+        ".validation/{key}.log"
 __ENV_LINE__    params:
-        interp=lambda wc: TARGETS[wc.relpath][0],
-        script=lambda wc: TARGETS[wc.relpath][1],
-        script_json=lambda wc: json.dumps(TARGETS[wc.relpath][1]),
-        sha=lambda wc: TARGETS[wc.relpath][2],
-        input_json=lambda wc: json.dumps(wc.relpath),
-        log_json=lambda wc: json.dumps(f".validation/{wc.relpath}.log"),
+        interp=lambda wc: TARGETS[wc.key][1],
+        script=lambda wc: TARGETS[wc.key][2],
+        script_json=lambda wc: json.dumps(TARGETS[wc.key][2]),
+        sha=lambda wc: TARGETS[wc.key][3],
+        input_json=lambda wc: json.dumps(TARGETS[wc.key][0]),
+        log_json=lambda wc: json.dumps(f".validation/{wc.key}.log"),
     shell:
         r"""
         set +e

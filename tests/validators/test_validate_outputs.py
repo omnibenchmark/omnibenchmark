@@ -46,6 +46,8 @@ stages:
     outputs:
       - id: raw
         path: "{module.id}_data.json"
+        validators:
+          - script: checks/nonempty.py
 validators:
   env: host
 """
@@ -64,10 +66,8 @@ def project(tmp_path):
     bundles = Path(__file__).parent.parent / "data" / "bundles"
     (tmp_path / "bundles").symlink_to(bundles, target_is_directory=True)
     (tmp_path / "benchmark.yaml").write_text(BENCHMARK)
-    # keyed by (stage_id, output_id): stage "data", output id "raw"
-    vdir = tmp_path / "validators" / "data" / "raw"
-    vdir.mkdir(parents=True)
-    (vdir / "validate.py").write_text(NONEMPTY_VALIDATOR)
+    (tmp_path / "checks").mkdir()
+    (tmp_path / "checks" / "nonempty.py").write_text(NONEMPTY_VALIDATOR)
     return tmp_path
 
 
@@ -75,7 +75,7 @@ def _verdicts(out_dir: Path) -> dict:
     """Map result-file name -> exit_code from out/.validation/**.json."""
     return {
         p.name: json.loads(p.read_text())["exit_code"]
-        for p in (out_dir / ".validation").rglob("*_data.json.json")
+        for p in (out_dir / ".validation").rglob("*_data.json.0.json")
     }
 
 
@@ -99,9 +99,9 @@ def test_validate_outputs_pass_and_fail(project):
     assert len(verdicts) == 2, verdicts
     assert all(code == 0 for code in verdicts.values()), verdicts
     recorded = json.loads(
-        next((out / ".validation").rglob("*_data.json.json")).read_text()
+        next((out / ".validation").rglob("*_data.json.0.json")).read_text()
     )
-    assert recorded["script"].endswith("validate.py")
+    assert recorded["script"].endswith("nonempty.py")
     assert len(recorded["script_sha256"]) == 64
 
     # 2. Empty the D2 output -> it must now fail, D1 still passes.
@@ -117,14 +117,3 @@ def test_validate_outputs_pass_and_fail(project):
     assert verdicts, verdicts
     assert all(code == 1 for name, code in verdicts.items() if "D2" in name)
     assert all(code == 0 for name, code in verdicts.items() if "D1" in name)
-
-
-@pytest.mark.short
-def test_validate_plan_warns_on_unmatched_validator(project):
-    typo = project / "validators" / "data" / "rwa"
-    typo.mkdir()
-    (typo / "validate.py").write_text(NONEMPTY_VALIDATOR)
-    with OmniCLISetup() as omni:
-        res = omni.call(["validate", "plan", "benchmark.yaml"], cwd=str(project))
-    assert res.returncode == 0, res.stdout + res.stderr
-    assert "output 'rwa'" in res.stdout + res.stderr
