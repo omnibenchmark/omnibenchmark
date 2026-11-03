@@ -117,3 +117,44 @@ def test_validate_outputs_pass_and_fail(project):
     assert verdicts, verdicts
     assert all(code == 1 for name, code in verdicts.items() if "D2" in name)
     assert all(code == 0 for name, code in verdicts.items() if "D1" in name)
+
+    # 3. A second validator whose interpreter is missing -> `error`, gate fails.
+    for p in out.rglob("D2_data.json"):
+        p.write_text("{}")
+    (project / "checks" / "noshell.sh").write_text("exit 127\n")
+    plan = project / "benchmark.yaml"
+    one = "          - script: checks/nonempty.py\n"
+    plan.write_text(
+        BENCHMARK.replace(one, one + "          - script: checks/noshell.sh\n")
+    )
+    with OmniCLISetup() as omni:
+        val = omni.call(
+            ["validate", "outputs", "benchmark.yaml", "--out-dir", "out"],
+            cwd=str(project),
+        )
+    assert val.returncode == 1, val.stdout + val.stderr
+    errors = {
+        p.name: json.loads(p.read_text())["exit_code"]
+        for p in (out / ".validation").rglob("*_data.json.1.json")
+    }
+    assert sorted(errors.values()) == [127, 127], errors
+
+    # 4. Drop it from the plan -> its verdicts are deleted and the gate passes.
+    plan.write_text(BENCHMARK)
+    with OmniCLISetup() as omni:
+        val = omni.call(
+            ["validate", "outputs", "benchmark.yaml", "--out-dir", "out"],
+            cwd=str(project),
+        )
+    assert val.returncode == 0, val.stdout + val.stderr
+    assert not list((out / ".validation").rglob("*_data.json.1.*"))
+
+    # 5. The default HTML report lands in out/ and is regenerated in place.
+    for _ in range(2):
+        with OmniCLISetup() as omni:
+            rep = omni.call(
+                ["describe", "status", "benchmark.yaml", "--out-dir", "out", "--html"],
+                cwd=str(project),
+            )
+        assert rep.returncode == 0, rep.stdout + rep.stderr
+    assert (out / "status_report.html").is_file()

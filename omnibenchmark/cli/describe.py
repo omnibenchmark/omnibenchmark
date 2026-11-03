@@ -270,7 +270,7 @@ def _render_text_status(
     "--force",
     "overwrite_html_file",
     is_flag=True,
-    help="If HTML file exists, overwrite it.",
+    help="Overwrite an existing --html-file (the default report is always rewritten).",
     default=False,
 )
 @click.option(
@@ -299,9 +299,11 @@ def status(
     BENCHMARK: Path to benchmark YAML file.
     """
     ctx.ensure_object(dict)
-    # Default the HTML report into the output folder.
+    # Default the HTML report into the output folder. It is derived output, so
+    # it is regenerated in place; only an explicit --html-file needs --force.
     if html_file is None:
         html_file = str(Path(out_dir) / STATUS_REPORT_FILE)
+        overwrite_html_file = True
     if watch is not None and (return_json or return_html):
         raise click.UsageError("--watch only works with the text report.")
     if not return_json and not return_html:

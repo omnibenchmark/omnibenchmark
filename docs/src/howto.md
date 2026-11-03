@@ -635,6 +635,50 @@ ob dashboard benchmark.yaml -o out
 
 This reads `out/performances.tsv` and writes `out/bettr_dashboard.json`. If the table is missing, run `ob collect performance` first.
 
+## Check outputs with validators
+
+A validator is a script that checks one output file after a run: a table has
+the expected columns, a matrix has no NaNs. Declare it on the stage output
+(api 0.8.0); it applies to that output for every module of the stage.
+
+```yaml
+stages:
+  - id: methods
+    outputs:
+      - id: scores
+        path: "{module.id}_scores.tsv"
+        validators:
+          - script: checks/scores_columns.py   # relative to the plan
+          - script: checks/no_nan.R
+validators:            # optional
+  env: checks_env      # a software_environments id; omitted = current env
+```
+
+The script gets the file path as its only argument and exits 0 to pass. `.py`
+runs with `python3`, `.R` with `Rscript`, anything else with `bash`:
+
+```python
+import csv, sys
+with open(sys.argv[1]) as f:
+    header = next(csv.reader(f, delimiter="\t"))
+sys.exit(0 if {"method", "score"} <= set(header) else 1)
+```
+
+Run the validators after the benchmark, and see the verdicts in the report:
+
+```bash
+ob run benchmark.yaml
+ob validate outputs benchmark.yaml      # exit 1 if any file fails
+ob describe status benchmark.yaml --html  # writes out/status_report.html
+```
+
+- `ob validate plan` reports a declared script that does not exist; `ob run`
+  does not, so a missing check never blocks a run.
+- Exit 126 or 127 (script or interpreter not found) is shown as `error`, not
+  as a failed file.
+- Editing a script, or rerunning a module, marks its verdicts `stale` until
+  `ob validate outputs` runs again. Logs are under `out/.validation/`.
+
 ## Use template variables in output paths
 
 Output `path` fields in the benchmark YAML accept template variables that are resolved at runtime for each node in the execution graph. All variables use `{curly_brace}` syntax.

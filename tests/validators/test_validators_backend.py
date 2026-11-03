@@ -66,3 +66,10 @@ def test_drop_orphan_results(tmp_path):
         "a.txt.0.log",
         "snakemake.log",
     ]
+
+
+@pytest.mark.short
+def test_env_directive_host_backend_needs_none(tmp_path):
+    assert bv._resolve_env_directive(
+        _model(SoftwareBackendEnum.host), tmp_path, tmp_path, "e"
+    ) == ("", None)
