@@ -98,6 +98,11 @@ def test_validate_outputs_pass_and_fail(project):
     verdicts = _verdicts(out)
     assert len(verdicts) == 2, verdicts
     assert all(code == 0 for code in verdicts.values()), verdicts
+    recorded = json.loads(
+        next((out / ".validation").rglob("*_data.json.json")).read_text()
+    )
+    assert recorded["script"].endswith("validate.py")
+    assert len(recorded["script_sha256"]) == 64
 
     # 2. Empty the D2 output -> it must now fail, D1 still passes.
     for p in out.rglob("D2_data.json"):

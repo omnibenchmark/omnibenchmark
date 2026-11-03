@@ -419,10 +419,23 @@ class Parameter(BaseModel):
         return v
 
 
+class Validator(BaseModel):
+    """A validator declared on a stage output (004 §3.9)."""
+
+    script: str = Field(..., description="Validator script, relative to the plan")
+
+
 class IOFile(IdentifiableEntity):
     """Input/Output file definition."""
 
     path: str = Field(..., description="File path")
+    validator: Optional[Validator] = Field(
+        None,
+        description=(
+            "Validator for this stage output. Overrides "
+            "`{validators.directory}/{stage}/{output}/validate.*`."
+        ),
+    )
 
     @field_validator("path")
     @classmethod
@@ -516,14 +529,18 @@ class SoftwareEnvironment(DescribableEntity):
 class ValidatorsConfig(BaseModel):
     """Configuration for output validators.
 
-    Validators are ad-hoc scripts dropped at ``{directory}/{stage}/{output}/``
-    that receive a single output file path and signal pass/fail via exit code
-    (0 = pass, non-zero = fail). All validators run in the single software
-    environment referenced by ``env``.
+    Validators are scripts declared on a stage output, or dropped at
+    ``{directory}/{stage}/{output}/validate.*``. Each receives a single output
+    file path and passes with exit code 0. All validators run in ``env``, or in
+    the current environment when ``env`` is omitted.
     """
 
-    env: str = Field(
-        ..., description="software_environments id used to run all validators"
+    env: Optional[str] = Field(
+        None,
+        description=(
+            "software_environments id used to run all validators "
+            "(default: the current environment)"
+        ),
     )
     directory: Optional[str] = Field(
         "validators",
@@ -1049,7 +1066,9 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             "entry under 'stages:' must be a stage mapping."
                         ),
                         yaml_file=yaml_file_path,
-                        line_number=line_map.get(f"stages[{stage_idx}]") if line_map else None,
+                        line_number=line_map.get(f"stages[{stage_idx}]")
+                        if line_map
+                        else None,
                         original_error=None,
                     )
                 if "modules" in stage:
@@ -1062,7 +1081,9 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                                 "e.g.\nmodules:\n  - id: my_module"
                             ),
                             yaml_file=yaml_file_path,
-                            line_number=line_map.get(f"stages[{stage_idx}].modules") if line_map else None,
+                            line_number=line_map.get(f"stages[{stage_idx}].modules")
+                            if line_map
+                            else None,
                             stage_id=stage_id,
                             original_error=None,
                         )
@@ -1592,7 +1613,12 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         )
 
         # Validators key by output id, which only named outputs (0.8.0) pin down.
-        if self.validators and self.api_version < APIVersion.V0_8_0:
+        declares_validator = any(
+            o.validator for stage in self.stages for o in stage.outputs
+        )
+        if (
+            self.validators or declares_validator
+        ) and self.api_version < APIVersion.V0_8_0:
             raise ValueError(
                 f"`validators` requires api_version ≥ 0.8.0 (this benchmark "
                 f"declares {self.api_version.value})."
@@ -1783,6 +1809,17 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             errors.extend(self.detect_diamond_input_joins())
 
         errors.extend(self.detect_unsatisfiable_excludes())
+
+        for stage in self.stages:
+            for output in stage.outputs:
+                if (
+                    output.validator
+                    and not (benchmark_dir / output.validator.script).is_file()
+                ):
+                    errors.append(
+                        f"Validator for output '{stage.id}/{output.id}' not found: "
+                        f"{output.validator.script}"
+                    )
 
         # Validate software environment paths (if benchmark_dir provided)
         if self.software_backend != SoftwareBackendEnum.host:

@@ -1,26 +1,27 @@
 """Output validators: discover validator scripts, generate the Snakefile that runs
 them against the exact produced files, and read back per-output pass/fail results.
 
-Convention: validators live at ``{validators_dir}/{stage_id}/{output_id}/validate.*``
-keyed by the plan's stage id and *output id* (the stable identifiers, e.g.
-``PCA/pcas_tsv``), and receive a single produced output file path. They signal
-pass/fail by EXIT CODE (0 = pass, non-zero = fail); stdout/stderr are captured to
-a per-output log.
+A validator is declared on a stage output (``validator: {script}``) or dropped at
+``{validators_dir}/{stage_id}/{output_id}/validate.*``; a declared one wins. It
+receives a single produced output file path and signals pass/fail by EXIT CODE
+(0 = pass, 126/127 = could not run, anything else = fail); stdout/stderr are
+captured to a per-output log.
 
 Targets are the concrete files the benchmark produced (from the status machinery),
 keyed by the output id they were produced for, so no filename matching is needed.
 We do NOT glob the filesystem: real output trees are deeply nested under hidden
 ``.{param}`` dirs that globbing won't traverse.
 
-This module is pure (no click / snakemake imports) so it stays easy to test. The
-generated Snakefile is run from the benchmark out/ dir; results and logs land under
+Pure helpers; ``omnibenchmark.backend.validators`` runs them. The generated
+Snakefile is run from the benchmark out/ dir; results and logs land under
 ``out/.validation/`` mirroring each output's path.
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 # Interpreter by validator extension. Anything else falls back to bash.
 INTERP = {".py": "python3", ".R": "Rscript", ".sh": "bash"}
@@ -58,20 +59,57 @@ def discover_validators(validators_dir: Path) -> ValidatorMap:
     return validators
 
 
+def collect_validators(
+    model, benchmark_dir: Path, validators_dir: Path
+) -> Tuple[ValidatorMap, Set[Tuple[str, str]]]:
+    """Discovered validators overlaid with the plan's declared ones.
+
+    Returns ``(validators, unmatched)``; *unmatched* are discovered
+    ``(stage, output)`` keys the plan does not declare, usually a typo.
+    """
+    found = discover_validators(validators_dir)
+    plan_keys = {(st.id, o.id) for st in model.stages for o in st.outputs}
+    for st in model.stages:
+        for o in st.outputs:
+            if o.validator:
+                script = (benchmark_dir / o.validator.script).resolve()
+                found[(st.id, o.id)] = (INTERP.get(script.suffix, "bash"), str(script))
+    unmatched = set(found) - plan_keys
+    return {k: v for k, v in found.items() if k in plan_keys}, unmatched
+
+
+def verdict_status(exit_code: Optional[int]) -> str:
+    """``pass`` / ``fail``, or ``error`` when the validator itself could not run."""
+    if exit_code == 0:
+        return "pass"
+    if exit_code in (126, 127) or exit_code is None:
+        return "error"
+    return "fail"
+
+
+def _sha256(path: str) -> str:
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return ""
+
+
 def build_targets(
     produced: Iterable[Tuple[str, str, str]],
     validators: ValidatorMap,
     out_dir: Path,
 ) -> Dict[str, List[str]]:
-    """Map produced files to validators -> ``{relpath: [interp, script]}``.
+    """Map produced files to validators -> ``{relpath: [interp, script, sha256]}``.
 
     *produced* is an iterable of ``(stage_id, output_id, file_path)`` for files
     that exist on disk. ``relpath`` is relative to *out_dir* (where snakemake runs).
     """
+    shas = {script: _sha256(script) for _, script in validators.values()}
     return {
-        os.path.relpath(str(file_path), str(out_dir)): list(
-            validators[(stage_id, output_id)]
-        )
+        os.path.relpath(str(file_path), str(out_dir)): [
+            *validators[(stage_id, output_id)],
+            shas[validators[(stage_id, output_id)][1]],
+        ]
         for stage_id, output_id, file_path in produced
         if (stage_id, output_id) in validators
     }
@@ -99,15 +137,22 @@ rule validate:
 __ENV_LINE__    params:
         interp=lambda wc: TARGETS[wc.relpath][0],
         script=lambda wc: TARGETS[wc.relpath][1],
+        script_json=lambda wc: json.dumps(TARGETS[wc.relpath][1]),
+        sha=lambda wc: TARGETS[wc.relpath][2],
         input_json=lambda wc: json.dumps(wc.relpath),
         log_json=lambda wc: json.dumps(f".validation/{wc.relpath}.log"),
     shell:
         r"""
         set +e
-        {params.interp:q} {params.script:q} {input:q} > {log:q} 2>&1
-        code=$?
+        if [ -f {params.script:q} ]; then
+            {params.interp:q} {params.script:q} {input:q} > {log:q} 2>&1
+            code=$?
+        else
+            echo "validator not found: {params.script}" > {log:q}
+            code=127
+        fi
         set -e
-        printf '{{"output_file": %s, "exit_code": %d, "log": %s}}\n' {params.input_json:q} "$code" {params.log_json:q} > {output:q}
+        printf '{{"output_file": %s, "exit_code": %d, "log": %s, "script": %s, "script_sha256": "%s"}}\n' {params.input_json:q} "$code" {params.log_json:q} {params.script_json:q} {params.sha:q} > {output:q}
         """
 '''
 

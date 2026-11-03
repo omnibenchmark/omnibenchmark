@@ -147,9 +147,7 @@ class ModuleResolver:
             RuntimeError: If resolution fails
         """
         # Resolve software environment first (prepare files/symlinks)
-        resolved_env_path = self._resolve_environment(
-            software_environment_id, module_id
-        )
+        resolved_env_path = self.resolve_environment(software_environment_id, module_id)
         repo = module.repository
 
         # Check if the ref is pinned (commit hash or tag) vs unpinned (branch)
@@ -439,7 +437,7 @@ class ModuleResolver:
 
         return has_shebang, interpreter
 
-    def _resolve_environment(
+    def resolve_environment(
         self, environment_id: str, module_id: str
     ) -> Optional[ResolvedEnvironment]:
         """

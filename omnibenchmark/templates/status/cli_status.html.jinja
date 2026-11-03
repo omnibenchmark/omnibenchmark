@@ -193,7 +193,7 @@ $(document).ready(function() {
             details += '<p><strong>Stage:</strong> ' + node.stage + '</p>';
             details += '<p><strong>Status:</strong> ' + node.status + '</p>';
             if (node.validation) {
-                var vcolors = {pass: '#2ECC40', fail: '#FF4136', not_validated: '#999999'};
+                var vcolors = {pass: '#2ECC40', fail: '#FF4136', error: '#B10DC9', stale: '#FF851B', not_validated: '#999999'};
                 details += '<p><strong>Validation:</strong> <span style="color:' +
                     (vcolors[node.validation] || '#999999') + ';font-weight:bold;">' +
                     node.validation + '</span></p>';
@@ -305,7 +305,7 @@ $(document).ready(function() {
                     width: '8%',
                     render: function(data, type, row) {
                         if (type === 'display' && data) {
-                            var colors = {pass: '#2ECC40', fail: '#FF4136', not_validated: '#999999'};
+                            var colors = {pass: '#2ECC40', fail: '#FF4136', error: '#B10DC9', stale: '#FF851B', not_validated: '#999999'};
                             return '<span style="color:' + (colors[data] || '#999999') +
                                 ';font-weight:bold;">' + data + '</span>';
                         }

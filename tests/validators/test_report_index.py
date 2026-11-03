@@ -7,6 +7,7 @@ file, so `_load_validation_index` / `_validation_for` must bridge the two.
 """
 
 import json
+import os
 
 import pytest
 
@@ -46,3 +47,33 @@ def test_validation_index_bridges_symlink_and_hash(tmp_path):
     assert _validation_for(real_file, index)[1].endswith("D2_data.json.log")
     # an output with no result -> not_validated
     assert _validation_for(out / "data" / "D1" / "x.json", index)[0] == "not_validated"
+
+
+def _verdict(out, rel, exit_code):
+    result = out / ".validation" / f"{rel}.json"
+    result.parent.mkdir(parents=True, exist_ok=True)
+    result.write_text(json.dumps({"output_file": rel, "exit_code": exit_code}))
+    return result
+
+
+@pytest.mark.short
+def test_validation_index_stale_missing_and_error(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "a.txt").write_text("x")
+    (out / "b.txt").write_text("x")
+    result = _verdict(out, "a.txt", 0)
+    _verdict(out, "b.txt", 127)
+    _verdict(out, "gone.txt", 0)
+
+    index = _load_validation_index(out)
+    assert _validation_for(out / "a.txt", index)[0] == "pass"
+    assert _validation_for(out / "b.txt", index)[0] == "error"
+    # a deleted output has no verdict
+    assert _validation_for(out / "gone.txt", index)[0] == "not_validated"
+
+    # rewriting the output after validation makes the verdict stale
+    t = result.stat().st_mtime
+    os.utime(out / "a.txt", (t + 10, t + 10))
+    index = _load_validation_index(out)
+    assert _validation_for(out / "a.txt", index)[0] == "stale"
