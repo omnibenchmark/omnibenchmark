@@ -117,3 +117,14 @@ def test_validate_outputs_pass_and_fail(project):
     assert verdicts, verdicts
     assert all(code == 1 for name, code in verdicts.items() if "D2" in name)
     assert all(code == 0 for name, code in verdicts.items() if "D1" in name)
+
+
+@pytest.mark.short
+def test_validate_plan_warns_on_unmatched_validator(project):
+    typo = project / "validators" / "data" / "rwa"
+    typo.mkdir()
+    (typo / "validate.py").write_text(NONEMPTY_VALIDATOR)
+    with OmniCLISetup() as omni:
+        res = omni.call(["validate", "plan", "benchmark.yaml"], cwd=str(project))
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "output 'rwa'" in res.stdout + res.stderr
