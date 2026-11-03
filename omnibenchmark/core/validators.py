@@ -7,9 +7,8 @@ receives a single produced output file path and signals pass/fail by EXIT CODE
 captured to a per-output log.
 
 Targets are the concrete files the benchmark produced (from the status machinery),
-keyed by the output id they were produced for, so no filename matching is needed.
-We do NOT glob the filesystem: real output trees are deeply nested under hidden
-``.{param}`` dirs that globbing won't traverse.
+keyed by the output id they were produced for, so no filename matching or
+filesystem globbing is needed.
 
 Pure helpers; ``omnibenchmark.backend.validators`` runs them. The generated
 Snakefile is run from the benchmark out/ dir; results and logs land under
