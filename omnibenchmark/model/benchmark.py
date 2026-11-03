@@ -1605,6 +1605,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"declares {self.api_version.value})."
                         )
 
+        for collector in self.metric_collectors or []:
+            if any(o.validators for o in collector.outputs):
+                raise ValueError(
+                    f"Metric collector '{collector.id}' declares `validators`; "
+                    f"validators apply to stage outputs only."
+                )
+
         # Validators key by output id, which only named outputs (0.8.0) pin down.
         declares_validator = any(
             o.validators for stage in self.stages for o in stage.outputs
@@ -1802,15 +1809,6 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             errors.extend(self.detect_diamond_input_joins())
 
         errors.extend(self.detect_unsatisfiable_excludes())
-
-        for stage in self.stages:
-            for output in stage.outputs:
-                for v in output.validators:
-                    if not (benchmark_dir / v.script).is_file():
-                        errors.append(
-                            f"Validator for output '{stage.id}/{output.id}' "
-                            f"not found: {v.script}"
-                        )
 
         # Validate software environment paths (if benchmark_dir provided)
         if self.software_backend != SoftwareBackendEnum.host:

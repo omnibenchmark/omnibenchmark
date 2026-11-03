@@ -13,7 +13,7 @@ from omnibenchmark.archive.components import (
     prepare_archive_code,
     prepare_archive_results_local,
 )
-from omnibenchmark.constants import INTERNAL_OUT_DIRS
+from omnibenchmark.constants import INTERNAL_OUT_DIRS, STATUS_REPORT_FILE
 
 
 @pytest.mark.short
@@ -215,6 +215,9 @@ def test_prepare_archive_results_local_excludes_internal_dirs(tmp_path):
     metadata_dir.mkdir()
     manifest = metadata_dir / "manifest.json"
     manifest.write_text("{}")
+
+    # The default status report location is not a result.
+    (results_dir / STATUS_REPORT_FILE).write_text("<html/>")
 
     mock_benchmark = Mock()
 

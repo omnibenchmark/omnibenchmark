@@ -21,7 +21,9 @@ import os
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, TextIO
+import shutil
+import sys
+from typing import List, Optional, TextIO
 
 from omnibenchmark.core._paths import (
     _UNSAFE_CHARS,
@@ -31,7 +33,42 @@ from omnibenchmark.core._paths import (
 )
 from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.core._lineage import join_hash
-from omnibenchmark.model.resolved import ResolvedModule, ResolvedNode
+from omnibenchmark.model.benchmark import SoftwareBackendEnum
+from omnibenchmark.model.resolved import (
+    ResolvedEnvironment,
+    ResolvedModule,
+    ResolvedNode,
+)
+
+# Snakemake flag that activates each backend's environment directive.
+BACKEND_FLAGS = {
+    SoftwareBackendEnum.conda: "--use-conda",
+    SoftwareBackendEnum.apptainer: "--use-singularity",
+    SoftwareBackendEnum.docker: "--use-singularity",
+    SoftwareBackendEnum.envmodules: "--use-envmodules",
+}
+
+
+def snakemake_bin() -> str:
+    """The snakemake next to the current Python (pixi/conda env), else PATH."""
+    candidate = Path(sys.executable).parent / "snakemake"
+    if candidate.exists():
+        return str(candidate)
+    return shutil.which("snakemake") or "snakemake"
+
+
+def environment_directive(env: Optional[ResolvedEnvironment]) -> str:
+    """The rule directive for a resolved environment; ``""`` for the host."""
+    if env is None:
+        return ""
+    if env.backend_type.value == "conda":
+        return f'conda: "{env.reference}"'
+    if env.backend_type.value in ("apptainer", "docker"):
+        return f'container: "{env.reference}"'
+    if env.backend_type.value == "envmodules":
+        return f'envmodules: "{env.reference}"'
+    return ""
+
 
 __all__ = ["SnakemakeGenerator", "_make_human_name", "_UNSAFE_CHARS"]
 
@@ -245,17 +282,9 @@ class SnakemakeGenerator:
         Adds conda:, container:, or envmodules: based on the resolved environment.
         No-op for host backend or when no environment is specified.
         """
-        if not resolved_module.resolved_environment:
-            return
-
-        env = resolved_module.resolved_environment
-        if env.backend_type.value == "conda":
-            f.write(f'    conda: "{env.reference}"\n')
-        elif env.backend_type.value in ("apptainer", "docker"):
-            f.write(f'    container: "{env.reference}"\n')
-        elif env.backend_type.value == "envmodules":
-            f.write(f'    envmodules: "{env.reference}"\n')
-        # host backend needs no directive
+        directive = environment_directive(resolved_module.resolved_environment)
+        if directive:
+            f.write(f"    {directive}\n")
 
     def _write_threads_directive(self, f: TextIO, node: ResolvedNode):
         """Write Snakemake's threads: directive when a stage asks for cores.

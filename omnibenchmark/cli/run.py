@@ -16,7 +16,11 @@ from omnibenchmark.backend._metric_collector import resolve_metric_collectors
 from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
-from omnibenchmark.backend.snakemake import SnakemakeGenerator
+from omnibenchmark.backend.snakemake import (
+    BACKEND_FLAGS,
+    SnakemakeGenerator,
+    snakemake_bin,
+)
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.core._paths import (
     truncate_filename,
@@ -517,27 +521,9 @@ def _run_snakemake(
         and getattr(telemetry_emitter, "_file_handle", None) is sys.stdout
     )
 
-    # Prefer snakemake co-located with the current Python executable (pixi/conda env)
-    import shutil
-    import sys as _sys
-
-    _bin_dir = Path(_sys.executable).parent
-    _snakemake_candidate = _bin_dir / "snakemake"
-    if _snakemake_candidate.exists():
-        snakemake_bin = str(_snakemake_candidate)
-    else:
-        snakemake_bin = shutil.which("snakemake") or "snakemake"
-
-    cmd = [snakemake_bin, "--snakefile", "Snakefile", "--cores", str(cores)]
-
-    if software_backend == SoftwareBackendEnum.conda:
-        cmd.append("--use-conda")
-    elif software_backend == SoftwareBackendEnum.apptainer:
-        cmd.append("--use-singularity")
-    elif software_backend == SoftwareBackendEnum.docker:
-        cmd.append("--use-singularity")
-    elif software_backend == SoftwareBackendEnum.envmodules:
-        cmd.append("--use-envmodules")
+    cmd = [snakemake_bin(), "--snakefile", "Snakefile", "--cores", str(cores)]
+    if software_backend in BACKEND_FLAGS:
+        cmd.append(BACKEND_FLAGS[software_backend])
 
     if continue_on_error:
         cmd.append("--keep-going")
