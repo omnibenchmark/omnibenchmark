@@ -77,10 +77,8 @@ def run_validators(
     benchmark_path = Path(benchmark)
     model = Benchmark.from_yaml(benchmark_path)
     cfg = model.get_validators_config()
+    # An undeclared env is rejected when the plan loads.
     env = cfg.env if cfg else None
-    if env and env not in model.get_software_environments():
-        logger.error(f"validators env '{env}' is not defined in software_environments.")
-        return 1
 
     out_path = Path(out_dir)
     if not out_path.is_dir():
@@ -150,11 +148,16 @@ def run_validators(
     with open(log_file, "w") as f:
         result = subprocess.run(cmd, cwd=out_path, stdout=f, stderr=subprocess.STDOUT)
     if result.returncode != 0:
-        tail = log_file.read_text(errors="replace").splitlines()[-20:]
-        logger.error(
-            f"Snakemake failed (exit {result.returncode}); full log: {log_file}\n"
-            + "\n".join(tail)
-        )
+        log = log_file.read_text(errors="replace")
+        msg = f"Snakemake failed (exit {result.returncode}); full log: {log_file}\n"
+        msg += "\n".join(log.splitlines()[-20:])
+        if "cannot be locked" in log:
+            msg += (
+                f"\nAnother Snakemake run holds the lock on {out_path}, most "
+                "likely `ob run`: wait for it to finish. If none is running, "
+                f"run `snakemake --unlock` in {out_path}."
+            )
+        logger.error(msg)
         return result.returncode
 
     # The rule records a failing validator instead of failing itself, so read
