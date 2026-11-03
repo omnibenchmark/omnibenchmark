@@ -149,7 +149,17 @@ def test_validate_outputs_pass_and_fail(project):
     assert val.returncode == 0, val.stdout + val.stderr
     assert not list((out / ".validation").rglob("*_data.json.1.*"))
 
-    # 5. The default HTML report lands in out/ and is regenerated in place.
+    # 5. Editing a validator reruns it without --force.
+    (project / "checks" / "nonempty.py").write_text("import sys\nsys.exit(3)\n")
+    with OmniCLISetup() as omni:
+        val = omni.call(
+            ["validate", "outputs", "benchmark.yaml", "--out-dir", "out"],
+            cwd=str(project),
+        )
+    assert val.returncode == 1, val.stdout + val.stderr
+    assert set(_verdicts(out).values()) == {3}, _verdicts(out)
+
+    # 6. The default HTML report lands in out/ and is regenerated in place.
     for _ in range(2):
         with OmniCLISetup() as omni:
             rep = omni.call(

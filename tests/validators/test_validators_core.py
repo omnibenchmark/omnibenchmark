@@ -167,6 +167,13 @@ metric_collectors:
     )
     with pytest.raises(Exception, match="stage outputs only"):
         Benchmark.from_yaml(plan)
+    on_input = plan.replace(
+        "inputs: [raw]",
+        "inputs:\n      - id: raw\n        path: x\n"
+        "        validators: [{script: checks/t.py}]",
+    ).replace("        validators:\n          - script: checks/t.py\n", "")
+    with pytest.raises(Exception, match="stage outputs only"):
+        Benchmark.from_yaml(on_input)
 
 
 @pytest.mark.short

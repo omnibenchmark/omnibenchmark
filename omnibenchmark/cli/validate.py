@@ -294,12 +294,24 @@ def validate_outputs(ctx, benchmark, out_dir, cores, force):
     """
     from omnibenchmark.backend.validators import run_validators
 
-    rc = run_validators(
-        benchmark=benchmark,
-        out_dir=out_dir,
-        cores=cores,
-        force=force,
-    )
+    try:
+        rc = run_validators(
+            benchmark=benchmark,
+            out_dir=out_dir,
+            cores=cores,
+            force=force,
+        )
+    except BenchmarkParseError as e:
+        logger.error(
+            f"Error: Failed to parse YAML as a valid OmniBenchmark: {e.message}"
+        )
+        rc = 1
+    except PydanticValidationError as e:
+        logger.error(f"Error: {format_pydantic_errors(e)}")
+        rc = 1
+    except ValueError as e:
+        logger.error(f"Error: Failed to parse YAML as a valid OmniBenchmark: {e}")
+        rc = 1
     ctx.exit(rc)
 
 
