@@ -416,6 +416,12 @@ class BenchmarkValidator:
                     f"Software environment with id '{module.software_environment}' is not declared. It should be listed as part of the stanza software_environments within the benchmarking YAML header."  # type: ignore
                 )
 
+        validators = self.validators  # type: ignore
+        if validators and validators.env and validators.env not in env_ids:
+            errors.append(
+                f"Software environment with id '{validators.env}' for validators is not declared."
+            )
+
         # Check metric collectors
         if self.metric_collectors:  # type: ignore
             for collector in self.metric_collectors:  # type: ignore

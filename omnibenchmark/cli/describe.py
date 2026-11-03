@@ -44,11 +44,13 @@ def _rows_to_html_table(
 def _load_validation_index(out_dir: Path) -> dict:
     """Map resolved output path -> (status, abs_log_path) from out/.validation/*.json.
 
-    Keying by the *resolved* path makes the report agnostic to whether an output
-    is referenced via its hidden param-hash dir or its human-readable symlink —
-    both resolve to the same real file the validators ran against. Read-only:
-    this only reads results written by ``ob validate outputs``.
+    Keyed by the *resolved* path so a hash-dir path and its human-readable
+    symlink find the same verdict. A missing output has no verdict; an output
+    newer than its verdict reads ``stale``. Read-only: results are written by
+    ``ob validate outputs``.
     """
+    from omnibenchmark.core.validators import verdict_status
+
     index: dict = {}
     root = out_dir / ".validation"
     if not root.is_dir():
@@ -62,7 +64,11 @@ def _load_validation_index(out_dir: Path) -> dict:
         if not output_file:
             continue
         real = (out_dir / output_file).resolve()
-        status = "pass" if data.get("exit_code") == 0 else "fail"
+        if not real.exists():
+            continue
+        status = verdict_status(data.get("exit_code"))
+        if real.stat().st_mtime > result_json.stat().st_mtime:
+            status = "stale"
         log = str((out_dir / data["log"]).resolve()) if data.get("log") else ""
         index[real] = (status, log)
     return index
@@ -390,12 +396,11 @@ def status(
             for f in files_by_node.get(node_key, []):
                 vstatus, vlog = _validation_for(f, validation_index)
                 statuses.append(vstatus)
-                if vstatus in ("pass", "fail") and vlog:
+                if vstatus != "not_validated" and vlog:
                     vlogs.append(vlog)
-            if "fail" in statuses:
-                return "fail", vlogs
-            if any(s == "pass" for s in statuses):
-                return "pass", vlogs
+            for worst in ("fail", "error", "stale", "pass"):
+                if worst in statuses:
+                    return worst, vlogs
             return "not_validated", vlogs
 
         # Define status colors (colorblind-friendly palette)
@@ -412,6 +417,8 @@ def status(
         validation_color_dict = {
             "pass": "#2ECC40",  # Green
             "fail": "#FF4136",  # Red
+            "error": "#B10DC9",  # Purple: the validator could not run
+            "stale": "#FF851B",  # Orange: output changed since validation
             "not_validated": "#cccccc",  # Light grey (thin ring)
         }
 
@@ -443,7 +450,7 @@ def status(
                     "label": label,
                     # File-status fill + validation ring (thick when validated).
                     "color": {"background": color, "border": validation_border},
-                    "borderWidth": 4 if validation in ("pass", "fail") else 1,
+                    "borderWidth": 1 if validation == "not_validated" else 4,
                     "stage": stage,
                     "module": node.module_id,
                     "status": status,
@@ -473,6 +480,8 @@ def status(
         validation_legend = [
             {"name": "Validated: pass", "color": validation_color_dict["pass"]},
             {"name": "Validated: fail", "color": validation_color_dict["fail"]},
+            {"name": "Validator error", "color": validation_color_dict["error"]},
+            {"name": "Stale verdict", "color": validation_color_dict["stale"]},
             {"name": "Not validated", "color": validation_color_dict["not_validated"]},
         ]
 

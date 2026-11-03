@@ -70,7 +70,7 @@ provenance:                            # Optional: lineage metadata
   derived_from: <string>              #   identifier/URL of the upstream benchmark
   subset_of: <string>                 #   summary hash of the parent benchmark
 validators:                            # Optional: output validators (see Section 3.9)
-  env: <string>                       #   software_environments id used to run validators
+  env: <string>                       #   software_environments id (default: current env)
   directory: <string>                 #   validators dir (default: "validators")
 ```
 
@@ -576,25 +576,39 @@ green/red status per module in the status report. Requires api_version ≥ 0.8.0
 
 ```yaml
 validators:
-  env: <string>            # Required: a software_environments id; all validators run here
+  env: <string>            # Optional: a software_environments id; all validators run here.
+                           #   Omitted: the current environment (not reproducible).
   directory: <string>      # Optional: validators dir, relative to the plan (default: "validators")
+
+stages:
+  - id: PCA
+    outputs:
+      - id: pcas_tsv
+        path: "{module.id}_pcas.tsv"
+        validator:
+          script: checks/pcas.R   # Optional, relative to the plan
 ```
 
-Validators live under `directory/{STAGE_ID}/{OUTPUT_ID}/validate.{py,R,sh}` — keyed by
-the stage id and the **output id** as declared in the stage's `outputs` (e.g.
-`PCA/pcas_tsv`). The output id is resolved to its path template, so the validator runs
-against exactly that output's produced files. Each script:
+A validator is keyed by stage id and **output id**. It is either declared on the
+output (`validator.script`) or found at `directory/{STAGE_ID}/{OUTPUT_ID}/validate.{py,R,sh}`;
+the declared one wins. One validator per output. Each script:
 
 - receives a single produced output file path as its only argument;
-- signals **pass with exit code 0, fail with any non-zero code** (stdout/stderr are
-  captured to a log);
-- runs inside the single environment named by `validators.env` (so its interpreter and
-  dependencies must be available there).
+- exits 0 to pass and any other code to fail; 126 and 127 (including a missing
+  script) mean the validator could not run and are reported as `error`, not as a
+  rejection. stdout/stderr are captured to a log;
+- runs in the environment named by `validators.env`.
 
-The same validator applies to every module implementing the stage, run against each
-module's produced file. Validation is executed on demand by `ob validate outputs`
-(a generated wildcard Snakefile under `out/.validation/`); the status report only reads
-the results and never executes them.
+The same validator applies to every module implementing the stage. `ob validate plan`
+rejects an undeclared `validators.env` and a declared `script` that does not exist.
+`ob validate outputs` runs the validators (a generated Snakefile under
+`out/.validation/`), warns about validator directories that match no output id, and
+exits 1 if any output fails, errors, or nothing matches. Each verdict records the
+script path and its sha256; editing a script reruns its validations. The status report
+only reads verdicts: a verdict older than its output is shown as `stale`, and a
+missing output has none.
+
+TODO: per-validator `env` override; several validators per output.
 
 ## 4. Complete Example
 
