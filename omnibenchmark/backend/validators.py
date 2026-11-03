@@ -2,7 +2,6 @@
 Snakefile (see ``omnibenchmark.core.validators`` for the pure parts)."""
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -162,14 +161,16 @@ def run_validators(
     if force:
         cmd.append("--forceall")
 
-    logger.info(f"Validating {len(targets)} output file(s) -> {snakefile}")
-    original_dir = os.getcwd()
-    os.chdir(out_path)
-    try:
-        result = subprocess.run(cmd)
-    finally:
-        os.chdir(original_dir)
+    log_file = out_path / VALIDATION_DIR / "snakemake.log"
+    logger.info(f"Validating {len(targets)} output file(s)")
+    with open(log_file, "w") as f:
+        result = subprocess.run(cmd, cwd=out_path, stdout=f, stderr=subprocess.STDOUT)
     if result.returncode != 0:
+        tail = log_file.read_text(errors="replace").splitlines()[-20:]
+        logger.error(
+            f"Snakemake failed (exit {result.returncode}); full log: {log_file}\n"
+            + "\n".join(tail)
+        )
         return result.returncode
 
     # The rule records a failing validator instead of failing itself, so read

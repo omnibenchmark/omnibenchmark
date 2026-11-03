@@ -19,6 +19,7 @@ from omnibenchmark.core.repository_utils import (
     cleanup_temp_repositories,
 )
 from omnibenchmark.core.validate import ValidationResult, format_validation_results
+from omnibenchmark.core.validators import collect_validators
 from omnibenchmark.logging import logger
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
@@ -100,6 +101,16 @@ def validate_plan(ctx, benchmark: str):
         # We only need the benchmark directory (parent of YAML file) for resolving relative paths
         benchmark_dir = benchmark_path.parent.absolute()
         benchmark_model.validate_execution_context(benchmark_dir)
+
+        cfg = benchmark_model.get_validators_config()
+        if cfg:
+            vdir = benchmark_dir / (cfg.directory or "validators")
+            _, unmatched = collect_validators(benchmark_model, benchmark_dir, vdir)
+            for stage_id, output_id in sorted(unmatched):
+                logger.warning(
+                    f"Validator {vdir / stage_id / output_id} matches no output "
+                    f"in the plan (stage '{stage_id}', output '{output_id}')."
+                )
 
         logger.info("✅ Benchmark YAML plan validation passed.")
 

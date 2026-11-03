@@ -20,8 +20,11 @@ DEFAULT_COMPRESSION = COMPRESSION_GZIP
 # `human` is the derived readable view of a flat tree (007 §3.1.2): symlinks
 # into the results, so walking it would count every result twice.
 #
+# `.validation` holds `ob validate outputs` state: verdicts, logs and the
+# generated Snakefile. The status report reads it in place.
+#
 # `.metadata` is deliberately absent: it holds the run's provenance (benchmark
 # YAML copy, modules.txt, manifest.json) and belongs in the archive.
 INTERNAL_OUT_DIRS = frozenset(
-    {".modules", ".snakemake", ".envs", ".logs", ".cache", "human"}
+    {".modules", ".snakemake", ".envs", ".logs", ".cache", ".validation", "human"}
 )
