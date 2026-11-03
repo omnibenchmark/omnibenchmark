@@ -1,9 +1,8 @@
 """Unit test for the describe report's validation read-side.
 
-The validators run records results under the *human-readable symlink* path
-(snakemake's glob skips the dot-prefixed hash dir), while the status report's
-filedict references outputs by their *hash* path. Both resolve to the same real
-file, so `_load_validation_index` / `_validation_for` must bridge the two.
+A verdict is keyed by the resolved file, so a path through a symlink (the
+`out/human/` view, or the pre-0.8 nested layout) and the real path find the
+same verdict.
 """
 
 import json
