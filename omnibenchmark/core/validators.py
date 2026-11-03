@@ -47,6 +47,13 @@ def declared_validators(model, benchmark_dir: Path) -> ValidatorMap:
     }
 
 
+def missing_scripts(validators: ValidatorMap) -> List[str]:
+    """Declared scripts that do not exist, sorted."""
+    return sorted(
+        {s for vs in validators.values() for _, s in vs if not Path(s).is_file()}
+    )
+
+
 def verdict_status(exit_code: Optional[int]) -> str:
     """``pass`` / ``fail``, or ``error`` when the validator itself could not run."""
     if exit_code == 0:
@@ -56,7 +63,8 @@ def verdict_status(exit_code: Optional[int]) -> str:
     return "fail"
 
 
-def _sha256(path: str) -> str:
+def script_sha256(path: str) -> str:
+    """sha256 of a script, ``""`` if it cannot be read."""
     try:
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
     except OSError:
@@ -75,7 +83,9 @@ def build_targets(
     runs); ``key`` is ``{relpath}.{i}``, *i* the validator's position on the
     output, and names the result ``.validation/{key}.json``.
     """
-    shas = {script: _sha256(script) for vs in validators.values() for _, script in vs}
+    shas = {
+        script: script_sha256(script) for vs in validators.values() for _, script in vs
+    }
     targets: Dict[str, List[str]] = {}
     for stage_id, output_id, file_path in produced:
         rel = os.path.relpath(str(file_path), str(out_dir))

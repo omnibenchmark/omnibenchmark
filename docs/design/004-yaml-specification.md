@@ -590,7 +590,7 @@ stages:
 ```
 
 Validators are declared on a stage output and apply to that output for every
-module of the stage. Only declared validators run; there is no directory lookup.
+module of the stage; metric collector outputs reject them. Only declared validators run; there is no directory lookup.
 The interpreter follows the extension: `.py` → `python3`, `.R` → `Rscript`,
 anything else → `bash`. Each script:
 
@@ -599,19 +599,22 @@ anything else → `bash`. Each script:
   or interpreter also produces, mean it could not run, recorded as `error`;
 - runs in `validators.env`.
 
-`ob validate plan` rejects an undeclared `validators.env` and a declared `script`
-that does not exist.
+`ob validate plan` and `ob validate outputs` reject an undeclared
+`validators.env` and a declared `script` that does not exist. `ob run` does not
+check scripts: a missing optional check never blocks a run. An env that fails to
+resolve is an error, never a silent fallback to the host.
 
 `ob validate outputs` runs every validator against every produced file of its
 output, through a generated Snakefile under `out/.validation/`. It writes one
 verdict per (file, validator), with the script path and its sha256, so editing a
-script reruns its validations. The Snakemake log goes to
+script reruns its validations. Verdicts of validators no longer in the plan are
+deleted before the run. The Snakemake log goes to
 `out/.validation/snakemake.log`. The command exits 1 if any verdict is not a
 pass, or if the plan declares no validators.
 
 The status report only reads verdicts. A file with several validators shows the
-worst (fail, then error, stale, pass); a verdict older than its file is `stale`;
-a missing file has none. `out/.validation/` is internal state: `ob archive` and
+worst (fail, then error, stale, pass). A verdict is `stale` when its file is
+newer, or when its script's sha256 no longer matches; a missing file has none. `out/.validation/` is internal state: `ob archive` and
 `ob collect` skip it.
 
 TODO: per-validator `env` override; validator `args`; severity.

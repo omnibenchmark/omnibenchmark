@@ -14,6 +14,7 @@ from pathlib import Path
 
 from omnibenchmark.core.status.status import prepare_status, print_exec_path_dict
 from omnibenchmark.core import BenchmarkExecution
+from omnibenchmark.constants import STATUS_REPORT_FILE
 from omnibenchmark.dag import get_node_attributes
 
 from omnibenchmark.logging import logger
@@ -50,12 +51,13 @@ def _load_validation_index(out_dir: Path) -> dict:
     Keyed by the *resolved* path so a hash-dir path and its human-readable
     symlink find the same verdict. An output with several validators shows the
     worst verdict. A missing output has no verdict; an output newer than its
-    verdict reads ``stale``. Read-only: results are written by
+    verdict, or a script edited since, reads ``stale``. Read-only: results are written by
     ``ob validate outputs``.
     """
-    from omnibenchmark.core.validators import verdict_status
+    from omnibenchmark.core.validators import script_sha256, verdict_status
 
     index: dict = {}
+    shas: dict = {}
     root = out_dir / ".validation"
     if not root.is_dir():
         return index
@@ -71,7 +73,12 @@ def _load_validation_index(out_dir: Path) -> dict:
         if not real.exists():
             continue
         status = verdict_status(data.get("exit_code"))
-        if real.stat().st_mtime > result_json.stat().st_mtime:
+        script = data.get("script")
+        if script and script not in shas:
+            shas[script] = script_sha256(script)
+        if real.stat().st_mtime > result_json.stat().st_mtime or (
+            script and shas[script] != data.get("script_sha256")
+        ):
             status = "stale"
         log = str((out_dir / data["log"]).resolve()) if data.get("log") else ""
         if real not in index or _WORST[status] < _WORST[index[real][0]]:
@@ -294,7 +301,7 @@ def status(
     ctx.ensure_object(dict)
     # Default the HTML report into the output folder.
     if html_file is None:
-        html_file = str(Path(out_dir) / "status_report.html")
+        html_file = str(Path(out_dir) / STATUS_REPORT_FILE)
     if watch is not None and (return_json or return_html):
         raise click.UsageError("--watch only works with the text report.")
     if not return_json and not return_html:

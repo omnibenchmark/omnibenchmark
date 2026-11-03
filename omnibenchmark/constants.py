@@ -25,6 +25,9 @@ DEFAULT_COMPRESSION = COMPRESSION_GZIP
 #
 # `.metadata` is deliberately absent: it holds the run's provenance (benchmark
 # YAML copy, modules.txt, manifest.json) and belongs in the archive.
+# `ob describe status --html` writes here by default; not a result.
+STATUS_REPORT_FILE = "status_report.html"
+
 INTERNAL_OUT_DIRS = frozenset(
     {".modules", ".snakemake", ".envs", ".logs", ".cache", ".validation", "human"}
 )

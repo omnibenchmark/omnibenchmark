@@ -88,3 +88,29 @@ def test_validation_index_shows_worst_of_several_validators(tmp_path):
     _verdict(out, "a.txt", 1, i=1)
     _verdict(out, "a.txt", 127, i=2)
     assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "fail"
+
+
+@pytest.mark.short
+def test_validation_index_stale_after_script_edit(tmp_path):
+    from omnibenchmark.core.validators import script_sha256
+
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "a.txt").write_text("x")
+    script = tmp_path / "v.py"
+    script.write_text("pass\n")
+    result = out / ".validation" / "a.txt.0.json"
+    result.parent.mkdir()
+    result.write_text(
+        json.dumps(
+            {
+                "output_file": "a.txt",
+                "exit_code": 0,
+                "script": str(script),
+                "script_sha256": script_sha256(str(script)),
+            }
+        )
+    )
+    assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "pass"
+    script.write_text("raise SystemExit(1)\n")
+    assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "stale"

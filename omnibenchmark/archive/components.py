@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from omnibenchmark.constants import INTERNAL_OUT_DIRS
+from omnibenchmark.constants import INTERNAL_OUT_DIRS, STATUS_REPORT_FILE
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.model import SoftwareBackendEnum
 from omnibenchmark.model.benchmark import _is_environment_url
@@ -264,6 +264,8 @@ def prepare_archive_results_local(
             dirs[:] = [d for d in dirs if d not in INTERNAL_OUT_DIRS]
             for name in names:
                 f = Path(root) / name
+                if f == results_path / STATUS_REPORT_FILE:
+                    continue
                 if f not in seen and f.is_file():
                     existing_files.append(f)
 

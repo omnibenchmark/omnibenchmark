@@ -2,15 +2,21 @@
 Snakefile (see ``omnibenchmark.core.validators`` for the pure parts)."""
 
 import json
-import shutil
 import subprocess
-import sys
+from dataclasses import replace
 from pathlib import Path
+
+from omnibenchmark.backend.snakemake import (
+    BACKEND_FLAGS,
+    environment_directive,
+    snakemake_bin,
+)
 
 from omnibenchmark.core.validators import (
     VALIDATION_DIR,
     build_targets,
     declared_validators,
+    missing_scripts,
     verdict_status,
     write_validators_snakefile,
 )
@@ -18,15 +24,14 @@ from omnibenchmark.logging import logger
 
 
 def _resolve_env_directive(model, out_dir: Path, benchmark_dir: Path, env_id: str):
-    """Return ``(directive_line, snakemake_backend_flag)`` for the validators env.
-
-    Reuses the module resolver + the same directive mapping as the main run, so
-    conda/apptainer/envmodules are activated identically. Host backend -> ("", None).
-    """
+    """``(directive, snakemake_flag)`` for the validators env, as the main run
+    writes them. Host backend -> ``("", None)``; raises if the env cannot be
+    resolved, so validators never fall back to the host silently."""
     from omnibenchmark.backend.resolver import ModuleResolver
-    from omnibenchmark.model.benchmark import SoftwareBackendEnum
 
     backend = model.get_software_backend()
+    if backend not in BACKEND_FLAGS:
+        return "", None
     resolver = ModuleResolver(
         work_base_dir=out_dir / ".modules",
         output_dir=out_dir,
@@ -35,32 +40,25 @@ def _resolve_env_directive(model, out_dir: Path, benchmark_dir: Path, env_id: st
         benchmark_dir=benchmark_dir,
     )
     resolved = resolver.resolve_environment(env_id, "validators")
+    if resolved is None:
+        raise ValueError(f"could not resolve validators env '{env_id}'")
+    # The main Snakefile sits in out/, the validators one in out/.validation/, and
+    # snakemake reads env files relative to the Snakefile. Make the ones the
+    # resolver placed under out/ absolute; image refs and module names stay.
+    local = out_dir / resolved.reference
+    if local.exists():
+        resolved = replace(resolved, reference=str(local.resolve()))
+    return environment_directive(resolved), BACKEND_FLAGS[backend]
 
-    def _abs(ref: str) -> str:
-        # conda yamls / local SIFs are resolved relative to out_dir, but the
-        # validators Snakefile lives in out_dir/.validation — snakemake would
-        # resolve a relative path against the wrong dir. Make file refs absolute.
-        if "://" in ref or Path(ref).is_absolute():
-            return ref
-        return str((out_dir / ref).resolve())
 
-    directive = ""
-    if resolved is not None:
-        bt = resolved.backend_type.value
-        if bt == "conda":
-            directive = f'conda: "{_abs(resolved.reference)}"'
-        elif bt in ("apptainer", "docker"):
-            directive = f'container: "{_abs(resolved.reference)}"'
-        elif bt == "envmodules":
-            directive = f'envmodules: "{resolved.reference}"'
-
-    flag = {
-        SoftwareBackendEnum.conda: "--use-conda",
-        SoftwareBackendEnum.apptainer: "--use-singularity",
-        SoftwareBackendEnum.docker: "--use-singularity",
-        SoftwareBackendEnum.envmodules: "--use-envmodules",
-    }.get(backend)
-    return directive, flag
+def _drop_orphan_results(root: Path, targets) -> None:
+    """Delete verdicts and logs of validators no longer in the plan."""
+    keep = {root / "snakemake.log"}
+    for key in targets:
+        keep |= {root / f"{key}.json", root / f"{key}.log"}
+    for p in root.rglob("*"):
+        if p.suffix in (".json", ".log") and p.is_file() and p not in keep:
+            p.unlink()
 
 
 def run_validators(
@@ -94,6 +92,10 @@ def run_validators(
     if not validators:
         logger.error("The plan declares no validators on any stage output.")
         return 1
+    missing = missing_scripts(validators)
+    if missing:
+        logger.error(f"Validator script(s) not found: {', '.join(missing)}")
+        return 1
 
     # Each node resolves its outputs in declaration order, so pairing them with
     # the output ids gives the file for every (stage, output id) without
@@ -118,23 +120,21 @@ def run_validators(
         )
         return 1
 
-    directive, backend_flag = (
-        _resolve_env_directive(model, out_path, benchmark_dir, env)
-        if env
-        else ("", None)
-    )
+    try:
+        directive, backend_flag = (
+            _resolve_env_directive(model, out_path, benchmark_dir, env)
+            if env
+            else ("", None)
+        )
+    except ValueError as e:
+        logger.error(str(e))
+        return 1
     snakefile = out_path / VALIDATION_DIR / "Snakefile"
     write_validators_snakefile(targets, directive, snakefile)
+    _drop_orphan_results(out_path / VALIDATION_DIR, targets)
 
-    bin_dir = Path(sys.executable).parent
-    candidate = bin_dir / "snakemake"
-    snakemake_bin = (
-        str(candidate)
-        if candidate.exists()
-        else (shutil.which("snakemake") or "snakemake")
-    )
     cmd = [
-        snakemake_bin,
+        snakemake_bin(),
         "--snakefile",
         f"{VALIDATION_DIR}/Snakefile",
         "--cores",

@@ -19,6 +19,7 @@ from omnibenchmark.core.repository_utils import (
     cleanup_temp_repositories,
 )
 from omnibenchmark.core.validate import ValidationResult, format_validation_results
+from omnibenchmark.core.validators import declared_validators, missing_scripts
 from omnibenchmark.logging import logger
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
@@ -100,6 +101,13 @@ def validate_plan(ctx, benchmark: str):
         # We only need the benchmark directory (parent of YAML file) for resolving relative paths
         benchmark_dir = benchmark_path.parent.absolute()
         benchmark_model.validate_execution_context(benchmark_dir)
+
+        # Checked here, not in validate_execution_context: a missing optional
+        # check must not stop `ob run`.
+        missing = missing_scripts(declared_validators(benchmark_model, benchmark_dir))
+        if missing:
+            logger.error(f"Error: Validator script(s) not found: {', '.join(missing)}")
+            ctx.exit(1)
 
         logger.info("✅ Benchmark YAML plan validation passed.")
 

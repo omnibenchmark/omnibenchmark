@@ -7,6 +7,7 @@ from pathlib import Path
 from omnibenchmark.core.validators import (
     build_targets,
     declared_validators,
+    missing_scripts,
     verdict_status,
 )
 from omnibenchmark.model.benchmark import Benchmark
@@ -136,16 +137,36 @@ def test_validators_env_must_be_declared():
 
 
 @pytest.mark.short
-def test_declared_validator_script_must_exist(tmp_path):
+def test_missing_validator_scripts(tmp_path):
     model = Benchmark.from_yaml(PLAN)
-    with pytest.raises(Exception, match="checks/meta.sh"):
-        model.validate_execution_context(tmp_path)
+    # A missing optional check must not block `ob run`.
+    model.validate_execution_context(tmp_path)
     (tmp_path / "checks").mkdir()
     (tmp_path / "checks" / "meta.sh").write_text("")
-    with pytest.raises(Exception, match="checks/meta.py"):
-        model.validate_execution_context(tmp_path)
-    (tmp_path / "checks" / "meta.py").write_text("")
-    model.validate_execution_context(tmp_path)
+    assert missing_scripts(declared_validators(model, tmp_path)) == [
+        str(tmp_path / "checks" / "meta.py")
+    ]
+
+
+@pytest.mark.short
+def test_validators_rejected_on_collector_outputs():
+    plan = (
+        PLAN
+        + """\
+metric_collectors:
+  - id: c
+    software_environment: host
+    repository: {url: https://example.org/x.git, commit: abc1234}
+    inputs: [raw]
+    outputs:
+      - id: table
+        path: "{input}/table.tsv"
+        validators:
+          - script: checks/t.py
+"""
+    )
+    with pytest.raises(Exception, match="stage outputs only"):
+        Benchmark.from_yaml(plan)
 
 
 @pytest.mark.short
