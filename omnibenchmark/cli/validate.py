@@ -139,6 +139,9 @@ def validate_plan(ctx, benchmark: str):
         logger.error(f"Error: {e}")
         ctx.exit(1)
 
+    except click.exceptions.Exit:
+        raise
+
     except Exception as e:
         logger.error(f"Error: An unexpected error occurred: {e}")
         ctx.exit(1)
