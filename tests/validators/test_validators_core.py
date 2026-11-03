@@ -6,41 +6,17 @@ from pathlib import Path
 
 from omnibenchmark.core.validators import (
     build_targets,
-    collect_validators,
-    discover_validators,
+    declared_validators,
     verdict_status,
 )
 from omnibenchmark.model.benchmark import Benchmark
 
 
 @pytest.mark.short
-def test_discover_validators(tmp_path):
-    # keyed by (stage_id, output_id), e.g. PCA/pcas_tsv
-    d = tmp_path / "validators" / "PCA" / "pcas_tsv"
-    d.mkdir(parents=True)
-    (d / "validate.R").write_text("# noop")
-    found = discover_validators(tmp_path / "validators")
-    assert set(found) == {("PCA", "pcas_tsv")}
-    interp, script = found[("PCA", "pcas_tsv")]
-    assert interp == "Rscript"
-    assert script.endswith("validate.R")
-
-
-@pytest.mark.short
-def test_discover_validators_rejects_multiple(tmp_path):
-    d = tmp_path / "validators" / "s" / "o"
-    d.mkdir(parents=True)
-    (d / "validate.py").write_text("")
-    (d / "validate.sh").write_text("")
-    with pytest.raises(ValueError):
-        discover_validators(tmp_path / "validators")
-
-
-@pytest.mark.short
-def test_build_targets_keys_by_output_id():
+def test_build_targets_one_per_file_and_validator():
     validators = {
-        ("PCA", "pcas_tsv"): ("Rscript", "/x/validate.R"),
-        ("DATA", "rawdata_h5ad"): ("python3", "/y/validate.py"),
+        ("PCA", "pcas_tsv"): [("Rscript", "/x/a.R"), ("python3", "/x/b.py")],
+        ("DATA", "rawdata_h5ad"): [("python3", "/y/validate.py")],
     }
     produced = [
         ("DATA", "rawdata_h5ad", "out/data.data/data.h5ad"),
@@ -48,10 +24,17 @@ def test_build_targets_keys_by_output_id():
         # no validator for loadings -> not a target
         ("PCA", "loadings_tsv", "out/data.data/pca.p/data_loadings.tsv"),
     ]
+    pcas = "data.data/pca.p/data_pcas.tsv"
     # missing scripts hash to "" (the rule then records exit 127)
     assert build_targets(produced, validators, Path("out")) == {
-        "data.data/data.h5ad": ["python3", "/y/validate.py", ""],
-        "data.data/pca.p/data_pcas.tsv": ["Rscript", "/x/validate.R", ""],
+        "data.data/data.h5ad.0": [
+            "data.data/data.h5ad",
+            "python3",
+            "/y/validate.py",
+            "",
+        ],
+        f"{pcas}.0": [pcas, "Rscript", "/x/a.R", ""],
+        f"{pcas}.1": [pcas, "python3", "/x/b.py", ""],
     }
 
 
@@ -104,22 +87,22 @@ stages:
         path: "{module.id}_data.json"
       - id: meta
         path: "{module.id}_meta.json"
-        validator:
-          script: checks/meta.sh
+        validators:
+          - script: checks/meta.sh
+          - script: checks/meta.py
 validators: {}
 """
 
 
 @pytest.mark.short
-def test_collect_validators_declared_wins_and_typos_reported(tmp_path):
-    vdir = tmp_path / "validators"
-    for key in ("data/raw", "data/meta", "data/rwa"):
-        (vdir / key).mkdir(parents=True)
-        (vdir / key / "validate.py").write_text("")
-    found, unmatched = collect_validators(Benchmark.from_yaml(PLAN), tmp_path, vdir)
-    assert found[("data", "raw")][0] == "python3"
-    assert found[("data", "meta")] == ("bash", str(tmp_path / "checks" / "meta.sh"))
-    assert unmatched == {("data", "rwa")}
+def test_declared_validators(tmp_path):
+    found = declared_validators(Benchmark.from_yaml(PLAN), tmp_path)
+    assert found == {
+        ("data", "meta"): [
+            ("bash", str(tmp_path / "checks" / "meta.sh")),
+            ("python3", str(tmp_path / "checks" / "meta.py")),
+        ]
+    }
 
 
 @pytest.mark.short
@@ -127,14 +110,14 @@ def test_build_targets_hashes_script(tmp_path):
     script = tmp_path / "v.py"
     script.write_text("pass\n")
     targets = build_targets(
-        [("s", "o", "out/a.txt")], {("s", "o"): ("python3", str(script))}, Path("out")
+        [("s", "o", "out/a.txt")], {("s", "o"): [("python3", str(script))]}, Path("out")
     )
-    sha = targets["a.txt"][2]
+    sha = targets["a.txt.0"][3]
     script.write_text("raise SystemExit(1)\n")
     targets = build_targets(
-        [("s", "o", "out/a.txt")], {("s", "o"): ("python3", str(script))}, Path("out")
+        [("s", "o", "out/a.txt")], {("s", "o"): [("python3", str(script))]}, Path("out")
     )
-    assert len(sha) == 64 and targets["a.txt"][2] != sha
+    assert len(sha) == 64 and targets["a.txt.0"][3] != sha
 
 
 @pytest.mark.short
@@ -159,6 +142,9 @@ def test_declared_validator_script_must_exist(tmp_path):
         model.validate_execution_context(tmp_path)
     (tmp_path / "checks").mkdir()
     (tmp_path / "checks" / "meta.sh").write_text("")
+    with pytest.raises(Exception, match="checks/meta.py"):
+        model.validate_execution_context(tmp_path)
+    (tmp_path / "checks" / "meta.py").write_text("")
     model.validate_execution_context(tmp_path)
 
 

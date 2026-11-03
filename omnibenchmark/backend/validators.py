@@ -6,12 +6,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 from omnibenchmark.core.validators import (
     VALIDATION_DIR,
     build_targets,
-    collect_validators,
+    declared_validators,
     verdict_status,
     write_validators_snakefile,
 )
@@ -67,11 +66,10 @@ def _resolve_env_directive(model, out_dir: Path, benchmark_dir: Path, env_id: st
 def run_validators(
     benchmark: str,
     out_dir: str = "out",
-    validators_dir: Optional[str] = None,
     cores: int = 1,
     force: bool = False,
 ) -> int:
-    """Discover validators, generate the wildcard Snakefile, run it.
+    """Collect the declared validators, generate the Snakefile, run it.
 
     Returns non-zero if snakemake fails or any validator rejects its output.
     """
@@ -81,13 +79,9 @@ def run_validators(
     benchmark_path = Path(benchmark)
     model = Benchmark.from_yaml(benchmark_path)
     cfg = model.get_validators_config()
-    if cfg is None:
-        logger.error("No 'validators:' section in the benchmark plan.")
-        return 1
-    if cfg.env and cfg.env not in model.get_software_environments():
-        logger.error(
-            f"validators env '{cfg.env}' is not defined in software_environments."
-        )
+    env = cfg.env if cfg else None
+    if env and env not in model.get_software_environments():
+        logger.error(f"validators env '{env}' is not defined in software_environments.")
         return 1
 
     out_path = Path(out_dir)
@@ -96,19 +90,9 @@ def run_validators(
         return 1
 
     benchmark_dir = benchmark_path.parent.absolute()
-    vdir = (
-        Path(validators_dir)
-        if validators_dir
-        else benchmark_dir / (cfg.directory or "validators")
-    )
-    validators, unmatched = collect_validators(model, benchmark_dir, vdir)
-    for stage_id, output_id in sorted(unmatched):
-        logger.warning(
-            f"Validator {vdir / stage_id / output_id} matches no output in the "
-            f"plan (stage '{stage_id}', output '{output_id}')."
-        )
+    validators = declared_validators(model, benchmark_dir)
     if not validators:
-        logger.error(f"No validators declared or found under {vdir}.")
+        logger.error("The plan declares no validators on any stage output.")
         return 1
 
     # Each node resolves its outputs in declaration order, so pairing them with
@@ -135,8 +119,8 @@ def run_validators(
         return 1
 
     directive, backend_flag = (
-        _resolve_env_directive(model, out_path, benchmark_dir, cfg.env)
-        if cfg.env
+        _resolve_env_directive(model, out_path, benchmark_dir, env)
+        if env
         else ("", None)
     )
     snakefile = out_path / VALIDATION_DIR / "Snakefile"
@@ -176,8 +160,8 @@ def run_validators(
     # The rule records a failing validator instead of failing itself, so read
     # the results back to make the command usable as a CI gate.
     bad = 0
-    for rel in targets:
-        result_json = out_path / VALIDATION_DIR / f"{rel}.json"
+    for key, (rel, _, script, _) in targets.items():
+        result_json = out_path / VALIDATION_DIR / f"{key}.json"
         try:
             status = verdict_status(json.loads(result_json.read_text())["exit_code"])
         except (OSError, ValueError, KeyError):
@@ -186,5 +170,8 @@ def run_validators(
             continue
         bad += 1
         what = "Validation failed" if status == "fail" else "Validator could not run"
-        logger.error(f"{what}: {rel} (log: {out_path / VALIDATION_DIR / rel}.log)")
+        logger.error(
+            f"{what}: {rel} by {Path(script).name} "
+            f"(log: {out_path / VALIDATION_DIR / key}.log)"
+        )
     return 1 if bad else 0

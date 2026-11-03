@@ -41,12 +41,16 @@ def _rows_to_html_table(
     )
 
 
+_WORST = {"fail": 0, "error": 1, "stale": 2, "pass": 3}
+
+
 def _load_validation_index(out_dir: Path) -> dict:
     """Map resolved output path -> (status, abs_log_path) from out/.validation/*.json.
 
     Keyed by the *resolved* path so a hash-dir path and its human-readable
-    symlink find the same verdict. A missing output has no verdict; an output
-    newer than its verdict reads ``stale``. Read-only: results are written by
+    symlink find the same verdict. An output with several validators shows the
+    worst verdict. A missing output has no verdict; an output newer than its
+    verdict reads ``stale``. Read-only: results are written by
     ``ob validate outputs``.
     """
     from omnibenchmark.core.validators import verdict_status
@@ -70,7 +74,8 @@ def _load_validation_index(out_dir: Path) -> dict:
         if real.stat().st_mtime > result_json.stat().st_mtime:
             status = "stale"
         log = str((out_dir / data["log"]).resolve()) if data.get("log") else ""
-        index[real] = (status, log)
+        if real not in index or _WORST[status] < _WORST[index[real][0]]:
+            index[real] = (status, log)
     return index
 
 

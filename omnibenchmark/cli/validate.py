@@ -19,7 +19,6 @@ from omnibenchmark.core.repository_utils import (
     cleanup_temp_repositories,
 )
 from omnibenchmark.core.validate import ValidationResult, format_validation_results
-from omnibenchmark.core.validators import collect_validators
 from omnibenchmark.logging import logger
 from omnibenchmark.model import Benchmark as BenchmarkModel
 from omnibenchmark.model.validation import BenchmarkParseError, ValidationError
@@ -101,16 +100,6 @@ def validate_plan(ctx, benchmark: str):
         # We only need the benchmark directory (parent of YAML file) for resolving relative paths
         benchmark_dir = benchmark_path.parent.absolute()
         benchmark_model.validate_execution_context(benchmark_dir)
-
-        cfg = benchmark_model.get_validators_config()
-        if cfg:
-            vdir = benchmark_dir / (cfg.directory or "validators")
-            _, unmatched = collect_validators(benchmark_model, benchmark_dir, vdir)
-            for stage_id, output_id in sorted(unmatched):
-                logger.warning(
-                    f"Validator {vdir / stage_id / output_id} matches no output "
-                    f"in the plan (stage '{stage_id}', output '{output_id}')."
-                )
 
         logger.info("✅ Benchmark YAML plan validation passed.")
 
@@ -279,21 +268,16 @@ def validate_module(ctx, path, strict, format="summary"):
 @validate.command("outputs")
 @click.argument("benchmark", type=click.Path(exists=True))
 @click.option("--out-dir", default="out", help="Output folder to validate.")
-@click.option(
-    "--validators-dir",
-    default=None,
-    help="Validators directory (default: '<plan dir>/<validators.directory>').",
-)
 @click.option("-c", "--cores", default=1, type=int, help="Snakemake cores.")
 @click.option(
     "--force", is_flag=True, default=False, help="Re-validate everything (--forceall)."
 )
 @click.pass_context
-def validate_outputs(ctx, benchmark, out_dir, validators_dir, cores, force):
+def validate_outputs(ctx, benchmark, out_dir, cores, force):
     """Run output validators against a benchmark's produced files.
 
     Generates a wildcard Snakefile under ``out/.validation/`` and runs the
-    validator declared for each produced output (one per stage/output), in the
+    validators declared on each produced output, in the
     environment named by the plan's ``validators.env``. Pass/fail is recorded per
     output (exit code) for the status report to display.
     """
@@ -302,7 +286,6 @@ def validate_outputs(ctx, benchmark, out_dir, validators_dir, cores, force):
     rc = run_validators(
         benchmark=benchmark,
         out_dir=out_dir,
-        validators_dir=validators_dir,
         cores=cores,
         force=force,
     )
