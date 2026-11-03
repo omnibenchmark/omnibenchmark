@@ -233,6 +233,14 @@ def test_cli_validate_plan_exit_codes(project):
 
 
 @pytest.mark.short
+def test_cli_validate_outputs_reports_a_broken_plan(project):
+    (project.dir / "benchmark.yaml").write_text("id: b\n")
+    res = CliRunner().invoke(validate, ["outputs", str(project.dir / "benchmark.yaml")])
+    assert res.exit_code == 1
+    assert res.exception is None or isinstance(res.exception, SystemExit)
+
+
+@pytest.mark.short
 def test_cli_validate_outputs_passes_exit_code(project, monkeypatch):
     seen = {}
 

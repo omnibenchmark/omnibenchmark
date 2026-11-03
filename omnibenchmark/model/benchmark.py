@@ -1606,7 +1606,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         )
 
         for collector in self.metric_collectors or []:
-            if any(o.validators for o in collector.outputs):
+            files = collector.outputs + [
+                i for i in collector.inputs if isinstance(i, IOFile)
+            ]
+            if any(f.validators for f in files):
                 raise ValueError(
                     f"Metric collector '{collector.id}' declares `validators`; "
                     f"validators apply to stage outputs only."
