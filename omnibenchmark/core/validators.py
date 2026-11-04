@@ -12,12 +12,14 @@ filesystem globbing is needed.
 
 Pure helpers; ``omnibenchmark.backend.validators`` runs them. The generated
 Snakefile is run from the benchmark out/ dir; results and logs land under
-``out/.validation/`` mirroring each output's path.
+``out/.validation/`` mirroring each output's path, and the scripts that ran
+under ``out/.validation/scripts/<sha256>``.
 """
 
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -25,6 +27,9 @@ from typing import Dict, Iterable, List, Optional, Tuple
 INTERP = {".py": "python3", ".R": "Rscript", ".sh": "bash"}
 
 VALIDATION_DIR = ".validation"
+# Scripts are copied here, named by sha256, and run from there: a container
+# only sees out/ (snakemake binds the workdir), and the copy is what ran.
+SCRIPTS_DIR = f"{VALIDATION_DIR}/scripts"
 
 # Key: (stage_id, output_id). Value: [(interpreter, absolute script path), ...].
 ValidatorMap = Dict[Tuple[str, str], List[Tuple[str, str]]]
@@ -93,6 +98,20 @@ def build_targets(
     return targets
 
 
+def stage_scripts(targets: Dict[str, List[str]], out_dir: Path) -> None:
+    """Copy each target's script to ``out_dir/SCRIPTS_DIR/<sha256>``; drop the
+    copies no target uses."""
+    scripts = {sha: script for _, _, script, sha in targets.values()}
+    root = out_dir / SCRIPTS_DIR
+    root.mkdir(parents=True, exist_ok=True)
+    for p in root.iterdir():
+        if p.name not in scripts:
+            p.unlink()
+    for sha, script in scripts.items():
+        if not (root / sha).exists():
+            shutil.copyfile(script, root / sha)
+
+
 # Static body of the generated Snakefile. Snakemake placeholders are kept verbatim
 # (no str.format here); only the TARGETS literal and __ENV_LINE__ are injected.
 _SNAKEFILE_BODY = r'''
@@ -110,7 +129,7 @@ rule validate:
         ".validation/{key}.log"
 __ENV_LINE__    params:
         interp=lambda wc: TARGETS[wc.key][1],
-        script=lambda wc: TARGETS[wc.key][2],
+        staged=lambda wc: f"__SCRIPTS_DIR__/{TARGETS[wc.key][3]}",
         script_json=lambda wc: json.dumps(TARGETS[wc.key][2]),
         sha=lambda wc: TARGETS[wc.key][3],
         input_json=lambda wc: json.dumps(TARGETS[wc.key][0]),
@@ -118,11 +137,11 @@ __ENV_LINE__    params:
     shell:
         r"""
         set +e
-        if [ -f {params.script:q} ]; then
-            {params.interp:q} {params.script:q} {input:q} > {log:q} 2>&1
+        if [ -f {params.staged:q} ]; then
+            {params.interp:q} {params.staged:q} {input:q} > {log:q} 2>&1
             code=$?
         else
-            echo "validator not found: {params.script}" > {log:q}
+            echo "validator not found: {params.staged}" > {log:q}
             code=127
         fi
         set -e
@@ -145,7 +164,8 @@ def build_snakefile(targets: Dict[str, List[str]], env_directive: str = "") -> s
         f"TARGETS = {json.dumps(targets, indent=4)}\n"
     )
     env_line = f"    {env_directive}\n" if env_directive else ""
-    return header + _SNAKEFILE_BODY.replace("__ENV_LINE__", env_line)
+    body = _SNAKEFILE_BODY.replace("__ENV_LINE__", env_line)
+    return header + body.replace("__SCRIPTS_DIR__", SCRIPTS_DIR)
 
 
 def write_validators_snakefile(

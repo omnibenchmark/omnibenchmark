@@ -17,6 +17,7 @@ from omnibenchmark.core.validators import (
     build_targets,
     declared_validators,
     missing_scripts,
+    stage_scripts,
     verdict_status,
     write_validators_snakefile,
 )
@@ -129,6 +130,7 @@ def run_validators(
         return 1
     snakefile = out_path / VALIDATION_DIR / "Snakefile"
     write_validators_snakefile(targets, directive, snakefile)
+    stage_scripts(targets, out_path)
     _drop_orphan_results(out_path / VALIDATION_DIR, targets)
 
     cmd = [

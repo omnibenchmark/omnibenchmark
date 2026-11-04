@@ -8,6 +8,7 @@ from omnibenchmark.core.validators import (
     build_targets,
     declared_validators,
     missing_scripts,
+    stage_scripts,
     verdict_status,
 )
 from omnibenchmark.model.benchmark import Benchmark, Validator
@@ -199,3 +200,15 @@ def test_validators_do_not_change_summary_hash():
     b = Benchmark.from_yaml(TRIMMED.read_text())
     b.stages[0].outputs[0].validators = [Validator(script="checks/a.py")]
     assert b.summary_hash() == TRIMMED_HASH
+
+
+@pytest.mark.short
+def test_stage_scripts_copies_by_sha_and_prunes(tmp_path):
+    script = tmp_path / "check.py"
+    script.write_text("pass\n")
+    staged = tmp_path / "out" / ".validation" / "scripts"
+    staged.mkdir(parents=True)
+    (staged / "old").write_text("gone")
+    stage_scripts({"f.0": ["f", "python3", str(script), "abc"]}, tmp_path / "out")
+    assert [p.name for p in staged.iterdir()] == ["abc"]
+    assert (staged / "abc").read_text() == "pass\n"
