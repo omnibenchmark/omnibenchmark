@@ -68,7 +68,8 @@ def _run(tmp_path: Path):
 
     with OmniCLISetup() as omni:
         run = omni.call(["run", "benchmark.yaml", "--out-dir", "out"], cwd=tmp_path)
-        assert run.returncode == 0, run.stdout + run.stderr
+        rule_logs = "".join(p.read_text() for p in (out / ".logs").glob("data_*.log"))
+        assert run.returncode == 0, run.stdout + run.stderr + rule_logs
         val = omni.call(
             ["validate", "outputs", "benchmark.yaml", "--out-dir", "out"],
             cwd=tmp_path,
