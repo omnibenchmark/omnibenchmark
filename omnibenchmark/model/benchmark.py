@@ -1339,7 +1339,9 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         Excluded: benchmarker, authors, description, version (already part
         of the storage version string per design/003-storage.md), storage
-        config, api_version, and provenance.
+        config, api_version, and provenance. Output ``validators`` are excluded
+        too: they read outputs and never change them, so adding one must not
+        change the hash (004 §3.14).
 
         Returns the full 64-character hex digest.  Use [:8] for the short
         form that matches the convention in Params.hash_short().
@@ -1370,6 +1372,13 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         raw = self.model_dump(mode="json")
         execution = {k: v for k, v in raw.items() if k in _EXEC_FIELDS}
+        entities = (execution.get("stages") or []) + (
+            execution.get("metric_collectors") or []
+        )
+        for entity in entities:
+            for io in (entity.get("inputs") or []) + (entity.get("outputs") or []):
+                if isinstance(io, dict):
+                    io.pop("validators", None)
         canonical = _json.dumps(execution, sort_keys=True)
         return _hashlib.sha256(canonical.encode()).hexdigest()
 
