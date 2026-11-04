@@ -607,7 +607,9 @@ resolve is an error, never a silent fallback to the host.
 `ob validate outputs` runs every validator against every produced file of its
 output, through a generated Snakefile under `out/.validation/`. It writes one
 verdict per (file, validator), with the script path and its sha256, so editing a
-script reruns its validations. Verdicts of validators no longer in the plan are
+script reruns its validations. Each script runs from a copy under
+`out/.validation/scripts/<sha256>`, so a container backend, which mounts only
+`out/`, can see it, and the script that ran stays next to its verdict. Verdicts of validators no longer in the plan are
 deleted before the run. The Snakemake log goes to
 `out/.validation/snakemake.log`. The command exits 1 if any verdict is not a
 pass, or if the plan declares no validators.

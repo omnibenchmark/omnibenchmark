@@ -207,7 +207,8 @@ jobs:
       - name: Install additional system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap
+          # apptainer: test_16 runs output validators inside a container
+          sudo apt-get install -y debootstrap apptainer
 
       - name: Set up module environment
         run: |
