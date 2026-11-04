@@ -137,7 +137,7 @@ def test_custom_out_dir(tmp_path):
         assert os.path.exists(tmp_path / custom_out_dir)
 
 
-def test_local_dry():
+def test_local_dry(tmp_path):
     # Dry run should complete successfully (may have warnings)
     expected_output = "Snakefile generated."
     with OmniCLISetup() as omni:
@@ -146,7 +146,8 @@ def test_local_dry():
                 "run",
                 str(data / "mock_benchmark.yaml"),
                 "--dry",
-            ]
+            ],
+            cwd=tmp_path,
         )
 
         assert result.returncode == 0

@@ -13,6 +13,7 @@ import pytest
 from click.testing import CliRunner
 
 from omnibenchmark.backend import validators as bv
+from omnibenchmark.cli.describe import status as describe_status
 from omnibenchmark.cli.validate import validate
 from omnibenchmark.core.validators import build_snakefile
 
@@ -253,3 +254,21 @@ def test_cli_validate_outputs_passes_exit_code(project, monkeypatch):
     res = CliRunner().invoke(validate, ["outputs", plan, "--out-dir", "o", "-c", "2"])
     assert res.exit_code == 3
     assert seen["out_dir"] == "o" and seen["cores"] == 2 and not seen["force"]
+
+
+@pytest.mark.short
+def test_refuses_an_out_dir_of_another_version(project, monkeypatch, caplog):
+    md = project.out / ".metadata"
+    md.mkdir()
+    bench = {"id": "b", "version": "0.9", "summary_hash": "x"}
+    (md / "runs.jsonl").write_text(json.dumps({"benchmark": bench}) + "\n")
+    calls = _stub_snakemake(monkeypatch)
+    assert _run(project) == 1
+    assert "version '0.9'" in caplog.text
+    assert not calls
+
+    res = CliRunner().invoke(
+        describe_status,
+        [str(project.dir / "benchmark.yaml"), "--out-dir", str(project.out)],
+    )
+    assert res.exit_code == 1
