@@ -617,6 +617,9 @@ worst (fail, then error, stale, pass). A verdict is `stale` when its file is
 newer, or when its script's sha256 no longer matches; a missing file has none. `out/.validation/` is internal state: `ob archive` and
 `ob collect` skip it.
 
+`validators` are not part of `Benchmark.summary_hash()` (§9): adding or
+editing one leaves the hash, and so obfilter parents and storage tags, unchanged.
+
 TODO: per-validator `env` override; validator `args`; severity.
 
 ## 4. Complete Example

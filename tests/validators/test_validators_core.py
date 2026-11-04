@@ -10,7 +10,7 @@ from omnibenchmark.core.validators import (
     missing_scripts,
     verdict_status,
 )
-from omnibenchmark.model.benchmark import Benchmark
+from omnibenchmark.model.benchmark import Benchmark, Validator
 
 
 @pytest.mark.short
@@ -181,3 +181,21 @@ def test_declared_validator_requires_api_0_8():
     plan = PLAN.replace('"0.8.0"', '"0.7.0"').replace("validators: {}\n", "")
     with pytest.raises(Exception, match="requires api_version"):
         Benchmark.from_yaml(plan)
+
+
+# summary_hash() of this plan on main, before validators existed. A model field
+# that leaks into the hash changes it and breaks obfilter parents and 003 tags.
+TRIMMED = Path(__file__).parents[1] / "data" / "Benchmark_001_trimmed.yaml"
+TRIMMED_HASH = "c737a271903debabd86745d7835eed17d8fdac77cb8d5a44ef0c66681e86ef17"
+
+
+@pytest.mark.short
+def test_summary_hash_is_pinned():
+    assert Benchmark.from_yaml(TRIMMED.read_text()).summary_hash() == TRIMMED_HASH
+
+
+@pytest.mark.short
+def test_validators_do_not_change_summary_hash():
+    b = Benchmark.from_yaml(TRIMMED.read_text())
+    b.stages[0].outputs[0].validators = [Validator(script="checks/a.py")]
+    assert b.summary_hash() == TRIMMED_HASH
