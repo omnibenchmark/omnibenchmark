@@ -150,6 +150,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y debootstrap
+          # pixi's apptainer has no AppArmor profile; allow it user namespaces
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Set up module environment (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -207,8 +209,9 @@ jobs:
       - name: Install additional system dependencies
         run: |
           sudo apt-get update
-          # apptainer: test_16 runs output validators inside a container
-          sudo apt-get install -y debootstrap apptainer
+          sudo apt-get install -y debootstrap
+          # pixi's apptainer has no AppArmor profile; allow it user namespaces
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Set up module environment
         run: |
