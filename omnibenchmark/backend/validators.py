@@ -1,7 +1,6 @@
 """Run output validators: resolve the validators env and drive the generated
 Snakefile (see ``omnibenchmark.core.validators`` for the pure parts)."""
 
-import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -17,6 +16,7 @@ from omnibenchmark.core.validators import (
     build_targets,
     declared_validators,
     missing_scripts,
+    read_verdict,
     stage_scripts,
     verdict_status,
     write_validators_snakefile,
@@ -166,11 +166,8 @@ def run_validators(
     # the results back to make the command usable as a CI gate.
     bad = 0
     for key, (rel, _, script, _) in targets.items():
-        result_json = out_path / VALIDATION_DIR / f"{key}.json"
-        try:
-            status = verdict_status(json.loads(result_json.read_text())["exit_code"])
-        except (OSError, ValueError, KeyError):
-            status = "error"
+        verdict = read_verdict(out_path / VALIDATION_DIR / f"{key}.json")
+        status = verdict_status(verdict.get("exit_code"))
         if status == "pass":
             continue
         bad += 1
