@@ -13,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
 from omnibenchmark.core.status.status import prepare_status, print_exec_path_dict
+from omnibenchmark.core.validators import load_verdicts, verdict_for
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.constants import STATUS_REPORT_FILE
 from omnibenchmark.dag import get_node_attributes
@@ -40,55 +41,6 @@ def _rows_to_html_table(
         f"  <tbody>\n    {body}\n  </tbody>\n"
         f"</table>"
     )
-
-
-_WORST = {"fail": 0, "error": 1, "stale": 2, "pass": 3}
-
-
-def _load_validation_index(out_dir: Path) -> dict:
-    """Map resolved output path -> (status, abs_log_path) from out/.validation/*.json.
-
-    Keyed by the *resolved* path so a file reached through a symlink (e.g. the
-    ``out/human/`` view) finds the same verdict. An output with several validators shows the
-    worst verdict. A missing output has no verdict; an output newer than its
-    verdict, or a script edited since, reads ``stale``. Read-only: results are written by
-    ``ob validate outputs``.
-    """
-    from omnibenchmark.core.validators import script_sha256, verdict_status
-
-    index: dict = {}
-    shas: dict = {}
-    root = out_dir / ".validation"
-    if not root.is_dir():
-        return index
-    for result_json in root.rglob("*.json"):
-        try:
-            data = json.loads(result_json.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        output_file = data.get("output_file")
-        if not output_file:
-            continue
-        real = (out_dir / output_file).resolve()
-        if not real.exists():
-            continue
-        status = verdict_status(data.get("exit_code"))
-        script = data.get("script")
-        if script and script not in shas:
-            shas[script] = script_sha256(script)
-        if real.stat().st_mtime > result_json.stat().st_mtime or (
-            script and shas[script] != data.get("script_sha256")
-        ):
-            status = "stale"
-        log = str((out_dir / data["log"]).resolve()) if data.get("log") else ""
-        if real not in index or _WORST[status] < _WORST[index[real][0]]:
-            index[real] = (status, log)
-    return index
-
-
-def _validation_for(filepath, index: dict) -> tuple:
-    """``(status, log)`` for an output file; ``("not_validated", "")`` if absent."""
-    return index.get(Path(filepath).resolve(), ("not_validated", ""))
 
 
 @click.group(name="describe")
@@ -402,13 +354,13 @@ def status(
                     status_by_node[node_key] = "unknown"
 
         # Output validation results (read-only; populated by `ob validate outputs`)
-        validation_index = _load_validation_index(Path(out_dir))
+        validation_index = load_verdicts(Path(out_dir))
 
         def _node_validation(node_key):
             """Roll up per-output validation for a node -> (status, [log paths])."""
             statuses, vlogs = [], []
             for f in files_by_node.get(node_key, []):
-                vstatus, vlog = _validation_for(f, validation_index)
+                vstatus, vlog = verdict_for(f, validation_index)
                 statuses.append(vstatus)
                 if vstatus != "not_validated" and vlog:
                     vlogs.append(vlog)
@@ -512,7 +464,7 @@ def status(
                 all_files += [
                     [
                         str(Path(f).absolute()),
-                        _validation_for(f, validation_index)[0],
+                        verdict_for(f, validation_index)[0],
                         f in filedict[st][nd]["observed_output_files"],
                         f in filedict[st][nd]["missing_output_files"],
                         f

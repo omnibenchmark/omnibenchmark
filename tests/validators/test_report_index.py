@@ -1,4 +1,4 @@
-"""Unit test for the describe report's validation read-side.
+"""Unit test for the validation read side (the status report reads it).
 
 A verdict is keyed by the resolved file, so a path through a symlink (the
 `out/human/` view, or the pre-0.8 nested layout) and the real path find the
@@ -10,7 +10,7 @@ import os
 
 import pytest
 
-from omnibenchmark.cli.describe import _load_validation_index, _validation_for
+from omnibenchmark.core.validators import load_verdicts, verdict_for
 
 
 @pytest.mark.short
@@ -37,15 +37,15 @@ def test_validation_index_bridges_symlink_and_hash(tmp_path):
         )
     )
 
-    index = _load_validation_index(out)
+    index = load_verdicts(out)
 
     # both aliases of the same real file resolve to the recorded verdict
-    assert _validation_for(real_file, index)[0] == "pass"
-    assert _validation_for(symlink_dir / "D2_data.json", index)[0] == "pass"
+    assert verdict_for(real_file, index)[0] == "pass"
+    assert verdict_for(symlink_dir / "D2_data.json", index)[0] == "pass"
     # the log path is carried through (absolute)
-    assert _validation_for(real_file, index)[1].endswith("D2_data.json.log")
+    assert verdict_for(real_file, index)[1].endswith("D2_data.json.log")
     # an output with no result -> not_validated
-    assert _validation_for(out / "data" / "D1" / "x.json", index)[0] == "not_validated"
+    assert verdict_for(out / "data" / "D1" / "x.json", index)[0] == "not_validated"
 
 
 def _verdict(out, rel, exit_code, i=0):
@@ -65,17 +65,17 @@ def test_validation_index_stale_missing_and_error(tmp_path):
     _verdict(out, "b.txt", 127)
     _verdict(out, "gone.txt", 0)
 
-    index = _load_validation_index(out)
-    assert _validation_for(out / "a.txt", index)[0] == "pass"
-    assert _validation_for(out / "b.txt", index)[0] == "error"
+    index = load_verdicts(out)
+    assert verdict_for(out / "a.txt", index)[0] == "pass"
+    assert verdict_for(out / "b.txt", index)[0] == "error"
     # a deleted output has no verdict
-    assert _validation_for(out / "gone.txt", index)[0] == "not_validated"
+    assert verdict_for(out / "gone.txt", index)[0] == "not_validated"
 
     # rewriting the output after validation makes the verdict stale
     t = result.stat().st_mtime
     os.utime(out / "a.txt", (t + 10, t + 10))
-    index = _load_validation_index(out)
-    assert _validation_for(out / "a.txt", index)[0] == "stale"
+    index = load_verdicts(out)
+    assert verdict_for(out / "a.txt", index)[0] == "stale"
 
 
 @pytest.mark.short
@@ -86,7 +86,7 @@ def test_validation_index_shows_worst_of_several_validators(tmp_path):
     _verdict(out, "a.txt", 0, i=0)
     _verdict(out, "a.txt", 1, i=1)
     _verdict(out, "a.txt", 127, i=2)
-    assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "fail"
+    assert verdict_for(out / "a.txt", load_verdicts(out))[0] == "fail"
 
 
 @pytest.mark.short
@@ -110,6 +110,6 @@ def test_validation_index_stale_after_script_edit(tmp_path):
             }
         )
     )
-    assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "pass"
+    assert verdict_for(out / "a.txt", load_verdicts(out))[0] == "pass"
     script.write_text("raise SystemExit(1)\n")
-    assert _validation_for(out / "a.txt", _load_validation_index(out))[0] == "stale"
+    assert verdict_for(out / "a.txt", load_verdicts(out))[0] == "stale"

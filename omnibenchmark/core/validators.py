@@ -75,6 +75,57 @@ def script_sha256(path: str) -> str:
         return ""
 
 
+def read_verdict(path: Path) -> dict:
+    """A verdict JSON written by the validate rule; ``{}`` if unreadable."""
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+_WORST = {"fail": 0, "error": 1, "stale": 2, "pass": 3}
+
+
+def load_verdicts(out_dir: Path) -> dict:
+    """Map resolved output path -> ``(status, abs_log_path)`` from the verdicts.
+
+    Keyed by the *resolved* path so a file reached through a symlink (e.g. the
+    ``out/human/`` view) finds the same verdict. An output with several
+    validators shows the worst verdict. A missing output has no verdict; an
+    output newer than its verdict, or a script edited since, reads ``stale``.
+    """
+    index: dict = {}
+    shas: dict = {}
+    root = out_dir / VALIDATION_DIR
+    if not root.is_dir():
+        return index
+    for result_json in root.rglob("*.json"):
+        data = read_verdict(result_json)
+        output_file = data.get("output_file")
+        if not output_file:
+            continue
+        real = (out_dir / output_file).resolve()
+        if not real.exists():
+            continue
+        status = verdict_status(data.get("exit_code"))
+        script = data.get("script")
+        if script and script not in shas:
+            shas[script] = script_sha256(script)
+        if real.stat().st_mtime > result_json.stat().st_mtime or (
+            script and shas[script] != data.get("script_sha256")
+        ):
+            status = "stale"
+        log = str((out_dir / data["log"]).resolve()) if data.get("log") else ""
+        if real not in index or _WORST[status] < _WORST[index[real][0]]:
+            index[real] = (status, log)
+    return index
+
+
+def verdict_for(filepath, index: dict) -> tuple:
+    """``(status, log)`` for an output file; ``("not_validated", "")`` if absent."""
+    return index.get(Path(filepath).resolve(), ("not_validated", ""))
+
+
 def build_targets(
     produced: Iterable[Tuple[str, str, str]],
     validators: ValidatorMap,
