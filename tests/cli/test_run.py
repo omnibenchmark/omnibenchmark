@@ -348,7 +348,12 @@ def test_run_with_double_dash_separator(mock_benchmark_execution):
     with patch("omnibenchmark.cli.run.populate_git_cache"):
         with patch("omnibenchmark.cli.run._generate_explicit_snakefile") as mock_gen:
             mock_gen.return_value = []
-            with patch("omnibenchmark.cli.run.write_run_manifest"):
+            with (
+                patch("omnibenchmark.cli.run.write_run_manifest"),
+                patch("omnibenchmark.cli.run.save_metadata"),
+                patch("omnibenchmark.cli.run.write_run_record"),
+                patch("omnibenchmark.cli.run.identity_mismatch", return_value=None),
+            ):
                 with patch(
                     "omnibenchmark.cli.run._run_snakemake"
                 ) as mock_run_snakemake:

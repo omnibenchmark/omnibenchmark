@@ -5,6 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
+- feat: `ob run` records each run in `out/.metadata/runs.jsonl`: benchmark `id`, `version`, `summary_hash` and the selection (`-m`, `--until`, `--filter`), with the plan copy, filter blob and node list it used. `ob run` refuses an out dir recorded with another benchmark `id` or `version`; `ob validate outputs` and `ob describe status` also refuse a plan edited since the last run, and warn on a partial out dir. `--dry` no longer writes `.metadata/` (007 §4.6)
 - feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the omnibenchmark config; `--author-name`/`--author-email` are no longer required with `--non-interactive`
 - feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style
 - feat: `ob describe status --watch SECONDS` redraws the text report on an interval and exits once every expected output exists; it only reads the output tree, so it works with any executor (#386)

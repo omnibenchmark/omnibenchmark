@@ -20,6 +20,7 @@ from typing import Optional
 def write_run_manifest(
     output_dir: Path,
     run_id: Optional[str] = None,
+    benchmark: Optional[dict] = None,
 ) -> dict:
     """Write out/.metadata/manifest.json with a stable run UUID and host metadata.
 
@@ -50,6 +51,8 @@ def write_run_manifest(
       python_executable – path to the Python interpreter used to run the program
       gpu_devices      – list of NVIDIA GPU dicts {index, name, memory_total_mb}
                          from nvidia-smi; null if nvidia-smi is absent or fails
+      benchmark        – {id, version, summary_hash, api_version} of the plan
+                         (core.run_record.benchmark_record); absent if not given
     """
 
     metadata_dir = output_dir / ".metadata"
@@ -173,6 +176,8 @@ def write_run_manifest(
         "python_executable": sys.executable,
         "gpu_devices": gpu_devices,
     }
+    if benchmark is not None:
+        manifest["benchmark"] = benchmark
 
     manifest_path = metadata_dir / "manifest.json"
     with open(manifest_path, "w") as fh:

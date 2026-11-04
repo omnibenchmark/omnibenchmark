@@ -43,6 +43,20 @@ def _rows_to_html_table(
     )
 
 
+def _refuse_foreign_out_dir(benchmark: str, out_dir: str) -> None:
+    """Exit 1 if *out_dir* was built by another benchmark or an older plan."""
+    from omnibenchmark.core.run_record import check_out_dir
+    from omnibenchmark.model import Benchmark
+
+    errors, notes = check_out_dir(Benchmark.from_yaml(Path(benchmark)), Path(out_dir))
+    for msg in errors:
+        logger.error(msg)
+    if errors:
+        sys.exit(1)
+    for msg in notes:
+        logger.warning(msg)
+
+
 @click.group(name="describe")
 @click.pass_context
 def describe(ctx):
@@ -258,6 +272,7 @@ def status(
         overwrite_html_file = True
     if watch is not None and (return_json or return_html):
         raise click.UsageError("--watch only works with the text report.")
+    _refuse_foreign_out_dir(benchmark, out_dir)
     if not return_json and not return_html:
         if watch is None:
             result_str, _ = _render_text_status(

@@ -72,6 +72,7 @@ def run_validators(
 
     Returns non-zero if snakemake fails or any validator rejects its output.
     """
+    from omnibenchmark.core.run_record import check_out_dir
     from omnibenchmark.core.status.status import prepare_status
     from omnibenchmark.model import Benchmark
 
@@ -85,6 +86,13 @@ def run_validators(
     if not out_path.is_dir():
         logger.error(f"Output dir '{out_path}' not found — run the benchmark first.")
         return 1
+    errors, notes = check_out_dir(model, out_path)
+    for msg in errors:
+        logger.error(msg)
+    if errors:
+        return 1
+    for msg in notes:
+        logger.warning(msg)
 
     benchmark_dir = benchmark_path.parent.absolute()
     validators = declared_validators(model, benchmark_dir)
