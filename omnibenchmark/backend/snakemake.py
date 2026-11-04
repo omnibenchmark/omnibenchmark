@@ -70,7 +70,14 @@ def environment_directive(env: Optional[ResolvedEnvironment]) -> str:
     return ""
 
 
-__all__ = ["SnakemakeGenerator", "_make_human_name", "_UNSAFE_CHARS"]
+__all__ = [
+    "BACKEND_FLAGS",
+    "SnakemakeGenerator",
+    "_UNSAFE_CHARS",
+    "_make_human_name",
+    "environment_directive",
+    "snakemake_bin",
+]
 
 # Indentation constants for generated Snakemake syntax.
 # Shell block content lives at 8 spaces (2 levels × 4 spaces).
