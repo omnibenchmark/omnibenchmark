@@ -250,6 +250,8 @@ def test_run_benchmark_dry_host_exits_zero(tmp_path):
         patch("omnibenchmark.cli.run.populate_git_cache"),
         patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
         patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run.save_metadata"),
+        patch("omnibenchmark.cli.run.write_run_record"),
     ):
         mock_b = MagicMock()
         mock_b.get_benchmark_software_backend.return_value = SoftwareBackendEnum.host
@@ -274,6 +276,8 @@ def test_run_benchmark_dry_conda_hint(tmp_path):
         patch("omnibenchmark.cli.run.populate_git_cache"),
         patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
         patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run.save_metadata"),
+        patch("omnibenchmark.cli.run.write_run_record"),
         patch("omnibenchmark.cli.run.logger") as mock_logger,
     ):
         mock_b = MagicMock()
@@ -302,6 +306,8 @@ def test_run_benchmark_remote_storage_builds_args(tmp_path):
         patch("omnibenchmark.cli.run.populate_git_cache"),
         patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
         patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run.save_metadata"),
+        patch("omnibenchmark.cli.run.write_run_record"),
         patch("omnibenchmark.cli.run._run_snakemake") as mock_snakemake,
         patch("omnibenchmark.remote.storage.get_storage_from_benchmark"),
         patch(
@@ -707,6 +713,8 @@ def test_run_benchmark_telemetry_output_path_writes_file(tmp_path):
             return_value=[],  # no resolved nodes → emit_manifest skipped
         ),
         patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run.save_metadata"),
+        patch("omnibenchmark.cli.run.write_run_record"),
         patch("omnibenchmark.cli.run._run_snakemake") as mock_snakemake,
     ):
         mock_b = MagicMock()
@@ -747,6 +755,8 @@ def test_run_benchmark_remote_storage_true_bool_appended(tmp_path):
         patch("omnibenchmark.cli.run.populate_git_cache"),
         patch("omnibenchmark.cli.run._generate_explicit_snakefile"),
         patch("omnibenchmark.cli.run.write_run_manifest"),
+        patch("omnibenchmark.cli.run.save_metadata"),
+        patch("omnibenchmark.cli.run.write_run_record"),
         patch("omnibenchmark.cli.run._run_snakemake") as mock_snakemake,
         patch("omnibenchmark.remote.storage.get_storage_from_benchmark"),
         patch(
