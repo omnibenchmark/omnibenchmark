@@ -1,4 +1,4 @@
-# 012: `foreach` outputs (runtime cardinality)
+# 013: `foreach` outputs (runtime cardinality)
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
 [![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)

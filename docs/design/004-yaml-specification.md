@@ -646,7 +646,7 @@ a single input path.
 
 A captured value is not a lineage label: `requires`, `exclude` and `group_by`
 cannot refer to it. At most one `foreach` output per stage, none on metric
-collectors, and no `foreach` below another. Design: 012.
+collectors, and no `foreach` below another. Design: 013.
 
 A stage closes a `foreach` with `over`, naming the captured value:
 

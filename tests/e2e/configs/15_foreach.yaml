@@ -1,5 +1,5 @@
 id: Foreach
-description: E2E test for foreach outputs (design 012)
+description: E2E test for foreach outputs (design 013)
 version: "1.0"
 benchmarker: "E2E Test Suite"
 api_version: "0.8.0"

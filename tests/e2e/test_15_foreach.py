@@ -1,4 +1,4 @@
-"""foreach outputs (design 012): a producer picks its samples at run time, each
+"""foreach outputs (design 013): a producer picks its samples at run time, each
 gets its own downstream node, and a gather collects them."""
 
 import subprocess
@@ -126,7 +126,7 @@ def test_nested_foreach_is_rejected(tmp_path, keep_files):
 @pytest.mark.e2e
 def test_over_closes_foreach_per_lineage(tmp_path, keep_files):
     """`over: sample` yields one collector per upstream lineage, each with its
-    own samples — the axes a `group_by` gather would have merged (012 §3.3)."""
+    own samples — the axes a `group_by` gather would have merged (013 §3.3)."""
     runner, config_file, _repo, _commit_id = _setup(
         tmp_path, keep_files, "15_over.yaml"
     )
