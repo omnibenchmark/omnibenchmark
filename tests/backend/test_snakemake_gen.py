@@ -1011,3 +1011,104 @@ def test_over_lowering(tmp_path):
     assert "for _f in {input.processed}; do" in rule
     assert '--processed "${{INPUT_processed[@]}}"' in rule
     assert ".{sample}.log" not in rule
+
+
+@pytest.mark.short
+def test_group_lowering(tmp_path):
+    """Below a producer, nodes under the same chain of stages share one rule
+    (design 013 §4.1): the chain positions become `{s_<stage>}` wildcards, a
+    file name that depends on the writing module is read from `_OB_FILES`,
+    and an `over` rule's inputs expand over the samples."""
+    P = "data.D1.default"
+    producer = dataclasses.replace(
+        _make_node(
+            node_id="data-D1.default", outputs={"counts": f"{P}/{{sample}}/counts.h5"}
+        ),
+        foreach=("sample", "counts"),
+        node_dir=P,
+    )
+    nodes = [producer]
+    for mod in ("A", "B"):  # two cleaning modules: file named after the module
+        clean = f"{P}/{{sample}}/clean.{mod}.default"
+        nodes.append(
+            dataclasses.replace(
+                _make_node(
+                    node_id=f"data-D1.default-clean-{mod}.default",
+                    stage_id="clean",
+                    param_id=".default",
+                    module_id=mod,
+                    inputs={"counts": f"{P}/{{sample}}/counts.h5"},
+                    outputs={"filtered": f"{clean}/{mod}.h5"},
+                ),
+                node_dir=clean,
+            )
+        )
+        demux = f"{clean}/demux.M.default"
+        nodes.append(
+            dataclasses.replace(
+                _make_node(
+                    node_id=f"data-D1.default-clean-{mod}.default-demux-M.default",
+                    stage_id="demux",
+                    param_id=".default",
+                    module_id="M",
+                    inputs={"filtered": f"{clean}/{mod}.h5"},
+                    outputs={"tsv": f"{demux}/d.tsv"},
+                ),
+                node_dir=demux,
+            )
+        )
+        over = f"{P}/clean.{mod}.default/demux.M.default/concat.C.default"
+        nodes.append(
+            dataclasses.replace(
+                _make_node(
+                    node_id=f"data-D1.default-clean-{mod}.default-demux-M.default-concat-C.default",
+                    stage_id="concat",
+                    param_id=".default",
+                    module_id="C",
+                    inputs={"filtered": f"{clean}/{mod}.h5", "tsv": f"{demux}/d.tsv"},
+                    outputs={"all": f"{over}/all.h5"},
+                ),
+                node_dir=over,
+            )
+        )
+    out = tmp_path / "Snakefile"
+    SnakemakeGenerator("b", "1", "a", api_version=APIVersion.V0_8_0).generate_snakefile(
+        nodes, out
+    )
+    text = out.read_text()
+
+    # Constraints: one per chain stage, besides the sample itself.
+    assert 's_clean=r"clean\\.[^/]+"' in text and 's_demux=r"demux\\.[^/]+"' in text
+    # The cleaning modules write differently named files: a table, by segment.
+    assert "'clean.A.default': {'filtered': 'A.h5'}" in text
+    assert "'clean.B.default': {'filtered': 'B.h5'}" in text
+    # Two clean rules (one per module), one demux rule, one concat rule.
+    assert text.count("\nrule ") + text.count("\ncheckpoint ") == 6  # + all
+    demux_rule = text.split("rule data_D1_default_clean_demux_M_default:")[1].split(
+        "\nrule "
+    )[0]
+    assert "# 2 nodes; chain: clean" in text
+    assert (
+        f'filtered=lambda wc: _ob_path(wc, "{P}/{{sample}}/{{s_clean}}/" '
+        '+ _ob_file(wc, "s_clean", "filtered")),' in demux_rule
+    )
+    assert f'"{P}/{{sample}}/{{s_clean}}/demux.M.default/d.tsv",' in demux_rule
+    concat_rule = text.split("rule data_D1_default_clean_demux_concat_C_default:")[
+        1
+    ].split("\nrule ")[0]
+    assert (
+        "tsv=lambda wc: _ob_foreach(checkpoints.data_D1_default, "
+        f'"{P}/{{sample}}/counts.h5", "sample", '
+        f'"{P}/{{sample}}/{{s_clean}}/{{s_demux}}/d.tsv", wc),' in concat_rule
+    )
+    assert f'"{P}/{{s_clean}}/{{s_demux}}/concat.C.default/all.h5",' in concat_rule
+    assert (
+        ".{s_clean}.{s_demux}.log" in concat_rule
+        and "{sample}" not in concat_rule.split("log:")[1].split("\n")[1]
+    )
+    # Every node's targets are still listed.
+    all_rule = text.split("rule all:")[1]
+    for mod in ("A", "B"):
+        assert (
+            f"clean.{mod}.default/demux.M.default/concat.C.default/all.h5" in all_rule
+        )

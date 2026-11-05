@@ -93,12 +93,13 @@ _SHELL_INDENT = "        "
 # the paths over the values found on disk. Sorted: glob order is not stable,
 # and it becomes a gather's CLI order. `checkpoint` is a Snakefile keyword.
 _FOREACH_HELPER = """\
-def _ob_foreach(ckpt, pattern, name, template):
+def _ob_foreach(ckpt, pattern, name, template, wc=None):
     ckpt.get()
     found = glob_wildcards(
         pattern.replace("{%s}" % name, "{%s,%s}" % (name, _OB_FOREACH_RE))
     )
-    return expand(template, **{name: sorted(getattr(found, name))})
+    fixed = dict(wc.items()) if wc is not None else {}
+    return expand(template, **fixed, **{name: sorted(getattr(found, name))})
 
 """
 
@@ -208,7 +209,7 @@ class SnakemakeGenerator:
         self._foreach_producers = [n for n in nodes if n.foreach]
         # Spike (011): below a producer, one rule per (chain of stages,
         # stage, module, params) with the chain as wildcards.
-        self._groups, covered = _wildcard.group_subtree(
+        self._groups, covered = _wildcard.group_nodes(
             nodes, self._foreach_producers, _foreach_dir
         )
         with open(output_path, "w") as f:
@@ -222,17 +223,10 @@ class SnakemakeGenerator:
             self._write_all_rule(f, nodes)
 
     def _write_group_rule(self, f: TextIO, group: _wildcard.Group):
-        producer = self._nodes_by_id[group.producer_id]
-        assert producer.foreach is not None
-        rule = self._sanitize_rule_name(producer.id)
-        pattern = producer.outputs[producer.foreach[1]]
-        refs = {
-            key: _wildcard.input_expr(group, key, rule, pattern)
-            for key in group.nodes[0].inputs
-        }
-        f.write(
-            f"# {len(group.nodes)} nodes; chain: {' / '.join(group.chain) or '-'}\n"
-        )
+        """One rule standing for every node in *group* (design 013 §4.1)."""
+        refs = {k: self._group_input(group, inp) for k, inp in group.inputs.items()}
+        chain = " / ".join(group.stages) or "-"
+        f.write(f"# {len(group.nodes)} nodes; chain: {chain}\n")
         self._write_node_rule(
             f,
             group.nodes[0],
@@ -240,6 +234,30 @@ class SnakemakeGenerator:
             outputs=group.outputs,
             input_refs=refs,
         )
+
+    def _group_input(self, group: _wildcard.Group, inp: _wildcard.Input) -> str:
+        """The input expression: a pattern when the file name is fixed, else a
+        lookup by the segment that wrote it; wrapped in `_ob_foreach` when the
+        input carries the foreach name and the rule's outputs do not."""
+        if inp.file is not None:
+            template = f'"{inp.dir}/{inp.file}"'
+        else:
+            template = f'"{inp.dir}/" + _ob_file(wc, "{inp.seg}", "{inp.output_id}")'
+        assert group.producer.foreach is not None
+        name, output_id = group.producer.foreach
+        crosses = f"{{{name}}}" in inp.dir and not any(
+            f"{{{name}}}" in o for o in group.outputs
+        )
+        if crosses:
+            rule = self._sanitize_rule_name(group.producer.id)
+            pattern = group.producer.outputs[output_id]
+            return (
+                f"lambda wc: _ob_foreach(checkpoints.{rule}, "
+                f'"{pattern}", "{name}", {template}, wc)'
+            )
+        if inp.file is not None:
+            return template
+        return f"lambda wc: _ob_path(wc, {template})"
 
     # ------------------------------------------------------------------
     # Rule structure (shared between production and debug)
@@ -275,7 +293,7 @@ class SnakemakeGenerator:
         for wc, regex in chain.items():
             f.write(f'    {wc}=r"{regex}",\n')
         f.write("\n" + _FOREACH_HELPER)
-        f.write(_wildcard.table_text(self._groups, names))
+        f.write(_wildcard.header(self._groups))
 
     def _rule_outputs(self, node: ResolvedNode) -> List[str]:
         """The node's outputs as the rule declares them. A foreach producer's
