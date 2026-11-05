@@ -16,6 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - **breaking (api 0.8.0)**: `group_by: S` partitions a gather's members by the ancestor *node* of S (its full lineage), not by its module, and the gather node is a child of that node instead of a cut chain (design 010 §3.2.1). api < 0.8.0 keeps module grouping
 - fix: a gather left out of a `--filter`'s picks is dropped instead of failing with "gathers from output id …, which no stage produces" when the filter also pruned its producers
 
+- fix: a gather whose every producer was pruned (`--filter`, `--until`, `requires`/`exclude`, capabilities) is skipped with a warning instead of failing the DAG; an output id that no stage declares is still an error
 - feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the omnibenchmark config; `--author-name`/`--author-email` are no longer required with `--non-interactive`
 - feat: `ob run` passes Snakemake a global memory budget (`--resources mem_mb=`, 90% of physical RAM) on local runs, so a stage's `resources.mem_mb` limits how many of its jobs start at once. Before, a declared `mem_mb` was ignored and `--cores N` started N jobs whatever they declared. Stages without `mem_mb` are unaffected; `-- --resources mem_mb=N` overrides the budget
 - feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style
