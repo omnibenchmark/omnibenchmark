@@ -18,7 +18,7 @@ _WILDCARD_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def path_wildcards(path: str) -> Set[str]:
-    """`foreach` wildcards left in a resolved path (design 012). Substitution
+    """`foreach` wildcards left in a resolved path (design 013). Substitution
     leaves no other `{...}` behind, so this is the whole set."""
     return set(_WILDCARD_RE.findall(path))
 

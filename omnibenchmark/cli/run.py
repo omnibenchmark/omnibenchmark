@@ -428,7 +428,7 @@ def _run_benchmark(
         logger.info("\nSnakefile generated. To execute:")
         logger.info(f"  cd {out_dir} && snakemake{hint} --cores {cores}")
         # A foreach producer is a checkpoint: the jobs below it exist only
-        # once it has run, so a dry run of Snakemake stops there (012 §5).
+        # once it has run, so a dry run of Snakemake stops there (013 §5).
         from omnibenchmark.core._paths import path_wildcards
 
         for producer in (n for n in resolved_nodes if n.foreach):

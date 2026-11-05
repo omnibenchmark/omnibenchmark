@@ -438,7 +438,7 @@ class IOFile(IdentifiableEntity):
         description=(
             "Name captured from the path's first segment: the module writes one "
             "file per value it chooses, and each feeds its own downstream node "
-            "(design 012). Requires api_version ≥ 0.8.0."
+            "(design 013). Requires api_version ≥ 0.8.0."
         ),
     )
 
@@ -458,7 +458,7 @@ class IOFile(IdentifiableEntity):
                 f"than 'module' or 'params'."
             )
         # The first segment is the node directory's child, so every descendant
-        # directory carries the value (012 §3, rule 2).
+        # directory carries the value (013 §3, rule 2).
         if (
             not self.path.startswith(f"{{{name}}}/")
             or self.path.count(f"{{{name}}}") != 1
@@ -799,7 +799,7 @@ class Stage(DescribableEntity):
     over: Optional[str] = Field(
         None,
         description=(
-            "A `foreach` capture to close (design 012 §3.3): one node per "
+            "A `foreach` capture to close (design 013 §3.3): one node per "
             "upstream lineage, its inputs expanded over every captured value. "
             "Keeps every other axis; a gather with `group_by` keeps one. "
             "Requires api_version ≥ 0.8.0."
@@ -846,7 +846,7 @@ class Stage(DescribableEntity):
             raise ValueError(f"Duplicate output ids in stage: {dupes}")
 
         for idx, output in enumerate(v):
-            # A foreach path needs its leading `{name}/` (design 012).
+            # A foreach path needs its leading `{name}/` (design 013).
             path = output.path
             if output.foreach:
                 path = path.removeprefix(f"{{{output.foreach}}}/")
@@ -1730,7 +1730,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"Output id '{o.id}' may not contain '=' or whitespace."
                     )
 
-        # `foreach` outputs (design 012): 0.8.0+, one per stage, stages only.
+        # `foreach` outputs (design 013): 0.8.0+, one per stage, stages only.
         for c in self.metric_collectors or []:
             for o in c.outputs or []:
                 if o.foreach:

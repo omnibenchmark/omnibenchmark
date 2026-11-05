@@ -51,7 +51,7 @@ class TemplateContext:
 
         Resolution order: provides → module attrs → params. Names in *keep*
         are left as `{name}`: a `foreach` capture is a Snakemake wildcard, not
-        a plan-time value (design 012).
+        a plan-time value (design 013).
 
         Raises:
             ValueError: If any ``{variable}`` placeholders remain unresolved
@@ -276,7 +276,7 @@ class ResolvedNode:
     parents: List[str] = field(default_factory=list)
 
     # (captured name, output id) when one of this node's outputs is a `foreach`
-    # pattern (design 012): the node lowers to a Snakemake checkpoint. Nodes
+    # pattern (design 013): the node lowers to a Snakemake checkpoint. Nodes
     # below it need no flag; their paths carry the `{name}` wildcard.
     foreach: Optional[Tuple[str, str]] = None
 

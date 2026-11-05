@@ -936,7 +936,7 @@ def test_metadata_records_every_module_not_just_every_repo(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# foreach outputs (design 012)
+# foreach outputs (design 013)
 # ---------------------------------------------------------------------------
 
 
@@ -985,7 +985,7 @@ def test_foreach_lowering(tmp_path):
 
 @pytest.mark.short
 def test_over_lowering(tmp_path):
-    """An `over` node (012 §3.3): inputs carry the wildcard, outputs do not, so
+    """An `over` node (013 §3.3): inputs carry the wildcard, outputs do not, so
     each input is wrapped in `_ob_foreach` and passed as a bash array; the
     rule itself has no wildcard, so no log suffix."""
     pattern = "data.D1.default/{sample}/counts.h5"

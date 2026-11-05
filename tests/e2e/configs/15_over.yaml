@@ -1,5 +1,5 @@
 id: Over
-description: E2E test for closing a foreach with over (design 012 §3.3)
+description: E2E test for closing a foreach with over (design 013 §3.3)
 version: "1.0"
 benchmarker: "E2E Test Suite"
 api_version: "0.8.0"

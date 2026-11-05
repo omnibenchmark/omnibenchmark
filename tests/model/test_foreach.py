@@ -1,4 +1,4 @@
-"""Model rules for `foreach` outputs (design 012 §3)."""
+"""Model rules for `foreach` outputs (design 013 §3)."""
 
 import pytest
 

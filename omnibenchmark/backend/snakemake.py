@@ -88,7 +88,7 @@ _RULE_INDENT = "    "
 _SHELL_INDENT = "        "
 
 
-# Emitted once when a plan has a `foreach` output (design 012). A rule outside
+# Emitted once when a plan has a `foreach` output (design 013). A rule outside
 # the wildcard that needs paths below it waits for the checkpoint, then expands
 # the paths over the values found on disk. Sorted: glob order is not stable,
 # and it becomes a gather's CLI order. `checkpoint` is a Snakefile keyword.
@@ -257,13 +257,13 @@ class SnakemakeGenerator:
         f.write("\n".join(lines))
 
     def _write_foreach_header(self, f: TextIO):
-        """Wildcard constraints and the `_ob_foreach` helper (design 012)."""
+        """Wildcard constraints and the `_ob_foreach` helper (design 013)."""
         if not self._foreach_producers:
             return
         names = sorted({n.foreach[0] for n in self._foreach_producers if n.foreach})
         chain = _wildcard.constraints(self._groups)
         # A value is a directory beside which an `over` node's directory may
-        # sit (012 §3.3), so a value may not look like a node segment.
+        # sit (013 §3.3), so a value may not look like a node segment.
         stages = "|".join(
             re.escape(s)
             for s in sorted({n.stage_id for n in self._nodes_by_id.values()})
@@ -280,7 +280,7 @@ class SnakemakeGenerator:
     def _rule_outputs(self, node: ResolvedNode) -> List[str]:
         """The node's outputs as the rule declares them. A foreach producer's
         pattern is replaced by a sentinel in its node directory: the
-        checkpoint itself has no wildcard (design 012 §4)."""
+        checkpoint itself has no wildcard (design 013 §4)."""
         if not node.foreach:
             return list(node.outputs.values())
         name, foreach_id = node.foreach
@@ -571,7 +571,7 @@ class SnakemakeGenerator:
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
         # An input carrying a wildcard the outputs lack is a list (`over`,
-        # 012 §3.3): one absolute path per captured value, into a bash array.
+        # 013 §3.3): one absolute path per captured value, into a bash array.
         out_wild = {w for p in node.outputs.values() for w in path_wildcards(p)}
         expanded = {
             k

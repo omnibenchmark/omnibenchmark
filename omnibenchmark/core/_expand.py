@@ -512,11 +512,11 @@ def expand_scatter_stage(
                 node_path = prefix + node_dir(
                     stage.id, module_id, param_id, members, flat=flat
                 )
-                # A resolved path holds `{` only below a foreach (design 012).
+                # A resolved path holds `{` only below a foreach (design 013).
                 in_wild = {w for p in inputs.values() for w in _wildcards(p)}
                 over = getattr(stage, "over", None)
                 if over:
-                    # Close the foreach (012 §3.3): the value's segment leaves
+                    # Close the foreach (013 §3.3): the value's segment leaves
                     # the path, so this node is one per upstream lineage and
                     # its inputs expand over every value at run time.
                     seg = f"/{{{over}}}/"
