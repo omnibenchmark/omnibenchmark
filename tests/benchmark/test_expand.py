@@ -192,6 +192,32 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
+@pytest.mark.short
+def test_gather_whose_producers_were_all_pruned_is_skipped():
+    # `metrics` gathers clusters_tsv, which stage `clu` declares, but a filter
+    # pruned every `clu` node: skip the gather instead of failing the DAG.
+    bench = _fake_benchmark()
+    bench.model.stages = [
+        SimpleNamespace(id="clu", outputs=[SimpleNamespace(id="clusters_tsv")]),
+        SimpleNamespace(id="metrics", outputs=[SimpleNamespace(id="summary")]),
+    ]
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clusters_tsv", group_by="data")],
+        modules=[],
+        outputs=[],
+        resources=None,
+    )
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=bench,
+        resolved_modules_cache={},
+        output_to_nodes={},
+        nodes_by_id={},
+    )
+    assert nodes == []
+
+
 _GATHER_YAML = """
 id: t
 description: t
