@@ -492,7 +492,7 @@ position a `{s_<stage>}` wildcard constrained to `<stage>\.[^/]+`
   job identity is the instantiated path, not the rule name. Status still
   looks logs up by node id and does not find these (013 §5).
 - The `{module.id}` file-name template is the one thing that forces a lookup
-  table (`_OB_IN`): an input whose file name depends on an ancestor's module
+  table (`_OB_FILES`): an input whose file name depends on an ancestor's module
   is not one pattern across the group. File names equal to output ids would
   remove it; that is a plan-format decision (api bump), not a backend one.
 - Pruning never enters the Snakefile: `rule all` enumerates the surviving

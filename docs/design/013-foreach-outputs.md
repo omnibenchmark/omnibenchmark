@@ -210,7 +210,7 @@ rule data_D1_a1b2_process_demux_M_default:   # 3 nodes; chain: process
 
 An input whose file name depends on an ancestor's module (a `{module.id}`
 template) is not one pattern across the group: it is read from a table
-`_OB_IN[rule][key][chain values]` through `_ob_in(wc, …)`. With output ids
+`_OB_FILES[segment][output id]` through `_ob_file(wc, …)`. With output ids
 as file names every input would be a pattern and the table would go.
 
 Not grouped: producers (one checkpoint each), joins, gathers, collectors,
