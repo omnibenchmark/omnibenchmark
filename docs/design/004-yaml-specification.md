@@ -26,7 +26,7 @@
 | 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
 | 11      | 2026-11-03 | §3.14: output validators, declared per output (`outputs[].validators`), run in `validators.env` (api 0.8.0) | ben |
-| 12      | 2026-11-05 | §3.15: `foreach` outputs (api 0.8.0) | ben |
+| 12      | 2026-11-05 | §3.15: `foreach` outputs; `over` closes one (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -647,6 +647,21 @@ a single input path.
 A captured value is not a lineage label: `requires`, `exclude` and `group_by`
 cannot refer to it. At most one `foreach` output per stage, none on metric
 collectors, and no `foreach` below another. Design: 012.
+
+A stage closes a `foreach` with `over`, naming the captured value:
+
+```yaml
+- id: concat
+  inputs: [counts, processed]
+  over: sample
+```
+
+One node per upstream lineage; every other axis (modules, parameters, stages
+between) stays distinct. Each input the capture reaches is passed as one flag
+followed by every value's path, in sorted value order, the same order for
+every input. The value's segment leaves the node's path. `over` names a
+declared capture, needs inputs, and excludes `gather`. A `gather` with
+`group_by` is the complement: it keeps one axis and merges the rest.
 
 ## 4. Complete Example
 
