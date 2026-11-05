@@ -16,6 +16,7 @@
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
 | 1 | 2026-10-23 | Initial draft, implemented on api 0.8.0 | ben |
+| 2 | 2026-11-05 | §3.3: `over` closes a foreach; captured values may not look like node segments | ben |
 
 ## 1. Problem Statement
 
@@ -32,6 +33,8 @@ where it is not.
 
 - One stage output yields N files, N chosen by the module at run time.
 - Each file feeds its own downstream node, so Snakemake runs them in parallel.
+- A stage can close the fan-out: `over: <name>` collapses the captured
+  values and nothing else.
 - A gather collects them, unchanged in syntax.
 - Everything else stays explicit: every node exists at plan time; only one
   path segment is left to Snakemake.
@@ -40,7 +43,7 @@ where it is not.
 
 - Nested `foreach` (one below another).
 - Gating (`exclude`, `requires`, obfilter) on captured values.
-- A gather grouped by a captured value.
+- A gather grouped by a captured value (`over` covers the per-lineage case).
 - The general wildcard backend (011).
 
 ## 3. Model
@@ -89,7 +92,39 @@ Downstream modules see an ordinary single input path.
 
 Not a lineage label. It names a directory and nothing else: it is not in
 `TemplateContext.provides`, not visible to `requires`, and a gather does not
-bind it.
+bind it. `over` (§3.3) is the one place a plan refers to it, as the axis to
+close.
+
+### 3.3 Closing the fan-out: `over`
+
+```yaml
+- id: concat
+  inputs: [processed]
+  over: sample
+```
+
+A gather with `group_by: data` keeps the `data` module and merges every other
+axis into the group (010 §3.2): with two `process` modules, one node gets both
+modules' samples. `over` is the complement: it collapses the captured axis
+and keeps everything else, one node per upstream lineage. The two are
+exclusive on a stage.
+
+- The node's directory is its input's with the `/{sample}/` segment removed,
+  so it sits beside the value directories under the producer. A value may
+  therefore not look like a node segment (`<stage>.…`); the wildcard
+  constraint rejects it.
+- Each input the capture reaches is passed as one flag followed by every
+  value's path, sorted by value. Every input uses the same order, so the
+  module may zip them positionally.
+- Paths below the node carry no wildcard; downstream is explicit again.
+- Rules: `over` names a declared capture, the stage has inputs that carry it,
+  api_version ≥ 0.8.0.
+
+Lowering: the node is an ordinary rule with no wildcard; its inputs are
+`_ob_foreach` expansions (the consumer form of §4), and the shell collects
+each into a bash array. That is Snakemake's own idiom for the step — a
+wildcard in the input, expanded, absent from the output — and the shape the
+general lowering (011) would emit for it.
 
 ## 4. Lowering
 
@@ -164,6 +199,7 @@ still runs, and `--until` a stage below the `foreach` works.
 | `snakemake -n` | Lists jobs below the checkpoint only after it has run |
 | `exclude` / `requires` / obfilter | Work on modules and params; cannot select values |
 | gather `group_by` | Any stage; values always merge into the group, as parameter expansions do (010 §3.2) |
+| `over` | Closes the values only; a `foreach` value shaped like `<stage>.…` is rejected by the constraint |
 
 ## 6. Alternatives Considered
 
@@ -184,6 +220,9 @@ still runs, and `--until` a stage below the `foreach` works.
 
 - `IOFile.foreach` and rules 1–3, 6: `model/benchmark.py`. The `/` deprecation
   warning on output paths skips the leading `{name}/`.
+- `Stage.over` and its rules: `model/benchmark.py`; the segment removal and
+  the "inputs carry it" check: `core/_expand.py`; array inputs and the
+  `_OB_FOREACH_RE` constraint: `backend/snakemake.py`.
 - `TemplateContext.substitute(keep=…)` and `ResolvedNode.foreach = (name,
   output id)` on producers: `model/resolved.py`. Descendants carry no flag.
 - Rules 4–5: `core/_expand.py`, scatter expansion, via `path_wildcards`
@@ -192,8 +231,9 @@ still runs, and `--until` a stage below the `foreach` works.
   `_write_foreach_header`, producer shell).
 - Tests: `tests/model/test_foreach.py`, `test_foreach_lowering` in
   `tests/backend/test_snakemake_gen.py`, `tests/e2e/test_15_foreach.py` (fan
-  out + gather; a re-run dropping a value; nested rejection). The e2e module is
-  a local git repo built in `tmp_path`, not a bundle.
+  out + gather; a re-run dropping a value; nested rejection; `over` per
+  lineage, `15_over.yaml`). The e2e module is a local git repo built in
+  `tmp_path`, not a bundle.
 
 Deferred: status / archive expansion of patterns, manifest, gather grouping by
 captured value, nested `foreach`.

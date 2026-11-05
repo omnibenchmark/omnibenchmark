@@ -57,16 +57,16 @@ def _commit(repo: Path, files: dict) -> str:
     return out.stdout.strip()
 
 
-def _setup(tmp_path, keep_files):
+def _setup(tmp_path, keep_files, config_name=CONFIG_FILENAME):
     repo = tmp_path / "foreach_module"
     repo.mkdir()
     commit = _commit(
         repo, {"run.py": _MODULE, "config.cfg": "[DEFAULT]\nSCRIPT=run.py\n"}
     )
     (repo / "run.py").chmod(0o755)
-    config = Path(__file__).parent / "configs" / CONFIG_FILENAME
+    config = Path(__file__).parent / "configs" / config_name
     runner = E2ETestRunner(tmp_path, keep_files)
-    config_file = runner.setup_test_environment(config, CONFIG_FILENAME)
+    config_file = runner.setup_test_environment(config, config_name)
     config_file.write_text(config_file.read_text().replace("HEAD_COMMIT", commit))
     return runner, config_file, repo, commit
 
@@ -121,3 +121,23 @@ def test_nested_foreach_is_rejected(tmp_path, keep_files):
         )
     assert result.returncode != 0
     assert "nesting is not supported" in result.stdout + result.stderr
+
+
+@pytest.mark.e2e
+def test_over_closes_foreach_per_lineage(tmp_path, keep_files):
+    """`over: sample` yields one collector per upstream lineage, each with its
+    own samples — the axes a `group_by` gather would have merged (012 §3.3)."""
+    runner, config_file, _repo, _commit_id = _setup(
+        tmp_path, keep_files, "15_over.yaml"
+    )
+    runner.execute_cli_command(config_file)
+
+    found = sorted(runner.out_dir.glob("data.D1.*/process*/per_dataset.*/summary.txt"))
+    assert [p.parts[-3] for p in found] == [
+        "process.upper.default",
+        "process2.upper2.default",
+    ]
+    assert [p.read_text() for p in found] == ["S1\nS2\nS3\n"] * 2
+    # The closed value is gone from the path; nothing sits beside the samples
+    # that the producer's glob could mistake for one.
+    assert not list(runner.out_dir.glob("data.D1.*/s*/per_dataset.*"))

@@ -512,6 +512,21 @@ def expand_scatter_stage(
                 node_path = prefix + node_dir(
                     stage.id, module_id, param_id, members, flat=flat
                 )
+                # A resolved path holds `{` only below a foreach (design 012).
+                in_wild = {w for p in inputs.values() for w in _wildcards(p)}
+                over = getattr(stage, "over", None)
+                if over:
+                    # Close the foreach (012 §3.3): the value's segment leaves
+                    # the path, so this node is one per upstream lineage and
+                    # its inputs expand over every value at run time.
+                    seg = f"/{{{over}}}/"
+                    if over not in in_wild or seg not in node_path:
+                        raise ValueError(
+                            f"Stage '{stage.id}' closes foreach '{over}', but "
+                            f"its inputs do not carry it (declared: "
+                            f"{sorted(in_wild) or 'none'})."
+                        )
+                    node_path = node_path.replace(seg, "/", 1)
                 foreach = None
                 outputs = {}
                 for output_spec in stage.outputs:
@@ -532,11 +547,9 @@ def expand_scatter_stage(
                         output_to_nodes[output_spec.id] = []
                     output_to_nodes[output_spec.id].append((node_id, output_path))
 
-                # A resolved path holds `{` only below a foreach (design 012).
                 # Every wildcard an input carries must reach the outputs, or
                 # the rule cannot be instantiated: rejects nested foreach, flat
                 # nesting, and joins anchored outside the foreach branch.
-                in_wild = {w for p in inputs.values() for w in _wildcards(p)}
                 if in_wild and foreach:
                     raise ValueError(
                         f"Stage '{stage.id}' declares foreach below another "
@@ -544,6 +557,7 @@ def expand_scatter_stage(
                         f"not supported."
                     )
                 lost = in_wild - {w for p in outputs.values() for w in _wildcards(p)}
+                lost.discard(over)
                 if lost:
                     raise ValueError(
                         f"Node {node_id} consumes foreach '{sorted(lost)[0]}' "

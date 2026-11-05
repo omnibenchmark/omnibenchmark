@@ -796,9 +796,28 @@ class Stage(DescribableEntity):
             "Requires api_version ≥ 0.7.0."
         ),
     )
+    over: Optional[str] = Field(
+        None,
+        description=(
+            "A `foreach` capture to close (design 012 §3.3): one node per "
+            "upstream lineage, its inputs expanded over every captured value. "
+            "Keeps every other axis; a gather with `group_by` keeps one. "
+            "Requires api_version ≥ 0.8.0."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_gather(self) -> "Stage":
+        if self.over is not None:
+            if self.gather:
+                raise ValueError(
+                    f"Stage '{self.id}' declares both `over` and `gather`; "
+                    f"a stage closes a foreach or groups members, not both."
+                )
+            if not _ID_PATTERN.fullmatch(self.over):
+                raise ValueError(
+                    f"Stage '{self.id}': over '{self.over}' must be an identifier."
+                )
         if self.gather:
             # One axis per stage — including "no axis": mixing a grouped entry
             # with a global one has no meaning, so {None, "data"} is rejected
@@ -1410,6 +1429,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             execution.get("metric_collectors") or []
         )
         for entity in entities:
+            if entity.get("over") is None:
+                entity.pop("over", None)
             for io in (entity.get("inputs") or []) + (entity.get("outputs") or []):
                 if isinstance(io, dict):
                     io.pop("validators", None)
@@ -1729,6 +1750,28 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 raise ValueError(
                     f"Stage '{stage.id}' declares foreach on "
                     f"{', '.join(o.id for o in foreach)}; at most one is allowed."
+                )
+        captures = {
+            o.foreach for s in self.stages for o in s.outputs or [] if o.foreach
+        }
+        for stage in self.stages:
+            if stage.over is None:
+                continue
+            if self.api_version < APIVersion.V0_8_0:
+                raise ValueError(
+                    f"Stage '{stage.id}' uses `over`, which requires "
+                    f"api_version ≥ 0.8.0 (this benchmark declares "
+                    f"{self.api_version.value})."
+                )
+            if stage.over not in captures:
+                raise ValueError(
+                    f"Stage '{stage.id}': over '{stage.over}' names no `foreach` "
+                    f"capture; declared: {sorted(captures) or 'none'}."
+                )
+            if not stage.inputs:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares `over` but no inputs; there is "
+                    f"nothing to expand."
                 )
 
         # Below 0.5 `--name` is the dataset id, so downstream modules write

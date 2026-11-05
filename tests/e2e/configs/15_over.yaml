@@ -1,0 +1,68 @@
+id: Over
+description: E2E test for closing a foreach with over (design 012 §3.3)
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.8.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host environment for direct execution"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+        parameters:
+          - samples: "s1,s2,s3"
+    outputs:
+      - id: counts
+        path: "{sample}/counts.txt"
+        foreach: sample
+
+  - id: process
+    modules:
+      - id: upper
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+    inputs:
+      - counts
+    outputs:
+      - id: processed
+        path: "processed.txt"
+
+  - id: process2
+    modules:
+      - id: upper2
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+    inputs:
+      - counts
+    outputs:
+      - id: processed
+        path: "processed.txt"
+
+  # Closes the foreach: one node per upstream lineage (here: per process
+  # module), each gathering every sample of that lineage. A gather with
+  # `group_by: data` would have put both modules' samples in one node.
+  - id: per_dataset
+    modules:
+      - id: collect
+        software_environment: "host"
+        repository:
+          url: foreach_module
+          commit: HEAD_COMMIT
+    inputs:
+      - processed
+    over: sample
+    outputs:
+      - id: summary
+        path: "summary.txt"

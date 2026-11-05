@@ -17,6 +17,7 @@ see omnibenchmark.backend._snakemake_debug.DebugSnakemakeGenerator.
 """
 
 import json
+import re
 import os
 from collections import defaultdict
 from datetime import datetime
@@ -93,7 +94,9 @@ _SHELL_INDENT = "        "
 _FOREACH_HELPER = """\
 def _ob_foreach(ckpt, pattern, name, template):
     ckpt.get()
-    found = glob_wildcards(pattern.replace("{%s}" % name, "{%s,[^/]+}" % name))
+    found = glob_wildcards(
+        pattern.replace("{%s}" % name, "{%s,%s}" % (name, _OB_FOREACH_RE))
+    )
     return expand(template, **{name: sorted(getattr(found, name))})
 
 """
@@ -228,9 +231,16 @@ class SnakemakeGenerator:
         if not self._foreach_producers:
             return
         names = sorted({n.foreach[0] for n in self._foreach_producers if n.foreach})
+        # A value is a directory beside which an `over` node's directory may
+        # sit (012 §3.3), so a value may not look like a node segment.
+        stages = "|".join(
+            re.escape(s)
+            for s in sorted({n.stage_id for n in self._nodes_by_id.values()})
+        )
+        f.write(f'\n_OB_FOREACH_RE = r"(?!(?:{stages})\\.)[^/]+"\n')
         f.write("\nwildcard_constraints:\n")
         for name in names:
-            f.write(f'    {name}="[^/]+",\n')
+            f.write(f"    {name}=_OB_FOREACH_RE,\n")
         f.write("\n" + _FOREACH_HELPER)
 
     def _rule_outputs(self, node: ResolvedNode) -> List[str]:
@@ -511,7 +521,23 @@ class SnakemakeGenerator:
             "mkdir -p {params.output_dir} $(dirname {log})",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
+        # An input carrying a wildcard the outputs lack is a list (`over`,
+        # 012 §3.3): one absolute path per captured value, into a bash array.
+        out_wild = {w for p in node.outputs.values() for w in path_wildcards(p)}
+        expanded = {
+            k
+            for k, p in node.inputs.items()
+            if isinstance(p, str) and path_wildcards(p) - out_wild
+        }
         for key in node.inputs:
+            if key in expanded:
+                lines += [
+                    f"INPUT_{key}=()",
+                    f"for _f in {{input.{key}}}; do",
+                    f'    INPUT_{key}+=("$(cd $(dirname $_f) && pwd)/$(basename $_f)")',
+                    "done",
+                ]
+                continue
             lines.append(
                 f"INPUT_{key}=$(cd $(dirname {{input.{key}}}) && pwd)"
                 f"/$(basename {{input.{key}}})"
@@ -591,7 +617,11 @@ class SnakemakeGenerator:
 
         for key in node.inputs:
             original_name = node.input_name_mapping.get(key, key)
-            cmd.append(f"--{original_name} $INPUT_{key}")
+            if key in expanded:
+                # `${{…}}` in the Snakefile: Snakemake unescapes to `${…}`.
+                cmd.append('--%s "${{INPUT_%s[@]}}"' % (original_name, key))
+            else:
+                cmd.append(f"--{original_name} $INPUT_{key}")
         if node.parameters:
             cmd.append("{params.cli_args}")
 

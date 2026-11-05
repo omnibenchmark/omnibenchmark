@@ -971,7 +971,8 @@ def test_foreach_lowering(tmp_path):
         "lambda wc: _ob_foreach(checkpoints.data_D1_default, "
         f'"{pattern}", "sample", "{below}")'
     )
-    assert 'sample="[^/]+"' in text and "def _ob_foreach(" in text
+    assert "sample=_OB_FOREACH_RE" in text and "def _ob_foreach(" in text
+    assert '_OB_FOREACH_RE = r"(?!(?:stage1)\\.)[^/]+"' in text
     assert "checkpoint data_D1_default:\n    output:\n        " + sentinel in text
     assert "--output counts=$OUTPUT_FILE_0" in text
     assert "OUTPUT_FILE_0=$FOREACH_DIR/{{sample}}/counts.h5" in text
@@ -980,3 +981,33 @@ def test_foreach_lowering(tmp_path):
     assert f"input_0={wrapped}," in text
     all_rule = text.split("rule all:")[1]
     assert sentinel in all_rule and wrapped in all_rule
+
+
+@pytest.mark.short
+def test_over_lowering(tmp_path):
+    """An `over` node (012 §3.3): inputs carry the wildcard, outputs do not, so
+    each input is wrapped in `_ob_foreach` and passed as a bash array; the
+    rule itself has no wildcard, so no log suffix."""
+    pattern = "data.D1.default/{sample}/counts.h5"
+    below = "data.D1.default/{sample}/process.M.default/x.h5ad"
+    producer = _make_node(node_id="data-D1.default", outputs={"counts": pattern})
+    producer = dataclasses.replace(producer, foreach=("sample", "counts"))
+    over = _make_node(
+        node_id="data-D1.default-process-M.default-concat-C.default",
+        inputs={"processed": below},
+        outputs={"all": "data.D1.default/process.M.default/concat.C.default/all.h5ad"},
+    )
+    out = tmp_path / "Snakefile"
+    SnakemakeGenerator("b", "1", "a", api_version=APIVersion.V0_8_0).generate_snakefile(
+        [producer, over], out
+    )
+    text = out.read_text()
+    rule = text.split("rule data_D1_default_process_M_default_concat_C_default:")[1]
+    rule = rule.split("\nrule ")[0]
+    assert (
+        "processed=lambda wc: _ob_foreach(checkpoints.data_D1_default, "
+        f'"{pattern}", "sample", "{below}")' in rule
+    )
+    assert "for _f in {input.processed}; do" in rule
+    assert '--processed "${{INPUT_processed[@]}}"' in rule
+    assert ".{sample}.log" not in rule
