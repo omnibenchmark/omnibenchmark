@@ -26,6 +26,7 @@ import shutil
 import sys
 from typing import List, Optional, TextIO
 
+from omnibenchmark.backend import _wildcard
 from omnibenchmark.core._paths import (
     _UNSAFE_CHARS,
     make_human_name as _make_human_name,
@@ -199,17 +200,46 @@ class SnakemakeGenerator:
         self.benchmark_author = benchmark_author
         self.api_version = api_version
         self._nodes_by_id: dict = {}
+        self._groups: list = []
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
         self._nodes_by_id = {n.id: n for n in nodes}
         self._foreach_producers = [n for n in nodes if n.foreach]
+        # Spike (011): below a producer, one rule per (chain of stages,
+        # stage, module, params) with the chain as wildcards.
+        self._groups, covered = _wildcard.group_subtree(
+            nodes, self._foreach_producers, _foreach_dir
+        )
         with open(output_path, "w") as f:
             self._write_header(f)
             self._write_foreach_header(f)
             for node in nodes:
-                self._write_node_rule(f, node)
+                if node.id not in covered:
+                    self._write_node_rule(f, node)
+            for group in self._groups:
+                self._write_group_rule(f, group)
             self._write_all_rule(f, nodes)
+
+    def _write_group_rule(self, f: TextIO, group: _wildcard.Group):
+        producer = self._nodes_by_id[group.producer_id]
+        assert producer.foreach is not None
+        rule = self._sanitize_rule_name(producer.id)
+        pattern = producer.outputs[producer.foreach[1]]
+        refs = {
+            key: _wildcard.input_expr(group, key, rule, pattern)
+            for key in group.nodes[0].inputs
+        }
+        f.write(
+            f"# {len(group.nodes)} nodes; chain: {' / '.join(group.chain) or '-'}\n"
+        )
+        self._write_node_rule(
+            f,
+            group.nodes[0],
+            rule_name=group.rule,
+            outputs=group.outputs,
+            input_refs=refs,
+        )
 
     # ------------------------------------------------------------------
     # Rule structure (shared between production and debug)
@@ -231,6 +261,7 @@ class SnakemakeGenerator:
         if not self._foreach_producers:
             return
         names = sorted({n.foreach[0] for n in self._foreach_producers if n.foreach})
+        chain = _wildcard.constraints(self._groups)
         # A value is a directory beside which an `over` node's directory may
         # sit (012 §3.3), so a value may not look like a node segment.
         stages = "|".join(
@@ -241,7 +272,10 @@ class SnakemakeGenerator:
         f.write("\nwildcard_constraints:\n")
         for name in names:
             f.write(f"    {name}=_OB_FOREACH_RE,\n")
+        for wc, regex in chain.items():
+            f.write(f'    {wc}=r"{regex}",\n')
         f.write("\n" + _FOREACH_HELPER)
+        f.write(_wildcard.table_text(self._groups, names))
 
     def _rule_outputs(self, node: ResolvedNode) -> List[str]:
         """The node's outputs as the rule declares them. A foreach producer's
@@ -274,8 +308,17 @@ class SnakemakeGenerator:
                 )
         return literal
 
-    def _write_node_rule(self, f: TextIO, node: ResolvedNode):
-        """Write a complete rule block for one resolved node."""
+    def _write_node_rule(
+        self,
+        f: TextIO,
+        node: ResolvedNode,
+        rule_name: Optional[str] = None,
+        outputs: Optional[List[str]] = None,
+        input_refs: Optional[dict] = None,
+    ):
+        """Write a complete rule block for one resolved node, or for a group
+        of nodes the representative *node* stands for (patterns in *outputs*,
+        input expressions in *input_refs*, name in *rule_name*)."""
         is_collector = node.is_collector
         is_gather = node.is_gather
 
@@ -287,15 +330,22 @@ class SnakemakeGenerator:
         f.write(f"# Repository: {node.module.repository_url}\n")
         f.write(f"# Commit: {node.module.commit}\n")
         keyword = "checkpoint" if node.foreach else "rule"
-        f.write(f"{keyword} {self._sanitize_rule_name(node.id)}:\n")
+        rule_name = rule_name or self._sanitize_rule_name(node.id)
+        f.write(f"{keyword} {rule_name}:\n")
 
-        outputs = self._rule_outputs(node)
+        if outputs is None:
+            outputs = self._rule_outputs(node)
         wildcards = {w for p in outputs for w in path_wildcards(p)}
 
         if node.inputs:
             f.write("    input:\n")
             for key, path in node.inputs.items():
-                f.write(f"        {key}={self._path_ref(path, wildcards)},\n")
+                ref = (
+                    input_refs[key]
+                    if input_refs is not None
+                    else self._path_ref(path, wildcards)
+                )
+                f.write(f"        {key}={ref},\n")
 
         if outputs:
             # Positional at every api version: output ids never become Snakemake
@@ -335,7 +385,6 @@ class SnakemakeGenerator:
             f.write("    benchmark:\n")
             f.write(f'        "{benchmark_file}"\n')
 
-        rule_name = self._sanitize_rule_name(node.id)
         # Output, log and benchmark must share wildcards.
         suffix = "".join(f".{{{w}}}" for w in sorted(wildcards))
         log_filename = truncate_filename(f"{rule_name}{suffix}.log")
