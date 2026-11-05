@@ -97,10 +97,26 @@ def expand_gather_stage(
     for spec in stage.gather:
         producers = output_to_nodes.get(spec.from_, [])
         if not producers:
-            raise ValueError(
-                f"Stage '{stage.id}' gathers from output id '{spec.from_}', "
-                f"which no stage produces."
+            declared = any(
+                o.id == spec.from_
+                for st in getattr(benchmark.model, "stages", None) or []
+                if st.id != stage.id
+                for o in st.outputs or []
             )
+            if not declared:
+                raise ValueError(
+                    f"Stage '{stage.id}' gathers from output id '{spec.from_}', "
+                    f"which no stage produces."
+                )
+            # Declared, but every producer was pruned (--filter, --until,
+            # requires/exclude, capabilities): the gather has nothing to collect.
+            # Skip it like an empty group, loudly (008 §2, no silent absence);
+            # a gather downstream of this one is skipped the same way.
+            logger.warning(
+                f"      Gather '{stage.id}': every producer of '{spec.from_}' was "
+                f"pruned; skipping the stage."
+            )
+            return []
         for member_id, path in producers:
             if group_label is None:
                 grouped.setdefault(None, []).append((member_id, spec.from_, path))
