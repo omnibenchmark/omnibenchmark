@@ -17,6 +17,7 @@
 |---------|------|-------------|--------|
 | 1 | 2026-10-23 | Initial draft, implemented on api 0.8.0 | ben |
 | 2 | 2026-11-05 | §3.3: `over` closes a foreach; captured values may not look like node segments | ben |
+| 3 | 2026-11-05 | §4.1: one rule per chain of stages below a producer (spike for 011); `ob run --dry` warns about the checkpoint | ben |
 
 ## 1. Problem Statement
 
@@ -190,13 +191,49 @@ rule per_dataset_G_D1_default:
 Because `rule all` is wrapped the same way, a wildcard leaf with no gather
 still runs, and `--until` a stage below the `foreach` works.
 
+### 4.1 One rule per chain (spike for 011)
+
+Below a producer every node directory is `P/{name}/seg_1/…/seg_k`, one
+segment per lineage step (007 §3.1), and an `over` node's is the same
+without `/{name}/`. Nodes of one (stage, module, params) under the same
+*sequence of stages* differ only in the segment values, so they lower to one
+rule, each chain position a wildcard `{s_<stage>}` constrained to
+`<stage>\.[^/]+`:
+
+```python
+rule data_D1_a1b2_process_demux_M_default:   # 3 nodes; chain: process
+    input:
+        processed="data/D1/.a1b2/{sample}/{s_process}/processed.tsv",
+    output:
+        "data/D1/.a1b2/{sample}/{s_process}/demux.M.default/M.tsv",
+```
+
+An input whose file name depends on an ancestor's module (a `{module.id}`
+template) is not one pattern across the group: it is read from a table
+`_OB_IN[rule][key][chain values]` through `_ob_in(wc, …)`. With output ids
+as file names every input would be a pattern and the table would go.
+
+Not grouped: producers (one checkpoint each), joins, gathers, collectors,
+nodes outside a producer. Parameters stay in the rule (`cli_args` is per
+rule), so modules with several parameter sets keep one rule per set.
+`rule all` still names every node's targets, so pruning stays in the
+resolver (011 §3.6). The producer directory is literal: a second dataset
+module gets its own rules. Logs are per instance:
+`.logs/<rule>.{sample}.{s_process}.log`.
+
+`ob run --dry` warns that the producer is a checkpoint and `snakemake -n`
+cannot list the jobs below it until it has run, pointing at `--until`.
+
+Implementation: `backend/_wildcard.py` (grouping, input expressions, table),
+`SnakemakeGenerator._write_group_rule`.
+
 ## 5. Costs
 
 | Area | Behaviour |
 |------|-----------|
 | `ob describe`, mermaid, dot | One node per (module, params); paths show `{sample}` |
-| status, archive, telemetry node counts | See the pattern, not instances |
-| `snakemake -n` | Lists jobs below the checkpoint only after it has run |
+| status, archive, telemetry node counts | See the pattern, not instances. Status locates logs by node id, so a grouped rule's logs (named by rule and wildcards, §4.1) are not found yet |
+| `snakemake -n` | Lists jobs below the checkpoint only after it has run; `ob run --dry` says so |
 | `exclude` / `requires` / obfilter | Work on modules and params; cannot select values |
 | gather `group_by` | Any stage; values always merge into the group, as parameter expansions do (010 §3.2) |
 | `over` | Closes the values only; a `foreach` value shaped like `<stage>.…` is rejected by the constraint |
