@@ -23,7 +23,7 @@ def _member(node_id, parent_id, stage_id, module_id, **labels):
     )
 
 
-def _expand(pca_modules, expose, path_exclusions=None, module_filter=None):
+def _expand(pca_modules, expose, **kw):
     """Two datasets x `pca_modules` [(module id, role)], gathered by data."""
     nodes_by_id = {}
     producers = []
@@ -33,9 +33,14 @@ def _expand(pca_modules, expose, path_exclusions=None, module_filter=None):
             nid = f"{d}-pca-{mod}"
             nodes_by_id[nid] = _member(nid, d, "pca", mod, role=role)
             producers.append((nid, f"{d}/{mod}.emb"))
+    return _gather("pca.embedding", "data", expose, producers, nodes_by_id, **kw)
+
+
+def _gather(from_id, group_by, expose, producers, nodes_by_id, **kw):
+    """Expand one `agree` gather stage with module `subspace` over `producers`."""
     stage = SimpleNamespace(
         id="agree",
-        gather=[SimpleNamespace(from_="pca.embedding", group_by="data", expose=expose)],
+        gather=[SimpleNamespace(from_=from_id, group_by=group_by, expose=expose)],
         modules=[
             SimpleNamespace(
                 id="subspace", name=None, parameters=None, provides=None, resources=None
@@ -54,10 +59,9 @@ def _expand(pca_modules, expose, path_exclusions=None, module_filter=None):
         stage=stage,
         benchmark=SimpleNamespace(model=model),
         resolved_modules_cache={("agree", "subspace"): object()},
-        output_to_nodes={"pca.embedding": producers},
+        output_to_nodes={from_id: producers},
         nodes_by_id=nodes_by_id,
-        path_exclusions=path_exclusions,
-        module_filter=module_filter,
+        **kw,
     )
 
 
@@ -69,6 +73,7 @@ def _flags(node):
 
 
 PCA = [("sklearn", "reference"), ("irlba", "irlba"), ("rand", "rand")]
+REF = {"reference": {"role": "reference"}}
 
 
 @pytest.mark.short
@@ -125,6 +130,43 @@ def test_expose_skips_the_node_when_module_selection_drops_the_reference():
         )
         == []
     )
+
+
+@pytest.mark.short
+def test_expose_skips_the_node_when_a_pick_drops_the_reference():
+    # The picks path shares the skip with `-m`: the selection, not the plan,
+    # removed the reference upstream.
+    picks = {"agree": {"*": "all"}}
+    assert _expand([("irlba", "irlba")], REF, picks=picks) == []
+
+
+@pytest.mark.short
+def test_expose_on_a_group_label_of_gather_members():
+    # A global gather over per-dataset gather nodes: each member carries only
+    # its group label, `data`, and that is what expose matches on.
+    nodes_by_id = {
+        f"agree-subspace-{d}": _member(
+            f"agree-subspace-{d}", None, "agree", "x", data=d
+        )
+        for d in ("d1", "d2")
+    }
+    producers = [(nid, f"{nid}/agree.tsv") for nid in nodes_by_id]
+    (node,) = _gather(
+        "agree.tsv", None, {"first": {"data": "d1"}}, producers, nodes_by_id
+    )
+    flags = _flags(node)
+    assert flags["first"] == ["agree-subspace-d1/agree.tsv"]
+    assert len(flags["agree.tsv"]) == 2
+
+
+@pytest.mark.short
+def test_expose_two_flags():
+    nodes = _expand(
+        PCA, {"reference": {"role": "reference"}, "baseline": {"name": "rand"}}
+    )
+    flags = _flags(nodes[0])
+    assert flags["reference"] == ["d1/sklearn.emb"]
+    assert flags["baseline"] == ["d1/rand.emb"]
 
 
 _YAML = """

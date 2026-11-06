@@ -628,6 +628,31 @@ class TestWriteNodeRuleCollectorV2:
         assert "OUTPUT_FILE_0=$(cd $(dirname {output[0]}) && pwd)" in out
         assert "--output report_html=$OUTPUT_FILE_0" in out
 
+    def test_gather_exposed_member_gets_its_own_flag(self):
+        """`expose` (004 §3.12): the reference appears in the gathered list
+        and again, alone, under its own flag."""
+        node = _make_node(
+            node_id="agree-subspace-d1.default",
+            stage_id="agree",
+            inputs={
+                "input_0": "out/d1/sklearn.emb",
+                "input_1": "out/d1/irlba.emb",
+                "input_2": "out/d1/sklearn.emb",
+            },
+            outputs={"agree": "out/agree/agree.tsv"},
+            input_name_mapping={
+                "input_0": "pca.embedding",
+                "input_1": "pca.embedding",
+                "input_2": "reference",
+            },
+            is_gather=True,
+        )
+        out = _capture(_gen(api_version=APIVersion.V0_8_0)._write_node_rule, node)
+        assert "for _f in {input.input_0} {input.input_1}; do" in out
+        assert "for _f in {input.input_2}; do" in out
+        assert '--pca.embedding "${{_pca_embedding[@]}}"' in out
+        assert '--reference "${{_reference[@]}}"' in out
+
     def test_gather_v07_no_output_flags(self):
         node = self._gather_node()
         out = _capture(_gen(api_version=APIVersion.V0_7_0)._write_node_rule, node)
