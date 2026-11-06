@@ -181,7 +181,23 @@ def expand_gather_stage(
                     f"group cannot run."
                 )
 
-            exposed = _exposed_members(stage, kept, nodes_by_id, gval, module_id)
+            exposed = _exposed_members(
+                stage,
+                kept,
+                nodes_by_id,
+                gval,
+                module_id,
+                partial=bool(module_filter) or picks is not None,
+            )
+            if exposed is None:
+                # `-m` or a pick pruned the exposed member: this node cannot
+                # get its flag, but the rest of the partial run still plans.
+                where = f"group '{gval}'" if gval is not None else "the gather"
+                logger.warning(
+                    f"      Gather '{stage.id}': {where} lost its exposed member "
+                    f"to module selection; skipping node for module {module_id}."
+                )
+                continue
 
             param_id = f".{params.hash_short()}" if params else ".default"
             # A global gather has no group value, so neither its id nor its
@@ -258,13 +274,17 @@ def expand_gather_stage(
     return nodes
 
 
-def _exposed_members(stage, kept, nodes_by_id, gval, module_id) -> list:
+def _exposed_members(
+    stage, kept, nodes_by_id, gval, module_id, partial=False
+) -> Optional[list]:
     """`(member id, flag, path)` for each `expose` flag of a gather node.
 
     Matched on the members' lineage labels, after exclusion, so the count is
     the one the node actually runs with. Exactly one match per flag: zero or
     several (a parameter sweep on the reference, two upstream branches) has no
     single path to pass, so it fails here rather than inside the module.
+    Under `partial` (`-m` or picks), zero matches returns None instead: the
+    selection, not the plan, dropped the member.
     """
     exposed = []
     for spec in stage.gather:
@@ -278,6 +298,8 @@ def _exposed_members(stage, kept, nodes_by_id, gval, module_id) -> list:
                     labels.get(k) == v for k, v in match.items()
                 ):
                     hits.append((member_id, flag, path))
+            if not hits and partial:
+                return None
             if len(hits) != 1:
                 where = f"group '{gval}'" if gval is not None else "the gather"
                 found = ", ".join(h[0] for h in hits) or "none"

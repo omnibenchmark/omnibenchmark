@@ -551,9 +551,12 @@ Rules:
 - `expose` passes one member per group as a flag of its own, e.g. the
   reference to compare the others against. It does not filter the entry: the
   member stays in the `from` list too. Labels match by exact equality, the
-  builtin `name` (the member's module id) included. Exactly one member must
-  match per group, counted after pruning; zero or several is a plan-time error.
-  Exposed flag names may not repeat or clash with a `from` id.
+  builtin `name` (the member's module id) and a gather member's `group_by`
+  stage id included. Exactly one member must match per group, counted after
+  exclusion; zero or several is a plan-time error. When `-m` or a pick drops
+  the match instead, the node is skipped with a warning. Exposed flag names may
+  not repeat or clash with a `from` id once `.` and `-` are read as `_`, and
+  may not be `output_dir`, `name` or `output`.
 
   ```yaml
   - id: pca

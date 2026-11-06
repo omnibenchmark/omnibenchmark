@@ -789,15 +789,27 @@ class Stage(DescribableEntity):
                     f"group_by {shown}. A gather stage has one grouping "
                     f"axis; multiple axes are deferred (design 010 §3.3)."
                 )
-            # Each flag name maps to one input group in the shell; a clash
-            # would silently merge an exposed member into another flag.
-            froms = {spec.from_ for spec in self.gather}
+
+            # The shell keys one bash array per flag with `.`/`-` folded to
+            # `_` (backend _bash_var), so `pca_embedding` and `pca.embedding`
+            # share an array: a clash would silently merge an exposed member
+            # into another flag. The gather shell also passes these itself.
+            def key(flag: str) -> str:
+                return flag.replace(".", "_").replace("-", "_")
+
+            taken = {key(spec.from_) for spec in self.gather}
+            taken |= {"output_dir", "name", "output"}
             exposed = [f for spec in self.gather for f in spec.expose or {}]
-            dupes = sorted({f for f in exposed if f in froms or exposed.count(f) > 1})
+            keys = [key(f) for f in exposed]
+            dupes = sorted(
+                {f for f, k in zip(exposed, keys) if k in taken or keys.count(k) > 1}
+            )
             if dupes:
                 raise ValueError(
                     f"Stage '{self.id}': `expose` flag names {dupes} clash with "
-                    f"another flag of this gather. Hint: rename the exposed flag."
+                    f"another flag of this gather (`.` and `-` count as `_`; "
+                    f"`output_dir`, `name` and `output` are reserved). Hint: "
+                    f"rename the exposed flag."
                 )
         return self
 
@@ -1817,7 +1829,15 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         # `expose` matches on lineage labels; an unknown key could never match
         # and would only surface as an empty group at plan time.
-        known_labels = set(label_owner) | _RESERVED_PROVIDES_LABELS
+        # A gather binds its group_by stage id as a label (design 010 §3.3),
+        # so a gather of gather nodes can expose on it.
+        group_labels = {
+            spec.group_by
+            for stage in self.stages
+            for spec in stage.gather or []
+            if spec.group_by
+        }
+        known_labels = set(label_owner) | _RESERVED_PROVIDES_LABELS | group_labels
         for stage in self.stages:
             for spec in stage.gather or []:
                 if spec.expose and self.api_version < APIVersion.V0_8_0:

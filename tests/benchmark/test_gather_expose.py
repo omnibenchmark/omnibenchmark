@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from omnibenchmark.core._expand import expand_gather_stage
-from omnibenchmark.model.benchmark import Benchmark
+from omnibenchmark.model.benchmark import APIVersion, Benchmark
 from omnibenchmark.model.resolved import TemplateContext
 
 
@@ -23,7 +23,7 @@ def _member(node_id, parent_id, stage_id, module_id, **labels):
     )
 
 
-def _expand(pca_modules, expose, path_exclusions=None):
+def _expand(pca_modules, expose, path_exclusions=None, module_filter=None):
     """Two datasets x `pca_modules` [(module id, role)], gathered by data."""
     nodes_by_id = {}
     producers = []
@@ -45,7 +45,10 @@ def _expand(pca_modules, expose, path_exclusions=None):
         resources=None,
     )
     model = SimpleNamespace(
-        get_name=lambda: "b", get_version=lambda: "1", get_author=lambda: "me"
+        api_version=APIVersion.V0_8_0,
+        get_name=lambda: "b",
+        get_version=lambda: "1",
+        get_author=lambda: "me",
     )
     return expand_gather_stage(
         stage=stage,
@@ -54,6 +57,7 @@ def _expand(pca_modules, expose, path_exclusions=None):
         output_to_nodes={"pca.embedding": producers},
         nodes_by_id=nodes_by_id,
         path_exclusions=path_exclusions,
+        module_filter=module_filter,
     )
 
 
@@ -110,6 +114,19 @@ def test_expose_counts_after_exclusion():
         )
 
 
+@pytest.mark.short
+def test_expose_skips_the_node_when_module_selection_drops_the_reference():
+    # `ob run -m irlba` keeps one path upstream; the reference never expands.
+    assert (
+        _expand(
+            [("irlba", "irlba")],
+            {"reference": {"role": "reference"}},
+            module_filter="irlba",
+        )
+        == []
+    )
+
+
 _YAML = """
 id: t
 description: t
@@ -154,6 +171,10 @@ def test_expose_parses():
     [
         ("0.7.0", "{reference: {role: reference}}", "requires api_version ≥ 0.8.0"),
         ("0.8.0", "{pca.embedding: {role: reference}}", "clash"),
+        # Same bash array as `pca.embedding` in the shell.
+        ("0.8.0", "{pca_embedding: {role: reference}}", "clash"),
+        ("0.8.0", "{output_dir: {role: reference}}", "reserved"),
+        ("0.8.0", "{name: {role: reference}}", "clash"),
         ("0.8.0", "{reference: {rol: reference}}", "no stage declares"),
     ],
 )
@@ -161,3 +182,20 @@ def test_expose_parses():
 def test_expose_rejected_at_parse_time(api, expose, message):
     with pytest.raises(Exception, match=message):
         _parse(api=api, expose=expose)
+
+
+@pytest.mark.short
+def test_expose_on_a_group_by_stage_label():
+    # A gather of gather nodes: members carry `data` as their group label.
+    yaml = _YAML.format(
+        api="0.8.0", expose="{reference: {role: reference}}", repo=_REPO
+    )
+    yaml += """  - id: agg
+    gather:
+      - {from: agree.tsv, group_by: data, expose: {first: {data: d1}}}
+    outputs: [{id: agg.tsv, path: agg.tsv}]
+    modules: [{id: m, repository: {url: 'http://x', commit: abc}, software_environment: env}]
+"""
+    assert Benchmark.from_yaml(yaml).stages[3].gather[0].expose == {
+        "first": {"data": "d1"}
+    }
