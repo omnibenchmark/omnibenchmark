@@ -433,11 +433,41 @@ class IOFile(IdentifiableEntity):
         default_factory=list,
         description="Validators run against this stage output (004 §3.14)",
     )
+    foreach: Optional[str] = Field(
+        None,
+        description=(
+            "Name captured from the path's first segment: the module writes one "
+            "file per value it chooses, and each feeds its own downstream node "
+            "(design 013). Requires api_version ≥ 0.8.0."
+        ),
+    )
 
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: str) -> str:
         return validate_non_empty_string(v)
+
+    @model_validator(mode="after")
+    def validate_foreach(self) -> "IOFile":
+        name = self.foreach
+        if name is None:
+            return self
+        if not _ID_PATTERN.fullmatch(name) or name in ("module", "params"):
+            raise ValueError(
+                f"Output '{self.id}': foreach '{name}' must be an identifier other "
+                f"than 'module' or 'params'."
+            )
+        # The first segment is the node directory's child, so every descendant
+        # directory carries the value (013 §3, rule 2).
+        if (
+            not self.path.startswith(f"{{{name}}}/")
+            or self.path.count(f"{{{name}}}") != 1
+        ):
+            raise ValueError(
+                f"Output '{self.id}': path '{self.path}' must start with "
+                f"'{{{name}}}/' and use it only there."
+            )
+        return self
 
 
 class InputCollection(BaseModel):
@@ -766,9 +796,28 @@ class Stage(DescribableEntity):
             "Requires api_version ≥ 0.7.0."
         ),
     )
+    over: Optional[str] = Field(
+        None,
+        description=(
+            "A `foreach` capture to close (design 013 §3.3): one node per "
+            "upstream lineage, its inputs expanded over every captured value. "
+            "Keeps every other axis; a gather with `group_by` keeps one. "
+            "Requires api_version ≥ 0.8.0."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_gather(self) -> "Stage":
+        if self.over is not None:
+            if self.gather:
+                raise ValueError(
+                    f"Stage '{self.id}' declares both `over` and `gather`; "
+                    f"a stage closes a foreach or groups members, not both."
+                )
+            if not _ID_PATTERN.fullmatch(self.over):
+                raise ValueError(
+                    f"Stage '{self.id}': over '{self.over}' must be an identifier."
+                )
         if self.gather:
             # One axis per stage — including "no axis": mixing a grouped entry
             # with a global one has no meaning, so {None, "data"} is rejected
@@ -797,7 +846,11 @@ class Stage(DescribableEntity):
             raise ValueError(f"Duplicate output ids in stage: {dupes}")
 
         for idx, output in enumerate(v):
-            if "/" in output.path:
+            # A foreach path needs its leading `{name}/` (design 013).
+            path = output.path
+            if output.foreach:
+                path = path.removeprefix(f"{{{output.foreach}}}/")
+            if "/" in path:
                 # Try to get line number from context
                 line_info = ""
                 if info.context and "line_map" in info.context:
@@ -1376,9 +1429,14 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
             execution.get("metric_collectors") or []
         )
         for entity in entities:
+            if entity.get("over") is None:
+                entity.pop("over", None)
             for io in (entity.get("inputs") or []) + (entity.get("outputs") or []):
                 if isinstance(io, dict):
                     io.pop("validators", None)
+                    # An unset foreach must not move the hash of existing plans.
+                    if io.get("foreach") is None:
+                        io.pop("foreach", None)
         canonical = _json.dumps(execution, sort_keys=True)
         return _hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -1671,6 +1729,50 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     raise ValueError(
                         f"Output id '{o.id}' may not contain '=' or whitespace."
                     )
+
+        # `foreach` outputs (design 013): 0.8.0+, one per stage, stages only.
+        for c in self.metric_collectors or []:
+            for o in c.outputs or []:
+                if o.foreach:
+                    raise ValueError(
+                        f"Output '{o.id}': metric collectors cannot declare "
+                        f"foreach."
+                    )
+        for stage in self.stages:
+            foreach = [o for o in stage.outputs or [] if o.foreach]
+            if foreach and self.api_version < APIVersion.V0_8_0:
+                raise ValueError(
+                    f"Stage '{stage.id}' uses `foreach`, which requires "
+                    f"api_version ≥ 0.8.0 (this benchmark declares "
+                    f"{self.api_version.value})."
+                )
+            if len(foreach) > 1:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares foreach on "
+                    f"{', '.join(o.id for o in foreach)}; at most one is allowed."
+                )
+        captures = {
+            o.foreach for s in self.stages for o in s.outputs or [] if o.foreach
+        }
+        for stage in self.stages:
+            if stage.over is None:
+                continue
+            if self.api_version < APIVersion.V0_8_0:
+                raise ValueError(
+                    f"Stage '{stage.id}' uses `over`, which requires "
+                    f"api_version ≥ 0.8.0 (this benchmark declares "
+                    f"{self.api_version.value})."
+                )
+            if stage.over not in captures:
+                raise ValueError(
+                    f"Stage '{stage.id}': over '{stage.over}' names no `foreach` "
+                    f"capture; declared: {sorted(captures) or 'none'}."
+                )
+            if not stage.inputs:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares `over` but no inputs; there is "
+                    f"nothing to expand."
+                )
 
         # Below 0.5 `--name` is the dataset id, so downstream modules write
         # `{dataset}`-named files and the template is still the right one.

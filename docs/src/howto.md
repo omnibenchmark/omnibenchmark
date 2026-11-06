@@ -679,6 +679,89 @@ ob describe status benchmark.yaml --html  # writes out/status_report.html
 - Editing a script, or rerunning a module, marks its verdicts `stale` until
   `ob validate outputs` runs again. Logs are under `out/.validation/`.
 
+## Fan out over files a module discovers at run time
+
+A stage output is normally one file per node. When the module decides how
+many files it produces — one per sample it downloads, one per barcode it
+splits off — declare the output with `foreach` (api 0.8.0):
+
+```yaml
+stages:
+  - id: data_download
+    outputs:
+      - id: rawdata_h5ad
+        path: "{pool_id}/raw.h5ad"
+        foreach: pool_id
+    modules:
+      - id: d_hgmm
+        ...
+  - id: cell_calling
+    inputs: [rawdata_h5ad]
+    outputs:
+      - id: called_cells_tsv
+        path: "{module.id}_called_cells.tsv"
+```
+
+The path starts with `{pool_id}/`, the name the module fills in. The module
+receives the pattern as given:
+
+```
+--output rawdata_h5ad=/abs/out/data_download.d_hgmm.65632719/{pool_id}/raw.h5ad
+```
+
+and writes one file per value, substituting `{pool_id}` itself (`hgmm10k_3v4/raw.h5ad`, …). Values are directory names: anything but `/`,
+and not shaped like a node directory (`<stage>.…`). Zero files is allowed.
+
+Every stage below runs once per value: `cell_calling` gets one node per
+pool, and so does everything after it, with no change to those stages.
+Downstream modules see an ordinary single `--rawdata_h5ad PATH`.
+
+### Close the fan-out
+
+To bring the per-pool files back together, give a stage `over`, naming the
+captured value:
+
+```yaml
+  - id: concatenate_dataset
+    inputs: [filtered_h5ad, demultiplexed_tsv]
+    over: pool_id
+    outputs:
+      - id: dataset_h5ad
+        path: "{module.id}.h5ad"
+```
+
+The module gets each input as one flag followed by every pool's path, in
+sorted pool order, the same order for every input:
+
+```
+--filtered_h5ad a/x.h5ad b/x.h5ad c/x.h5ad --demultiplexed_tsv a/y.tsv b/y.tsv c/y.tsv
+```
+
+`over` collapses only the pools. Everything else in the lineage stays
+separate: with three cleaning variants between `data_download` and
+`concatenate_dataset`, you get three `concatenate_dataset` nodes, four pools
+each. That is the difference from a `gather` with `group_by: data_download`,
+which keeps the `data_download` module and merges every other axis — all
+three cleaning variants of all four pools into one node.
+
+Rules: `over` names a declared `foreach`, the stage has inputs that carry
+it, and a stage uses either `over` or `gather`, not both.
+
+### What a dry run can show
+
+The producer is a Snakemake checkpoint: the values exist only after it has
+run, so `ob run --dry` warns that `snakemake -n` cannot list the jobs below
+it yet. To see the full DAG, run the producer first:
+
+```bash
+ob run benchmark.yaml --until data_download
+ob run benchmark.yaml --dry
+cd out && snakemake -n
+```
+
+Nodes below a `foreach` appear once in `ob describe` and the status report,
+with `{pool_id}` in their paths; the per-pool instances are visible on disk.
+
 ## Use template variables in output paths
 
 Output `path` fields in the benchmark YAML accept template variables that are resolved at runtime for each node in the execution graph. All variables use `{curly_brace}` syntax.

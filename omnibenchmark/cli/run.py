@@ -427,6 +427,24 @@ def _run_benchmark(
             hint = " --use-conda"
         logger.info("\nSnakefile generated. To execute:")
         logger.info(f"  cd {out_dir} && snakemake{hint} --cores {cores}")
+        # A foreach producer is a checkpoint: the jobs below it exist only
+        # once it has run, so a dry run of Snakemake stops there (013 §5).
+        from omnibenchmark.core._paths import path_wildcards
+
+        for producer in (n for n in resolved_nodes if n.foreach):
+            name = producer.foreach[0]
+            below = sum(
+                1
+                for n in resolved_nodes
+                if n is not producer
+                and any(name in path_wildcards(p) for p in n.inputs.values())
+            )
+            logger.warning(
+                f"Stage '{producer.stage_id}' chooses its '{name}' values at run "
+                f"time (checkpoint): the {below} nodes below it are patterns, so "
+                f"`snakemake -n` cannot list their jobs until it has run. Run "
+                f"`ob run --until {producer.stage_id}` first to see the full DAG."
+            )
         sys.exit(0)
 
     # Build extra Snakemake args, adding S3 remote storage flags if requested
@@ -1390,7 +1408,7 @@ def _generate_explicit_snakefile(
     if quiet:
         elapsed = time.time() - start_time
         progress.success(
-            f"Generated {len(resolved_nodes)} rules in {elapsed:.1f}s in {snakefile_path}"
+            f"Generated {snakefile_path} for {len(resolved_nodes)} nodes in {elapsed:.1f}s"
         )
     else:
         logger.info(f"\nSnakefile generation complete: {snakefile_path}")

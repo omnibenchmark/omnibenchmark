@@ -26,6 +26,7 @@
 | 9       | 2026-09-25 | §3.13: stage, module and output ids restricted to `[A-Za-z0-9_]` (api 0.8.0) | ben |
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
 | 11      | 2026-11-03 | §3.14: output validators, declared per output (`outputs[].validators`), run in `validators.env` (api 0.8.0) | ben |
+| 12      | 2026-11-05 | §3.15: `foreach` outputs; `over` closes one (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -623,6 +624,44 @@ newer, or when its script's sha256 no longer matches; a missing file has none. `
 editing one leaves the hash, and so obfilter parents and storage tags, unchanged.
 
 TODO: per-validator `env` override; validator `args`; severity.
+
+### 3.15 `foreach` outputs (api ≥ 0.8.0)
+
+An output whose file count the module decides at run time declares the name it
+captures. The path starts with that name as its first segment and uses it
+nowhere else:
+
+```yaml
+outputs:
+  - id: counts
+    path: "{sample}/counts.h5"
+    foreach: sample
+```
+
+The module receives `--output counts=<abs node dir>/{sample}/counts.h5` and
+writes one file per value it chooses, substituting `{sample}` itself; values
+match `[^/]+`. Each file feeds its own node in every downstream stage, and a
+`gather` (§3.12) collects them like any other members. Downstream modules see
+a single input path.
+
+A captured value is not a lineage label: `requires`, `exclude` and `group_by`
+cannot refer to it. At most one `foreach` output per stage, none on metric
+collectors, and no `foreach` below another. Design: 013.
+
+A stage closes a `foreach` with `over`, naming the captured value:
+
+```yaml
+- id: concat
+  inputs: [counts, processed]
+  over: sample
+```
+
+One node per upstream lineage; every other axis (modules, parameters, stages
+between) stays distinct. Each input the capture reaches is passed as one flag
+followed by every value's path, in sorted value order, the same order for
+every input. The value's segment leaves the node's path. `over` names a
+declared capture, needs inputs, and excludes `gather`. A `gather` with
+`group_by` is the complement: it keeps one axis and merges the rest.
 
 ## 4. Complete Example
 
