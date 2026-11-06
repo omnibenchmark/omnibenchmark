@@ -158,7 +158,7 @@ jobs:
     permissions: write-all
     strategy:
       matrix:
-        os: [macos-14]
+        os: [macos-15]
         test_group: [1, 2]
         python-version: ["3.12"]
       fail-fast: false
@@ -184,7 +184,7 @@ jobs:
       - name: Set up Homebrew
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
-        if: matrix.os == 'macos-14' || matrix.os == 'macos-13'
+        if: startsWith(matrix.os, 'macos')
 
       - name: Install OS packages using homebrew
         if: steps.cache-system.outputs.cache-hit != 'true'
