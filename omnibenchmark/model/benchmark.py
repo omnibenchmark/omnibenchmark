@@ -473,6 +473,14 @@ class GatherSpec(BaseModel):
             "collected into one node, with no group segment in the output path."
         ),
     )
+    expose: Optional[Dict[str, Dict[str, str]]] = Field(
+        None,
+        description=(
+            "flag name -> label match. Each flag receives the path of the one "
+            "member per group whose lineage labels match (api >= 0.8.0). Zero "
+            "or several matches is a plan-time error."
+        ),
+    )
 
 
 class Resources(BaseModel):
@@ -780,6 +788,28 @@ class Stage(DescribableEntity):
                     f"Stage '{self.id}' has gather entries with differing "
                     f"group_by {shown}. A gather stage has one grouping "
                     f"axis; multiple axes are deferred (design 010 §3.3)."
+                )
+
+            # The shell keys one bash array per flag with `.`/`-` folded to
+            # `_` (backend _bash_var), so `pca_embedding` and `pca.embedding`
+            # share an array: a clash would silently merge an exposed member
+            # into another flag. The gather shell also passes these itself.
+            def key(flag: str) -> str:
+                return flag.replace(".", "_").replace("-", "_")
+
+            taken = {key(spec.from_) for spec in self.gather}
+            taken |= {"output_dir", "name", "output"}
+            exposed = [f for spec in self.gather for f in spec.expose or {}]
+            keys = [key(f) for f in exposed]
+            dupes = sorted(
+                {f for f, k in zip(exposed, keys) if k in taken or keys.count(k) > 1}
+            )
+            if dupes:
+                raise ValueError(
+                    f"Stage '{self.id}': `expose` flag names {dupes} clash with "
+                    f"another flag of this gather (`.` and `-` count as `_`; "
+                    f"`output_dir`, `name` and `output` are reserved). Hint: "
+                    f"rename the exposed flag."
                 )
         return self
 
@@ -1796,6 +1826,33 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"{spec.group_by}`, but '{spec.group_by}' is a "
                         f"reserved builtin label. Hint: rename the stage."
                     )
+
+        # `expose` matches on lineage labels; an unknown key could never match
+        # and would only surface as an empty group at plan time.
+        # A gather binds its group_by stage id as a label (design 010 §3.3),
+        # so a gather of gather nodes can expose on it.
+        group_labels = {
+            spec.group_by
+            for stage in self.stages
+            for spec in stage.gather or []
+            if spec.group_by
+        }
+        known_labels = set(label_owner) | _RESERVED_PROVIDES_LABELS | group_labels
+        for stage in self.stages:
+            for spec in stage.gather or []:
+                if spec.expose and self.api_version < APIVersion.V0_8_0:
+                    raise ValueError(
+                        f"Stage '{stage.id}' uses `expose`, which requires "
+                        f"api_version ≥ 0.8.0 (this benchmark declares "
+                        f"{self.api_version.value})."
+                    )
+                for flag, match in (spec.expose or {}).items():
+                    unknown = sorted(set(match) - known_labels)
+                    if unknown:
+                        raise ValueError(
+                            f"Stage '{stage.id}' exposes '{flag}' by labels "
+                            f"{unknown}, which no stage declares in `provides`."
+                        )
 
         # Call the pure model validation from the validator base class
         self.validate_model_structure()

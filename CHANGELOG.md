@@ -28,6 +28,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: output validators (api 0.8.0). Scripts declared on a stage output (`outputs[].validators: [{script}]`) check each produced file (exit 0 = pass) in the environment named by `validators.env`, or the current one; `ob validate outputs` runs them and exits 1 unless every verdict passes; a validator that cannot run (exit 126/127) is reported as an error, not a failure. `ob describe status --html` shows the results per node and per file (design 004 §3.14, #358)
 - chore: the HTML status report is written to `<out-dir>/status_report.html` by default and regenerated in place there (an explicit `--html-file` still needs `--force`); `ob archive` skips it. It keeps only a CSV download, and names its staleness columns "stale: input changed" / "stale: module changed" (#358)
 - fix: whitespace in a stage or module id is a validation error at every api version, instead of passing `ob validate plan` and failing at run time (#402)
+- feat: `gather[].expose` passes one labelled member per group as its own flag, e.g. a reference module to compare against (api 0.8.0, #389)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 

@@ -605,6 +605,92 @@ stages:
 ```
 
 
+## Compare every method against a reference
+
+A `gather` stage collects one output from every module of an upstream stage,
+one node per group. To also hand the module one of those members on a flag of
+its own — the reference the others are compared against — label it with
+`provides` and pick it with `expose` (api 0.8.0):
+
+```yaml
+api_version: 0.8.0
+stages:
+  - id: data
+    outputs:
+      - id: data.raw
+        path: "{module.id}.h5ad"
+    modules:
+      - id: d1
+        [snip]
+      - id: d2
+        [snip]
+
+  - id: pca
+    provides: [role]              # the stage declares the label
+    inputs: [data.raw]
+    outputs:
+      - id: pca.embedding
+        path: embedding.npy
+    modules:
+      - id: sklearn
+        provides: {role: reference}   # one module binds it
+        [snip]
+      - id: irlba
+        [snip]
+      - id: rand
+        [snip]
+
+  - id: pca_agree
+    gather:
+      - from: pca.embedding
+        group_by: data            # one node per dataset
+        expose:
+          reference: {role: reference}
+    outputs:
+      - id: agree
+        path: agree.tsv
+    modules:
+      - id: subspace
+        [snip]
+```
+
+```mermaid
+flowchart LR
+    classDef ref fill:#f96
+    d1 --> sklearn:::ref
+    d1 --> irlba
+    d1 --> rand
+    sklearn -- "--pca.embedding" --> subspace["subspace (d1)"]
+    irlba -- "--pca.embedding" --> subspace
+    rand -- "--pca.embedding" --> subspace
+    sklearn -. "--reference" .-> subspace
+```
+
+For each dataset, `subspace` runs once as:
+
+```
+subspace.py --output_dir … --name subspace --output agree=…/agree.tsv \
+    --pca.embedding <d1/sklearn> <d1/irlba> <d1/rand> \
+    --reference <d1/sklearn>
+```
+
+Semantics worth knowing:
+
+- **Not a filter.** The exposed member stays in the gathered list too.
+- **Exact match on lineage labels.** Any label a stage `provides`, the builtin
+  `name` (`reference: {name: sklearn}` needs no `provides` at all), and, when
+  gathering gather nodes, the `group_by` stage id.
+- **Exactly one per group.** Zero or several matches is an error at plan time,
+  counted after `exclude`. A parameter sweep on the reference is several
+  matches. If `ob run -m` or `--filter` drops the reference instead, that node is
+  skipped with a warning.
+- **Flag names.** An exposed flag may not reuse a `from` id (`.` and `-` count
+  as `_`, so `pca_embedding` clashes with `pca.embedding`), nor `output_dir`,
+  `name` or `output`.
+- **Several flags.** `expose` takes any number of `flag: {label: value}` pairs.
+
+See 004 §3.12 and design 010 §3.5 for the full rules.
+
 ## Collect performance metrics
 
 Every executed node writes a Snakemake benchmark file (`performance.txt`) next to its outputs, recording wall-clock time, memory, I/O and CPU usage. These files are scattered across the output tree, one per node: under a `stage.module.param` directory on api 0.8.0, under `stage/module/.param` on older plans.
