@@ -200,7 +200,7 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `run_id` | string (UUID4) | Unique identifier for this invocation. Matches the OTLP `trace_id` (hex, no dashes) in `telemetry.jsonl` when telemetry is active. |
+| `run_id` | string (UUID4, 32 hex) | Unique identifier for this invocation. Equals the OTLP `traceId` of its spans when telemetry is active (§4.4). |
 | `ob_version` | string or null | `omnibenchmark` package version from `importlib.metadata`. Includes git commit and date for development installs (e.g. `0.4.0.post19+g4d4bdce5c.d20260219`). `null` if not installed as a package. |
 | `snakemake_cmd` | array of string or null | Exact snakemake argv list as passed to the subprocess (e.g. `["snakemake", "--snakefile", "Snakefile", "--cores", "8"]`). Patched into the manifest by `_run_snakemake` after the command is fully assembled. |
 | `timestamp` | string (ISO-8601 UTC) | Wall-clock time when the manifest was written (early in `ob run`, before Snakemake starts). |
@@ -218,14 +218,10 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 
 ### 4.4 Relationship to telemetry
 
-When `--telemetry` is active:
-
-- `manifest.json` `run_id` = `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (UUID4 with dashes)
-- `telemetry.jsonl` `trace_id` = same UUID in 32-char hex (no dashes)
-
-Conversion: strip dashes from `run_id` to get `trace_id`; insert dashes at positions 8, 12, 16, 20 to convert back.
-
-When telemetry is disabled, `run_id` is a fresh UUID4 generated at the start of `ob run`. It is not present in any other output file, but it uniquely identifies the run in any archival or reporting context.
+`run_id` is a UUID4 written as 32 hex characters, the form of an OTLP trace id.
+With `--telemetry` it is the trace's `traceId`, so every span joins its
+`manifest.json` and `runs.jsonl` line by plain equality. Without telemetry it is
+a fresh UUID4 in the same form.
 
 ### 4.5 Stability guarantees
 
