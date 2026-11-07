@@ -8,6 +8,7 @@ its URL.
 
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -53,12 +54,18 @@ dependencies:
 def test_conda_cache_shared_across_runs(tmp_path: Path, monkeypatch):
     cache = tmp_path / "cache"
     cache.mkdir()
-    xdg = tmp_path / "xdg"
-    (xdg / "omnibenchmark").mkdir(parents=True)
-    (xdg / "omnibenchmark" / "omnibenchmark.cfg").write_text(
+    # The config dir is XDG on Linux, ~/Library/Application Support on macOS.
+    home = tmp_path / "home"
+    if sys.platform == "darwin":
+        cfg_dir = home / "Library" / "Application Support" / "omnibenchmark"
+    else:
+        cfg_dir = home / ".config" / "omnibenchmark"
+    cfg_dir.mkdir(parents=True)
+    (cfg_dir / "omnibenchmark.cfg").write_text(
         f"[conda]\ncache = {cache}\nchannel_alias = {ALIAS}\n"
     )
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     for var in ("SNAKEMAKE_CONDA_PREFIX", "CONDA_CHANNEL_ALIAS"):
         monkeypatch.delenv(var, raising=False)
 
