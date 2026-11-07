@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -157,3 +158,40 @@ def test_describe_status_watch_rejects_json_and_html(flag):
         assert "--watch only works with the text report" in (
             result.stdout + result.stderr
         )
+
+
+@pytest.mark.short
+def test_describe_plan(tmp_path):
+    from click.testing import CliRunner
+
+    from omnibenchmark.cli.describe import describe
+    from omnibenchmark.model.benchmark import Benchmark
+
+    plan = tmp_path / "plan.yaml"
+    plan.write_text(
+        (benchmark_data_path / "Benchmark_001.yaml").read_text()
+        + "\nprovenance:\n  canonical_url: https://example.org/plan.yaml\n"
+    )
+    runner = CliRunner()
+    result = runner.invoke(describe, ["plan", str(plan), "--json"])
+    assert result.exit_code == 0, result.output
+    info = json.loads(result.output)
+    assert info["summary_hash"] == Benchmark.from_yaml(plan).summary_hash()
+    assert info["canonical_url"] == "https://example.org/plan.yaml"
+    assert set(info) == {
+        "id",
+        "version",
+        "api_version",
+        "summary_hash",
+        "canonical_url",
+        "derived_from",
+        "subset_of",
+    }
+
+    # A comment is not execution-relevant: same hash.
+    plan.write_text(plan.read_text() + "# a note\n")
+    again = json.loads(runner.invoke(describe, ["plan", str(plan), "--json"]).output)
+    assert again["summary_hash"] == info["summary_hash"]
+
+    text = runner.invoke(describe, ["plan", str(plan)]).output
+    assert f"summary_hash: {info['summary_hash']}" in text
