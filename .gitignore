@@ -189,3 +189,5 @@ Snakefile
 docs/site/*
 coverage.xml
 scratch/
+.claude/
+BUGS.md
