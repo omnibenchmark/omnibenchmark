@@ -34,6 +34,32 @@ Omnibenchmark uses the following standard configuration sections:
   - `datasets`: Path to store benchmark datasets
   - `git_modules`: Path to cache cloned git repositories (default: `.omnibenchmark/git`)
 
+- `conda`: Applies to runs with the conda software backend (`ob run`, `ob validate outputs`)
+  - `cache`: Directory where Snakemake builds conda environments, passed as `SNAKEMAKE_CONDA_PREFIX`. Point several benchmarks (or users, on a shared filesystem) at the same directory and each environment is built once, keyed by the hash of its YAML. The directory must exist; if it is not writable, only environments already built there can be used. Default: `out/.snakemake/conda`, one per benchmark.
+
+    Off by default. To share environments across your own benchmarks:
+
+    ```sh
+    mkdir -p ~/.cache/omnibenchmark/conda
+    ob config conda.cache ~/.cache/omnibenchmark/conda
+    ```
+
+    The cache only grows; remove environment directories by hand to reclaim space. Do not pass `--conda-cleanup-envs` to Snakemake with a shared cache: it treats every environment the current workflow does not use as unused, and deletes the ones other benchmarks need.
+
+  - `channel_alias`: Base URL of a conda channel mirror, set as `CONDA_CHANNEL_ALIAS`. Channels named in env files (`conda-forge`, `bioconda`) are then fetched from `<channel_alias>/<channel>`; channels given as full URLs bypass it.
+  - `proxy`: An `http(s)://host:port` forward proxy, set as `HTTP_PROXY` / `HTTPS_PROXY` for the Snakemake process — for compute nodes without direct internet access. Module jobs inherit it too.
+
+  Variables already exported in the shell take precedence over these keys.
+
+  ```ini
+  [conda]
+  cache = /shared/conda-envs
+  # caching mirror of conda.anaconda.org
+  channel_alias = https://mirror.example.org/conda
+  # or, behind a forward proxy:
+  # proxy = http://proxy.example.org:3128
+  ```
+
 - `user`: Default author for `ob create benchmark` / `ob create module`; falls back to git's `user.name` / `user.email`
   - `name`
   - `email`

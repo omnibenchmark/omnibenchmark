@@ -35,6 +35,7 @@ from omnibenchmark.core._prune import (
     collector_skip_message,
     select_capable_modules,
 )
+from omnibenchmark.config import conda_env
 from omnibenchmark.cli.formatting import pretty_print_parse_error
 from omnibenchmark.logging import logger
 from omnibenchmark.core import populate_git_cache
@@ -534,6 +535,14 @@ def _run_snakemake(
     if extra_snakemake_args:
         cmd.extend(extra_snakemake_args)
 
+    env = None
+    if software_backend == SoftwareBackendEnum.conda:
+        try:
+            env = conda_env()
+        except ValueError as e:
+            log_error_and_quit(logger, str(e))
+            return
+
     # Patch the manifest with the exact snakemake invocation
     manifest_path = out_dir / ".metadata" / "manifest.json"
     if manifest_path.exists():
@@ -558,7 +567,9 @@ def _run_snakemake(
             logger.info(f"Log file: {log_file}")
 
             with open(log_file, "w") as f:
-                result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+                result = subprocess.run(
+                    cmd, stdout=f, stderr=subprocess.STDOUT, env=env
+                )
 
             with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                 print(f.read())
@@ -568,6 +579,7 @@ def _run_snakemake(
             assert telemetry_emitter is not None
             process = subprocess.Popen(
                 cmd,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -703,6 +715,7 @@ def _run_snakemake(
 
             process = subprocess.Popen(
                 cmd,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
