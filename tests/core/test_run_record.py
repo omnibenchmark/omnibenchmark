@@ -125,7 +125,7 @@ def test_describe_selection():
     assert rr._describe({"filter": {"sha256": "abcdef0123"}}) == "--filter abcdef01"
 
 
-def _ob_run(out: Path, dry: bool):
+def _ob_run(out: Path, dry: bool, **kwargs):
     with (
         patch("omnibenchmark.cli.run.populate_git_cache"),
         patch("omnibenchmark.cli.run._generate_explicit_snakefile", return_value=[]),
@@ -140,6 +140,7 @@ def _ob_run(out: Path, dry: bool):
             out_dir=str(out),
             debug=False,
             dirty=False,
+            **kwargs,
         )
         raise SystemExit(0)  # a real run returns after snakemake
     return exc.value.code, snakemake
@@ -165,3 +166,29 @@ def test_ob_run_records_and_refuses_another_version(tmp_path, model):
     code, snakemake = _ob_run(tmp_path, dry=True)
     assert code == 1 and not snakemake.called
     assert len(rr.read_runs(tmp_path)) == 2
+
+
+@pytest.mark.short
+def test_run_id_is_the_trace_id(tmp_path):
+    from omnibenchmark.telemetry import TelemetryEmitter
+
+    made = []
+
+    def spy(**kwargs):
+        made.append(TelemetryEmitter(**kwargs))
+        return made[-1]
+
+    trace = tmp_path / "trace.jsonl"
+    with patch("omnibenchmark.telemetry.TelemetryEmitter", side_effect=spy):
+        code, _ = _ob_run(tmp_path / "out", dry=False, telemetry_output=str(trace))
+    assert code == 0
+    (line,) = rr.read_runs(tmp_path / "out")
+    assert line["run_id"] == made[0].trace_id
+    assert line["trace"] == str(trace.resolve())
+
+
+@pytest.mark.short
+def test_no_telemetry_no_trace(tmp_path):
+    _ob_run(tmp_path, dry=False)
+    (line,) = rr.read_runs(tmp_path)
+    assert line["trace"] is None

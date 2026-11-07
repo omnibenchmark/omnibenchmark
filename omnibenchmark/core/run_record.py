@@ -60,11 +60,14 @@ def write_run_record(
     selection: Optional[dict],
     filter_blob: Optional[dict] = None,
     capabilities: Iterable[str] = (),
+    trace: Optional[str] = None,
 ) -> dict:
     """Append this run to runs.jsonl, next to content-addressed plan, filter and node list.
 
     Call after `write_run_manifest`: run_id, timestamp and ob_version are read
-    back from it, so the two records cannot disagree about the same run.
+    back from it, so the two records cannot disagree about the same run. With
+    telemetry on, run_id is the trace's traceId and *trace* says where the
+    spans went (a file path, or "stdout").
     """
     md = Path(out_dir) / METADATA_DIR
     md.mkdir(parents=True, exist_ok=True)
@@ -94,6 +97,7 @@ def write_run_record(
         "capabilities": sorted(capabilities),
         "nodes": nodes_file,
         "node_count": len(nodes),
+        "trace": trace,
     }
     with open(md / RUNLOG, "a") as fh:
         fh.write(json.dumps(line) + "\n")
