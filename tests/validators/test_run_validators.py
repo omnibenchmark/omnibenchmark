@@ -84,7 +84,7 @@ def _stub_snakemake(monkeypatch, exit_codes=None, rc=0, log=""):
     """Fake snakemake: write a verdict per key in *exit_codes*, print *log*."""
     calls = []
 
-    def run(cmd, cwd, stdout, stderr):
+    def run(cmd, cwd, stdout, stderr, env=None):
         calls.append(cmd)
         stdout.write(log)
         for key, code in (exit_codes or {}).items():

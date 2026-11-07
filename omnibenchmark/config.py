@@ -263,3 +263,43 @@ def get_git_cache_dir() -> Path:
     git_cache_dir = Path(git_cache_dir_str).expanduser()
     git_cache_dir.mkdir(parents=True, exist_ok=True)
     return git_cache_dir
+
+
+def conda_env() -> dict:
+    """Environment for a conda-backed snakemake run, from the `[conda]` section.
+
+    `conda.cache` becomes SNAKEMAKE_CONDA_PREFIX, so environments are built
+    once and shared across benchmarks. `conda.channel_alias` becomes
+    CONDA_CHANNEL_ALIAS, for a channel mirror. `conda.proxy` becomes HTTP_PROXY
+    and HTTPS_PROXY, for a forward proxy. Variables already set in the
+    environment win over the config file. Raises ValueError on an unusable value.
+    """
+    import urllib.parse
+    import warnings
+
+    env = dict(os.environ)
+    cache = config.get("conda", "cache")
+    if cache and "SNAKEMAKE_CONDA_PREFIX" not in env:
+        path = Path(cache).expanduser()
+        if not path.is_dir():
+            raise ValueError(f"conda.cache {path} is not an existing directory")
+        if not os.access(path, os.W_OK | os.X_OK):
+            warnings.warn(
+                f"conda.cache {path} is not writable: only environments already "
+                "built there can be used",
+                stacklevel=2,
+            )
+        env["SNAKEMAKE_CONDA_PREFIX"] = str(path.resolve())
+    for key, variables in (
+        ("channel_alias", ("CONDA_CHANNEL_ALIAS",)),
+        ("proxy", ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")),
+    ):
+        value = config.get("conda", key)
+        if not value:
+            continue
+        url = urllib.parse.urlparse(value)
+        if url.scheme not in ("http", "https") or not url.hostname:
+            raise ValueError(f"conda.{key} {value!r} is not an http(s) URL")
+        for var in variables:
+            env.setdefault(var, value)
+    return env
