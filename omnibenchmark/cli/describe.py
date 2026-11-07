@@ -17,6 +17,7 @@ from omnibenchmark.core.validators import load_verdicts, verdict_for
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.constants import STATUS_REPORT_FILE
 from omnibenchmark.dag import get_node_attributes
+from omnibenchmark.model.benchmark import Benchmark
 
 from omnibenchmark.logging import logger
 from .debug import add_debug_option
@@ -67,6 +68,40 @@ def snakemake_graph(ctx, benchmark: str):
         return
     dot = b.export_to_dot()
     click.echo(dot.to_string())
+
+
+@add_debug_option
+@describe.command("plan")
+@click.argument("benchmark", type=click.Path(exists=True))
+@click.option("--json", "as_json", is_flag=True, help="Print as JSON.")
+def describe_plan(benchmark, as_json):
+    """Print a plan's identity: id, version, api_version, summary_hash, provenance.
+
+    summary_hash is the SHA-256 of the plan's execution-relevant fields, the one
+    run records carry, so other tools can match runs to a plan file. It reads
+    the plan only: no modules are fetched.
+
+    BENCHMARK: Path to benchmark YAML file.
+    """
+    try:
+        m = Benchmark.from_yaml(Path(benchmark))
+    except Exception as e:
+        raise click.ClickException(f"Failed to load benchmark: {e}")
+    p = m.provenance
+    info = {
+        "id": m.id,
+        "version": m.get_version(),
+        "api_version": m.api_version.value,
+        "summary_hash": m.summary_hash(),
+        "canonical_url": p.canonical_url if p else None,
+        "derived_from": p.derived_from if p else None,
+        "subset_of": p.subset_of if p else None,
+    }
+    if as_json:
+        click.echo(json.dumps(info, indent=2))
+        return
+    for k, v in info.items():
+        click.echo(f"{k}: {'' if v is None else v}")
 
 
 @add_debug_option
