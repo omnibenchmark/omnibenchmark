@@ -18,6 +18,7 @@
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
 | 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `human/`; nested layout deprecated | ben |
+| 0.4 | 2026-11-04 | §4.6: run log and out-dir identity; `--dry` writes no `.metadata/` | ben |
 
 ## 1. Problem Statement
 
@@ -55,7 +56,11 @@ out/                               # configurable via --out-dir
 │
 ├── .metadata/                     # provenance and configuration records
 │   ├── manifest.json              # run UUID + host metadata (this document, §4)
+│   ├── runs.jsonl                 # one line per run: benchmark identity + selection (§4.6)
 │   ├── benchmark.yaml             # verbatim copy of the benchmark YAML used for this run
+│   ├── benchmark-<hash8>.yaml     # the same copy, kept per summary_hash (§4.6)
+│   ├── filter-<sha8>.json         # --filter blob of a filtered run (§4.6)
+│   ├── nodes-<sha8>.json          # node ids a run resolved (§4.6)
 │   └── modules.txt                # list of resolved modules with repo URLs and commits
 │
 ├── .logs/                         # execution logs
@@ -81,6 +86,7 @@ out/                               # configurable via --out-dir
 | `.metadata/` | Human- and machine-readable provenance. Safe to archive with results. | Yes |
 | `.metadata/manifest.json` | Run UUID, timestamp, and host metadata (see §4). | Yes |
 | `.metadata/benchmark.yaml` | Verbatim copy of the benchmark YAML. | Yes |
+| `.metadata/runs.jsonl`, `benchmark-<hash8>.yaml`, `filter-<sha8>.json`, `nodes-<sha8>.json` | Run log and the files its lines reference (§4.6). Append-only; never overwritten. | After the first run |
 | `.metadata/modules.txt` | Human-readable list of modules, their repository URLs, commit hashes, and entrypoints. | Yes |
 | `.logs/` | All execution logs. | Yes (created before Snakemake runs) |
 | `.logs/snakemake_<ts>.log` | Full stdout/stderr from the Snakemake process. Timestamped to allow multiple runs in the same output dir. | Yes |
@@ -159,7 +165,7 @@ Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule'
 
 ### 4.1 Purpose
 
-`out/.metadata/manifest.json` is a JSON file written at the start of every `ob run` invocation (before Snakemake executes). It captures:
+`out/.metadata/manifest.json` is a JSON file written at the start of every `ob run` invocation that executes (before Snakemake starts; `--dry` writes nothing under `.metadata/`). It captures:
 
 - A stable **run UUID** that uniquely identifies this invocation.
 - Basic **host metadata** (hostname, CPU, RAM, kernel, Python version).
@@ -194,9 +200,9 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `run_id` | string (UUID4) | Unique identifier for this invocation. Matches the OTLP `trace_id` (hex, no dashes) in `telemetry.jsonl` when telemetry is active. |
+| `run_id` | string (UUID4, 32 hex) | Unique identifier for this invocation. Equals the OTLP `traceId` of its spans when telemetry is active (§4.4). |
 | `ob_version` | string or null | `omnibenchmark` package version from `importlib.metadata`. Includes git commit and date for development installs (e.g. `0.4.0.post19+g4d4bdce5c.d20260219`). `null` if not installed as a package. |
-| `snakemake_cmd` | array of string or null | Exact snakemake argv list as passed to the subprocess (e.g. `["snakemake", "--snakefile", "Snakefile", "--cores", "8"]`). Patched into the manifest by `_run_snakemake` after the command is fully assembled. `null` (field absent) on `--dry` runs. |
+| `snakemake_cmd` | array of string or null | Exact snakemake argv list as passed to the subprocess (e.g. `["snakemake", "--snakefile", "Snakefile", "--cores", "8"]`). Patched into the manifest by `_run_snakemake` after the command is fully assembled. |
 | `timestamp` | string (ISO-8601 UTC) | Wall-clock time when the manifest was written (early in `ob run`, before Snakemake starts). |
 | `hostname` | string | Hostname of the machine running `ob run`. |
 | `platform` | string | Python `sys.platform` value (e.g. `"linux"`, `"darwin"`, `"win32"`). |
@@ -208,23 +214,63 @@ The run UUID correlates with the OTLP `trace_id` in `telemetry.jsonl` when telem
 | `python_version` | string | Python version string (e.g. `"3.11.8"`). |
 | `python_executable` | string | Absolute path to the Python interpreter used to run `ob`. |
 | `gpu_devices` | array or null | List of NVIDIA GPUs detected via `nvidia-smi`. Each entry: `{"index": int, "name": str, "memory_total_mb": int}`. `null` if `nvidia-smi` is absent, times out, or returns a non-zero exit code. |
+| `benchmark` | object | `{id, version, summary_hash, api_version}` of the plan this run used (§4.6). |
 
 ### 4.4 Relationship to telemetry
 
-When `--telemetry` is active:
-
-- `manifest.json` `run_id` = `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (UUID4 with dashes)
-- `telemetry.jsonl` `trace_id` = same UUID in 32-char hex (no dashes)
-
-Conversion: strip dashes from `run_id` to get `trace_id`; insert dashes at positions 8, 12, 16, 20 to convert back.
-
-When telemetry is disabled, `run_id` is a fresh UUID4 generated at the start of `ob run`. It is not present in any other output file, but it uniquely identifies the run in any archival or reporting context.
+`run_id` is a UUID4 written as 32 hex characters, the form of an OTLP trace id.
+With `--telemetry` it is the trace's `traceId`, so every span joins its
+`manifest.json` and `runs.jsonl` line by plain equality. Without telemetry it is
+a fresh UUID4 in the same form.
 
 ### 4.5 Stability guarantees
 
 - `run_id` and `timestamp` are written once per `ob run` invocation and never overwritten.
 - If `ob run` is re-executed in the same output directory (e.g. to resume after a failure), a new `manifest.json` is written, replacing the previous one. The `run_id` changes for each invocation.
 - The schema is additive: new fields may be added in future versions without a version bump. Readers should ignore unknown fields.
+
+### 4.6 Run log and out-dir identity
+
+`manifest.json` describes the latest run. An out dir is often built by several:
+`--until DATA` then the rest, SLURM phases, a resume, `-m` while developing. Each
+executing `ob run` appends one line to `.metadata/runs.jsonl`:
+
+| Field | Description |
+|-------|-------------|
+| `run_id`, `timestamp`, `ob_version` | Read back from `manifest.json`, so the two cannot disagree. With telemetry on, `run_id` is the trace's `traceId`. |
+| `benchmark` | `{id, version, summary_hash, api_version}`. `summary_hash` is `Benchmark.summary_hash()` of the full plan (004 §9), also for a filtered run. |
+| `plan` | `benchmark-<hash8>.yaml`: the plan copy, written once per `summary_hash`. |
+| `selection` | `null` for a full run, else one of `{"module": id}`, `{"until": stage}`, `{"filter": {"sha256", "parent"}}`. The filter blob itself is `filter-<sha8>.json`. |
+| `capabilities` | `--with-capability` values, sorted. |
+| `nodes`, `node_count` | `nodes-<sha8>.json`, the sorted node ids this run resolved. |
+| `trace` | Where the run's telemetry went: an absolute path, `"stdout"`, or `null` without telemetry. Its spans carry `traceId == run_id`. |
+
+Readers compare the recorded `benchmark`, never a hash recomputed from the plan
+copy: a newer `ob` may hash the same YAML differently. An out dir from an `ob`
+without `runs.jsonl` falls back to `.metadata/benchmark.yaml`: `id` and `version`
+read as plain fields, the hash recomputed.
+
+An out dir holds one benchmark `id` at one `version`:
+
+- `ob run`, `--dry` included, refuses before writing anything when the plan's
+  `id` or `version` differs from the last recorded run. No override: a new
+  version gets a new `--out-dir`.
+- Within one version, `ob run` accepts an edited plan. Snakemake reruns the nodes
+  whose params, module commit or environment changed.
+- `ob validate outputs` and `ob describe status` exit 1 on another `id` or
+  `version`, or when the plan's `summary_hash` differs from the last run's (the
+  plan was edited and not rerun). They warn when earlier runs used other plan
+  hashes, and when no full run of the current plan is recorded (partial out dir).
+- Nothing recorded means nothing ran: no check.
+
+TODO:
+- Fail, not warn, on outputs orphaned by earlier plan revisions
+  (`snakemake --list-untracked`) or stale under a weakened `--rerun-triggers`
+  (`--list-changes params|code`).
+- Coverage: the plan's full node set against the union of `nodes-*.json`, with a
+  member digest per gather (a `--filter` can shrink a gather under the same path).
+- The same checks in `ob archive` (refuse a partial out dir unless `--partial`)
+  and `ob collect`.
 
 ## 5. Implementation
 

@@ -729,7 +729,7 @@ class TestWriteRunManifest:
         result = write_run_manifest(out_dir)
         # Should be a valid UUID
         parsed = uuid.UUID(result["run_id"])
-        assert str(parsed) == result["run_id"]
+        assert parsed.hex == result["run_id"]
 
     def test_returns_manifest_dict(self, tmp_path):
         out_dir = tmp_path / "out"

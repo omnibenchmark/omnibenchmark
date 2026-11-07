@@ -110,17 +110,16 @@ class TestWriteRunManifest:
 
         result = write_run_manifest(output_dir)
 
-        # Should be UUID4 format (8-4-4-4-12 hex digits)
+        # UUID4 as 32 hex digits, the form of a telemetry trace_id
         run_id = result["run_id"]
         assert isinstance(run_id, str)
-        assert len(run_id) == 36
-        assert run_id.count("-") == 4
+        assert len(run_id) == 32
 
         # Try to parse as UUID to validate format
         import uuid
 
         uuid_obj = uuid.UUID(run_id)
-        assert str(uuid_obj) == run_id
+        assert uuid_obj.hex == run_id
 
     def test_returns_manifest_dict(self, tmp_path):
         """Test that function returns the manifest dict."""

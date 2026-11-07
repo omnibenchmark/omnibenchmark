@@ -16,6 +16,12 @@ from omnibenchmark.backend._metric_collector import resolve_metric_collectors
 from omnibenchmark.backend.resolver import ModuleResolver
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend._metadata import save_metadata
+from omnibenchmark.core.run_record import (
+    benchmark_record,
+    identity_mismatch,
+    selection_of,
+    write_run_record,
+)
 from omnibenchmark.backend.snakemake import (
     BACKEND_FLAGS,
     SnakemakeGenerator,
@@ -354,6 +360,12 @@ def _run_benchmark(
         log_error_and_quit(logger, f"Failed to load benchmark: {e}")
         return
 
+    # Before anything is written: one benchmark id and version per out dir.
+    mismatch = identity_mismatch(b.model, out_dir_path)
+    if mismatch:
+        log_error_and_quit(logger, mismatch)
+        return
+
     use_clean_ui = not debug
 
     # Suppress logging when streaming telemetry to stdout (would interleave with JSONL).
@@ -417,8 +429,37 @@ def _run_benchmark(
             end_time_ns=resolution_end_ns,
         )
 
-    # Write run manifest
-    write_run_manifest(output_dir=out_dir_path)
+    # A dry run records nothing: out/ stays bound to the runs that executed.
+    if not dry:
+        # The trace's traceId is the run_id, so spans join runs.jsonl lines by value.
+        write_run_manifest(
+            output_dir=out_dir_path,
+            run_id=telemetry_emitter.trace_id if telemetry_emitter else None,
+            benchmark=benchmark_record(b.model),
+        )
+        save_metadata(
+            benchmark_yaml_path=benchmark_path_abs,
+            output_dir=out_dir_path,
+            nodes=resolved_nodes,
+        )
+        write_run_record(
+            out_dir_path,
+            b.model,
+            benchmark_path_abs,
+            node_ids=(n.id for n in resolved_nodes),
+            selection=selection_of(module_filter, until_stage, filter_blob),
+            filter_blob=filter_blob,
+            capabilities=available_capabilities or (),
+            trace=(
+                (
+                    str(Path(telemetry_output).resolve())
+                    if telemetry_output
+                    else "stdout"
+                )
+                if telemetry_emitter
+                else None
+            ),
+        )
 
     if dry:
         software_backend = b.get_benchmark_software_backend()
@@ -1379,12 +1420,6 @@ def _generate_explicit_snakefile(
     generator.generate_snakefile(
         nodes=resolved_nodes,
         output_path=snakefile_path,
-    )
-
-    save_metadata(
-        benchmark_yaml_path=benchmark_yaml_path,
-        output_dir=out_dir,
-        nodes=resolved_nodes,
     )
 
     if quiet:
