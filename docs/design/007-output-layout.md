@@ -241,12 +241,13 @@ executing `ob run` appends one line to `.metadata/runs.jsonl`:
 
 | Field | Description |
 |-------|-------------|
-| `run_id`, `timestamp`, `ob_version` | Read back from `manifest.json`, so the two cannot disagree. |
+| `run_id`, `timestamp`, `ob_version` | Read back from `manifest.json`, so the two cannot disagree. With telemetry on, `run_id` is the trace's `traceId`. |
 | `benchmark` | `{id, version, summary_hash, api_version}`. `summary_hash` is `Benchmark.summary_hash()` of the full plan (004 §9), also for a filtered run. |
 | `plan` | `benchmark-<hash8>.yaml`: the plan copy, written once per `summary_hash`. |
 | `selection` | `null` for a full run, else one of `{"module": id}`, `{"until": stage}`, `{"filter": {"sha256", "parent"}}`. The filter blob itself is `filter-<sha8>.json`. |
 | `capabilities` | `--with-capability` values, sorted. |
 | `nodes`, `node_count` | `nodes-<sha8>.json`, the sorted node ids this run resolved. |
+| `trace` | Where the run's telemetry went: an absolute path, `"stdout"`, or `null` without telemetry. Its spans carry `traceId == run_id`. |
 
 Readers compare the recorded `benchmark`, never a hash recomputed from the plan
 copy: a newer `ob` may hash the same YAML differently. An out dir from an `ob`

@@ -431,7 +431,12 @@ def _run_benchmark(
 
     # A dry run records nothing: out/ stays bound to the runs that executed.
     if not dry:
-        write_run_manifest(output_dir=out_dir_path, benchmark=benchmark_record(b.model))
+        # The trace's traceId is the run_id, so spans join runs.jsonl lines by value.
+        write_run_manifest(
+            output_dir=out_dir_path,
+            run_id=telemetry_emitter.trace_id if telemetry_emitter else None,
+            benchmark=benchmark_record(b.model),
+        )
         save_metadata(
             benchmark_yaml_path=benchmark_path_abs,
             output_dir=out_dir_path,
@@ -445,6 +450,15 @@ def _run_benchmark(
             selection=selection_of(module_filter, until_stage, filter_blob),
             filter_blob=filter_blob,
             capabilities=available_capabilities or (),
+            trace=(
+                (
+                    str(Path(telemetry_output).resolve())
+                    if telemetry_output
+                    else "stdout"
+                )
+                if telemetry_emitter
+                else None
+            ),
         )
 
     if dry:
