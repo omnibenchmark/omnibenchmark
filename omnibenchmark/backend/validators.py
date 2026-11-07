@@ -21,7 +21,9 @@ from omnibenchmark.core.validators import (
     verdict_status,
     write_validators_snakefile,
 )
+from omnibenchmark.config import conda_env
 from omnibenchmark.logging import logger
+from omnibenchmark.model import SoftwareBackendEnum
 
 
 def _resolve_env_directive(model, out_dir: Path, benchmark_dir: Path, env_id: str):
@@ -145,10 +147,20 @@ def run_validators(
     if force:
         cmd.append("--forceall")
 
+    env = None
+    if backend_flag == BACKEND_FLAGS[SoftwareBackendEnum.conda]:
+        try:
+            env = conda_env()
+        except ValueError as e:
+            logger.error(str(e))
+            return 1
+
     log_file = out_path / VALIDATION_DIR / "snakemake.log"
     logger.info(f"Validating {len(targets)} output file(s)")
     with open(log_file, "w") as f:
-        result = subprocess.run(cmd, cwd=out_path, stdout=f, stderr=subprocess.STDOUT)
+        result = subprocess.run(
+            cmd, cwd=out_path, stdout=f, stderr=subprocess.STDOUT, env=env
+        )
     if result.returncode != 0:
         log = log_file.read_text(errors="replace")
         msg = f"Snakemake failed (exit {result.returncode}); full log: {log_file}\n"

@@ -240,3 +240,42 @@ def test_config_accessor_with_readonly_parent_directory(tmp_path):
     finally:
         # Restore write permissions for cleanup
         os.chmod(parent_dir, stat.S_IRWXU)
+
+
+@pytest.mark.short
+def test_conda_env(tmp_path, monkeypatch):
+    from omnibenchmark import config as cfgmod
+
+    for var in (
+        "SNAKEMAKE_CONDA_PREFIX",
+        "CONDA_CHANNEL_ALIAS",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("http_proxy", raising=False)
+    monkeypatch.delenv("https_proxy", raising=False)
+    acc = ConfigAccessor(tmp_path / "ob.cfg")
+    monkeypatch.setattr(cfgmod, "config", acc)
+
+    assert "SNAKEMAKE_CONDA_PREFIX" not in cfgmod.conda_env()
+
+    acc.set("conda", "cache", str(tmp_path / "missing"))
+    with pytest.raises(ValueError, match="not an existing directory"):
+        cfgmod.conda_env()
+
+    acc.set("conda", "cache", str(tmp_path))
+    acc.set("conda", "proxy", "http://proxy:3128")
+    env = cfgmod.conda_env()
+    assert env["SNAKEMAKE_CONDA_PREFIX"] == str(tmp_path.resolve())
+    assert env["HTTPS_PROXY"] == "http://proxy:3128"
+
+    acc.set("conda", "channel_alias", "https://mirror.example/conda")
+    assert cfgmod.conda_env()["CONDA_CHANNEL_ALIAS"] == "https://mirror.example/conda"
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://mine:1")
+    assert cfgmod.conda_env()["HTTPS_PROXY"] == "http://mine:1"
+
+    acc.set("conda", "proxy", "proxy:3128")
+    with pytest.raises(ValueError, match="not an http"):
+        cfgmod.conda_env()
