@@ -36,7 +36,7 @@ def write_run_manifest(
     workaround.
 
     Fields written:
-      run_id        – UUID4 string (from telemetry trace_id when available)
+      run_id        – UUID4 as 32 hex chars (the telemetry trace_id when available)
       ob_version    – omnibenchmark package version (from importlib.metadata)
       snakemake_cmd – exact snakemake argv list (patched in by _run_snakemake)
       timestamp     – ISO-8601 UTC timestamp of when the manifest was written
@@ -59,7 +59,7 @@ def write_run_manifest(
     metadata_dir.mkdir(parents=True, exist_ok=True)
 
     if run_id is None:
-        run_id = str(uuid.uuid4())
+        run_id = uuid.uuid4().hex  # the form of a telemetry trace_id
 
     uname = platform.uname()
 
