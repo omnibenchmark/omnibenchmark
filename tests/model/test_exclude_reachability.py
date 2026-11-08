@@ -84,3 +84,41 @@ def test_zero_node_module_is_flagged(tmp_path):
     assert "PCA/pc" in errors[0]
     assert "feat.out" in errors[0]
     assert "can never run" in errors[0]
+
+
+# A scatter below a node-grouped gather takes the gather's output plus an
+# output from the group's own lineage: both share the DATA roots.
+_BELOW_GATHER = """
+  - id: DATA
+    modules:
+      - {id: dA, software_environment: py, repository: {url: u, commit: c}}
+    outputs:
+      - {id: raw, path: "{module.id}.txt"}
+      - {id: truth, path: "{module.id}.truth"}
+  - id: FEAT
+    inputs: [raw]
+    modules:
+      - {id: fe, software_environment: py, repository: {url: u, commit: c}}
+    outputs:
+      - {id: feat.out, path: "{module.id}.feat"}
+  - id: G
+    gather: [{from: feat.out, group_by: DATA}]
+    modules:
+      - {id: g, software_environment: py, repository: {url: u, commit: c}}
+    outputs:
+      - {id: g.out, path: "{DATA}.list"}
+  - id: M
+    inputs: [g.out, truth]
+    modules:
+      - {id: m, software_environment: py, repository: {url: u, commit: c}}
+    outputs:
+      - {id: m.out, path: "{module.id}.m"}
+"""
+
+
+def test_scatter_below_gather_shares_the_members_roots(tmp_path):
+    yaml_file = tmp_path / "b.yaml"
+    yaml_file.write_text(
+        _HEADER.replace('"0.3.0"', '"0.8.0"') + textwrap.dedent(_BELOW_GATHER)
+    )
+    assert Benchmark.from_yaml(yaml_file).detect_unsatisfiable_excludes() == []
