@@ -23,7 +23,7 @@
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
-| 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut) | btraven00 |
+| 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--manifest` (lineage.json v2), not member argv | btraven00 |
 
 ## 1. Problem Statement
 
@@ -340,6 +340,47 @@ byte-identical Snakefiles, or Snakemake reruns unchanged work. Position carries
 no meaning: modules identify members by path, and the CLI order need not match
 the `gathered_from` order in `lineage.json`.
 
+#### 3.5.1 api ≥ 0.8.0: the manifest
+
+The member-path flags above are gone from 0.8.0. A fan-in module (gather or
+collector) receives exactly one path:
+
+```
+<entrypoint> --output_dir … --name summarizer --output summary=/abs/… \
+    --manifest /abs/<node dir>/lineage.json \
+    [param flags]
+```
+
+Why: Snakemake runs a rule's shell block as a single `bash -c` argument, which
+the kernel caps at 128 KiB (`MAX_ARG_STRLEN`). Inlining member paths, plus the
+old lineage echo, cost about 625 bytes per member, so a gather failed with
+E2BIG at roughly 200–350 members (omni-scrna: 580 kNN graphs = 353 KB). The
+command is now the same size at any member count.
+
+The manifest is `lineage.json` version 2. Each member lists its files by output
+id (absolute paths) and its full ancestry, so modules never parse ob paths:
+
+```json
+{"version": 2, "node_id": "…", "stage": "metrics", "module": "summ",
+ "kind": "gather",
+ "members": [
+   {"node_id": "…", "stage": "clu", "module": "ma", "commit": "…",
+    "params": "1a2b3c4d", "dir": "…",
+    "files": {"clustering": "/abs/…/ma_clusters.tsv"},
+    "lineage": [{"node_id": "…", "stage": "data", "module": "D1", "params": "…"},
+                …,
+                {"node_id": "…", "stage": "clu", "module": "ma", "params": "…"}]}]}
+```
+
+- A member that contributes several gathered ids appears once, with several
+  `files`.
+- Members are in plan order, and position carries no meaning.
+
+It is written by a local `run:` rule (`<rule>_manifest`) that ob emits next to
+the fan-in rule, from a JSON record built at generation time. That rule is ob
+bookkeeping, not a module: modules still run through `shell:` only. A changed
+member set changes the record, which reruns the manifest and then the gather.
+
 ### 3.6 Metric collectors are a global gather
 
 A `metric_collector` is a gather with no `group_by`, declared terminal by
@@ -392,7 +433,7 @@ stage, module, commit, parameter hash and directory:
 
 ```
 render.R          # reads $OUTPUT_DIR/lineage.json and the --metrics.summary paths
-template.Rmd
+template.Rmd      # (api ≥ 0.8.0: reads only --manifest, which has both; §3.5.1)
 ```
 
 So the sidecar is not only a provenance artifact for humans — for a gather

@@ -640,6 +640,72 @@ class TestWriteNodeRuleCollectorV2:
         assert "$MODULE_DIR/{params.entrypoint}" in out
 
 
+def _fanin_snakefile(tmp_path, n_members, api_version):
+    """A gather over n producers; returns (Snakefile text, gather rule text)."""
+    producers = [
+        _make_node(
+            node_id=f"p{i}",
+            stage_id="method",
+            module_id=f"m{i}",
+            outputs={"score": f"out/method.m{i}.default/score.csv"},
+        )
+        for i in range(n_members)
+    ]
+    gather = _make_node(
+        node_id="metrics-summ.default",
+        stage_id="metrics",
+        module_id="summ",
+        inputs={f"input_{i}": p.outputs["score"] for i, p in enumerate(producers)},
+        input_name_mapping={f"input_{i}": "score" for i in range(n_members)},
+        outputs={"summary": "out/metrics.summ.default/summary.tsv"},
+        is_gather=True,
+    )
+    path = tmp_path / f"Snakefile_{n_members}"
+    _gen(api_version=api_version).generate_snakefile([*producers, gather], path)
+    text = path.read_text()
+    start = text.index("rule metrics_summ_default:")
+    return text, text[start : text.index("\n\n", start)]
+
+
+class TestFanInManifest:
+    """api 0.8.0: a fan-in module gets one manifest path, never member argv.
+
+    Snakemake runs a shell block as one `bash -c` argument, capped at 128 KiB
+    (MAX_ARG_STRLEN); inlining member paths made gathers fail with E2BIG at a
+    few hundred members.
+    """
+
+    def test_shell_block_size_does_not_grow_with_members(self, tmp_path):
+        _, small = _fanin_snakefile(tmp_path, 3, APIVersion.V0_8_0)
+        text, large = _fanin_snakefile(tmp_path, 2000, APIVersion.V0_8_0)
+        shell = large[large.index("shell:") :]
+        assert len(shell) == len(small[small.index("shell:") :])
+        assert len(shell) < 8 * 1024
+        assert "--manifest" in shell and "input_1999" not in shell
+        assert "lineage.json" not in shell.split("--manifest")[0]  # no echo
+
+    def test_manifest_rule_lists_every_member(self, tmp_path):
+        import ast
+
+        text, gather = _fanin_snakefile(tmp_path, 2000, APIVersion.V0_8_0)
+        assert 'manifest="out/metrics.summ.default/lineage.json"' in gather
+        rule = text[text.index("rule metrics_summ_default_manifest:") :]
+        assert "localrule: True" in rule and "run:" in rule
+        literal = rule.split("record=lambda wildcards: ", 1)[1].split(",\n", 1)[0]
+        record = json.loads(ast.literal_eval(literal))
+        assert record["version"] == 2 and record["kind"] == "gather"
+        assert len(record["members"]) == 2000
+        assert record["members"][7]["files"] == {
+            "score": "out/method.m7.default/score.csv"
+        }
+        assert record["members"][7]["lineage"][-1]["module"] == "m7"
+
+    def test_v07_keeps_member_argv(self, tmp_path):
+        text, gather = _fanin_snakefile(tmp_path, 3, APIVersion.V0_7_0)
+        assert "_manifest:" not in text
+        assert "--manifest" not in gather and "--score" in gather
+
+
 # ---------------------------------------------------------------------------
 # generate_snakefile (integration)
 # ---------------------------------------------------------------------------

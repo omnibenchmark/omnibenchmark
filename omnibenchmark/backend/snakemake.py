@@ -7,7 +7,10 @@ invocation, avoiding runtime complexity.
 
 Design:
 - Each ResolvedNode becomes one Snakemake rule
-- Rules use shell: directive (not script:)
+- Rules use shell: directive (not script:). The one exception is ob's own
+  bookkeeping: from api 0.8.0 each fan-in node gets a local `run:` rule that
+  writes its member manifest (lineage.json v2), so a gather's command line
+  stays the same size however many members it has (010 §3.5).
 - Module paths are relative (.modules/{commit}/)
 - Parameters are passed via CLI args
 - No Python imports or omnibenchmark package dependency
@@ -32,7 +35,7 @@ from omnibenchmark.core._paths import (
     truncate_filename,
 )
 from omnibenchmark.model.benchmark import APIVersion
-from omnibenchmark.core._lineage import join_hash
+from omnibenchmark.core._lineage import iter_ancestors, join_hash
 from omnibenchmark.model.benchmark import SoftwareBackendEnum
 from omnibenchmark.model.resolved import (
     ResolvedEnvironment,
@@ -174,10 +177,16 @@ class SnakemakeGenerator:
         self.benchmark_author = benchmark_author
         self.api_version = api_version
         self._nodes_by_id: dict = {}
+        self._producer_by_path: dict = {}
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
         self._nodes_by_id = {n.id: n for n in nodes}
+        # path -> (producer node id, output id): lets a fan-in manifest name
+        # the member behind each gathered file, collectors included.
+        self._producer_by_path = {
+            path: (n.id, out_id) for n in nodes for out_id, path in n.outputs.items()
+        }
         with open(output_path, "w") as f:
             self._write_header(f)
             for node in nodes:
@@ -211,11 +220,16 @@ class SnakemakeGenerator:
             f.write("# Type: Gather Stage\n")
         f.write(f"# Repository: {node.module.repository_url}\n")
         f.write(f"# Commit: {node.module.commit}\n")
+        manifest = self._manifest_path(node)
+        if manifest:
+            self._write_manifest_rule(f, node, manifest)
         f.write(f"rule {self._sanitize_rule_name(node.id)}:\n")
 
-        if node.inputs:
+        if node.inputs or manifest:
             f.write("    input:\n")
-            for key, path in node.inputs.items():
+            if manifest:
+                f.write(f'        manifest="{manifest}",\n')
+            for key, path in (node.inputs or {}).items():
                 f.write(f'        {key}="{path}",\n')
 
         if node.outputs:
@@ -389,6 +403,99 @@ class SnakemakeGenerator:
             "kind": "gather" if is_gather else "join",
             "members": members,
         }
+
+    # ------------------------------------------------------------------
+    # Fan-in manifest (api >= 0.8.0): lineage.json v2, written by a run: rule
+    # ------------------------------------------------------------------
+
+    def _manifest_path(self, node: ResolvedNode) -> Optional[str]:
+        """Where a fan-in node's manifest goes, or None when it takes argv.
+
+        Gathers and collectors from api 0.8.0. The module receives this one
+        path (`--manifest`) instead of `--<id> p1 p2 …`: a Snakemake shell
+        block is a single `bash -c` argument, capped at 128 KiB by the kernel,
+        which a few hundred member paths exceed.
+        """
+        if self.api_version < APIVersion.V0_8_0:
+            return None
+        if not (node.is_gather or node.is_collector) or not node.outputs:
+            return None
+        node_dir = getattr(node, "node_dir", None) or os.path.dirname(
+            next(iter(node.outputs.values()))
+        )
+        return f"{node_dir}/lineage.json" if node_dir else "lineage.json"
+
+    def _member_lineage(self, member) -> list:
+        """The member's ancestry, root first, then the member itself."""
+        chain = list(reversed(list(iter_ancestors(member, self._nodes_by_id))))
+        return [
+            {
+                "node_id": n.id,
+                "stage": n.stage_id,
+                "module": n.module_id,
+                "params": n.get_parameter_hash(),
+            }
+            for n in (*chain, member)
+        ]
+
+    def _manifest_record(self, node: ResolvedNode) -> dict:
+        """lineage.json v2: every member with its gathered files and lineage.
+
+        Members are the producers of the gathered files, in plan order; one
+        member may contribute several output ids. Paths are relative here and
+        made absolute by the run: rule (it runs in the output directory).
+        """
+        members: dict = {}
+        for key in sorted(node.inputs or {}, key=_input_key_index):
+            path = node.inputs[key]
+            out_id = (node.input_name_mapping or {}).get(key, key)
+            producer_id, _ = self._producer_by_path.get(path, (path, out_id))
+            entry = members.get(producer_id)
+            if entry is None:
+                member = self._nodes_by_id.get(producer_id)
+                entry = self._member_record(producer_id)
+                entry["files"] = {}
+                entry["lineage"] = self._member_lineage(member) if member else []
+                members[producer_id] = entry
+            entry["files"][out_id] = path
+        return {
+            "version": 2,
+            "node_id": node.id,
+            "stage": node.stage_id,
+            "module": node.module_id,
+            "kind": "gather" if node.is_gather else "collector",
+            "members": list(members.values()),
+        }
+
+    def _write_manifest_rule(self, f: TextIO, node: ResolvedNode, manifest: str):
+        """A local run: rule writing the fan-in node's manifest.
+
+        The record is a plain JSON string in params (no live objects), built
+        here at generation time; the rule only makes paths absolute and writes
+        it. It has no file inputs, so it never waits on members, and a change
+        to the member set changes params, which reruns it and the gather.
+        """
+        record = json.dumps(self._manifest_record(node), sort_keys=True)
+        f.write(f"rule {self._sanitize_rule_name(node.id)}_manifest:\n")
+        f.write("    output:\n")
+        f.write(f'        "{manifest}",\n')
+        f.write("    params:\n")
+        # A lambda, not a bare string: Snakemake formats string params as
+        # wildcard patterns, and the JSON is full of braces.
+        f.write(f"        record=lambda wildcards: {record!r},\n")
+        f.write("    localrule: True\n")
+        f.write("    run:\n")
+        f.write("        import json, os\n")
+        f.write("        record = json.loads(params.record)\n")
+        f.write('        for member in record["members"]:\n')
+        f.write('            member["files"] = {\n')
+        f.write(
+            '                k: os.path.abspath(v) for k, v in member["files"].items()\n'
+        )
+        f.write("            }\n")
+        f.write('        with open(output[0], "w") as fh:\n')
+        f.write("            json.dump(record, fh, indent=1)\n")
+        f.write("\n")
 
     def _lineage_sidecar_lines(self, node: ResolvedNode) -> list:
         """Shell lines writing lineage.json, or [] when the node needs none.
@@ -574,14 +681,21 @@ class SnakemakeGenerator:
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 
+        manifest = self._manifest_path(node)
+        if manifest:
+            # Members reach the module through the manifest, not argv.
+            inputs_by_name = defaultdict(list)
+
         lines: list = [
             "mkdir -p {params.output_dir}",
             "MODULE_DIR={params.module_dir}",
             "OUTPUT_DIR=$(cd {params.output_dir} && pwd)",
         ]
 
-        # A gather cuts the chain, so its members exist nowhere in the path.
-        lines += self._lineage_sidecar_lines(node)
+        # A gather cuts the chain, so its members exist nowhere in the path
+        # (pre-0.8.0: echoed here; 0.8.0: the manifest rule writes it).
+        if not manifest:
+            lines += self._lineage_sidecar_lines(node)
         # `human/` and `ob collect` read parameter names from here. Nested
         # (pre-0.8.0) rules keep their text so existing trees do not rerun.
         if node.parameters and self.api_version >= APIVersion.V0_8_0:
@@ -613,6 +727,10 @@ class SnakemakeGenerator:
         # and }} → } leaving bash with ${var[@]}.
         gather_args = ["--output_dir $OUTPUT_DIR", f"--name {node.module_id}"]
         gather_args += self._output_flags(node)
+        if manifest:
+            gather_args.append(
+                '--manifest "$(cd $(dirname {input.manifest}) && pwd)/lineage.json"'
+            )
         for input_name in inputs_by_name:
             var = _bash_var(input_name)
             array_ref = '"${{' + var + '[@]}}"'
