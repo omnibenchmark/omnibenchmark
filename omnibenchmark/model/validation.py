@@ -288,9 +288,12 @@ class BenchmarkValidator:
         def input_groups(stage) -> List[List[str]]:
             return [ic.entries for ic in (stage.inputs or [])]  # type: ignore
 
+        def gather_ids(stage) -> List[str]:
+            return [spec.from_ for spec in (stage.gather or [])]  # type: ignore
+
         def producer_stage_ids(stage) -> set:
             result: set = set()
-            for group in input_groups(stage):
+            for group in input_groups(stage) + [gather_ids(stage)]:
                 for input_id in group:
                     producer = output_stage.get(input_id)
                     if producer is not None and producer != stage.id:  # type: ignore
@@ -318,6 +321,17 @@ class BenchmarkValidator:
             stage = stage_by_id[stage_id]
             groups = input_groups(stage)
             for module in stage.modules:  # type: ignore
+                if stage.gather:  # type: ignore
+                    # A gather sits on the lineages of its members (a node-grouped
+                    # one is a child of its group node): it inherits their roots.
+                    reachable[module.id] = {  # type: ignore
+                        root
+                        for input_id in gather_ids(stage)
+                        if output_stage.get(input_id) is not None
+                        for pm in stage_by_id[output_stage[input_id]].modules  # type: ignore
+                        for root in reachable.get(pm.id, ())
+                    }
+                    continue
                 if not groups:
                     # initial stage: the module is itself a root
                     reachable[module.id] = {module.id}  # type: ignore
