@@ -23,6 +23,7 @@
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
+| 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut) | btraven00 |
 
 ## 1. Problem Statement
 
@@ -212,6 +213,33 @@ id (`D1`), not its node id. Per-parameter grouping needs a label-based
 
 **Deferred**: `where` (member filtering), label-value `group_by`, and plain
 `inputs:` mixed with `gather:`.
+
+#### 3.2.1 api ≥ 0.8.0: grouping by node
+
+From 0.8.0, `group_by: S` partitions members by the ancestor **node** of S, not by
+its module. That keeps every axis above and including S, and merges only what lies
+below it.
+
+The gather node becomes a **child of that node**:
+- id `<S node id>-<stage>-<module><param>`;
+- directory `<S node dir>/<stage>.<module>.<param>`;
+- `parent_id` is the S node, so the chain does not cut.
+
+It inherits the S node's labels like a scatter child does, and it still binds the
+group key (`{S}` = the S module id). `exclude` and `requires` downstream see the
+chain up to S. Members stay in `gathered_from` and `lineage.json`. They are not
+ancestors.
+
+Why the change:
+- **Module grouping merged things that must not merge.** On omni-scrna,
+  `group_by: FEAT` put up to 342 kNN graphs from every dataset and NORM branch
+  into one group, where per FEAT node there are at most 11.
+- **It tripled a per-pool join in ambient-plan** (omni-scrna/ambient-plan#1).
+- **Large groups also overflow the command line:** a gather rule is run as one
+  `bash -c` string, capped at 128 KiB.
+
+A global gather (no `group_by`) is unchanged, and so is the < 0.8.0 behavior
+(§3.2–§3.3).
 
 ### 3.3 The cut: what lineage becomes
 

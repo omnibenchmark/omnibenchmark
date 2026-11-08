@@ -29,15 +29,21 @@ def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
     plus explicit `parents` edges, so a node downstream of a join sees every
     branch (010 §5.2).
 
-    `through_gather=False` is the GATING walk — it stops at a gather, whose
-    partition deliberately forgets (010 §3.3), so one excluded member among
-    hundreds must not poison everything downstream.
+    `through_gather=False` is the GATING walk — it stops at a gather that cuts
+    the chain (no `parent_id`: a global gather, or a module-grouped one before
+    0.8.0), whose partition deliberately forgets (010 §3.3), so one excluded
+    member among hundreds must not poison everything downstream. A node-grouped
+    gather (0.8.0) is a child of its group node and is walked like any node.
     """
     seen = {node.id}
     queue: deque = deque()
 
     def _push(n):
-        if not through_gather and getattr(n, "is_gather", False):
+        if (
+            not through_gather
+            and getattr(n, "is_gather", False)
+            and not getattr(n, "parent_id", None)
+        ):
             return
         parent_id = getattr(n, "parent_id", None)
         if parent_id:
@@ -244,6 +250,26 @@ def ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
     }
     if len(found) == 1:
         return found.pop()
+    return None
+
+
+def ancestor_node_at_stage(member_id, group_stage, nodes_by_id):
+    """The `group_stage` node a member descends from, or itself if it is one
+    (0.8.0 gather grouping: by node, i.e. the full lineage up to that stage).
+    Same walk and ambiguity rule as `ancestor_module_at_stage`, keyed by node:
+    None when there is no such ancestor or the ancestry crosses a fan-in that
+    reaches several nodes of that stage.
+    """
+    node = nodes_by_id.get(member_id)
+    if node is None:
+        return None
+    found = {
+        n.id
+        for n in (node, *iter_ancestors(node, nodes_by_id))
+        if n.stage_id == group_stage
+    }
+    if len(found) == 1:
+        return nodes_by_id[found.pop()]
     return None
 
 

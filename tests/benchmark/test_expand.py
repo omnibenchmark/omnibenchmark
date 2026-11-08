@@ -192,6 +192,91 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
+def _node(node_id, parent_id, stage_id, module_id, node_dir, provides=None):
+    ctx = SimpleNamespace(provides=dict(provides or {}))
+    return SimpleNamespace(
+        id=node_id,
+        parent_id=parent_id,
+        stage_id=stage_id,
+        module_id=module_id,
+        node_dir=node_dir,
+        template_context=ctx,
+    )
+
+
+@pytest.mark.short
+def test_group_by_partitions_by_node_from_0_8():
+    # 2 datasets x 2 norm modules x 2 methods = 8 producers. group_by norm:
+    # by module (< 0.8) that is 2 groups merging both datasets; by node (0.8)
+    # it is 4, one per (dataset, norm) lineage, each a child of its norm node.
+    nodes_by_id = {}
+    producers = []
+    for d in ("d1", "d2"):
+        dn = _node(f"{d}.default", None, "data", d, f"data.{d}.default", {"data": d})
+        nodes_by_id[dn.id] = dn
+        for nr in ("na", "nb"):
+            nn = _node(
+                f"{dn.id}-norm-{nr}.default",
+                dn.id,
+                "norm",
+                nr,
+                f"{dn.node_dir}/norm.{nr}.default",
+                {"data": d, "norm": nr},
+            )
+            nodes_by_id[nn.id] = nn
+            for m in ("ma", "mb"):
+                mn = _node(
+                    f"{nn.id}-clu-{m}.default",
+                    nn.id,
+                    "clu",
+                    m,
+                    f"{nn.node_dir}/clu.{m}.default",
+                )
+                nodes_by_id[mn.id] = mn
+                producers.append((mn.id, f"{mn.node_dir}/c.tsv"))
+
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="norm")],
+        modules=[
+            SimpleNamespace(
+                id="summ", name="summ", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="summary", path="{data}_{norm}_summary.tsv")],
+        resources=None,
+    )
+    bench = _fake_benchmark()
+    bench.model.api_version = APIVersion.V0_8_0
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=bench,
+        resolved_modules_cache={("metrics", "summ"): object()},
+        output_to_nodes={"clustering": list(producers)},
+        nodes_by_id=nodes_by_id,
+    )
+
+    assert len(nodes) == 4
+    g = {n.parent_id: n for n in nodes}
+    assert set(g) == {
+        "d1.default-norm-na.default",
+        "d1.default-norm-nb.default",
+        "d2.default-norm-na.default",
+        "d2.default-norm-nb.default",
+    }
+    n = g["d2.default-norm-nb.default"]
+    assert n.id == "d2.default-norm-nb.default-metrics-summ.default"
+    assert n.parents == []
+    assert n.gathered_from == [
+        "d2.default-norm-nb.default-clu-ma.default",
+        "d2.default-norm-nb.default-clu-mb.default",
+    ]
+    # Under the group node's dir, with its labels (data) plus the group key.
+    assert n.get_output_list() == [
+        "data.d2.default/norm.nb.default/metrics.summ.default/d2_nb_summary.tsv"
+    ]
+
+
 @pytest.mark.short
 def test_gather_absent_from_picks_is_dropped_before_producer_check():
     # A filter that prunes a gather's producers and does not list the gather

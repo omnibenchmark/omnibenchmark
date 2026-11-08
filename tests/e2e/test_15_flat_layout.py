@@ -43,7 +43,8 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
             assert _SEGMENT.fullmatch(path.name), f"not a node segment: {rel}"
 
     for group in ("D1", "D2"):
-        (gather,) = out.glob(f"metrics.MC.{group}.*")
+        # 0.8.0 groups by node: the gather is a child of its data node.
+        (gather,) = out.glob(f"data.{group}.*/metrics.MC.*")
         assert (gather / "MC_g.json").is_file()
         lineage = json.loads((gather / "lineage.json").read_text())
         assert [m["module"] for m in lineage["members"]] == ["J1"]
@@ -54,7 +55,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
 
         # The readable mirror resolves to the same files.
         (readable,) = (out / "human").glob(
-            f"metrics.MC.{group}.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
+            f"data.{group}.*/metrics.MC.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
         )
         assert readable.is_symlink()
         assert readable.resolve() == report.resolve()

@@ -18,6 +18,7 @@ from typing import Optional
 from omnibenchmark import filter as obfilter
 from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
+    ancestor_node_at_stage,
     build_template_context,
     inherited_provides,
     node_depth,
@@ -51,11 +52,15 @@ def expand_gather_stage(
     """Expand a gather stage into ResolvedNodes (design 010 MVP).
 
     For each `gather` entry, collect every node producing its `from` output id
-    and partition them by the ancestor module of the entry's `group_by` stage —
-    structural grouping over the lineage chain, no `provides` labels. One node
-    is emitted per (group value × module × parameter). The chain is cut
-    (`parent_id=None`); outputs root at the stage id and are registered in
-    `output_to_nodes` so downstream stages consume them normally.
+    and partition them by their `group_by` ancestor — structural grouping over
+    the lineage chain, no `provides` labels. One node is emitted per (group
+    value × module × parameter); outputs are registered in `output_to_nodes`
+    so downstream stages consume them normally.
+
+    api ≥ 0.8.0 groups by the ancestor NODE and makes the gather its child
+    (010 §3.2.1). Before 0.8.0, and for a global gather, the group is the
+    ancestor module, the chain is cut (`parent_id=None`) and outputs root at
+    the stage id.
 
     Cross-cutting contracts honoured like the scatter sibling: `module_filter`
     prunes to a single execution path (`ob run -m`), and an exclusion rule
@@ -81,6 +86,11 @@ def expand_gather_stage(
     # gather (every producer into one node — the `metric_collector` shape).
     # Stage.validate_gather guarantees one axis, so [0] is authoritative.
     group_label = stage.gather[0].group_by
+    # 0.8.0: group by the `group_by` NODE (the full lineage up to that stage),
+    # and the gather becomes a child of that node. Before 0.8.0: by its module,
+    # merging every other axis, with the chain cut (010 §3.2/§3.3).
+    by_node = flat and group_label is not None
+    group_nodes: dict = {}  # group value (node id) -> group node, when by_node
 
     for spec in stage.gather:
         producers = output_to_nodes.get(spec.from_, [])
@@ -93,7 +103,15 @@ def expand_gather_stage(
             if group_label is None:
                 grouped.setdefault(None, []).append((member_id, spec.from_, path))
                 continue
-            gval = ancestor_module_at_stage(member_id, spec.group_by, nodes_by_id)
+            if by_node:
+                group_node = ancestor_node_at_stage(
+                    member_id, spec.group_by, nodes_by_id
+                )
+                gval = group_node.id if group_node is not None else None
+                if group_node is not None:
+                    group_nodes[gval] = group_node
+            else:
+                gval = ancestor_module_at_stage(member_id, spec.group_by, nodes_by_id)
             if gval is None:
                 logger.warning(
                     f"      Gather '{stage.id}': member {member_id} has no "
@@ -190,10 +208,15 @@ def expand_gather_stage(
                 )
 
             param_id = f".{params.hash_short()}" if params else ".default"
-            # A global gather has no group value, so neither its id nor its
-            # path carries a group segment.
-            group_seg = f"-{gval}" if gval is not None else ""
-            node_id = f"{stage.id}-{module_id}{group_seg}{param_id}"
+            group_node = group_nodes.get(gval) if by_node else None
+            if group_node is not None:
+                # A child of the group node: same id spine as a scatter child.
+                node_id = f"{group_node.id}-{stage.id}-{module_id}{param_id}"
+            else:
+                # A global gather has no group value, so neither its id nor
+                # its path carries a group segment.
+                group_seg = f"-{gval}" if gval is not None else ""
+                node_id = f"{stage.id}-{module_id}{group_seg}{param_id}"
 
             # Enumerated keys + name mapping: same shape metric collectors
             # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
@@ -204,21 +227,36 @@ def expand_gather_stage(
                 input_name_mapping[f"input_{idx}"] = from_id
             member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
 
-            ctx = build_template_context(
-                stage=stage,
-                module_id=module_id,
-                module_name=getattr(module, "name", None),
-                params=params,
-                module_provides=module.provides,
-                # Always a dict for a gather, empty when global: that is what
-                # keeps the builtin `dataset` from leaking in (a gather binds
-                # its group key and nothing else, design 010 §3.3).
-                extra_provides={group_label: gval} if group_label else {},
-            )
-
-            # The cut chain roots at the stage id: unique by construction,
-            # so two gathers cannot share a tree.
-            d = node_dir(stage.id, module_id, param_id, group=gval, flat=flat)
+            if group_node is not None:
+                # Inherits the group node's labels, like a scatter child, and
+                # binds the group key to its module id as before.
+                ctx = build_template_context(
+                    stage=stage,
+                    module_id=module_id,
+                    module_name=getattr(module, "name", None),
+                    input_nodes=(group_node,),
+                    params=params,
+                    module_provides=module.provides,
+                    extra_provides={group_label: group_node.module_id},
+                )
+                d = f"{group_node.node_dir}/" + node_dir(
+                    stage.id, module_id, param_id, flat=flat
+                )
+            else:
+                ctx = build_template_context(
+                    stage=stage,
+                    module_id=module_id,
+                    module_name=getattr(module, "name", None),
+                    params=params,
+                    module_provides=module.provides,
+                    # Always a dict for a gather, empty when global: that is
+                    # what keeps the builtin `dataset` from leaking in (a
+                    # gather binds its group key and nothing else, 010 §3.3).
+                    extra_provides={group_label: gval} if group_label else {},
+                )
+                # The cut chain roots at the stage id: unique by construction,
+                # so two gathers cannot share a tree.
+                d = node_dir(stage.id, module_id, param_id, group=gval, flat=flat)
             outputs = {}
             for output_spec in stage.outputs:
                 # Only the group label is bound: a template referencing any
@@ -245,7 +283,7 @@ def expand_gather_stage(
                     param_id=param_id,
                     module=resolved_module,
                     parameters=params,
-                    parent_id=None,
+                    parent_id=group_node.id if group_node is not None else None,
                     node_dir=d,
                     inputs=inputs,
                     outputs=outputs,
@@ -257,7 +295,9 @@ def expand_gather_stage(
                     template_context=ctx,
                     is_gather=True,
                     gathered_from=member_ids,
-                    parents=list(member_ids),
+                    # A node-grouped gather's lineage is its group node's chain;
+                    # members stay in `gathered_from` (and lineage.json).
+                    parents=[] if group_node is not None else list(member_ids),
                 )
             )
 
