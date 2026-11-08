@@ -62,6 +62,14 @@ def expand_gather_stage(
     pairing this stage's module with a member's lineage drops that member from
     that module's gather (transitive exclude at member level).
     """
+    # A filter that does not select this stage drops it (filter.py: "a stage
+    # absent from picks is dropped entirely"). Decide that before looking for
+    # producers: the filter may well have pruned them too.
+    if picks is not None and not any(
+        obfilter.keeps_module(picks, stage.id, m.id) for m in stage.modules
+    ):
+        return []
+
     flat = benchmark.model.api_version >= APIVersion.V0_8_0  # 007 §3.1
     nodes: list = []
 

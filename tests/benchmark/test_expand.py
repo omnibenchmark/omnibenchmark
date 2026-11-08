@@ -192,6 +192,28 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
+@pytest.mark.short
+def test_gather_absent_from_picks_is_dropped_before_producer_check():
+    # A filter that prunes a gather's producers and does not list the gather
+    # must drop the gather, not fail on "no stage produces".
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="data")],
+        modules=[SimpleNamespace(id="s")],
+        outputs=[],
+        resources=None,
+    )
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=_fake_benchmark(),
+        resolved_modules_cache={},
+        output_to_nodes={},
+        nodes_by_id={},
+        picks={"data": {"*": "all"}},
+    )
+    assert nodes == []
+
+
 _GATHER_YAML = """
 id: t
 description: t
