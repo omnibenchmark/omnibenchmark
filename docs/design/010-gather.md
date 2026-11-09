@@ -188,7 +188,7 @@ alternate, so existing plans are identical.
 ### 3.2 The gather stage
 
 Syntax and validation rules: [004 §3.12](004-yaml-specification.md). In short, a
-stage declares `gather: [{from, group_by}]` in place of `inputs:`.
+stage declares `gather: [{from, group_by}]` (or `gather: {group_by, from: [...]}`) in place of `inputs:`.
 
 Members are every node producing `from`. They are partitioned by the ancestor
 module of the `group_by` stage, one gather node per group. This is *structural*
@@ -397,9 +397,13 @@ ordinary `--<id> <path>` flag, next to `--from-files`, and is not a member:
   - id: PCA_M
     inputs: [normalized_selected_h5]   # the FEAT node's own matrix
     gather:
-      - {from: embedding_tsv, group_by: FEAT}
-      - {from: loadings_tsv, group_by: FEAT}
+      group_by: FEAT
+      from: [embedding_tsv, loadings_tsv]
 ```
+
+The mapping form names the axis once; it is the list form
+`[{from: embedding_tsv, group_by: FEAT}, {from: loadings_tsv, group_by: FEAT}]`,
+which stays valid.
 
 Rejected:
 
