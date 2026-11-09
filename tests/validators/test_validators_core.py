@@ -150,7 +150,7 @@ def test_missing_validator_scripts(tmp_path):
 
 
 @pytest.mark.short
-def test_validators_rejected_on_collector_outputs():
+def test_metric_collectors_rejected_on_0_8():
     plan = (
         PLAN
         + """\
@@ -162,19 +162,10 @@ metric_collectors:
     outputs:
       - id: table
         path: "{input}/table.tsv"
-        validators:
-          - script: checks/t.py
 """
     )
-    with pytest.raises(Exception, match="stage outputs only"):
+    with pytest.raises(Exception, match="removed in api_version 0.8.0"):
         Benchmark.from_yaml(plan)
-    on_input = plan.replace(
-        "inputs: [raw]",
-        "inputs:\n      - id: raw\n        path: x\n"
-        "        validators: [{script: checks/t.py}]",
-    ).replace("        validators:\n          - script: checks/t.py\n", "")
-    with pytest.raises(Exception, match="stage outputs only"):
-        Benchmark.from_yaml(on_input)
 
 
 @pytest.mark.short

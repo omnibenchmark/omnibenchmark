@@ -341,6 +341,8 @@ metric_collectors:
         path: "{name}/plotting_report.html"
 ```
 
+> **api 0.8.0 removes `metric_collectors`.** A 0.8.0 plan declares the same thing as a stage with `gather:` and no `group_by` (e.g. `gather: [{from: metrics.json}]`); its module reads the members from `--manifest`. See design 010 §3.6.
+
 Similarly to any other module, the associated code to run the processing is stored as a git-compatible remote (with `url` and `commit id`). In the example above, `multiple_to_one` only generates one output, a report named `plotting.html` collecting all computed `metrics.json` files.
 
 ### Gather stages (api 0.8.0)
