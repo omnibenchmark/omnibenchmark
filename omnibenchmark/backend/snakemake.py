@@ -133,13 +133,20 @@ def _bash_var(name: str) -> str:
 # intend to forbid dots and other non-identifier characters in ids outright, at
 # which point `from_id` is already a legal keyword and this is a mechanical
 # swap.  Do it after #329, which is rewriting the same emission block.
-def _input_key_index(key: str) -> int:
+def _input_key_index(key: str) -> tuple:
     """Sort key for the enumerated `input_N` keys of a gather/collector node.
 
     >>> sorted(["input_10", "input_2"], key=_input_key_index)
     ['input_2', 'input_10']
     """
-    return int(key.rsplit("_", 1)[1])
+    tail = key.rsplit("_", 1)[-1]
+    # A gather's group inputs (`group_<id>`) are not members: they sort last.
+    return (0, int(tail)) if _is_member_key(key) else (1, 0)
+
+
+def _is_member_key(key: str) -> bool:
+    """A gather's member input (`input_N`), not one of its `group_<id>` inputs."""
+    return not key.startswith("group_")
 
 
 def _human_link_name(node: ResolvedNode) -> str:
@@ -448,6 +455,8 @@ class SnakemakeGenerator:
         """
         members: dict = {}
         for key in sorted(node.inputs or {}, key=_input_key_index):
+            if not _is_member_key(key):
+                continue
             path = node.inputs[key]
             out_id = (node.input_name_mapping or {}).get(key, key)
             producer_id, _ = self._producer_by_path.get(path, (path, out_id))
@@ -679,6 +688,8 @@ class SnakemakeGenerator:
             # sidecar lineage lists members in plan order, so input_10 must not
             # sort between input_1 and input_2.
             for key in sorted(node.inputs.keys(), key=_input_key_index):
+                if not _is_member_key(key):
+                    continue
                 original_name = node.input_name_mapping.get(key, key)
                 inputs_by_name[original_name].append(key)
 
@@ -686,6 +697,9 @@ class SnakemakeGenerator:
         if manifest:
             # Members reach the module through the manifest, not argv.
             inputs_by_name = defaultdict(list)
+        # A node-grouped gather's own inputs (010 §3.5.2): one file each, from
+        # its group node's lineage, passed like a scatter node's.
+        group_keys = [k for k in (node.inputs or {}) if not _is_member_key(k)]
 
         lines: list = [
             "mkdir -p {params.output_dir}",
@@ -702,6 +716,11 @@ class SnakemakeGenerator:
         if node.parameters and self.api_version >= APIVersion.V0_8_0:
             lines.append(self._parameters_json_line(node.parameters))
         lines += self._output_file_lines(node)
+        for key in group_keys:
+            lines.append(
+                f"INPUT_{key}=$(cd $(dirname {{input.{key}}}) && pwd)"
+                f"/$(basename {{input.{key}}})"
+            )
 
         # Resolve each input group to absolute paths into a bash array.
         # One loop per distinct flag name — no matter how many files per flag.
@@ -731,6 +750,10 @@ class SnakemakeGenerator:
         if manifest:
             gather_args.append(
                 '--from-files "$(cd $(dirname {input.manifest}) && pwd)/lineage.json"'
+            )
+        for key in group_keys:
+            gather_args.append(
+                f"--{node.input_name_mapping.get(key, key)} $INPUT_{key}"
             )
         for input_name in inputs_by_name:
             var = _bash_var(input_name)

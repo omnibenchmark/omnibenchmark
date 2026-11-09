@@ -1564,3 +1564,82 @@ def test_flat_layout_from_api_0_8_0():
     nodes, _, _ = _plan(_chain_yaml())
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
     assert method[0] == "data/D1/.default/method/M1/.default/M1_m.txt"
+
+
+def _gather_inputs_yaml(api="0.8.0", group_by="group_by: feat", inputs="[feat_out]"):
+    """data (D1, D2) -> feat (F1) -> pca (P1, P2); pcam gathers pca_out per feat
+    node and takes `inputs:` from that node's lineage (010 §3.5.2)."""
+    return f"""
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: {api}
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: data
+    outputs: [{{id: data_out, path: "{{module.id}}_d.txt"}}]
+    modules:
+      - id: D1
+{_BLOCK_REPO}
+      - id: D2
+{_BLOCK_REPO}
+  - id: feat
+    inputs: [data_out]
+    outputs: [{{id: feat_out, path: "{{module.id}}_f.txt"}}]
+    modules:
+      - id: F1
+{_BLOCK_REPO}
+  - id: pca
+    inputs: [feat_out]
+    outputs: [{{id: pca_out, path: "{{module.id}}_p.txt"}}]
+    modules:
+      - id: P1
+{_BLOCK_REPO}
+      - id: P2
+{_BLOCK_REPO}
+  - id: pcam
+    inputs: {inputs}
+    gather:
+      - from: pca_out
+        {group_by}
+    outputs: [{{id: pcam_out, path: "{{module.id}}_m.txt"}}]
+    modules:
+      - id: PM
+{_BLOCK_REPO}
+"""
+
+
+@pytest.mark.short
+def test_node_grouped_gather_takes_inputs_from_its_group_node():
+    nodes, _, errors = _plan(_gather_inputs_yaml())
+    assert errors == []
+    feat = {n.id: n for n in nodes if n.stage_id == "feat"}
+    gathers = [n for n in nodes if n.stage_id == "pcam"]
+    assert len(gathers) == 2
+    for g in gathers:
+        own = feat[g.parent_id].get_output_list()[0]
+        assert g.inputs["group_feat_out"] == own
+        assert g.input_name_mapping["group_feat_out"] == "feat_out"
+        members = [k for k in g.inputs if k.startswith("input_")]
+        assert len(members) == 2  # P1 and P2 under this feat node
+
+
+@pytest.mark.short
+def test_gather_input_from_below_the_group_node_is_an_error():
+    with pytest.raises(ValueError, match="is not produced by its group node"):
+        _plan(_gather_inputs_yaml(inputs="[pca_out]"))
+
+
+@pytest.mark.short
+def test_inputs_on_a_global_gather_rejected():
+    msg = _parse_error(_gather_inputs_yaml(group_by=""))
+    assert "global gather" in msg
+
+
+@pytest.mark.short
+def test_inputs_on_a_gather_before_0_8_rejected():
+    msg = _parse_error(_gather_inputs_yaml(api="0.7.0"))
+    assert "requires api_version >= 0.8.0" in msg

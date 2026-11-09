@@ -382,6 +382,29 @@ the fan-in rule, from a JSON record built at generation time. That rule is ob
 bookkeeping, not a module: modules still run through `shell:` only. A changed
 member set changes the record, which reruns the manifest and then the gather.
 
+#### 3.5.2 api ≥ 0.8.0: a node-grouped gather's own inputs
+
+A gather with `group_by: S` is the child of one S node (§3.2.1), so it has one
+lineage, and it may declare `inputs:` like a scatter stage. Each input resolves
+the way it would for a scatter child of the group node: from the group node's
+own outputs or its ancestors', nearest first. It reaches the module as an
+ordinary `--<id> <path>` flag, next to `--from-files`, and is not a member:
+
+```yaml
+  - id: PCA_M
+    inputs: [normalized_selected_h5]   # the FEAT node's own matrix
+    gather:
+      - {from: embedding_tsv, group_by: FEAT}
+      - {from: loadings_tsv, group_by: FEAT}
+```
+
+Rejected:
+
+- `inputs:` on a global gather, or on any gather before api 0.8.0: the group
+  merges lineages, so there is nothing to resolve them from (plan error).
+- An input not produced by the group node or its ancestors, e.g. an output of a
+  stage below S (expansion error). Members come only through `gather:`.
+
 ### 3.6 Metric collectors are a global gather
 
 A `metric_collector` is a gather with no `group_by`, declared terminal by

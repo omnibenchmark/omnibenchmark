@@ -124,6 +124,39 @@ def expand_gather_stage(
     if not grouped:
         logger.warning(f"Stage '{stage.id}' gathered no members.")
 
+    # A node-grouped gather's own `inputs:` (010 §3.5.2) resolve from its group
+    # node's lineage, as they would for a scatter child of that node.
+    declared_inputs = [
+        entry
+        for col in (getattr(stage, "inputs", None) or [])
+        for entry in getattr(col, "entries", [])
+    ]
+    if declared_inputs and not by_node:
+        raise ValueError(
+            f"Stage '{stage.id}' declares `inputs:` on a gather that is not "
+            f"grouped by node. Only a gather with `group_by` (api >= 0.8.0) "
+            f"has one lineage to resolve them from."
+        )
+
+    def group_inputs(group_node) -> tuple:
+        available: dict = {}
+        for ancestor in reversed(list(iter_ancestors(group_node, nodes_by_id))):
+            available.update(_get_output_ids_for_node(ancestor, benchmark))
+        available.update(_get_output_ids_for_node(group_node, benchmark))
+        paths, names = {}, {}
+        for input_id in declared_inputs:
+            if input_id not in available:
+                raise ValueError(
+                    f"Stage '{stage.id}': input '{input_id}' is not produced by "
+                    f"its group node {group_node.id} or that node's ancestors. "
+                    f"A gather's inputs resolve from the `group_by: "
+                    f"{group_label}` node's lineage, never from its members."
+                )
+            key = "group_" + input_id.replace(".", "_")
+            paths[key] = available[input_id]
+            names[key] = input_id
+        return paths, names
+
     # Module-filter: same single-execution-path contract as the scatter path.
     if module_filter:
         if target_stage is not None and stage.id == target_stage.id:
@@ -226,6 +259,10 @@ def expand_gather_stage(
                 inputs[f"input_{idx}"] = path
                 input_name_mapping[f"input_{idx}"] = from_id
             member_ids = list(dict.fromkeys(mid for mid, _f, _p in kept))
+            if declared_inputs and group_node is not None:
+                paths, names = group_inputs(group_node)
+                inputs.update(paths)
+                input_name_mapping.update(names)
 
             if group_node is not None:
                 # Inherits the group node's labels, like a scatter child, and
