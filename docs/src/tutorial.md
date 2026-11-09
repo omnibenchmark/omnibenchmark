@@ -343,6 +343,93 @@ metric_collectors:
 
 Similarly to any other module, the associated code to run the processing is stored as a git-compatible remote (with `url` and `commit id`). In the example above, `multiple_to_one` only generates one output, a report named `plotting.html` collecting all computed `metrics.json` files.
 
+### Gather stages (api 0.8.0)
+
+From `api_version: "0.8.0"`, a stage can run one module over many upstream results at once: a **gather**. Use it when a step needs several results side by side (compare every method against a reference, build one table per dataset), instead of one result at a time.
+
+```yaml
+  - id: PCA_M
+    inputs: [normalized_selected_h5]       # optional, see below
+    gather:
+      group_by: FEAT                       # one job per FEAT node
+      from: [embedding_tsv, loadings_tsv]  # what to collect
+    outputs:
+      - id: pca_metrics_tsv
+        path: "{module.id}_pca_metrics.tsv"
+```
+
+- `from`: one output id or a list. Every node that produces it is a **member**.
+- `group_by: S`: one job per node of stage `S`; its members are that node's descendants. Without `group_by`, one job collects every member of the run.
+- `inputs:` (only with `group_by`): resolved from the `S` node or its ancestors, exactly as for any stage below `S`. Above, each job gets the matrix of its own FEAT node.
+- The list form `gather: [{from: embedding_tsv, group_by: FEAT}, {from: loadings_tsv, group_by: FEAT}]` means the same.
+
+#### What a gather module receives
+
+```
+<entrypoint> --output_dir <dir> --name <module id> --output <id>=<path> \
+    --from-files <dir>/lineage.json \
+    --<input id> <path> ...  \
+    <module parameters>
+```
+
+Members never come as positional paths: their number is unbounded, so the module reads them from `--from-files`, a JSON file ob writes next to the outputs. Their order carries no meaning.
+
+```json
+{"version": 2, "node_id": "...", "stage": "PCA_M", "module": "pca_metrics_py", "kind": "gather",
+ "members": [
+   {"node_id": "...", "stage": "PCA", "module": "pc_scanpy", "commit": "754052a0...",
+    "params": "f02267b9", "parameters": {"solver": "arpack", "n_components": 50},
+    "dir": "DATA.d1.44d965bf/.../PCA.pc_scanpy.f02267b9",
+    "files": {"embedding_tsv": "/abs/.../pc_scanpy_embedding.tsv",
+              "loadings_tsv": "/abs/.../pc_scanpy_loadings.tsv"},
+    "lineage": [{"node_id": "...", "stage": "DATA", "module": "d1", "params": "44d965bf",
+                 "parameters": {"dataset_name": "be1"}},
+                ...,
+                {"node_id": "...", "stage": "PCA", "module": "pc_scanpy", "params": "f02267b9",
+                 "parameters": {"solver": "arpack", "n_components": 50}}]}]}
+```
+
+| field | meaning |
+|---|---|
+| `files` | the member's gathered outputs by output id, absolute paths; a member may contribute several |
+| `params` | short hash of the member's parameters, as in its directory name |
+| `parameters` | the parameter values behind that hash (what the node's `parameters.json` holds) |
+| `lineage` | every ancestor from the first stage down to the member itself, each with module and parameters |
+| `value` | only for `foreach` members: the value this member was fanned out for |
+
+Use `lineage` and `parameters` to label results; do not parse ob's directory names. Reading the members takes a few lines:
+
+=== "Python"
+
+    ```python
+    import json
+
+    def from_files(path, output_id):
+        members = json.load(open(path))["members"]
+        return [m["files"][output_id] for m in members if output_id in m["files"]]
+    ```
+
+=== "R"
+
+    ```R
+    members <- jsonlite::fromJSON(path, simplifyVector = FALSE)$members
+    files <- unlist(lapply(members, function(m) m$files[[output_id]]))
+    ```
+
+#### Where gather results land
+
+Gathers are kept apart from the main tree, under `gathers/<stage>/`:
+
+```
+out/gathers/PCA_M/by-FEAT/DATA.d1.44d965bf/.../FEAT.fe_seurat.6203d28c/PCA_M.pca_metrics_py.2d5793e0-6ec8ec62/
+out/gathers/REPORT/REPORT.pca_report.default-afccb160/
+```
+
+- A grouped gather's directory repeats the path of its group node (the FEAT node above), so every group has its own directory.
+- The suffix after the last `-` (`6ec8ec62`) identifies the set of members. A run that filters some members out (`--filter`, unavailable capabilities) writes to a different directory instead of overwriting the full result.
+- `lineage.json` in that directory is the `--from-files` file.
+- `out/human/gathers/` shows the same results with parameter values in the directory names.
+
 ## Validate a benchmark YAML
 
 Let's save the benchmark above as a file named `benchmark_test.yaml`. Then we validate it with:
