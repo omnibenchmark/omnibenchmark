@@ -20,6 +20,7 @@ from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
     ancestor_node_at_stage,
     build_template_context,
+    gather_dir_prefix,
     inherited_provides,
     node_depth,
     node_dir,
@@ -276,9 +277,10 @@ def expand_gather_stage(
                     module_provides=module.provides,
                     extra_provides={group_label: group_node.module_id},
                 )
-                d = f"{group_node.node_dir}/" + node_dir(
-                    stage.id, module_id, param_id, flat=flat
-                )
+                # Logically the group node's child; on disk under gathers/
+                # so gathers do not crowd the result tree (007 §3.1.6).
+                d = gather_dir_prefix(stage.id, group_label, group_node.node_dir)
+                d += "/" + node_dir(stage.id, module_id, param_id, flat=flat)
             else:
                 ctx = build_template_context(
                     stage=stage,
@@ -294,6 +296,8 @@ def expand_gather_stage(
                 # The cut chain roots at the stage id: unique by construction,
                 # so two gathers cannot share a tree.
                 d = node_dir(stage.id, module_id, param_id, group=gval, flat=flat)
+                if flat:
+                    d = f"{gather_dir_prefix(stage.id)}/{d}"
             outputs = {}
             for output_spec in stage.outputs:
                 # Only the group label is bound: a template referencing any

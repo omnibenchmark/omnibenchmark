@@ -12,7 +12,7 @@ import os
 import shutil
 from pathlib import Path
 
-from omnibenchmark.core._lineage import parse_node_segment
+from omnibenchmark.core._lineage import GATHERS_DIR, parse_node_segment
 from omnibenchmark.core._paths import MAX_FILENAME_LEN, make_human_name
 from omnibenchmark.model.params import Params
 
@@ -39,25 +39,35 @@ def _holds_node(directory: Path) -> bool:
     return any(p.is_dir() and parse_node_segment(p.name) for p in directory.rglob("*"))
 
 
-def _mirror(src: Path, dest: Path, top: bool = False) -> None:
+def _mirror(
+    src: Path, dest: Path, top: bool = False, real: "Path | None" = None
+) -> None:
     """Link *src*'s entries into *dest*, giving child nodes readable copies.
 
     A template subdirectory that holds child nodes is mirrored verbatim so its
     nodes get readable copies too; any other subdirectory is linked whole. At
-    the top (*src* is the out dir) only node directories are mirrored.
+    the top (*src* is the out dir) only node directories and ``gathers/`` are
+    mirrored. *real* is where the nodes under ``gathers/<STAGE>/by-<S>/``
+    really live (their parameters.json), up to the gather itself.
     """
     dest.mkdir(parents=True, exist_ok=True)
     for entry in sorted(src.iterdir()):
         parsed = parse_node_segment(entry.name) if entry.is_dir() else None
         if parsed:
-            target = dest / _readable_segment(entry, parsed)
+            node = real / entry.name if real is not None else entry
+            if not node.is_dir():  # the gather itself: real from here down
+                node = entry
+            target = dest / _readable_segment(node, parsed)
             if target.exists():  # two parameter sets sanitise to one name
                 target = dest / entry.name
-            _mirror(entry, target)
-        elif top:
+            _mirror(entry, target, real=node if node != entry else None)
+        elif top and entry.name != GATHERS_DIR:
             continue
         elif entry.is_dir() and _holds_node(entry):
-            _mirror(entry, dest / entry.name)
+            by_group = entry.name.startswith("by-") and src.parent.name == GATHERS_DIR
+            _mirror(
+                entry, dest / entry.name, real=src.parent.parent if by_group else real
+            )
         else:
             (dest / entry.name).symlink_to(os.path.relpath(entry, dest))
 

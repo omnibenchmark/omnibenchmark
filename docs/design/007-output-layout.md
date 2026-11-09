@@ -17,6 +17,7 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
+| 0.4 | 2026-11-09 | §3.1.6: from api 0.8.0 every gather lives under `gathers/<stage>/` | ben |
 | 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `human/`; nested layout deprecated | ben |
 | 0.4 | 2026-11-04 | §4.6: run log and out-dir identity; `--dry` writes no `.metadata/` | ben |
 
@@ -121,7 +122,7 @@ segment = <stage> "." <module> [ "." <group> ] "." <param> [ "-" <join> ]
 param   = "default" | <hash8>
 ```
 
-- `<group>`: the group value of a grouped gather (010 §3.3). A global gather omits it.
+- `<group>`: the group value of a module-grouped gather (010 §3.3). Gathers grouped by node (010 §3.2.1) and global gathers omit it.
 - `<join>`: the parent-set digest of a fan-in node (010 §5.2).
 - Parsing: split on `.`. Three fields means no group, four means a group. Split the last field on `-` to get the join digest.
 - This parse is unambiguous because stage and module ids, and therefore group values, match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
@@ -130,8 +131,7 @@ param   = "default" | <hash8>
 out/data.D1.default/data.raw.tsv
 out/data.D1.default/methods.M1.a1b2c3d4/result.tsv
 out/data.D1.default/methods.M1.a1b2c3d4/metrics.acc.default/score.json
-out/summary.collect.default/table.tsv                 # global gather
-out/summary.collect.D1.default/table.tsv              # grouped gather, group D1
+out/gathers/summary/summary.collect.default/table.tsv  # global gather (§3.1.6)
 out/data.D1.default/merge.J.default-9f8e7d6c/out.tsv  # fan-in
 ```
 
@@ -160,6 +160,21 @@ Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule'
 - api < 0.8.0: v1 layout, plus a deprecation warning from `ob run`.
 - api 0.10.0: the v1 writer is removed, and plans below 0.8.0 are rejected with a pointer to the migration.
 - Migration means raising `api_version`. Every output path changes, so the next run recomputes everything. Relocating an existing v1 tree is out of scope.
+
+#### 3.1.6 Gathers: `gathers/`
+
+Every gather's directory lives under `out/gathers/<stage>/`, so gathers do not crowd the top of the result tree:
+
+```
+out/gathers/<stage>/<segment>/                               # global gather
+out/gathers/<stage>/by-<S>/<S node dir>/<segment>/           # group_by: S
+out/gathers/PCA_M/by-FEAT/data.D1.default/feat.F1.1a2b3c4d/PCA_M.pm.default/m.tsv
+```
+
+- The repeated `<S node dir>` is the group node's own path, so the group reads as in the result tree. Those directories hold nothing but the gather; the group node's files stay where they are.
+- The gather is still the group node's child in the DAG (010 §3.2.1); only its directory moves. Its `lineage.json` stays in its own directory.
+- Stages below a gather nest inside the gather's directory, as below any node.
+- `human/` mirrors `gathers/` too, with readable names for the group node's chain. `ob collect` and remote storage recognise the prefix.
 
 ## 4. Runtime Manifest (`manifest.json`)
 

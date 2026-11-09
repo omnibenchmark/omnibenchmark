@@ -271,9 +271,11 @@ def test_group_by_partitions_by_node_from_0_8():
         "d2.default-norm-nb.default-clu-ma.default",
         "d2.default-norm-nb.default-clu-mb.default",
     ]
-    # Under the group node's dir, with its labels (data) plus the group key.
+    # Under gathers/ by the group node's dir (007 §3.1.6), with its labels
+    # (data) plus the group key.
     assert n.get_output_list() == [
-        "data.d2.default/norm.nb.default/metrics.summ.default/d2_nb_summary.tsv"
+        "gathers/metrics/by-norm/data.d2.default/norm.nb.default/"
+        "metrics.summ.default/d2_nb_summary.tsv"
     ]
 
 

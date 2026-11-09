@@ -3,8 +3,9 @@ description: >-
   Flat output layout (007 §3.1, api 0.8.0). Every segment kind in one plan:
   a plain chain (data -> shallow, deep), a join (join, one per data module,
   its directory carrying the parent-set digest), a grouped gather over the
-  join (metrics, one per data module), a scatter after the gather (report),
-  and a global gather over the reports (summary).
+  join with one input from its group node (metrics, one per data module), a
+  scatter after the gather (report), and a global gather over the reports
+  (summary). Gathers live under gathers/ (007 §3.1.6).
 version: "1.0"
 benchmarker: "E2E Test Suite"
 api_version: "0.8.0"
@@ -82,6 +83,9 @@ stages:
         path: "{module.id}_j.json"
 
   - id: metrics
+    # A node-grouped gather's own input, from its group (data) node (010 §3.5.2).
+    inputs:
+      - data_out
     gather:
       - from: join_out
         group_by: data
@@ -114,7 +118,7 @@ stages:
       - id: report_out
         path: "{module.id}_r.json"
 
-  # A global gather (no group_by) sits at the root with its own manifest.
+  # A global gather (no group_by) sits under gathers/ with its own manifest.
   - id: summary
     gather:
       - from: report_out

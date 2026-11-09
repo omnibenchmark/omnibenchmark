@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 from omnibenchmark.core import Benchmark
-from omnibenchmark.core._lineage import parse_node_segment
+from omnibenchmark.core._lineage import GATHERS_DIR, parse_node_segment
 from omnibenchmark.storage import StorageOptions, get_expected_benchmark_output_files
 
 
@@ -17,6 +17,7 @@ def _is_tracked(root: str, storage_options: StorageOptions) -> bool:
     return (
         root in storage_options.tracked_directories
         or parse_node_segment(root) is not None
+        or root == GATHERS_DIR  # every 0.8.0 gather roots here (007 §3.1.6)
     )
 
 
@@ -86,6 +87,7 @@ def filter_objects_to_tag(
             if obj in object_names_to_keep
             or rootdirs[i] in overwrite_dirs_to_keep
             or parse_node_segment(rootdirs[i]) is not None
+            or rootdirs[i] == GATHERS_DIR
         ]
         if filtered_items:
             objects, versions = zip(*filtered_items)
