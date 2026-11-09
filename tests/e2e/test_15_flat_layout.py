@@ -60,6 +60,16 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
         assert readable.is_symlink()
         assert readable.resolve() == report.resolve()
 
+    # The global gather owns its manifest: both reports, one per data node.
+    (summary,) = out.glob("summary.SC.*")
+    assert (summary / "SC_t.json").is_file()
+    lineage = json.loads((summary / "lineage.json").read_text())
+    assert sorted(m["lineage"][0]["module"] for m in lineage["members"]) == [
+        "D1",
+        "D2",
+    ]
+    assert not (out / "lineage.json").exists()
+
     # `ob collect` reads the flat tree and does not count `human/` twice.
     from omnibenchmark.cli.collect import collect
 
