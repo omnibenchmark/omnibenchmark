@@ -700,6 +700,35 @@ class TestFanInManifest:
         }
         assert record["members"][7]["lineage"][-1]["module"] == "m7"
 
+    def test_collector_keeps_member_argv(self, tmp_path):
+        """No manifest for a collector: two top-level ones shared `lineage.json`."""
+        producer = _make_node(node_id="p0", outputs={"score": "out/m/score.csv"})
+        collectors = [
+            _make_node(
+                node_id=f"c{i}",
+                stage_id=f"c{i}",
+                module_id=f"c{i}",
+                inputs={"input_0": "out/m/score.csv"},
+                input_name_mapping={"input_0": "score"},
+                outputs={"table": f"c{i}.tsv"},
+                is_collector=True,
+            )
+            for i in range(2)
+        ]
+        path = tmp_path / "Snakefile"
+        _gen(api_version=APIVersion.V0_8_0).generate_snakefile(
+            [producer, *collectors], path
+        )
+        text = path.read_text()
+        assert "_manifest:" not in text and 'lineage.json"' not in text
+
+    def test_gather_without_a_directory_is_an_error(self, tmp_path):
+        gather = _make_node(
+            node_id="g", outputs={"summary": "summary.tsv"}, is_gather=True
+        )
+        with pytest.raises(ValueError, match="no node directory"):
+            _gen(api_version=APIVersion.V0_8_0)._manifest_path(gather)
+
     def test_v07_keeps_member_argv(self, tmp_path):
         text, gather = _fanin_snakefile(tmp_path, 3, APIVersion.V0_7_0)
         assert "_manifest:" not in text

@@ -409,21 +409,22 @@ class SnakemakeGenerator:
     # ------------------------------------------------------------------
 
     def _manifest_path(self, node: ResolvedNode) -> Optional[str]:
-        """Where a fan-in node's manifest goes, or None when it takes argv.
+        """Where a gather's manifest goes, or None when it takes argv.
 
-        Gathers and collectors from api 0.8.0. The module receives this one
-        path (`--manifest`) instead of `--<id> p1 p2 …`: a Snakemake shell
-        block is a single `bash -c` argument, capped at 128 KiB by the kernel,
-        which a few hundred member paths exceed.
+        Gathers from api 0.8.0 (0.8.0 has no metric collectors). The module
+        receives this one path (`--manifest`) instead of `--<id> p1 p2 …`: a
+        Snakemake shell block is a single `bash -c` argument, capped at
+        128 KiB by the kernel, which a few hundred member paths exceed.
         """
         if self.api_version < APIVersion.V0_8_0:
             return None
-        if not (node.is_gather or node.is_collector) or not node.outputs:
+        if not node.is_gather or not node.outputs:
             return None
-        node_dir = getattr(node, "node_dir", None) or os.path.dirname(
-            next(iter(node.outputs.values()))
-        )
-        return f"{node_dir}/lineage.json" if node_dir else "lineage.json"
+        # Every gather owns a directory; a bare `lineage.json` would be shared.
+        node_dir = node.node_dir or os.path.dirname(next(iter(node.outputs.values())))
+        if not node_dir:
+            raise ValueError(f"gather {node.id} has no node directory for its manifest")
+        return f"{node_dir}/lineage.json"
 
     def _member_lineage(self, member) -> list:
         """The member's ancestry, root first, then the member itself."""
@@ -463,7 +464,7 @@ class SnakemakeGenerator:
             "node_id": node.id,
             "stage": node.stage_id,
             "module": node.module_id,
-            "kind": "gather" if node.is_gather else "collector",
+            "kind": "gather",
             "members": list(members.values()),
         }
 
