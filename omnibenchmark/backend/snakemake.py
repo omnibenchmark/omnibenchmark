@@ -133,6 +133,12 @@ def _bash_var(name: str) -> str:
 # intend to forbid dots and other non-identifier characters in ids outright, at
 # which point `from_id` is already a legal keyword and this is a mechanical
 # swap.  Do it after #329, which is rewriting the same emission block.
+def _parameter_values(node) -> dict:
+    """A node's parameter values by name (what its parameters.json holds), so a
+    fan-in module can label members without resolving the `params` hash."""
+    return dict(node.parameters.items()) if node.parameters is not None else {}
+
+
 def _input_key_index(key: str) -> tuple:
     """Sort key for the enumerated `input_N` keys of a gather/collector node.
 
@@ -383,6 +389,7 @@ class SnakemakeGenerator:
             "module": member.module_id,
             "commit": member.module.commit,
             "params": member.get_parameter_hash(),
+            "parameters": _parameter_values(member),
             "dir": os.path.dirname(next(iter(member.outputs.values())))
             if member.outputs
             else None,
@@ -442,6 +449,7 @@ class SnakemakeGenerator:
                 "stage": n.stage_id,
                 "module": n.module_id,
                 "params": n.get_parameter_hash(),
+                "parameters": _parameter_values(n),
             }
             for n in (*chain, member)
         ]

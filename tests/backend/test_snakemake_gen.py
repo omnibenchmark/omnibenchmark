@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from omnibenchmark.model.params import Params
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
 from omnibenchmark.backend._snakemake_debug import DebugSnakemakeGenerator
@@ -648,6 +649,7 @@ def _fanin_snakefile(tmp_path, n_members, api_version):
             stage_id="method",
             module_id=f"m{i}",
             outputs={"score": f"out/method.m{i}.default/score.csv"},
+            parameters=Params({"k": i, "solver": "arpack"}),
         )
         for i in range(n_members)
     ]
@@ -699,6 +701,12 @@ class TestFanInManifest:
             "score": "out/method.m7.default/score.csv"
         }
         assert record["members"][7]["lineage"][-1]["module"] == "m7"
+        # values next to the hash, so a module can label members by them
+        assert record["members"][7]["parameters"] == {"k": 7, "solver": "arpack"}
+        assert record["members"][7]["lineage"][-1]["parameters"] == {
+            "k": 7,
+            "solver": "arpack",
+        }
 
     def test_collector_keeps_member_argv(self, tmp_path):
         """No manifest for a collector: two top-level ones shared `lineage.json`."""
