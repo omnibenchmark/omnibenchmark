@@ -431,6 +431,18 @@ def node_dir(
     return f"{stage_id}/{group_dir}{module_id}/{seg}"
 
 
+# From api 0.8.0 every gather's directory lives under this root (007 §3.1.6):
+# `gathers/<STAGE>/[by-<S>/<group node dir>/]<STAGE>.<module>.<param>[-<digest>]`.
+GATHERS_DIR = "gathers"
+
+
+def gather_dir_prefix(stage_id: str, group_label=None, group_node_dir=None) -> str:
+    """Where a flat gather's node segment goes, relative to out/."""
+    if group_label is None:
+        return f"{GATHERS_DIR}/{stage_id}"
+    return f"{GATHERS_DIR}/{stage_id}/by-{group_label}/{group_node_dir}"
+
+
 _ID = r"[A-Za-z_][A-Za-z0-9_]*"
 _SEGMENT_RE = re.compile(
     rf"({_ID})\.({_ID})(?:\.({_ID}))?\.(default|[0-9a-f]{{8}})(?:-([0-9a-f]{{8}}))?"
