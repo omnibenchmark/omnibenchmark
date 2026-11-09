@@ -1646,6 +1646,14 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"declares {self.api_version.value})."
                         )
 
+        # 0.8.0 replaces metric collectors with gather stages (010 §3.6).
+        if self.metric_collectors and self.api_version >= APIVersion.V0_8_0:
+            ids = ", ".join(c.id for c in self.metric_collectors)
+            raise ValueError(
+                f"`metric_collectors` ({ids}) were removed in api_version 0.8.0; "
+                f"use a stage with `gather:` instead (design 010 §3.6)."
+            )
+
         for collector in self.metric_collectors or []:
             files = collector.outputs + [
                 i for i in collector.inputs if isinstance(i, IOFile)
@@ -1693,12 +1701,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         # `--<id>` input flags downstream, nowhere else, so only `=` and
         # whitespace are out.
         if self.api_version >= APIVersion.V0_8_0:
-            collector_outputs = [
-                o for c in self.metric_collectors or [] for o in c.outputs or []
-            ]
-            for o in [o for s in self.stages for o in s.outputs or []] + (
-                collector_outputs
-            ):
+            for o in [o for s in self.stages for o in s.outputs or []]:
                 if _BAD_OUTPUT_ID.search(o.id):
                     raise ValueError(
                         f"Output id '{o.id}' may not contain '=' or whitespace."

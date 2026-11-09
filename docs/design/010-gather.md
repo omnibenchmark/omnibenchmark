@@ -438,7 +438,13 @@ Deprecation is a **notice, not a rewrite**. Reimplementing the collector
 resolver on top of gather nodes rewires a working path for no user-visible
 gain; a warning pointing at the equivalent `gather:` stanza does the actual
 work of moving people, and the code deletes itself once nobody declares
-`metric_collectors:`. Removal waits for a later major api version.
+`metric_collectors:`. ~~Removal waits for a later major api version.~~
+
+**Amended (0.8.0):** api 0.8.0 removes them. A 0.8.0 plan that declares
+`metric_collectors:` fails to load with a pointer to `gather:`; older plans
+keep them. 0.8.0 already breaks every output path (flat layout, 007 §3.1), so
+moving to `gather:` costs nothing extra there, and fan-in modules get one
+contract (the manifest, §3.5) instead of two.
 
 ### 3.7 Worked example: a report module
 
