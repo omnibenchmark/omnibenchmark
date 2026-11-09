@@ -767,6 +767,21 @@ class Stage(DescribableEntity):
         ),
     )
 
+    @field_validator("gather", mode="before")
+    @classmethod
+    def expand_gather_mapping(cls, v):
+        """`gather: {group_by: S, from: [a, b]}` is the list form with S on each entry."""
+        if not isinstance(v, dict):
+            return v
+        unknown = set(v) - {"from", "group_by"}
+        if unknown:
+            raise ValueError(f"gather: unknown keys {sorted(unknown)}")
+        froms = v.get("from")
+        froms = [froms] if isinstance(froms, str) else froms
+        if not froms:
+            raise ValueError("gather: `from` needs at least one output id")
+        return [{"from": f, "group_by": v.get("group_by")} for f in froms]
+
     @model_validator(mode="after")
     def validate_gather(self) -> "Stage":
         if self.gather:

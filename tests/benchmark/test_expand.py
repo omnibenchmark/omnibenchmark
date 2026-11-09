@@ -370,6 +370,32 @@ stages:
 
 
 @pytest.mark.short
+def test_gather_mapping_form_is_the_list_form():
+    """`gather: {group_by: S, from: [a, b]}` names the axis once."""
+    stage = Stage.model_validate(
+        {
+            "id": "metrics",
+            "modules": [],
+            "outputs": [],
+            "gather": {"group_by": "data", "from": ["clustering", "embedding"]},
+        }
+    )
+    assert [(g.from_, g.group_by) for g in stage.gather] == [
+        ("clustering", "data"),
+        ("embedding", "data"),
+    ]
+    one = Stage.model_validate(
+        {"id": "m", "modules": [], "outputs": [], "gather": {"from": "clustering"}}
+    )
+    assert [(g.from_, g.group_by) for g in one.gather] == [("clustering", None)]
+    for bad in ({"from": []}, {"from": ["a"], "group": "data"}):
+        with pytest.raises(Exception):
+            Stage.model_validate(
+                {"id": "m", "modules": [], "outputs": [], "gather": bad}
+            )
+
+
+@pytest.mark.short
 def test_gather_entries_must_share_one_group_by_axis():
     """Multiple gather entries with differing group_by are rejected; a shared
     axis is accepted (Stage.validate_gather — makes the [0] axis sound)."""
