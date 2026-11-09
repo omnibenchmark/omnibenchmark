@@ -23,7 +23,7 @@
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
-| 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--manifest` (lineage.json v2), not member argv | btraven00 |
+| 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--from-files` (lineage.json v2, the manifest), not member argv | btraven00 |
 
 ## 1. Problem Statement
 
@@ -347,7 +347,7 @@ collector) receives exactly one path:
 
 ```
 <entrypoint> --output_dir … --name summarizer --output summary=/abs/… \
-    --manifest /abs/<node dir>/lineage.json \
+    --from-files /abs/<node dir>/lineage.json \
     [param flags]
 ```
 
@@ -357,7 +357,8 @@ old lineage echo, cost about 625 bytes per member, so a gather failed with
 E2BIG at roughly 200–350 members (omni-scrna: 580 kNN graphs = 353 KB). The
 command is now the same size at any member count.
 
-The manifest is `lineage.json` version 2. Each member lists its files by output
+The flag is named for what the module does with it (read its files from
+here); ob calls the file the manifest. The manifest is `lineage.json` version 2. Each member lists its files by output
 id (absolute paths) and its full ancestry, so modules never parse ob paths:
 
 ```json
@@ -433,7 +434,7 @@ stage, module, commit, parameter hash and directory:
 
 ```
 render.R          # reads $OUTPUT_DIR/lineage.json and the --metrics.summary paths
-template.Rmd      # (api ≥ 0.8.0: reads only --manifest, which has both; §3.5.1)
+template.Rmd      # (api ≥ 0.8.0: reads only --from-files, which has both; §3.5.1)
 ```
 
 So the sidecar is not only a provenance artifact for humans — for a gather

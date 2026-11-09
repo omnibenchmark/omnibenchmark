@@ -412,7 +412,7 @@ class SnakemakeGenerator:
         """Where a gather's manifest goes, or None when it takes argv.
 
         Gathers from api 0.8.0 (0.8.0 has no metric collectors). The module
-        receives this one path (`--manifest`) instead of `--<id> p1 p2 …`: a
+        receives this one path (`--from-files`) instead of `--<id> p1 p2 …`: a
         Snakemake shell block is a single `bash -c` argument, capped at
         128 KiB by the kernel, which a few hundred member paths exceed.
         """
@@ -730,7 +730,7 @@ class SnakemakeGenerator:
         gather_args += self._output_flags(node)
         if manifest:
             gather_args.append(
-                '--manifest "$(cd $(dirname {input.manifest}) && pwd)/lineage.json"'
+                '--from-files "$(cd $(dirname {input.manifest}) && pwd)/lineage.json"'
             )
         for input_name in inputs_by_name:
             var = _bash_var(input_name)

@@ -681,8 +681,8 @@ class TestFanInManifest:
         shell = large[large.index("shell:") :]
         assert len(shell) == len(small[small.index("shell:") :])
         assert len(shell) < 8 * 1024
-        assert "--manifest" in shell and "input_1999" not in shell
-        assert "lineage.json" not in shell.split("--manifest")[0]  # no echo
+        assert "--from-files" in shell and "input_1999" not in shell
+        assert "lineage.json" not in shell.split("--from-files")[0]  # no echo
 
     def test_manifest_rule_lists_every_member(self, tmp_path):
         import ast
@@ -732,7 +732,7 @@ class TestFanInManifest:
     def test_v07_keeps_member_argv(self, tmp_path):
         text, gather = _fanin_snakefile(tmp_path, 3, APIVersion.V0_7_0)
         assert "_manifest:" not in text
-        assert "--manifest" not in gather and "--score" in gather
+        assert "--from-files" not in gather and "--score" in gather
 
 
 # ---------------------------------------------------------------------------
