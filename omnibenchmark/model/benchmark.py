@@ -916,7 +916,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     )
     stages: List[Stage] = Field(..., description="Benchmark stages")
     metric_collectors: Optional[List[MetricCollector]] = Field(
-        None, description="Metric collectors"
+        None,
+        description="Metric collectors (deprecated: removed in api_version 0.8.0, use a gather stage)",
     )
     storage: Optional[Storage] = Field(None, description="Remote storage configuration")
     # Legacy Compatibility Fields - Migration Strategy

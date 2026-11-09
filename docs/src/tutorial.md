@@ -294,7 +294,7 @@ stages:
         path: "{dataset}.json"
 ```
 
-### Metric collectors
+### Metric collectors <span style="font-size: .6em; font-weight: 600; padding: .15em .6em; border-radius: 1em; vertical-align: middle; color: var(--md-default-bg-color); background: var(--md-default-fg-color--light);">deprecated in 0.8.0</span> { data-toc-label="Metric collectors (deprecated)" }
 
 The YAML stanzas above aim to scaffold a workflow by nesting inputs and outputs. Omnibenchmark automatically organizes files in a hierarchical directory structure where each module's outputs are stored in dedicated directories for provenance tracking. These files can be further processed by other modules, creating linear lineages with implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
