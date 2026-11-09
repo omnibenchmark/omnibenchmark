@@ -729,6 +729,51 @@ class TestFanInManifest:
         with pytest.raises(ValueError, match="no node directory"):
             _gen(api_version=APIVersion.V0_8_0)._manifest_path(gather)
 
+    def test_group_input_is_a_flag_and_not_a_member(self, tmp_path):
+        """A node-grouped gather's own input (010 §3.5.2): one `--<id>` flag
+        and a Snakemake input, but never a manifest member."""
+        import ast
+
+        producers = [
+            _make_node(
+                node_id=f"p{i}",
+                stage_id="pca",
+                module_id=f"m{i}",
+                outputs={"emb": f"out/feat.f.default/pca.m{i}.default/emb.tsv"},
+            )
+            for i in range(2)
+        ]
+        gather = _make_node(
+            node_id="pcam-pm.default",
+            stage_id="pcam",
+            module_id="pm",
+            inputs={
+                "input_0": producers[0].outputs["emb"],
+                "input_1": producers[1].outputs["emb"],
+                "group_feat_out": "out/feat.f.default/f.h5",
+            },
+            input_name_mapping={
+                "input_0": "emb",
+                "input_1": "emb",
+                "group_feat_out": "feat_out",
+            },
+            outputs={"m": "out/pcam.pm.default/m.tsv"},
+            is_gather=True,
+        )
+        path = tmp_path / "Snakefile"
+        _gen(api_version=APIVersion.V0_8_0).generate_snakefile(
+            [*producers, gather], path
+        )
+        text = path.read_text()
+        rule = text[text.index("rule pcam_pm_default:") :]
+        assert 'group_feat_out="out/feat.f.default/f.h5"' in rule
+        assert "--feat_out $INPUT_group_feat_out" in rule
+        assert "--from-files" in rule and "--emb" not in rule
+        manifest = text[text.index("rule pcam_pm_default_manifest:") :]
+        literal = manifest.split("record=lambda wildcards: ", 1)[1].split(",\n", 1)[0]
+        record = json.loads(ast.literal_eval(literal))
+        assert [list(m["files"]) for m in record["members"]] == [["emb"], ["emb"]]
+
     def test_v07_keeps_member_argv(self, tmp_path):
         text, gather = _fanin_snakefile(tmp_path, 3, APIVersion.V0_7_0)
         assert "_manifest:" not in text

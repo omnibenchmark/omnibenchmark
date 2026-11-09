@@ -1797,6 +1797,26 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"reserved builtin label. Hint: rename the stage."
                     )
 
+        # A gather may declare `inputs:` only when it is the child of one group
+        # node (api >= 0.8.0, `group_by` set): the inputs resolve from that
+        # node's lineage (010 §3.5.2). A global gather, or a module-grouped one
+        # before 0.8.0, merges lineages and has nothing to resolve them from.
+        for stage in self.stages:
+            if not (stage.gather and stage.inputs):
+                continue
+            if self.api_version < APIVersion.V0_8_0:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares `inputs:` on a gather, which "
+                    f"requires api_version >= 0.8.0 (this benchmark declares "
+                    f"{self.api_version.value})."
+                )
+            if stage.gather[0].group_by is None:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares `inputs:` on a global gather. "
+                    f"Only a gather with `group_by` has one lineage to resolve "
+                    f"them from."
+                )
+
         # Call the pure model validation from the validator base class
         self.validate_model_structure()
         return self
