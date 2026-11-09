@@ -369,12 +369,18 @@ id (absolute paths) and its full ancestry, so modules never parse ob paths:
  "kind": "gather",
  "members": [
    {"node_id": "…", "stage": "clu", "module": "ma", "commit": "…",
-    "params": "1a2b3c4d", "dir": "…",
+    "params": "1a2b3c4d", "parameters": {"k": 5}, "dir": "…",
     "files": {"clustering": "/abs/…/ma_clusters.tsv"},
-    "lineage": [{"node_id": "…", "stage": "data", "module": "D1", "params": "…"},
+    "lineage": [{"node_id": "…", "stage": "data", "module": "D1", "params": "…",
+                 "parameters": {"dataset_name": "be1"}},
                 …,
-                {"node_id": "…", "stage": "clu", "module": "ma", "params": "…"}]}]}
+                {"node_id": "…", "stage": "clu", "module": "ma", "params": "…",
+                 "parameters": {"k": 5}}]}]}
 ```
+
+`params` is the hash in the node's directory name; `parameters` holds the values
+behind it (as in the node's `parameters.json`), so a module can label its rows
+by them.
 
 - A member that contributes several gathered ids appears once, with several
   `files`.
