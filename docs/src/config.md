@@ -44,7 +44,7 @@ Omnibenchmark uses the following standard configuration sections:
     ob config conda.cache ~/.cache/omnibenchmark/conda
     ```
 
-    The cache only grows; remove environment directories by hand to reclaim space. Do not pass `--conda-cleanup-envs` to Snakemake with a shared cache: it treats every environment the current workflow does not use as unused, and deletes the ones other benchmarks need.
+    The cache only grows; remove environment directories by hand to reclaim space. Do not pass `--conda-cleanup-envs` to Snakemake with a shared cache: it deletes environments from the shared directory (in Snakemake 9.6, the ones the current workflow uses), including ones other benchmarks still need.
 
   - `channel_alias`: Base URL of a conda channel mirror, set as `CONDA_CHANNEL_ALIAS`. Channels named in env files (`conda-forge`, `bioconda`) are then fetched from `<channel_alias>/<channel>`; channels given as full URLs bypass it.
   - `proxy`: An `http(s)://host:port` forward proxy, set as `HTTP_PROXY` / `HTTPS_PROXY` for the Snakemake process — for compute nodes without direct internet access. Module jobs inherit it too.
