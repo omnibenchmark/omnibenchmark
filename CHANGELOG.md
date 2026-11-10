@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
 - feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the omnibenchmark config; `--author-name`/`--author-email` are no longer required with `--non-interactive`
+- feat: `ob run` passes Snakemake a global memory budget (`--resources mem_mb=`, 90% of physical RAM) on local runs, so a stage's `resources.mem_mb` limits how many of its jobs start at once. Before, a declared `mem_mb` was ignored and `--cores N` started N jobs whatever they declared. Stages without `mem_mb` are unaffected; `-- --resources mem_mb=N` overrides the budget
 - feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style
 - feat: `ob describe status --watch SECONDS` redraws the text report on an interval and exits once every expected output exists; it only reads the output tree, so it works with any executor (#386)
 - fix: `ob describe status` looked for parameterless modules under `default/` while `ob run` writes `.default/`, so it reported 0% complete for them; node ids for such modules are now `<stage>-<module>-.default`

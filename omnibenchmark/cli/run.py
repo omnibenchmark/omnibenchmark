@@ -472,6 +472,47 @@ def _read_rule_log(out_dir: Path, rule_name: str) -> Optional[str]:
     return None
 
 
+def _physical_mem_mb() -> Optional[int]:
+    """Physical RAM in MB, or None where the platform cannot say."""
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // 10**6
+    except (ValueError, OSError, AttributeError):
+        return None
+
+
+# Flags that hand scheduling to something other than the local machine, or that
+# may already carry a budget of their own.
+_NO_MEM_BUDGET_FLAGS = ("--executor", "-e", "--profile", "--workflow-profile")
+
+
+def _with_mem_budget(snakemake_args: list) -> list:
+    """Add a global ``mem_mb`` budget of 90% of physical RAM to a local run.
+
+    Snakemake schedules on a rule's ``mem_mb`` only when a global limit for it
+    exists. Without one, a stage's ``resources.mem_mb`` is ignored and
+    ``--cores N`` starts N jobs however much memory each declares. The budget
+    limits how many jobs start; it does not cap what a running job uses.
+    Rules that declare no ``mem_mb`` are unaffected.
+
+    A ``mem_mb`` the user passes in ``--resources`` wins, and nothing is added
+    when an executor or a profile is in play.
+    """
+    args = list(snakemake_args)
+    if any(a.split("=")[0] in _NO_MEM_BUDGET_FLAGS for a in args):
+        return args
+    if any(a.startswith("mem_mb=") for a in args):
+        return args
+    total = _physical_mem_mb()
+    if total is None:
+        return args
+    budget = f"mem_mb={total * 9 // 10}"
+    if "--resources" in args:
+        # argparse keeps only the last --resources, so join the user's list.
+        args.insert(args.index("--resources") + 1, budget)
+        return args
+    return args + ["--resources", budget]
+
+
 def _run_snakemake(
     out_dir: Path,
     cores: int,
@@ -531,8 +572,7 @@ def _run_snakemake(
     if debug:
         cmd.extend(["--verbose", "--debug"])
 
-    if extra_snakemake_args:
-        cmd.extend(extra_snakemake_args)
+    cmd.extend(_with_mem_budget(extra_snakemake_args or []))
 
     # Patch the manifest with the exact snakemake invocation
     manifest_path = out_dir / ".metadata" / "manifest.json"
