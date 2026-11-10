@@ -17,7 +17,6 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
-| 0.4 | 2026-11-09 | §3.1.6: from api 0.8.0 every gather lives under `gathers/<stage>/` | ben |
 | 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `human/`; nested layout deprecated | ben |
 | 0.4 | 2026-11-04 | §4.6: run log and out-dir identity; `--dry` writes no `.metadata/` | ben |
 
@@ -118,21 +117,22 @@ v1 spends three directories per stage, so a four-stage lineage is twelve deep. v
 Each node contributes exactly one path segment. A child's segment nests under its deepest input's segment, as in v1.
 
 ```
-segment = <stage> "." <module> [ "." <group> ] "." <param> [ "-" <join> ]
-param   = "default" | <hash8>
+segment = <stage> "." <module> [ "." <hash8> ] [ "-" <join> ]
 ```
 
-- `<group>`: the group value of a module-grouped gather (010 §3.3). Gathers grouped by node (010 §3.2.1) and global gathers omit it.
+- `<hash8>`: the parameter hash. A node without parameters has no such field (no `default` placeholder).
 - `<join>`: the parent-set digest of a fan-in node (010 §5.2).
-- Parsing: split on `.`. Three fields means no group, four means a group. Split the last field on `-` to get the join digest.
-- This parse is unambiguous because stage and module ids, and therefore group values, match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
+- This parse is unambiguous because stage and module ids match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
+- Readers still accept a `default` param field, so trees written before it was dropped parse.
+- The name alone identifies a node directory. A module output directory named like `counts.zarr` reads as one too.
 
 ```
-out/data.D1.default/data.raw.tsv
-out/data.D1.default/methods.M1.a1b2c3d4/result.tsv
-out/data.D1.default/methods.M1.a1b2c3d4/metrics.acc.default/score.json
-out/gathers/summary/summary.collect.default/table.tsv  # global gather (§3.1.6)
-out/data.D1.default/merge.J.default-9f8e7d6c/out.tsv  # fan-in
+out/data.D1/data.raw.tsv
+out/data.D1/methods.M1.a1b2c3d4/result.tsv
+out/data.D1/methods.M1.a1b2c3d4/metrics.acc/score.json
+out/summary.collect/table.tsv                         # global gather (§3.1.6)
+out/data.D1/summary.collect/table.tsv                 # gather with group_by: data
+out/data.D1/merge.J-9f8e7d6c/out.tsv                  # fan-in
 ```
 
 Nothing in the result tree is hidden and nothing in it is a symlink. `parameters.json` and `performance.txt` stay in the node directory.
@@ -161,20 +161,23 @@ Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule'
 - api 0.10.0: the v1 writer is removed, and plans below 0.8.0 are rejected with a pointer to the migration.
 - Migration means raising `api_version`. Every output path changes, so the next run recomputes everything. Relocating an existing v1 tree is out of scope.
 
-#### 3.1.6 Gathers: `gathers/`
+#### 3.1.6 Gathers
 
-Every gather's directory lives under `out/gathers/<stage>/`, so gathers do not crowd the top of the result tree:
+A gather's directory follows from its grouping:
 
 ```
-out/gathers/<stage>/<segment>/                               # global gather
-out/gathers/<stage>/by-<S>/<S node dir>/<segment>/           # group_by: S
-out/gathers/PCA_M/by-FEAT/data.D1.default/feat.F1.1a2b3c4d/PCA_M.pm.default/m.tsv
+out/<S node dir>/<segment>/      # group_by: S, the gather is that node's child (010 §3.2.1)
+out/<segment>/                   # global gather
+out/<S node dir>/<path>/         # group_by: S, with `path`
+out/<path>/                      # global gather, with `path`
 ```
 
-- The repeated `<S node dir>` is the group node's own path, so the group reads as in the result tree. Those directories hold nothing but the gather; the group node's files stay where they are.
-- The gather is still the group node's child in the DAG (010 §3.2.1); only its directory moves. Its `lineage.json` stays in its own directory.
-- Stages below a gather nest inside the gather's directory, as below any node.
-- `human/` mirrors `gathers/` too, with readable names for the group node's chain. `ob collect` and remote storage recognise the prefix.
+`gather: {from: x, path: reports}` names the directory instead of the generated segment. `path` is a template like an output path.
+
+- It is the node directory: `lineage.json` and `parameters.json` are written there, and stages below nest inside it.
+- Plan-time errors: a directory another node already writes into, an absolute path, `.` or `..`, a first component reserved by omnibenchmark (`human`, dot-directories), a component that reads as a node segment.
+- A custom path has no member digest. A run that prunes members (`--filter`, capabilities) overwrites it.
+- Name-only readers do not see a custom path at the top of `out/`: `human/` does not mirror it, remote storage does not track it, and `ob collect` drops nodes below it.
 
 ## 4. Runtime Manifest (`manifest.json`)
 

@@ -116,5 +116,5 @@ def test_child_nests_under_deepest_producer_not_deepest_subdir():
     (j_node,) = _expand(j, benchmark, state)
 
     assert not state["errors"]
-    assert b_node.node_dir == f"{a_node.node_dir}/B.b_m.default"
+    assert b_node.node_dir == f"{a_node.node_dir}/B.b_m"
     assert j_node.node_dir.startswith(b_node.node_dir + "/"), j_node.node_dir

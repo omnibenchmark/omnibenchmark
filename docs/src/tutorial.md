@@ -418,17 +418,18 @@ Use `lineage` and `parameters` to label results; do not parse ob's directory nam
 
 #### Where gather results land
 
-Gathers are kept apart from the main tree, under `gathers/<stage>/`:
+A gather with `group_by` sits inside its group node's directory. A global gather sits at the top:
 
 ```
-out/gathers/PCA_M/by-FEAT/DATA.d1.44d965bf/.../FEAT.fe_seurat.6203d28c/PCA_M.pca_metrics_py.2d5793e0-6ec8ec62/
-out/gathers/REPORT/REPORT.pca_report.default-afccb160/
+out/DATA.d1.44d965bf/.../FEAT.fe_seurat.6203d28c/PCA_M.pca_metrics_py.2d5793e0-6ec8ec62/
+out/PCA_RESULTS.collect-afccb160/
+out/reports/                      # gather: {from: pca_results_tsv, path: reports}
 ```
 
-- A grouped gather's directory repeats the path of its group node (the FEAT node above), so every group has its own directory.
+- `path` names the gather's directory yourself. It must not be a directory another node writes into, and it has no member suffix: a filtered run overwrites it.
 - The suffix after the last `-` (`6ec8ec62`) identifies the set of members. A run that filters some members out (`--filter`, unavailable capabilities) writes to a different directory instead of overwriting the full result.
 - `lineage.json` in that directory is the `--from-files` file.
-- `out/human/gathers/` shows the same results with parameter values in the directory names.
+- `out/human/` shows the same results with parameter values in the directory names (not a top-level `path` directory).
 
 ## Validate a benchmark YAML
 

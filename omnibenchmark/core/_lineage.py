@@ -419,49 +419,50 @@ def node_dir(
     """The output directory one node adds under its parent's (007 §3.1).
 
     v1 (nested, api < 0.8.0): ``stage/[group/]module/.param[-join]``.
-    v2 (flat, api ≥ 0.8.0): ``stage.module[.group].param[-join]``, a single
-    segment. It splits back on ``.`` because 0.8.0 ids cannot contain ``.``
-    or ``-``.
+    v2 (flat, api ≥ 0.8.0): ``stage.module[.param][-join]``, a single
+    segment; a node without parameters has no param field. It splits back on
+    ``.`` and ``-`` because 0.8.0 ids contain neither. No group field: a 0.8.0
+    gather is grouped by node and nests under it.
     """
     seg = expansion_segment(param_id, members)
     if flat:
-        group_field = [str(group)] if group is not None else []
-        return ".".join([stage_id, module_id, *group_field, seg.lstrip(".")])
+        seg = seg.removeprefix(".default")  # "", "-<join>", ".<hash>[-<join>]"
+        return f"{stage_id}.{module_id}{seg}"
     group_dir = f"{group}/" if group is not None else ""
     return f"{stage_id}/{group_dir}{module_id}/{seg}"
 
 
-# From api 0.8.0 every gather's directory lives under this root (007 §3.1.6):
-# `gathers/<STAGE>/[by-<S>/<group node dir>/]<STAGE>.<module>.<param>[-<digest>]`.
-GATHERS_DIR = "gathers"
-
-
-def gather_dir_prefix(stage_id: str, group_label=None, group_node_dir=None) -> str:
-    """Where a flat gather's node segment goes, relative to out/."""
-    if group_label is None:
-        return f"{GATHERS_DIR}/{stage_id}"
-    return f"{GATHERS_DIR}/{stage_id}/by-{group_label}/{group_node_dir}"
-
-
 _ID = r"[A-Za-z_][A-Za-z0-9_]*"
+# `.default` is no longer written; still read, so trees from before the change parse.
 _SEGMENT_RE = re.compile(
-    rf"({_ID})\.({_ID})(?:\.({_ID}))?\.(default|[0-9a-f]{{8}})(?:-([0-9a-f]{{8}}))?"
+    rf"({_ID})\.({_ID})(?:\.(default|[0-9a-f]{{8}}))?(?:-([0-9a-f]{{8}}))?"
 )
 
 
 def parse_node_segment(part: str) -> Optional[tuple]:
     """``(stage, module, group, param, join)`` of a flat node segment, else None.
 
-    The grammar of 007 §3.1.1; ``group`` and ``join`` are None when absent.
-    Anything else (a template subdirectory such as ``v1.0.0``) is not a node.
+    The grammar of 007 §3.1.1: ``stage.module[.param][-join]``. ``param`` is
+    ``default`` for a node without parameters, ``join`` is None when absent;
+    ``group`` is always None (kept so callers unpack as before). Anything else
+    (a template subdirectory such as ``v1.0.0``) is not a node.
+
+    The name alone decides: a module output directory called ``counts.zarr``
+    reads as a node too. Callers that walk inside node directories live with it.
     """
     m = _SEGMENT_RE.fullmatch(part)
-    return m.groups() if m else None
+    if not m:
+        return None
+    stage, module, param, join = m.groups()
+    return stage, module, None, param or "default", join
 
 
 def node_depth(path: str) -> int:
-    """How many flat node segments *path* passes through (0 on the v1 layout)."""
-    return sum(1 for part in path.split("/") if parse_node_segment(part))
+    """How many flat node segments the file *path* sits under (0 on the v1 layout).
+
+    The file name is left out: ``D1.h5ad`` reads as a segment, ``labels`` does not.
+    """
+    return sum(1 for part in path.split("/")[:-1] if parse_node_segment(part))
 
 
 def resolve_label_value(label: str, module_provides, module_id: str) -> str:

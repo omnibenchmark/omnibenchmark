@@ -128,7 +128,7 @@ def normalize_dataset_path(path: str, prefix: Path, flat: bool = False) -> str:
         'out/stage1/dataset123/results'
     """
     if flat:  # 007 §3.1: ids are identifiers, so the first two dots are separators
-        pattern = rf"{prefix.as_posix()}/[^/.]+\.([^/.]+)\.[^/]+/.+$"
+        pattern = rf"{prefix.as_posix()}/[^/.]+\.([^/.-]+)[^/]*/.+$"
     else:
         pattern = rf"{prefix.as_posix()}/.+?/([^/]+)/.+?$"
     matched = re.match(pattern, path)
@@ -143,7 +143,7 @@ def normalize_dataset_path(path: str, prefix: Path, flat: bool = False) -> str:
 _TEMPLATE_VAR_RE = re.compile(r"\{([^}]+)\}")
 
 
-def substitute_node_vars(template: str, node, prefix: Path) -> str:
+def substitute_node_vars(template: str, node, prefix: Path, flat: bool = False) -> str:
     """Fill the node-level variables of an output template for *node*.
 
     Covers ``{input}``, ``{stage}``, ``{module}``, ``{params}``, ``{name}`` and
@@ -156,7 +156,8 @@ def substitute_node_vars(template: str, node, prefix: Path) -> str:
         "input": str(prefix),
         "stage": node.stage_id,
         "module": node.module_id,
-        "params": node.param_id,
+        # flat layout: a node without parameters has no param field (007 §3.1)
+        "params": "" if flat and node.param_id == ".default" else node.param_id,
         "name": node.module_id,
         "module.id": node.module_id,
         "module.stage": node.stage_id,
@@ -206,15 +207,17 @@ def construct_output_paths(
     else:
         stage_outputs = model.get_stage_outputs(head.stage_id).values()
 
-    if model.api_version >= APIVersion.V0_8_0:  # flat layout, 007 §3.1
-        current_path = f"{head.stage_id}.{head.module_id}{head.param_id}"
+    flat = model.api_version >= APIVersion.V0_8_0  # 007 §3.1
+    if flat:
+        param = "" if head.param_id == ".default" else head.param_id
+        current_path = f"{head.stage_id}.{head.module_id}{param}"
     else:
         current_path = f"{head.stage_id}/{head.module_id}"
         if any(["{params}" in o for o in stage_outputs]):
             current_path += f"/{head.param_id}"
 
     new_prefix = f"{prefix}/{current_path}"
-    paths = [substitute_node_vars(x, head, prefix) for x in stage_outputs]
+    paths = [substitute_node_vars(x, head, prefix, flat) for x in stage_outputs]
 
     return paths + construct_output_paths(
         Path(new_prefix), tail, model, stage_outputs_cache

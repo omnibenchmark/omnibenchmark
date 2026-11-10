@@ -16,13 +16,14 @@ from itertools import product
 from typing import Optional
 
 from omnibenchmark import filter as obfilter
+from omnibenchmark.constants import INTERNAL_OUT_DIRS
 from omnibenchmark.core._lineage import (
     ancestor_module_at_stage,
     ancestor_node_at_stage,
     build_template_context,
-    gather_dir_prefix,
     inherited_provides,
     node_depth,
+    parse_node_segment,
     node_dir,
     iter_ancestors,
     join_hash,
@@ -277,10 +278,9 @@ def expand_gather_stage(
                     module_provides=module.provides,
                     extra_provides={group_label: group_node.module_id},
                 )
-                # Logically the group node's child; on disk under gathers/
-                # so gathers do not crowd the result tree (007 §3.1.6).
-                d = gather_dir_prefix(stage.id, group_label, group_node.node_dir)
-                d += "/" + node_dir(stage.id, module_id, param_id, flat=flat)
+                d = f"{group_node.node_dir}/" + node_dir(
+                    stage.id, module_id, param_id, flat=flat
+                )
             else:
                 ctx = build_template_context(
                     stage=stage,
@@ -296,8 +296,26 @@ def expand_gather_stage(
                 # The cut chain roots at the stage id: unique by construction,
                 # so two gathers cannot share a tree.
                 d = node_dir(stage.id, module_id, param_id, group=gval, flat=flat)
-                if flat:
-                    d = f"{gather_dir_prefix(stage.id)}/{d}"
+            custom = getattr(stage.gather[0], "path", None)
+            if custom:
+                if not flat:
+                    raise ValueError(
+                        f"Stage '{stage.id}': gather `path` requires "
+                        f"api_version >= 0.8.0."
+                    )
+                d = _gather_custom_dir(
+                    stage.id,
+                    ctx.substitute(custom, params=params),
+                    group_node.node_dir if group_node is not None else None,
+                    {
+                        d_
+                        for n in [*nodes_by_id.values(), *nodes]
+                        for d_ in (
+                            n.node_dir,
+                            *(p.rpartition("/")[0] for p in n.outputs.values()),
+                        )
+                    },
+                )
             outputs = {}
             for output_spec in stage.outputs:
                 # Only the group label is bound: a template referencing any
@@ -343,6 +361,40 @@ def expand_gather_stage(
             )
 
     return nodes
+
+
+def _gather_custom_dir(stage_id, path, parent_dir, taken) -> str:
+    """A gather's author-named directory (007 §3.1.6), checked at plan time.
+
+    It replaces the generated segment, so nothing in it tells two nodes apart:
+    a node sharing the directory (another gather, or a template subdirectory
+    of the group node) would have its parameters.json, lineage.json or outputs
+    overwritten. *taken*: every directory an earlier node writes into.
+    """
+    parts = path.strip("/").split("/")
+    if path.startswith("/") or not all(parts) or ".." in parts or "." in parts:
+        raise ValueError(
+            f"Stage '{stage_id}': gather path '{path}' must be a relative "
+            f"path without '.' or '..' components."
+        )
+    if parts[0].startswith(".") or parts[0] in INTERNAL_OUT_DIRS:
+        raise ValueError(
+            f"Stage '{stage_id}': gather path '{path}' starts with a name "
+            f"reserved by omnibenchmark."
+        )
+    if any(parse_node_segment(part) for part in parts):
+        raise ValueError(
+            f"Stage '{stage_id}': gather path '{path}' has a component that "
+            f"reads as a node directory (STAGE.module...). Pick another name."
+        )
+    d = "/".join(([parent_dir] if parent_dir else []) + parts)
+    if d in taken:
+        raise ValueError(
+            f"Stage '{stage_id}': gather path resolves to '{d}', which "
+            f"another node already writes into. Two gather nodes of one "
+            f"stage are told apart with {{module.id}} or a {{params.<name>}}."
+        )
+    return d
 
 
 def _get_output_ids_for_node(node, benchmark) -> dict:

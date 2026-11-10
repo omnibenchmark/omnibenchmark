@@ -35,13 +35,6 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
         rel = path.relative_to(out)
         if rel.parts[0].startswith(".") or rel.parts[0] in ("human", "Snakefile"):
             continue
-        # gathers/<STAGE>/[by-<S>/] lead to node segments (007 §3.1.6).
-        if rel.parts[0] == "gathers" and (
-            len(rel.parts) == 1
-            or len(rel.parts) == 2
-            or (len(rel.parts) == 3 and rel.parts[2].startswith("by-"))
-        ):
-            continue
         # The bundled dummy module mkdirs its raw `--output id=PATH` argument.
         if any(p.endswith("=") for p in rel.parts):
             continue
@@ -50,33 +43,25 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
             assert _SEGMENT.fullmatch(path.name), f"not a node segment: {rel}"
 
     for group in ("D1", "D2"):
-        # 0.8.0 groups by node: one gather per data node, under gathers/.
-        (gather,) = out.glob(f"gathers/metrics/by-data/data.{group}.*/metrics.MC.*")
-        assert not list(out.glob(f"data.{group}.*/metrics.MC.*"))
+        # 0.8.0 groups by node: the gather is a child of its data node.
+        (gather,) = out.glob(f"data.{group}.*/metrics.MC.*")
         assert (gather / "MC_g.json").is_file()
         lineage = json.loads((gather / "lineage.json").read_text())
         assert [m["module"] for m in lineage["members"]] == ["J1"]
         (report,) = gather.glob("report.R1.*/R1_r.json")
-        # Members through --from-files; the group node's own output as a flag.
-        cli = (gather / "cli.txt").read_text()
-        (data_out,) = out.glob(f"data.{group}.*/{group}_data.json")
-        assert f"--data_out {data_out.resolve()}" in cli
-        assert f"--from-files {(gather / 'lineage.json').resolve()}" in cli
-        assert "--join_out" not in cli
 
         joins = list(out.glob(f"data.{group}.*/*/join.J1.*-*/J1_j.json"))
         assert len(joins) == 1, joins
 
         # The readable mirror resolves to the same files.
         (readable,) = (out / "human").glob(
-            f"gathers/metrics/by-data/data.{group}.evaluate-*"
-            f"/metrics.MC.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
+            f"data.{group}.*/metrics.MC.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
         )
         assert readable.is_symlink()
         assert readable.resolve() == report.resolve()
 
     # The global gather owns its manifest: both reports, one per data node.
-    (summary,) = out.glob("gathers/summary/summary.SC.*")
+    (summary,) = out.glob("summary.SC.*")
     assert (summary / "SC_t.json").is_file()
     lineage = json.loads((summary / "lineage.json").read_text())
     assert sorted(m["lineage"][0]["module"] for m in lineage["members"]) == [

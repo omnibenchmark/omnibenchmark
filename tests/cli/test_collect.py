@@ -165,7 +165,8 @@ def test_build_record_flat_layout(tmp_path):
 
 @pytest.mark.short
 def test_build_record_flat_below_a_grouped_gather(tmp_path):
-    leaf = tmp_path / "metrics.MC.D1.default" / "report.R1.13058ed0"
+    # a 0.8.0 grouped gather nests under its group node, without a param field
+    leaf = tmp_path / "data.D1" / "metrics.MC" / "report.R1.13058ed0"
     leaf.mkdir(parents=True)
     (leaf / "parameters.json").write_text(json.dumps({"top": 5}))
     record = _build_record(tmp_path, _write_perf(leaf))
@@ -173,7 +174,7 @@ def test_build_record_flat_below_a_grouped_gather(tmp_path):
     assert (record["stage"], record["module"]) == ("report", "R1")
     assert record["param_hash"] == "13058ed0"
     assert record["dataset"] == "D1"
-    assert record["lineage"] == "metrics/MC/report/R1"
+    assert record["lineage"] == "data/D1/metrics/MC/report/R1"
     assert json.loads(record["params"]) == {"report": {"top": 5}}
 
 
