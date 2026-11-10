@@ -142,14 +142,14 @@ def test_build_record_below_a_grouped_gather(tmp_path):
 @pytest.mark.short
 def test_build_record_flat_layout(tmp_path):
     """007 §3.1: one `stage.module.param` part per node, the same row as nested;
-    `human/` is not walked."""
+    `by-params/` is not walked."""
     download = tmp_path / "download.norman.68ee97fd"
     download.mkdir(parents=True)
     (download / "parameters.json").write_text(json.dumps({"uri": "http://x"}))
     leaf = download / "methods.additive.default"
     perf = _write_perf(leaf)
     _write_perf(
-        tmp_path / "human" / "download.norman.uri-x" / "methods.additive.default"
+        tmp_path / "by-params" / "download.norman.uri-x" / "methods.additive.default"
     )
 
     record = _build_record(tmp_path, perf)

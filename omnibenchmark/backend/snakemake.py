@@ -593,7 +593,7 @@ class SnakemakeGenerator:
         # Write parameters.json (and, before 0.8.0, a readable sibling link).
         if node.parameters:
             lines.append(self._parameters_json_line(node.parameters))
-            # From 0.8.0 readable names live in the `human/` view (007 §3.1.2).
+            # From 0.8.0 readable names live in the `by-params/` view (007 §3.1.2).
             if self.api_version < APIVersion.V0_8_0:
                 # Link to the real directory name rather than re-deriving it:
                 # a fan-in node's segment carries the parent-set digest as well
@@ -719,7 +719,7 @@ class SnakemakeGenerator:
         # (pre-0.8.0: echoed here; 0.8.0: the manifest rule writes it).
         if not manifest:
             lines += self._lineage_sidecar_lines(node)
-        # `human/` and `ob collect` read parameter names from here. Nested
+        # `by-params/` and `ob collect` read parameter names from here. Nested
         # (pre-0.8.0) rules keep their text so existing trees do not rerun.
         if node.parameters and self.api_version >= APIVersion.V0_8_0:
             lines.append(self._parameters_json_line(node.parameters))

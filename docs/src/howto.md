@@ -623,7 +623,7 @@ This walks the output directory, parses every `performance.txt`, and writes a co
 - `lineage` — the full `stage/module` chain that produced the result
 - `path` — the original performance file, relative to the output directory
 
-Collection is a plain filesystem walk: it does not run Snakemake and can be invoked against any existing output directory, including ones produced by earlier runs. It reads both layouts and skips `out/human/`.
+Collection is a plain filesystem walk: it does not run Snakemake and can be invoked against any existing output directory, including ones produced by earlier runs. It reads both layouts and skips `out/by-params/`.
 
 ### Build a dashboard from the metrics
 
@@ -838,11 +838,11 @@ out/data/D1/.default/methods/M1/k-5 -> .a1b2c3d4
 # api 0.8.0
 out/data.D1.default/D1_data.json
 out/data.D1.default/methods.M1.a1b2c3d4/M1.txt
-out/human/data.D1.default/methods.M1.k-5/M1.txt -> ../../../data.D1.default/methods.M1.a1b2c3d4/M1.txt
+out/by-params/data.D1.default/methods.M1.k-5/M1.txt -> ../../../data.D1.default/methods.M1.a1b2c3d4/M1.txt
 ```
 
 The readable `k-5` symlinks next to each parameter directory are gone. `ob run`
-rebuilds `out/human/` after every run instead: the same tree with readable
+rebuilds `out/by-params/` after every run instead: the same tree with readable
 parameter names, made of links into the real one. It is derived: deleting it
 loses nothing, and `ob archive`, `ob collect` and remote storage skip it. Do
 not read results through it in scripts; use the real paths, or the

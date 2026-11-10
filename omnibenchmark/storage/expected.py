@@ -21,7 +21,7 @@ def get_expected_benchmark_output_files(
             # pathlib, not glob: `glob` skips names starting with a dot, and
             # every node's parameter directory is dotted (`.default`, `.<hash>`).
             for found_file in Path().glob(glob_expression):
-                # `human/` links to the results; version them once (007 §3.1.2).
+                # `by-params/` links to the results; version them once (007 §3.1.2).
                 if any(found_file.is_relative_to(h) for h in human_dirs):
                     continue
                 object_names_to_keep.add(str(found_file))

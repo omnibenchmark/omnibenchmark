@@ -1,7 +1,7 @@
 """Unit test for the validation read side (the status report reads it).
 
 A verdict is keyed by the resolved file, so a path through a symlink (the
-`out/human/` view, or the pre-0.8 nested layout) and the real path find the
+`out/by-params/` view, or the pre-0.8 nested layout) and the real path find the
 same verdict.
 """
 

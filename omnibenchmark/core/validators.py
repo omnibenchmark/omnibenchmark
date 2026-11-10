@@ -90,7 +90,7 @@ def load_verdicts(out_dir: Path) -> dict:
     """Map resolved output path -> ``(status, abs_log_path)`` from the verdicts.
 
     Keyed by the *resolved* path so a file reached through a symlink (e.g. the
-    ``out/human/`` view) finds the same verdict. An output with several
+    ``out/by-params/`` view) finds the same verdict. An output with several
     validators shows the worst verdict. A missing output has no verdict; an
     output newer than its verdict, or a script edited since, reads ``stale``.
     """

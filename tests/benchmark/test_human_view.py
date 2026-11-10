@@ -1,4 +1,4 @@
-"""The `human/` readable view of a flat output tree (007 §3.1.2)."""
+"""The `by-params/` readable view of a flat output tree (007 §3.1.2)."""
 
 import json
 
@@ -29,11 +29,11 @@ def test_view_mirrors_the_tree_with_readable_segments(tmp_path):
         ["m.txt"],
     )
     (tmp_path / "Snakefile").write_text("")  # not a node: not mirrored
-    (tmp_path / "human" / "stale").mkdir(parents=True)
+    (tmp_path / "by-params" / "stale").mkdir(parents=True)
 
     build_human_view(tmp_path)
 
-    h = tmp_path / "human"
+    h = tmp_path / "by-params"
     assert sorted(p.name for p in h.iterdir()) == ["data.D1.default"]
     # The child node's hashed directory is not linked; its readable copy is.
     assert sorted(p.name for p in (h / data).iterdir()) == ["d.txt", "method.M1.k-5"]
@@ -55,7 +55,7 @@ def test_join_digest_survives_and_colliding_names_fall_back(tmp_path):
 
     build_human_view(tmp_path)
 
-    names = sorted(p.name for p in (tmp_path / "human" / data).iterdir())
+    names = sorted(p.name for p in (tmp_path / "by-params" / data).iterdir())
     assert "join.J.default-aaaaaaaa" in names and "join.J.default-bbbbbbbb" in names
     assert "method.M1.x-a_b" in names
     assert len([n for n in names if n.startswith("method.M1")]) == 2
@@ -69,7 +69,7 @@ def test_template_subdir_holding_a_node_is_mirrored(tmp_path):
 
     build_human_view(tmp_path)
 
-    h = tmp_path / "human" / data
+    h = tmp_path / "by-params" / data
     assert (h / "plots").is_symlink()
     assert (h / "v1.0.0" / "method.M1.k-1" / "m.txt").is_symlink()
 
