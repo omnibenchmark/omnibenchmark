@@ -7,7 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 - feat: `ob describe plan [--json]` prints a plan's identity: `id`, `version`, `api_version`, `summary_hash` and provenance (`canonical_url`, `derived_from`, `subset_of`), from the plan file alone, so external tools can match runs to a plan
 - feat: `ob run` records each run in `out/.metadata/runs.jsonl`: benchmark `id`, `version`, `summary_hash` and the selection (`-m`, `--until`, `--filter`), with the plan copy, filter blob and node list it used. `run_id` is 32 hex characters and, with telemetry on, the trace's `traceId` and `trace` records where the spans went. `ob run` refuses an out dir recorded with another benchmark `id` or `version`; `ob validate outputs` and `ob describe status` also refuse a plan edited since the last run, and warn on a partial out dir. `--dry` no longer writes `.metadata/` (007 §4.6)
-- **breaking (api 0.8.0)**: a node without parameters has no `.default` field in its directory (`data.D1/`, not `data.D1.default/`); existing 0.8.0 trees recompute
+- **breaking (api 0.8.0)**: a node without parameters has no `.default` field in its directory or its node id (`data.D1/`, not `data.D1.default/`); existing 0.8.0 trees recompute
+- **breaking (api 0.8.0)**: a fan-in manifest member no longer repeats its own `stage`, `module`, `params` and `parameters`; they are its last `lineage` entry. `params` is null for a node without parameters
 - **feat (api 0.8.0)**: `gather: {from: x, path: reports}` names the gather's directory. A gather with `group_by` nests in its group node's directory, a global one sits at the top of `out/` (design 007 §3.1.6)
 - **feat (api 0.8.0)**: the fan-in manifest carries each member's and each lineage entry's `parameters` (values by name) next to the `params` hash.
 - **feat**: `gather: {group_by: S, from: [a, b]}` names the grouping axis once; the list form stays valid.

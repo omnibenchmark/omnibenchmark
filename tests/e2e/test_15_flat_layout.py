@@ -47,7 +47,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
         (gather,) = out.glob(f"data.{group}.*/metrics.MC.*")
         assert (gather / "MC_g.json").is_file()
         lineage = json.loads((gather / "lineage.json").read_text())
-        assert [m["module"] for m in lineage["members"]] == ["J1"]
+        assert [m["lineage"][-1]["module"] for m in lineage["members"]] == ["J1"]
         (report,) = gather.glob("report.R1.*/R1_r.json")
 
         joins = list(out.glob(f"data.{group}.*/*/join.J1.*-*/J1_j.json"))

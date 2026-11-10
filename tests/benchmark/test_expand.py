@@ -292,7 +292,7 @@ def test_group_by_partitions_by_node_from_0_8():
     }
     n = g["d2.default-norm-nb.default"]
     # Two members, so the member-set digest applies (#406).
-    assert n.id == "d2.default-norm-nb.default-metrics-summ.default-d4f66a17"
+    assert n.id == "d2.default-norm-nb.default-metrics-summ-d4f66a17"
     assert n.parents == []
     assert n.gathered_from == [
         "d2.default-norm-nb.default-clu-ma.default",

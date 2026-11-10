@@ -448,7 +448,8 @@ class SnakemakeGenerator:
                 "node_id": n.id,
                 "stage": n.stage_id,
                 "module": n.module_id,
-                "params": n.get_parameter_hash(),
+                # null for a node without parameters, as its id and directory
+                "params": n.get_parameter_hash() if n.parameters else None,
                 "parameters": _parameter_values(n),
             }
             for n in (*chain, member)
@@ -456,6 +457,10 @@ class SnakemakeGenerator:
 
     def _manifest_record(self, node: ResolvedNode) -> dict:
         """lineage.json v2: every member with its gathered files and lineage.
+
+        A member carries `node_id`, `commit`, `dir`, `files` and `lineage`;
+        its own stage, module and parameters are the last lineage entry.
+        `params` is null without parameters.
 
         Members are the producers of the gathered files, in plan order; one
         member may contribute several output ids. Paths are relative here and
@@ -472,6 +477,11 @@ class SnakemakeGenerator:
             if entry is None:
                 member = self._nodes_by_id.get(producer_id)
                 entry = self._member_record(producer_id)
+                if member:
+                    # Its stage, module and parameters are the last lineage
+                    # entry; say them once.
+                    for key in ("stage", "module", "params", "parameters"):
+                        entry.pop(key, None)
                 entry["files"] = {}
                 entry["lineage"] = self._member_lineage(member) if member else []
                 members[producer_id] = entry

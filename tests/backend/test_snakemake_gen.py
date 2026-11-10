@@ -703,8 +703,15 @@ class TestFanInManifest:
             "score": "out/method.m7.default/score.csv"
         }
         assert record["members"][7]["lineage"][-1]["module"] == "m7"
+        # a member's own stage, module and parameters: once, as its last lineage entry
+        assert set(record["members"][7]) == {
+            "node_id",
+            "commit",
+            "dir",
+            "files",
+            "lineage",
+        }
         # values next to the hash, so a module can label members by them
-        assert record["members"][7]["parameters"] == {"k": 7, "solver": "arpack"}
         assert record["members"][7]["lineage"][-1]["parameters"] == {
             "k": 7,
             "solver": "arpack",
