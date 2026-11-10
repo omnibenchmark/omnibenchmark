@@ -826,16 +826,6 @@ rule clustering_fastcluster_abc12345:
 Fields absent from the `resources:` block are not emitted (Snakemake uses its own defaults for unspecified resources).
 
 
-### 7.6 Memory Budget
-
-Snakemake schedules on a rule's `mem_mb` only when a global limit for `mem_mb` exists. `ob run` therefore passes `--resources mem_mb=<90% of physical RAM>` on a local run, so that a stage declaring `mem_mb` is not started more times than the machine has memory for.
-
-- The budget limits how many jobs start. It does not cap what a running job uses.
-- Rules that declare no `mem_mb` are unaffected.
-- A rule declaring more than the budget still runs, alone.
-- To set another budget: `ob run plan.yaml -- --resources mem_mb=64000`.
-- No budget is added when `--executor`, `--profile` or `--workflow-profile` is passed to Snakemake, or when physical RAM cannot be read.
-
 ### 7.6 Controlling parallelism at runtime
 
 Pass `--resources` to the generated Snakemake invocation to cap total consumption:
@@ -846,6 +836,16 @@ snakemake --cores 100 --resources mem_mb=131072
 ```
 
 Snakemake's greedy scheduler will run as many rules in parallel as fit within the declared resource pool.
+
+#### Default memory budget
+
+Snakemake schedules on a rule's `mem_mb` only when a global limit for `mem_mb` exists. `ob run` therefore passes `--resources mem_mb=<90% of physical RAM>` on a local run, so that a stage declaring `mem_mb` is not started more times than the machine has memory for.
+
+- The budget limits how many jobs start. It does not cap what a running job uses.
+- Rules that declare no `mem_mb` are unaffected.
+- A rule declaring more than the budget still runs, alone.
+- To set another budget: `ob run plan.yaml -- --resources mem_mb=64000`.
+- No budget is added when `--executor`, `--profile` or `--workflow-profile` is passed to Snakemake, or when physical RAM cannot be read.
 
 ### 7.7 Complete example
 
