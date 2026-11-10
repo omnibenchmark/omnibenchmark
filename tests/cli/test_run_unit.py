@@ -14,6 +14,7 @@ from omnibenchmark.cli.run import (
     _read_rule_log,
     _run_benchmark,
     _run_snakemake,
+    _with_mem_budget,
     run,
 )
 from omnibenchmark.core.prefetch import populate_git_cache
@@ -953,3 +954,79 @@ def test_run_filter_rejects_bad_yaml_file(tmp_path):
         )
         assert result.exit_code != 0
         mock_rb.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _with_mem_budget — default global mem_mb for local runs
+# ---------------------------------------------------------------------------
+
+
+def test_mem_budget_added_by_default():
+    with patch("omnibenchmark.cli.run._physical_mem_mb", return_value=100_000):
+        assert _with_mem_budget([]) == ["--resources", "mem_mb=90000"]
+        assert _with_mem_budget(["--forceall"]) == [
+            "--forceall",
+            "--resources",
+            "mem_mb=90000",
+        ]
+
+
+def test_mem_budget_user_value_wins():
+    args = ["--resources", "mem_mb=4000"]
+    with patch("omnibenchmark.cli.run._physical_mem_mb", return_value=100_000):
+        assert _with_mem_budget(args) == args
+
+
+def test_mem_budget_joins_existing_resources():
+    """A second --resources would replace the user's, so the budget joins it."""
+    with patch("omnibenchmark.cli.run._physical_mem_mb", return_value=100_000):
+        assert _with_mem_budget(["--resources", "gpu=1", "--forceall"]) == [
+            "--resources",
+            "mem_mb=90000",
+            "gpu=1",
+            "--forceall",
+        ]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--executor", "slurm"],
+        ["--executor=slurm"],
+        ["--profile", "hosts/omni"],
+        ["--workflow-profile", "p"],
+    ],
+)
+def test_mem_budget_skipped_for_executor_or_profile(args):
+    with patch("omnibenchmark.cli.run._physical_mem_mb", return_value=100_000):
+        assert _with_mem_budget(args) == args
+
+
+def test_mem_budget_skipped_when_ram_unknown():
+    with patch("omnibenchmark.cli.run._physical_mem_mb", return_value=None):
+        assert _with_mem_budget(["--forceall"]) == ["--forceall"]
+
+
+def test_run_snakemake_passes_mem_budget(tmp_path):
+    (tmp_path / "Snakefile").write_text("rule all:\n    input: []\n")
+    seen = {}
+    real_popen = subprocess.Popen
+
+    def fake_popen(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return real_popen([sys.executable, "-c", "pass"], **kwargs)
+
+    with (
+        patch("subprocess.Popen", side_effect=fake_popen),
+        patch("omnibenchmark.cli.run._physical_mem_mb", return_value=100_000),
+        pytest.raises(SystemExit),
+    ):
+        _run_snakemake(
+            out_dir=tmp_path,
+            cores=4,
+            continue_on_error=False,
+            software_backend=SoftwareBackendEnum.host,
+            debug=False,
+        )
+    i = seen["cmd"].index("--resources")
+    assert seen["cmd"][i + 1] == "mem_mb=90000"
