@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -63,7 +64,7 @@ def test_create_benchmark_non_tty_fallback(tmp_path):
     # Exec CLI directly, providing stdin from /dev/null to simulate a non-TTY execution
     result = subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
             "omnibenchmark.cli.main",
             "create",
