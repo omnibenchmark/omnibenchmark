@@ -255,6 +255,9 @@ An out dir holds one benchmark `id` at one `version`:
 - `ob run`, `--dry` included, refuses before writing anything when the plan's
   `id` or `version` differs from the last recorded run. No override: a new
   version gets a new `--out-dir`.
+- With `--use-remote-storage` only the `id` is compared: the bucket keeps the
+  earlier version's objects (`ob remote version create`), so a new version
+  reruns into the same out dir.
 - Within one version, `ob run` accepts an edited plan. Snakemake reruns the nodes
   whose params, module commit or environment changed.
 - `ob validate outputs` and `ob describe status` exit 1 on another `id` or

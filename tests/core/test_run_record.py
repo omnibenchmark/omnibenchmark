@@ -130,20 +130,21 @@ def _ob_run(out: Path, dry: bool, **kwargs):
         patch("omnibenchmark.cli.run.populate_git_cache"),
         patch("omnibenchmark.cli.run._generate_explicit_snakefile", return_value=[]),
         patch("omnibenchmark.cli.run._run_snakemake") as snakemake,
-        pytest.raises(SystemExit) as exc,
     ):
-        _run_benchmark(
-            benchmark_path=str(PLAN),
-            cores=1,
-            dry=dry,
-            continue_on_error=False,
-            out_dir=str(out),
-            debug=False,
-            dirty=False,
-            **kwargs,
-        )
-        raise SystemExit(0)  # a real run returns after snakemake
-    return exc.value.code, snakemake
+        try:
+            _run_benchmark(
+                benchmark_path=str(PLAN),
+                cores=1,
+                dry=dry,
+                continue_on_error=False,
+                out_dir=str(out),
+                debug=False,
+                dirty=False,
+                **kwargs,
+            )
+        except SystemExit as exc:
+            return exc.code, snakemake
+    return 0, snakemake  # a real run returns after snakemake
 
 
 @pytest.mark.short
@@ -166,6 +167,15 @@ def test_ob_run_records_and_refuses_another_version(tmp_path, model):
     code, snakemake = _ob_run(tmp_path, dry=True)
     assert code == 1 and not snakemake.called
     assert len(rr.read_runs(tmp_path)) == 2
+
+
+@pytest.mark.short
+def test_remote_storage_allows_a_new_version(tmp_path, model):
+    _record(tmp_path, model, version="0.9")
+    assert rr.identity_mismatch(model, tmp_path)
+    assert rr.identity_mismatch(model, tmp_path, versioned=True) is None
+    _record(tmp_path, model, id="other")
+    assert "id 'other'" in rr.identity_mismatch(model, tmp_path, versioned=True)
 
 
 @pytest.mark.short

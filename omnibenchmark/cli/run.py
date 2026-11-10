@@ -362,7 +362,7 @@ def _run_benchmark(
         return
 
     # Before anything is written: one benchmark id and version per out dir.
-    mismatch = identity_mismatch(b.model, out_dir_path)
+    mismatch = identity_mismatch(b.model, out_dir_path, versioned=use_remote_storage)
     if mismatch:
         log_error_and_quit(logger, mismatch)
         return

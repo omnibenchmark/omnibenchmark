@@ -139,15 +139,19 @@ def recorded_benchmark(out_dir: Path) -> Optional[dict]:
     }
 
 
-def identity_mismatch(model, out_dir: Path) -> Optional[str]:
-    """Why *model* must not run into *out_dir*: another benchmark id or version."""
+def identity_mismatch(model, out_dir: Path, versioned: bool = False) -> Optional[str]:
+    """Why *model* must not run into *out_dir*: another benchmark id or version.
+
+    *versioned*: the storage keeps earlier versions (remote storage), so a new
+    version may run into the same out dir; only the id is compared.
+    """
     rec = recorded_benchmark(out_dir)
     if rec is None:
         return None
     mine = benchmark_record(model)
     diffs = [
         f"{k} {rec[k]!r} (plan: {mine[k]!r})"
-        for k in ("id", "version")
+        for k in (("id",) if versioned else ("id", "version"))
         if rec.get(k) != mine[k]
     ]
     if not diffs:
