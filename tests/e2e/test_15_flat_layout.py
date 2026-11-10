@@ -2,7 +2,7 @@
 
 One 0.8.0 plan with every segment kind: chain, join (parent-set digest),
 grouped gather, and a scatter after the gather. Checks the tree the run
-leaves behind, the `human/` view, `ob collect` over it, and that a second run
+leaves behind, the `by-params/` view, `ob collect` over it, and that a second run
 executes nothing.
 """
 
@@ -33,7 +33,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
     # Every result directory is one node segment; nothing hidden, no links.
     for path in out.rglob("*"):
         rel = path.relative_to(out)
-        if rel.parts[0].startswith(".") or rel.parts[0] in ("human", "Snakefile"):
+        if rel.parts[0].startswith(".") or rel.parts[0] in ("by-params", "Snakefile"):
             continue
         # The bundled dummy module mkdirs its raw `--output id=PATH` argument.
         if any(p.endswith("=") for p in rel.parts):
@@ -54,7 +54,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
         assert len(joins) == 1, joins
 
         # The readable mirror resolves to the same files.
-        (readable,) = (out / "human").glob(
+        (readable,) = (out / "by-params").glob(
             f"data.{group}.*/metrics.MC.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
         )
         assert readable.is_symlink()
@@ -70,7 +70,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
     ]
     assert not (out / "lineage.json").exists()
 
-    # `ob collect` reads the flat tree and does not count `human/` twice.
+    # `ob collect` reads the flat tree and does not count `by-params/` twice.
     from omnibenchmark.cli.collect import collect
 
     result = CliRunner().invoke(collect, ["performance", "-o", str(out)])
@@ -83,7 +83,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
     reports = [r for r in rows if r["stage"] == "report"]
     assert sorted(r["dataset"] for r in reports) == ["D1", "D2"]
 
-    # Rebuilding `human/` happens outside Snakemake, so a rerun is a no-op.
+    # Rebuilding `by-params/` happens outside Snakemake, so a rerun is a no-op.
     rerun = runner.execute_cli_command(config_file, debug_label="rerun")
     assert "Nothing to be done" in rerun.stdout + rerun.stderr or (
         "Completed 0 jobs" in rerun.stdout

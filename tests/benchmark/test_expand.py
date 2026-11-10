@@ -1704,7 +1704,7 @@ def test_gather_path_rejects_shared_reserved_and_node_like_directories():
         ("reports", ["reports"], "already writes into"),
         ("../x", [], "relative path"),
         ("/abs", [], "relative path"),
-        ("human/x", [], "reserved"),
+        ("by-params/x", [], "reserved"),
         (".logs", [], "reserved"),
         ("data.D1.default", [], "reads as a node directory"),
     ]:

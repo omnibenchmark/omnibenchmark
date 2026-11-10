@@ -17,7 +17,7 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
-| 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `human/`; nested layout deprecated | ben |
+| 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `by-params/`; nested layout deprecated | ben |
 | 0.4 | 2026-11-04 | §4.6: run log and out-dir identity; `--dry` writes no `.metadata/` | ben |
 
 ## 1. Problem Statement
@@ -137,9 +137,9 @@ out/data.D1/merge.J-9f8e7d6c/out.tsv                  # fan-in
 
 Nothing in the result tree is hidden and nothing in it is a symlink. `parameters.json` and `performance.txt` stay in the node directory.
 
-#### 3.1.2 Readable view: `human/`
+#### 3.1.2 Readable view: `by-params/`
 
-`out/human/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`alpha-0.1_k-5`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
+`out/by-params/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`alpha-0.1_k-5`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
 
 - `ob run` rebuilds it from the node directories on disk after Snakemake exits, including after partial, filtered and failed runs. Readable names come from each node's `parameters.json`. It is not written by rules, so it never appears in rule text.
 - It is a derived view. Archives and remote storage skip it, and deleting it loses nothing.
@@ -175,9 +175,9 @@ out/<path>/                      # global gather, with `path`
 `gather: {from: x, path: reports}` names the directory instead of the generated segment. `path` is a template like an output path.
 
 - It is the node directory: `lineage.json` and `parameters.json` are written there, and stages below nest inside it.
-- Plan-time errors: a directory another node already writes into, an absolute path, `.` or `..`, a first component reserved by omnibenchmark (`human`, dot-directories), a component that reads as a node segment.
+- Plan-time errors: a directory another node already writes into, an absolute path, `.` or `..`, a first component reserved by omnibenchmark (`by-params`, dot-directories), a component that reads as a node segment.
 - A custom path has no member digest. A run that prunes members (`--filter`, capabilities) overwrites it.
-- Name-only readers do not see a custom path at the top of `out/`: `human/` does not mirror it, remote storage does not track it, and `ob collect` drops nodes below it.
+- Name-only readers do not see a custom path at the top of `out/`: `by-params/` does not mirror it, remote storage does not track it, and `ob collect` drops nodes below it.
 
 ## 4. Runtime Manifest (`manifest.json`)
 

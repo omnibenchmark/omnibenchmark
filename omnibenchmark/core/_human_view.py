@@ -1,4 +1,4 @@
-"""The readable view of a flat (api ≥ 0.8.0) output tree: ``out/human/``.
+"""The readable view of a flat (api ≥ 0.8.0) output tree: ``out/by-params/``.
 
 Mirrors the result tree with each node segment's parameter hash replaced by
 the readable parameter name (007 §3.1.2). Derived and disposable: rebuilt from
@@ -16,7 +16,7 @@ from omnibenchmark.core._lineage import parse_node_segment
 from omnibenchmark.core._paths import MAX_FILENAME_LEN, make_human_name
 from omnibenchmark.model.params import Params
 
-HUMAN_DIR = "human"
+HUMAN_DIR = "by-params"
 
 
 def _readable_segment(node_dir: Path, parsed: tuple) -> str:
@@ -63,7 +63,7 @@ def _mirror(src: Path, dest: Path, top: bool = False) -> None:
 
 
 def build_human_view(out_dir: Path) -> None:
-    """Rebuild ``out_dir/human`` from the node directories under *out_dir*."""
+    """Rebuild ``out_dir/by-params`` from the node directories under *out_dir*."""
     out_dir = Path(out_dir)
     root = out_dir / HUMAN_DIR
     shutil.rmtree(root, ignore_errors=True)
