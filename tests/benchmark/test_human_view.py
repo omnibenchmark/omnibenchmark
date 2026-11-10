@@ -80,7 +80,9 @@ def test_template_subdir_holding_a_node_is_mirrored(tmp_path):
     [
         ("data.D1.default", ("data", "D1", None, "default", None)),
         ("m.M1.abcdef12", ("m", "M1", None, "abcdef12", None)),
-        ("s.c.D1.default", ("s", "c", "D1", "default", None)),
+        ("s.c.D1.default", None),  # no group field on 0.8.0
+        ("data.D1", ("data", "D1", None, "default", None)),
+        ("j.J-9f8e7d6c", ("j", "J", None, "default", "9f8e7d6c")),
         ("j.J.default-9f8e7d6c", ("j", "J", None, "default", "9f8e7d6c")),
         ("v1.0.0", None),  # template subdirectory
         ("a.b.c.d.e", None),

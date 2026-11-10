@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import click
 
-from omnibenchmark.core._lineage import GATHERS_DIR, parse_node_segment
+from omnibenchmark.core._lineage import parse_node_segment
 from omnibenchmark.constants import INTERNAL_OUT_DIRS
 from omnibenchmark.logging import logger
 from .debug import add_debug_option
@@ -108,15 +108,7 @@ def _segments(rel_parts: List[str]) -> tuple:
     part per node, parsed by the 007 §3.1.1 grammar; other parts are template
     subdirectories. Nested layout: ``stage/module/param_dir`` triples.
     """
-    if rel_parts and (parse_node_segment(rel_parts[0]) or rel_parts[0] == GATHERS_DIR):
-        # Under `gathers/<STAGE>/[by-<S>/]` (007 §3.1.6) the group node's chain
-        # is repeated for readability; its real directories have no prefix.
-        gather_stage, prefix = None, 0
-        if rel_parts[0] == GATHERS_DIR and len(rel_parts) > 1:
-            gather_stage = rel_parts[1]
-            by = len(rel_parts) > 2 and rel_parts[2].startswith("by-")
-            prefix = 3 if by else 2
-        in_gather = gather_stage is None
+    if rel_parts and parse_node_segment(rel_parts[0]):
         group, segments = None, []
         for i, part in enumerate(rel_parts):
             parsed = parse_node_segment(part)
@@ -125,12 +117,8 @@ def _segments(rel_parts: List[str]) -> tuple:
             stage, module, seg_group, param, join = parsed
             if seg_group is not None:  # a grouped gather roots the chain
                 group = seg_group
-            in_gather = in_gather or stage == gather_stage
-            start = 0 if in_gather else prefix
             param_dir = f"{param}-{join}" if join else param
-            segments.append(
-                (stage, module, param_dir, "/".join(rel_parts[start : i + 1]))
-            )
+            segments.append((stage, module, param_dir, "/".join(rel_parts[: i + 1])))
         return group, segments
 
     group, chain = _split_gather_group(list(rel_parts))

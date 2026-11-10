@@ -23,7 +23,6 @@
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
-| 7       | 2026-11-09 | §3.2.1: gathers live under `gathers/` (007 §3.1.6). §3.5.2: a node-grouped gather may declare `inputs:`. Fan-in flag renamed `--from-files` | btraven00 |
 | 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--from-files` (lineage.json v2, the manifest), not member argv | btraven00 |
 
 ## 1. Problem Statement
@@ -213,8 +212,7 @@ id (`D1`), not its node id. Per-parameter grouping needs a label-based
   id under the group at all, and every producer excluded for this module.
 
 **Deferred**: `where` (member filtering), label-value `group_by`, and plain
-`inputs:` mixed with `gather:` before api 0.8.0 (from 0.8.0 a node-grouped
-gather takes them, §3.5.2).
+`inputs:` mixed with `gather:`.
 
 #### 3.2.1 api ≥ 0.8.0: grouping by node
 
@@ -224,8 +222,7 @@ below it.
 
 The gather node becomes a **child of that node**:
 - id `<S node id>-<stage>-<module><param>`;
-- directory `gathers/<stage>/by-<S>/<S node dir>/<stage>.<module>.<param>`
-  (007 §3.1.6): logically under S, on disk out of the result tree;
+- directory `<S node dir>/<stage>.<module>.<param>`;
 - `parent_id` is the S node, so the chain does not cut.
 
 It inherits the S node's labels like a scatter child does, and it still binds the
@@ -576,9 +573,8 @@ outstanding, and its named-output representation folds in when it lands.
 
 ### Deferred
 
-- Plain `inputs:` mixed with `gather:` on a global gather, or before 0.8.0 —
-  which chain resolves the plain input? It needs the group key to pin it. From
-  0.8.0 a node-grouped gather has one (§3.5.2).
+- Plain `inputs:` mixed with `gather:` on one stage — which chain resolves the
+  plain input? It needs the group key to pin it.
 - Multiple `gather:` entries with different `group_by` axes on one stage
   (cross-product of groups; unclear demand, make it illegal for now).
 - **Author-controlled rule labels** — a `label:` template over the same

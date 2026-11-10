@@ -473,6 +473,15 @@ class GatherSpec(BaseModel):
             "collected into one node, with no group segment in the output path."
         ),
     )
+    path: Optional[str] = Field(
+        None,
+        description=(
+            "Directory for the gather node, instead of the generated "
+            "`STAGE.module...` one (api >= 0.8.0). A template like an output "
+            "path. Relative to the group node's directory with `group_by`, to "
+            "the output root without. Two gather nodes may not share one."
+        ),
+    )
 
 
 class Resources(BaseModel):
@@ -773,14 +782,17 @@ class Stage(DescribableEntity):
         """`gather: {group_by: S, from: [a, b]}` is the list form with S on each entry."""
         if not isinstance(v, dict):
             return v
-        unknown = set(v) - {"from", "group_by"}
+        unknown = set(v) - {"from", "group_by", "path"}
         if unknown:
             raise ValueError(f"gather: unknown keys {sorted(unknown)}")
         froms = v.get("from")
         froms = [froms] if isinstance(froms, str) else froms
         if not froms:
             raise ValueError("gather: `from` needs at least one output id")
-        return [{"from": f, "group_by": v.get("group_by")} for f in froms]
+        return [
+            {"from": f, "group_by": v.get("group_by"), "path": v.get("path")}
+            for f in froms
+        ]
 
     @model_validator(mode="after")
     def validate_gather(self) -> "Stage":
@@ -795,6 +807,11 @@ class Stage(DescribableEntity):
                     f"Stage '{self.id}' has gather entries with differing "
                     f"group_by {shown}. A gather stage has one grouping "
                     f"axis; multiple axes are deferred (design 010 §3.3)."
+                )
+            if len({spec.path for spec in self.gather}) > 1:
+                raise ValueError(
+                    f"Stage '{self.id}' has gather entries with differing "
+                    f"`path`. A gather node has one directory."
                 )
         return self
 

@@ -271,11 +271,9 @@ def test_group_by_partitions_by_node_from_0_8():
         "d2.default-norm-nb.default-clu-ma.default",
         "d2.default-norm-nb.default-clu-mb.default",
     ]
-    # Under gathers/ by the group node's dir (007 §3.1.6), with its labels
-    # (data) plus the group key.
+    # Under the group node's dir, with its labels (data) plus the group key.
     assert n.get_output_list() == [
-        "gathers/metrics/by-norm/data.d2.default/norm.nb.default/"
-        "metrics.summ.default/d2_nb_summary.tsv"
+        "data.d2.default/norm.nb.default/metrics.summ/d2_nb_summary.tsv"
     ]
 
 
@@ -1558,18 +1556,16 @@ def test_gather_skips_a_module_missing_from_the_resolution_cache():
 @pytest.mark.short
 def test_node_dir_nested_and_flat():
     """007 §3.1: v1 spends three directories per node, v2 one segment that
-    splits back on `.` into stage, module, [group,] param[-join]."""
+    splits back into stage.module[.param][-join]; no param field without parameters."""
     a = SimpleNamespace(id="a")
     b = SimpleNamespace(id="b")
     assert node_dir("m", "M1", ".abc12345") == "m/M1/.abc12345"
     assert node_dir("g", "c", ".default", group="D1") == "g/D1/c/.default"
     assert node_dir("m", "M1", ".abc12345", flat=True) == "m.M1.abc12345"
-    assert node_dir("m", "M1", ".default", flat=True) == "m.M1.default"
-    assert node_dir("g", "c", ".default", group="D1", flat=True) == "g.c.D1.default"
+    assert node_dir("m", "M1", ".default", flat=True) == "m.M1"
     join = node_dir("j", "J", ".default", (a, b), flat=True)
-    stage, module, param = join.split(".")
-    assert (stage, module) == ("j", "J")
-    assert param.split("-")[0] == "default" and len(param.split("-")[1]) == 8
+    assert join.startswith("j.J-") and len(join) == len("j.J-") + 8
+    assert join.split("-")[0] == "j.J"
 
 
 @pytest.mark.short
@@ -1586,8 +1582,8 @@ def test_flat_layout_from_api_0_8_0():
     assert errors == []
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
     assert method == [
-        "data.D1.default/method.M1.default/M1_m.txt",
-        "data.D2.default/method.M1.default/M1_m.txt",
+        "data.D1/method.M1/M1_m.txt",
+        "data.D2/method.M1/M1_m.txt",
     ]
     nodes, _, _ = _plan(_chain_yaml())
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
@@ -1671,3 +1667,46 @@ def test_inputs_on_a_global_gather_rejected():
 def test_inputs_on_a_gather_before_0_8_rejected():
     msg = _parse_error(_gather_inputs_yaml(api="0.7.0"))
     assert "requires api_version >= 0.8.0" in msg
+
+
+@pytest.mark.short
+def test_gather_path_names_the_node_directory():
+    """`path` replaces the generated segment: under the group node with
+    `group_by`, at the output root without (007 §3.1.6)."""
+    nodes, _, errors = _plan(
+        _gather_inputs_yaml(
+            group_by="group_by: feat\n        path: reports/{module.id}"
+        )
+    )
+    assert errors == []
+    feat = {n.id: n for n in nodes if n.stage_id == "feat"}
+    gathers = [n for n in nodes if n.stage_id == "pcam"]
+    assert len(gathers) == 2
+    for g in gathers:
+        assert g.node_dir == f"{feat[g.parent_id].node_dir}/reports/PM"
+        assert g.outputs["pcam_out"] == f"{g.node_dir}/PM_m.txt"
+
+    text = _gather_inputs_yaml(group_by="path: reports").replace(
+        "    inputs: [feat_out]\n    gather", "    gather"
+    )
+    nodes, _, errors = _plan(text)
+    assert errors == []
+    (g,) = [n for n in nodes if n.stage_id == "pcam"]
+    assert g.node_dir == "reports"
+
+
+@pytest.mark.short
+def test_gather_path_rejects_shared_reserved_and_node_like_directories():
+    from omnibenchmark.core._expand import _gather_custom_dir
+
+    assert _gather_custom_dir("S", "reports", "data.D1", []) == "data.D1/reports"
+    for path, taken, match in [
+        ("reports", ["reports"], "already writes into"),
+        ("../x", [], "relative path"),
+        ("/abs", [], "relative path"),
+        ("human/x", [], "reserved"),
+        (".logs", [], "reserved"),
+        ("data.D1.default", [], "reads as a node directory"),
+    ]:
+        with pytest.raises(ValueError, match=match):
+            _gather_custom_dir("S", path, None, taken)
