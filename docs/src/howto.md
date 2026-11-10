@@ -836,9 +836,9 @@ out/data/D1/.default/methods/M1/.a1b2c3d4/M1.txt
 out/data/D1/.default/methods/M1/k-5 -> .a1b2c3d4
 
 # api 0.8.0
-out/data.D1.default/D1_data.json
-out/data.D1.default/methods.M1.a1b2c3d4/M1.txt
-out/by-params/data.D1.default/methods.M1.k-5/M1.txt -> ../../../data.D1.default/methods.M1.a1b2c3d4/M1.txt
+out/data.D1/D1_data.json
+out/data.D1/methods.M1.a1b2c3d4/M1.txt
+out/by-params/data.D1/methods.M1.k-5/M1.txt -> ../../../data.D1/methods.M1.a1b2c3d4/M1.txt
 ```
 
 The readable `k-5` symlinks next to each parameter directory are gone. `ob run`
@@ -866,7 +866,7 @@ working, unless it rejects unknown flags. Such a module must accept
 parser.add_argument("--output", action="append", default=[])
 args, _ = parser.parse_known_args()
 outputs = dict(o.split("=", 1) for o in args.output)
-# outputs == {"data.raw": "/abs/out/data.D1.default/D1_data.json"}
+# outputs == {"data.raw": "/abs/out/data.D1/D1_data.json"}
 ```
 
 Write each output to `outputs[id]` instead of building the filename from

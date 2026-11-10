@@ -267,15 +267,18 @@ def expand_gather_stage(
             segment = param_id
             if flat and len(member_ids) > 1:
                 segment = f"{param_id}-{join_hash(member_ids)}"
+            # From 0.8.0 a node without parameters has no `.default` in its
+            # id either, as in its directory (007 §3.1.1).
+            id_seg = segment.removeprefix(".default") if flat else segment
             group_node = group_nodes.get(gval) if by_node else None
             if group_node is not None:
                 # A child of the group node: same id spine as a scatter child.
-                node_id = f"{group_node.id}-{stage.id}-{module_id}{segment}"
+                node_id = f"{group_node.id}-{stage.id}-{module_id}{id_seg}"
             else:
                 # A global gather has no group value, so neither its id nor
                 # its path carries a group segment.
                 group_seg = f"-{gval}" if gval is not None else ""
-                node_id = f"{stage.id}-{module_id}{group_seg}{segment}"
+                node_id = f"{stage.id}-{module_id}{group_seg}{id_seg}"
 
             # Enumerated keys + name mapping: same shape metric collectors
             # use, so _write_gather_shell emits `--<from_id> p1 p2 …`.
@@ -583,15 +586,18 @@ def expand_scatter_stage(
                         continue
 
                 param_id = f".{params.hash_short()}" if params else ".default"
+                # From 0.8.0 a node without parameters has no `.default` in
+                # its id either, as in its directory (007 §3.1.1).
+                id_param = "" if flat and not params else param_id
 
                 if is_join:
                     # No single prefix chain: id is a readable stem plus a
                     # short hash of the (sorted) parents (design 010 §5.2).
-                    node_id = f"{stage.id}-{module_id}-{join_hash(m.id for m in members)}{param_id}"
+                    node_id = f"{stage.id}-{module_id}-{join_hash(m.id for m in members)}{id_param}"
                 elif input_node:
-                    node_id = f"{input_node.id}-{stage.id}-{module_id}{param_id}"
+                    node_id = f"{input_node.id}-{stage.id}-{module_id}{id_param}"
                 else:
-                    node_id = f"{stage.id}-{module_id}{param_id}"
+                    node_id = f"{stage.id}-{module_id}{id_param}"
 
                 inputs = {}
                 input_name_mapping = {}

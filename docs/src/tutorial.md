@@ -379,8 +379,7 @@ Members never come as positional paths: their number is unbounded, so the module
 ```json
 {"version": 2, "node_id": "...", "stage": "PCA_M", "module": "pca_metrics_py", "kind": "gather",
  "members": [
-   {"node_id": "...", "stage": "PCA", "module": "pc_scanpy", "commit": "754052a0...",
-    "params": "f02267b9", "parameters": {"solver": "arpack", "n_components": 50},
+   {"node_id": "...", "commit": "754052a0...",
     "dir": "DATA.d1.44d965bf/.../PCA.pc_scanpy.f02267b9",
     "files": {"embedding_tsv": "/abs/.../pc_scanpy_embedding.tsv",
               "loadings_tsv": "/abs/.../pc_scanpy_loadings.tsv"},
@@ -394,9 +393,9 @@ Members never come as positional paths: their number is unbounded, so the module
 | field | meaning |
 |---|---|
 | `files` | the member's gathered outputs by output id, absolute paths; a member may contribute several |
-| `params` | short hash of the member's parameters, as in its directory name |
-| `parameters` | the parameter values behind that hash (what the node's `parameters.json` holds) |
-| `lineage` | every ancestor from the first stage down to the member itself, each with module and parameters |
+| `lineage` | every ancestor from the first stage down to the member itself (the last entry), each with stage, module and parameters |
+| `params` | in a lineage entry: short hash of that node's parameters, as in its directory name; null without parameters |
+| `parameters` | in a lineage entry: the parameter values behind that hash (what the node's `parameters.json` holds) |
 | `value` | only for `foreach` members: the value this member was fanned out for |
 
 Use `lineage` and `parameters` to label results; do not parse ob's directory names. Reading the members takes a few lines:
