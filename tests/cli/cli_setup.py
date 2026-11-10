@@ -1,3 +1,4 @@
+import sys
 import subprocess
 from typing import List, Optional
 
@@ -15,7 +16,7 @@ class OmniCLISetup:
             A subprocess.CompletedProcess object containing the result of the command.
         """
         # Construct the command to run
-        command = ["python", "-m", "omnibenchmark.cli.main"] + args
+        command = [sys.executable, "-m", "omnibenchmark.cli.main"] + args
 
         # Run the command using subprocess.run
         result = subprocess.run(
