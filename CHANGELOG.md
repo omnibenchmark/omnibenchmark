@@ -5,6 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
+- feat: `ob run` runs git-style `pre-run` and `post-run` hooks configured in the omnibenchmark config (`hooks.<event>`, `hooks.path` or `OB_HOOKS_PATH`, `hooks.timeout`); a failing `pre-run` stops the run with exit code 3, `post-run` gets the run's exit code; `--no-hooks` skips them (design 016, #397)
 - feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the omnibenchmark config; `--author-name`/`--author-email` are no longer required with `--non-interactive`
 - feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style
 - feat: `ob describe status --watch SECONDS` redraws the text report on an interval and exits once every expected output exists; it only reads the output tree, so it works with any executor (#386)
