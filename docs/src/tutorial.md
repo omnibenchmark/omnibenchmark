@@ -294,7 +294,7 @@ stages:
         path: "{dataset}.json"
 ```
 
-### Metric collectors
+### Metric collectors <span style="font-size: .6em; font-weight: 600; padding: .15em .6em; border-radius: 1em; vertical-align: middle; color: var(--md-default-bg-color); background: var(--md-default-fg-color--light);">deprecated in 0.8.0</span> { data-toc-label="Metric collectors (deprecated)" }
 
 The YAML stanzas above aim to scaffold a workflow by nesting inputs and outputs. Omnibenchmark automatically organizes files in a hierarchical directory structure where each module's outputs are stored in dedicated directories for provenance tracking. These files can be further processed by other modules, creating linear lineages with implicit provenance traceable by browsing the parent folder(s) of any folder and file. This can pose a challenge if multiple files (lineages) are meant to be gathered by a processing step.
 
@@ -341,7 +341,96 @@ metric_collectors:
         path: "{name}/plotting_report.html"
 ```
 
+> **api 0.8.0 removes `metric_collectors`.** A 0.8.0 plan declares the same thing as a stage with `gather:` and no `group_by` (e.g. `gather: [{from: metrics.json}]`); its module reads the members from `--from-files` (see "Gather stages" below).
+
 Similarly to any other module, the associated code to run the processing is stored as a git-compatible remote (with `url` and `commit id`). In the example above, `multiple_to_one` only generates one output, a report named `plotting.html` collecting all computed `metrics.json` files.
+
+### Gather stages (api 0.8.0)
+
+From `api_version: "0.8.0"`, a stage can run one module over many upstream results at once: a **gather**. Use it when a step needs several results side by side (compare every method against a reference, build one table per dataset), instead of one result at a time.
+
+```yaml
+  - id: PCA_M
+    inputs: [normalized_selected_h5]       # optional, see below
+    gather:
+      group_by: FEAT                       # one job per FEAT node
+      from: [embedding_tsv, loadings_tsv]  # what to collect
+    outputs:
+      - id: pca_metrics_tsv
+        path: "{module.id}_pca_metrics.tsv"
+```
+
+- `from`: one output id or a list. Every node that produces it is a **member**.
+- `group_by: S`: one job per node of stage `S`; its members are that node's descendants. Without `group_by`, one job collects every member of the run.
+- `inputs:` (only with `group_by`): resolved from the `S` node or its ancestors, exactly as for any stage below `S`. Above, each job gets the matrix of its own FEAT node.
+- The list form `gather: [{from: embedding_tsv, group_by: FEAT}, {from: loadings_tsv, group_by: FEAT}]` means the same.
+
+#### What a gather module receives
+
+```
+<entrypoint> --output_dir <dir> --name <module id> --output <id>=<path> \
+    --from-files <dir>/lineage.json \
+    --<input id> <path> ...  \
+    <module parameters>
+```
+
+Members never come as positional paths: their number is unbounded, so the module reads them from `--from-files`, a JSON file ob writes next to the outputs. Their order carries no meaning.
+
+```json
+{"version": 2, "node_id": "...", "stage": "PCA_M", "module": "pca_metrics_py", "kind": "gather",
+ "members": [
+   {"node_id": "...", "commit": "754052a0...",
+    "dir": "DATA.d1.44d965bf/.../PCA.pc_scanpy.f02267b9",
+    "files": {"embedding_tsv": "/abs/.../pc_scanpy_embedding.tsv",
+              "loadings_tsv": "/abs/.../pc_scanpy_loadings.tsv"},
+    "lineage": [{"node_id": "...", "stage": "DATA", "module": "d1", "params": "44d965bf",
+                 "parameters": {"dataset_name": "be1"}},
+                ...,
+                {"node_id": "...", "stage": "PCA", "module": "pc_scanpy", "params": "f02267b9",
+                 "parameters": {"solver": "arpack", "n_components": 50}}]}]}
+```
+
+| field | meaning |
+|---|---|
+| `files` | the member's gathered outputs by output id, absolute paths; a member may contribute several |
+| `lineage` | every ancestor from the first stage down to the member itself (the last entry), each with stage, module and parameters |
+| `params` | in a lineage entry: short hash of that node's parameters, as in its directory name; null without parameters |
+| `parameters` | in a lineage entry: the parameter values behind that hash (what the node's `parameters.json` holds) |
+| `value` | only for `foreach` members: the value this member was fanned out for |
+
+Use `lineage` and `parameters` to label results; do not parse ob's directory names. Reading the members takes a few lines:
+
+=== "Python"
+
+    ```python
+    import json
+
+    def from_files(path, output_id):
+        members = json.load(open(path))["members"]
+        return [m["files"][output_id] for m in members if output_id in m["files"]]
+    ```
+
+=== "R"
+
+    ```R
+    members <- jsonlite::fromJSON(path, simplifyVector = FALSE)$members
+    files <- unlist(lapply(members, function(m) m$files[[output_id]]))
+    ```
+
+#### Where gather results land
+
+A gather with `group_by` sits inside its group node's directory. A global gather sits at the top:
+
+```
+out/DATA.d1.44d965bf/.../FEAT.fe_seurat.6203d28c/PCA_M.pca_metrics_py.2d5793e0-6ec8ec62/
+out/PCA_RESULTS.collect-afccb160/
+out/reports/                      # gather: {from: pca_results_tsv, path: reports}
+```
+
+- `path` names the gather's directory yourself. It must not be a directory another node writes into, and it has no member suffix: a filtered run overwrites it.
+- The suffix after the last `-` (`6ec8ec62`) identifies the set of members. A run that filters some members out (`--filter`, unavailable capabilities) writes to a different directory instead of overwriting the full result.
+- `lineage.json` in that directory is the `--from-files` file.
+- `out/by-params/` shows the same results with parameter values in the directory names (not a top-level `path` directory).
 
 ## Validate a benchmark YAML
 

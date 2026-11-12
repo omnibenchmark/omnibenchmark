@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from omnibenchmark.model.params import Params
 from omnibenchmark.backend._manifest import write_run_manifest
 from omnibenchmark.backend.snakemake import SnakemakeGenerator, _make_human_name
 from omnibenchmark.backend._snakemake_debug import DebugSnakemakeGenerator
@@ -640,6 +641,162 @@ class TestWriteNodeRuleCollectorV2:
         assert "$MODULE_DIR/{params.entrypoint}" in out
 
 
+def _fanin_snakefile(tmp_path, n_members, api_version):
+    """A gather over n producers; returns (Snakefile text, gather rule text)."""
+    producers = [
+        _make_node(
+            node_id=f"p{i}",
+            stage_id="method",
+            module_id=f"m{i}",
+            outputs={"score": f"out/method.m{i}.default/score.csv"},
+            parameters=Params({"k": i, "solver": "arpack"}),
+        )
+        for i in range(n_members)
+    ]
+    gather = _make_node(
+        node_id="metrics-summ.default",
+        stage_id="metrics",
+        module_id="summ",
+        inputs={f"input_{i}": p.outputs["score"] for i, p in enumerate(producers)},
+        input_name_mapping={f"input_{i}": "score" for i in range(n_members)},
+        outputs={"summary": "out/metrics.summ.default/summary.tsv"},
+        is_gather=True,
+    )
+    path = tmp_path / f"Snakefile_{n_members}"
+    _gen(api_version=api_version).generate_snakefile([*producers, gather], path)
+    text = path.read_text()
+    start = text.index("rule metrics_summ_default:")
+    return text, text[start : text.index("\n\n", start)]
+
+
+class TestFanInManifest:
+    """api 0.8.0: a fan-in module gets one manifest path, never member argv.
+
+    Snakemake runs a shell block as one `bash -c` argument, capped at 128 KiB
+    (MAX_ARG_STRLEN); inlining member paths made gathers fail with E2BIG at a
+    few hundred members.
+    """
+
+    def test_shell_block_size_does_not_grow_with_members(self, tmp_path):
+        _, small = _fanin_snakefile(tmp_path, 3, APIVersion.V0_8_0)
+        text, large = _fanin_snakefile(tmp_path, 2000, APIVersion.V0_8_0)
+        shell = large[large.index("shell:") :]
+        assert len(shell) == len(small[small.index("shell:") :])
+        assert len(shell) < 8 * 1024
+        assert "--from-files" in shell and "input_1999" not in shell
+        assert "> $OUTPUT_DIR/lineage.json" not in shell  # no echo
+        # absolute before the cd to the module root
+        assert shell.index("MANIFEST=") < shell.index('cd "$MODULE_DIR"')
+
+    def test_manifest_rule_lists_every_member(self, tmp_path):
+        import ast
+
+        text, gather = _fanin_snakefile(tmp_path, 2000, APIVersion.V0_8_0)
+        assert 'manifest="out/metrics.summ.default/lineage.json"' in gather
+        rule = text[text.index("rule metrics_summ_default_manifest:") :]
+        assert "localrule: True" in rule and "run:" in rule
+        literal = rule.split("record=lambda wildcards: ", 1)[1].split(",\n", 1)[0]
+        record = json.loads(ast.literal_eval(literal))
+        assert record["version"] == 2 and record["kind"] == "gather"
+        assert len(record["members"]) == 2000
+        assert record["members"][7]["files"] == {
+            "score": "out/method.m7.default/score.csv"
+        }
+        assert record["members"][7]["lineage"][-1]["module"] == "m7"
+        # a member's own stage, module and parameters: once, as its last lineage entry
+        assert set(record["members"][7]) == {
+            "node_id",
+            "commit",
+            "dir",
+            "files",
+            "lineage",
+        }
+        # values next to the hash, so a module can label members by them
+        assert record["members"][7]["lineage"][-1]["parameters"] == {
+            "k": 7,
+            "solver": "arpack",
+        }
+
+    def test_collector_keeps_member_argv(self, tmp_path):
+        """No manifest for a collector: two top-level ones shared `lineage.json`."""
+        producer = _make_node(node_id="p0", outputs={"score": "out/m/score.csv"})
+        collectors = [
+            _make_node(
+                node_id=f"c{i}",
+                stage_id=f"c{i}",
+                module_id=f"c{i}",
+                inputs={"input_0": "out/m/score.csv"},
+                input_name_mapping={"input_0": "score"},
+                outputs={"table": f"c{i}.tsv"},
+                is_collector=True,
+            )
+            for i in range(2)
+        ]
+        path = tmp_path / "Snakefile"
+        _gen(api_version=APIVersion.V0_8_0).generate_snakefile(
+            [producer, *collectors], path
+        )
+        text = path.read_text()
+        assert "_manifest:" not in text and 'lineage.json"' not in text
+
+    def test_gather_without_a_directory_is_an_error(self, tmp_path):
+        gather = _make_node(
+            node_id="g", outputs={"summary": "summary.tsv"}, is_gather=True
+        )
+        with pytest.raises(ValueError, match="no node directory"):
+            _gen(api_version=APIVersion.V0_8_0)._manifest_path(gather)
+
+    def test_group_input_is_a_flag_and_not_a_member(self, tmp_path):
+        """A node-grouped gather's own input (010 §3.5.2): one `--<id>` flag
+        and a Snakemake input, but never a manifest member."""
+        import ast
+
+        producers = [
+            _make_node(
+                node_id=f"p{i}",
+                stage_id="pca",
+                module_id=f"m{i}",
+                outputs={"emb": f"out/feat.f.default/pca.m{i}.default/emb.tsv"},
+            )
+            for i in range(2)
+        ]
+        gather = _make_node(
+            node_id="pcam-pm.default",
+            stage_id="pcam",
+            module_id="pm",
+            inputs={
+                "input_0": producers[0].outputs["emb"],
+                "input_1": producers[1].outputs["emb"],
+                "group_feat_out": "out/feat.f.default/f.h5",
+            },
+            input_name_mapping={
+                "input_0": "emb",
+                "input_1": "emb",
+                "group_feat_out": "feat_out",
+            },
+            outputs={"m": "out/pcam.pm.default/m.tsv"},
+            is_gather=True,
+        )
+        path = tmp_path / "Snakefile"
+        _gen(api_version=APIVersion.V0_8_0).generate_snakefile(
+            [*producers, gather], path
+        )
+        text = path.read_text()
+        rule = text[text.index("rule pcam_pm_default:") :]
+        assert 'group_feat_out="out/feat.f.default/f.h5"' in rule
+        assert "--feat_out $INPUT_group_feat_out" in rule
+        assert "--from-files" in rule and "--emb" not in rule
+        manifest = text[text.index("rule pcam_pm_default_manifest:") :]
+        literal = manifest.split("record=lambda wildcards: ", 1)[1].split(",\n", 1)[0]
+        record = json.loads(ast.literal_eval(literal))
+        assert [list(m["files"]) for m in record["members"]] == [["emb"], ["emb"]]
+
+    def test_v07_keeps_member_argv(self, tmp_path):
+        text, gather = _fanin_snakefile(tmp_path, 3, APIVersion.V0_7_0)
+        assert "_manifest:" not in text
+        assert "--from-files" not in gather and "--score" in gather
+
+
 # ---------------------------------------------------------------------------
 # generate_snakefile (integration)
 # ---------------------------------------------------------------------------
@@ -932,3 +1089,46 @@ def test_metadata_records_every_module_not_just_every_repo(tmp_path):
 
     assert "FILT/fi-scrapper" in listed
     assert "NORM/nr-scrapper" in listed
+
+
+@pytest.mark.short
+class TestGatherShellMatchesRegularNode:
+    """The gather shell follows the same contract as a regular node."""
+
+    def _gather_out(self):
+        module = _make_module(entrypoint="integrate.R", has_shebang=True)
+        node = _make_node(
+            node_id="gather_s2-m2-default",
+            stage_id="s2",
+            module=module,
+            inputs={"score_0": "out/a/score.csv"},
+            outputs=["out/gather/result.csv"],
+            input_name_mapping={"score_0": "score"},
+            is_gather=True,
+        )
+        return _capture(_gen()._write_node_rule, node)
+
+    def test_runs_from_module_root_after_resolving_inputs(self):
+        out = self._gather_out()
+        assert "MODULE_DIR=$(cd {params.module_dir} && pwd)" in out
+        assert out.index("for _f in") < out.index('cd "$MODULE_DIR"')
+        assert out.index('cd "$MODULE_DIR"') < out.index("{params.entrypoint}")
+
+    def test_writes_to_declared_log_before_anything_else(self):
+        out = self._gather_out()
+        assert 'exec > >(tee "$LOG_FILE") 2>&1' in out
+        assert out.index("LOG_FILE=") < out.index("for _f in")
+
+    def test_metric_collector_stays_in_workflow_dir(self):
+        module = _make_module(entrypoint="collect.py", has_shebang=True)
+        node = _make_node(
+            node_id="collector_MC1-default",
+            stage_id="metric_collectors",
+            module=module,
+            inputs={"score_0": "out/a/score.csv"},
+            outputs=["out/metrics/result.json"],
+            input_name_mapping={"score_0": "score"},
+            is_collector=True,
+        )
+        out = _capture(_gen()._write_node_rule, node)
+        assert 'cd "$MODULE_DIR"' not in out

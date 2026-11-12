@@ -17,7 +17,7 @@
 |---------|------|-------------|--------|
 | 0.1 | 2026-02-19 | Initial draft — output layout + runtime manifest | ben |
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
-| 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `human/`; nested layout deprecated | ben |
+| 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `by-params/`; nested layout deprecated | ben |
 | 0.4 | 2026-11-04 | §4.6: run log and out-dir identity; `--dry` writes no `.metadata/` | ben |
 
 ## 1. Problem Statement
@@ -117,29 +117,29 @@ v1 spends three directories per stage, so a four-stage lineage is twelve deep. v
 Each node contributes exactly one path segment. A child's segment nests under its deepest input's segment, as in v1.
 
 ```
-segment = <stage> "." <module> [ "." <group> ] "." <param> [ "-" <join> ]
-param   = "default" | <hash8>
+segment = <stage> "." <module> [ "." <hash8> ] [ "-" <join> ]
 ```
 
-- `<group>`: the group value of a grouped gather (010 §3.3). A global gather omits it.
-- `<join>`: the parent-set digest of a fan-in node (010 §5.2).
-- Parsing: split on `.`. Three fields means no group, four means a group. Split the last field on `-` to get the join digest.
-- This parse is unambiguous because stage and module ids, and therefore group values, match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
+- `<hash8>`: the parameter hash. A node without parameters has no such field (no `default` placeholder).
+- `<join>`: the parent-set digest of a join (010 §5.2), or the member-set digest of a gather with more than one member. A run that prunes members (`--filter`, capability gating) therefore gets its own directory instead of overwriting the full gather.
+- This parse is unambiguous because stage and module ids match `[A-Za-z_][A-Za-z0-9_]*` from api 0.8.0 (004 §3.13). `.` and `-` cannot occur inside a field.
+- Readers still accept a `default` param field, so trees written before it was dropped parse.
+- The name alone identifies a node directory. A module output directory named like `counts.zarr` reads as one too.
 
 ```
-out/data.D1.default/data.raw.tsv
-out/data.D1.default/methods.M1.a1b2c3d4/result.tsv
-out/data.D1.default/methods.M1.a1b2c3d4/metrics.acc.default/score.json
-out/summary.collect.default/table.tsv                 # global gather
-out/summary.collect.D1.default/table.tsv              # grouped gather, group D1
-out/data.D1.default/merge.J.default-9f8e7d6c/out.tsv  # fan-in
+out/data.D1/data.raw.tsv
+out/data.D1/methods.M1.a1b2c3d4/result.tsv
+out/data.D1/methods.M1.a1b2c3d4/metrics.acc/score.json
+out/summary.collect-1a2b3c4d/table.tsv                # global gather (§3.1.6)
+out/data.D1/summary.collect-5e6f7a8b/table.tsv        # gather with group_by: data
+out/data.D1/merge.J-9f8e7d6c/out.tsv                  # fan-in
 ```
 
 Nothing in the result tree is hidden and nothing in it is a symlink. `parameters.json` and `performance.txt` stay in the node directory.
 
-#### 3.1.2 Readable view: `human/`
+#### 3.1.2 Readable view: `by-params/`
 
-`out/human/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`alpha-0.1_k-5`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
+`out/by-params/` mirrors the result tree, replacing each segment's `<param>` with the readable parameter name (`alpha-0.1_k-5`, the same name v1 used for its sibling links). Each directory holds relative symlinks to the real node's files and the readable directories of its children.
 
 - `ob run` rebuilds it from the node directories on disk after Snakemake exits, including after partial, filtered and failed runs. Readable names come from each node's `parameters.json`. It is not written by rules, so it never appears in rule text.
 - It is a derived view. Archives and remote storage skip it, and deleting it loses nothing.
@@ -160,6 +160,24 @@ Only paths change. Rules no longer create readable links (`ln -sfn`), so a rule'
 - api < 0.8.0: v1 layout, plus a deprecation warning from `ob run`.
 - api 0.10.0: the v1 writer is removed, and plans below 0.8.0 are rejected with a pointer to the migration.
 - Migration means raising `api_version`. Every output path changes, so the next run recomputes everything. Relocating an existing v1 tree is out of scope.
+
+#### 3.1.6 Gathers
+
+A gather's directory follows from its grouping:
+
+```
+out/<S node dir>/<segment>/      # group_by: S, the gather is that node's child (010 §3.2.1)
+out/<segment>/                   # global gather
+out/<S node dir>/<path>/         # group_by: S, with `path`
+out/<path>/                      # global gather, with `path`
+```
+
+`gather: {from: x, path: reports}` names the directory instead of the generated segment. `path` is a template like an output path.
+
+- It is the node directory: `lineage.json` and `parameters.json` are written there, and stages below nest inside it.
+- Plan-time errors: a directory another node already writes into, an absolute path, `.` or `..`, a first component reserved by omnibenchmark (`by-params`, dot-directories), a component that reads as a node segment.
+- A custom path has no member digest. A run that prunes members (`--filter`, capabilities) overwrites it.
+- Name-only readers do not see a custom path at the top of `out/`: `by-params/` does not mirror it, remote storage does not track it, and `ob collect` drops nodes below it.
 
 ## 4. Runtime Manifest (`manifest.json`)
 

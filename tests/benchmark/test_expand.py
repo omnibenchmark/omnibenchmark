@@ -192,6 +192,140 @@ def test_zero_producer_from_is_plan_time_error():
         raise AssertionError("expected ValueError for zero-producer gather.from")
 
 
+@pytest.mark.short
+def test_gather_whose_producers_were_all_pruned_is_skipped():
+    # `metrics` gathers clusters_tsv, which stage `clu` declares, but a filter
+    # pruned every `clu` node: skip the gather instead of failing the DAG.
+    bench = _fake_benchmark()
+    bench.model.stages = [
+        SimpleNamespace(id="clu", outputs=[SimpleNamespace(id="clusters_tsv")]),
+        SimpleNamespace(id="metrics", outputs=[SimpleNamespace(id="summary")]),
+    ]
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clusters_tsv", group_by="data")],
+        modules=[],
+        outputs=[],
+        resources=None,
+    )
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=bench,
+        resolved_modules_cache={},
+        output_to_nodes={},
+        nodes_by_id={},
+    )
+    assert nodes == []
+
+
+def _node(node_id, parent_id, stage_id, module_id, node_dir, provides=None):
+    ctx = SimpleNamespace(provides=dict(provides or {}))
+    return SimpleNamespace(
+        id=node_id,
+        parent_id=parent_id,
+        stage_id=stage_id,
+        module_id=module_id,
+        node_dir=node_dir,
+        template_context=ctx,
+    )
+
+
+@pytest.mark.short
+def test_group_by_partitions_by_node_from_0_8():
+    # 2 datasets x 2 norm modules x 2 methods = 8 producers. group_by norm:
+    # by module (< 0.8) that is 2 groups merging both datasets; by node (0.8)
+    # it is 4, one per (dataset, norm) lineage, each a child of its norm node.
+    nodes_by_id = {}
+    producers = []
+    for d in ("d1", "d2"):
+        dn = _node(f"{d}.default", None, "data", d, f"data.{d}.default", {"data": d})
+        nodes_by_id[dn.id] = dn
+        for nr in ("na", "nb"):
+            nn = _node(
+                f"{dn.id}-norm-{nr}.default",
+                dn.id,
+                "norm",
+                nr,
+                f"{dn.node_dir}/norm.{nr}.default",
+                {"data": d, "norm": nr},
+            )
+            nodes_by_id[nn.id] = nn
+            for m in ("ma", "mb"):
+                mn = _node(
+                    f"{nn.id}-clu-{m}.default",
+                    nn.id,
+                    "clu",
+                    m,
+                    f"{nn.node_dir}/clu.{m}.default",
+                )
+                nodes_by_id[mn.id] = mn
+                producers.append((mn.id, f"{mn.node_dir}/c.tsv"))
+
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="norm")],
+        modules=[
+            SimpleNamespace(
+                id="summ", name="summ", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="summary", path="{data}_{norm}_summary.tsv")],
+        resources=None,
+    )
+    bench = _fake_benchmark()
+    bench.model.api_version = APIVersion.V0_8_0
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=bench,
+        resolved_modules_cache={("metrics", "summ"): object()},
+        output_to_nodes={"clustering": list(producers)},
+        nodes_by_id=nodes_by_id,
+    )
+
+    assert len(nodes) == 4
+    g = {n.parent_id: n for n in nodes}
+    assert set(g) == {
+        "d1.default-norm-na.default",
+        "d1.default-norm-nb.default",
+        "d2.default-norm-na.default",
+        "d2.default-norm-nb.default",
+    }
+    n = g["d2.default-norm-nb.default"]
+    # Two members, so the member-set digest applies (#406).
+    assert n.id == "d2.default-norm-nb.default-metrics-summ-d4f66a17"
+    assert n.parents == []
+    assert n.gathered_from == [
+        "d2.default-norm-nb.default-clu-ma.default",
+        "d2.default-norm-nb.default-clu-mb.default",
+    ]
+    # Under the group node's dir, with its labels (data) plus the group key.
+    assert n.get_output_list() == [
+        "data.d2.default/norm.nb.default/metrics.summ-d4f66a17/d2_nb_summary.tsv"
+    ]
+
+
+@pytest.mark.short
+def test_gather_absent_from_picks_is_dropped_before_producer_check():
+    # A filter that prunes a gather's producers and does not list the gather
+    # must drop the gather, not fail on "no stage produces".
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="data")],
+        modules=[SimpleNamespace(id="s")],
+        outputs=[],
+        resources=None,
+    )
+    nodes = expand_gather_stage(
+        stage=stage,
+        benchmark=_fake_benchmark(),
+        resolved_modules_cache={},
+        output_to_nodes={},
+        nodes_by_id={},
+        picks={"data": {"*": "all"}},
+    )
+    assert nodes == []
+
+
 _GATHER_YAML = """
 id: t
 description: t
@@ -258,6 +392,32 @@ stages:
 """
     bench = Benchmark.from_yaml(y)
     assert [s.id for s in bench.stages] == ["method_a", "method_b"]
+
+
+@pytest.mark.short
+def test_gather_mapping_form_is_the_list_form():
+    """`gather: {group_by: S, from: [a, b]}` names the axis once."""
+    stage = Stage.model_validate(
+        {
+            "id": "metrics",
+            "modules": [],
+            "outputs": [],
+            "gather": {"group_by": "data", "from": ["clustering", "embedding"]},
+        }
+    )
+    assert [(g.from_, g.group_by) for g in stage.gather] == [
+        ("clustering", "data"),
+        ("embedding", "data"),
+    ]
+    one = Stage.model_validate(
+        {"id": "m", "modules": [], "outputs": [], "gather": {"from": "clustering"}}
+    )
+    assert [(g.from_, g.group_by) for g in one.gather] == [("clustering", None)]
+    for bad in ({"from": []}, {"from": ["a"], "group": "data"}):
+        with pytest.raises(Exception):
+            Stage.model_validate(
+                {"id": "m", "modules": [], "outputs": [], "gather": bad}
+            )
 
 
 @pytest.mark.short
@@ -475,6 +635,46 @@ def test_stage_named_dataset_without_gather_accepted():
 """
     )
     assert [s.id for s in bench.stages] == ["dataset", "metrics"]
+
+
+@pytest.mark.short
+def test_join_partner_supplying_several_inputs_appears_once():
+    """A partner that produces two of the declared inputs is one parent, so
+    the bundle (and the join hash derived from it) does not depend on how many
+    of its outputs the join wires in."""
+    nodes = [
+        _member("d.default", None, "A", "d"),
+        _member("d.default-L1-l.default", "d.default", "L1", "l"),
+        _member(
+            "d.default-L1-l.default-L2-l2.default", "d.default-L1-l.default", "L2", "l2"
+        ),
+        _member("d.default-R-r.default", "d.default", "R", "r"),
+    ]
+    nodes_by_id = {n.id: n for n in nodes}
+    output_to_nodes = {
+        "left": [("d.default-L1-l.default-L2-l2.default", "p")],
+        "right_a": [("d.default-R-r.default", "q")],
+        "right_b": [("d.default-R-r.default", "q")],
+    }
+
+    def bundles_for(inputs):
+        return select_input_bundles(
+            declared_input_ids=inputs,
+            output_to_nodes=output_to_nodes,
+            resolved_nodes=nodes,
+            stage_ids_in_order=["A", "R", "L1", "L2", "J"],
+            nodes_by_id=nodes_by_id,
+        )
+
+    two = bundles_for(["left", "right_a"])
+    three = bundles_for(["left", "right_a", "right_b"])
+
+    assert [tuple(n.id for n in b) for b in three] == [
+        ("d.default-L1-l.default-L2-l2.default", "d.default-R-r.default")
+    ]
+    assert [tuple(n.id for n in b) for b in three] == [
+        tuple(n.id for n in b) for b in two
+    ]
 
 
 @pytest.mark.short
@@ -1423,18 +1623,16 @@ def test_gather_skips_a_module_missing_from_the_resolution_cache():
 @pytest.mark.short
 def test_node_dir_nested_and_flat():
     """007 §3.1: v1 spends three directories per node, v2 one segment that
-    splits back on `.` into stage, module, [group,] param[-join]."""
+    splits back into stage.module[.param][-join]; no param field without parameters."""
     a = SimpleNamespace(id="a")
     b = SimpleNamespace(id="b")
     assert node_dir("m", "M1", ".abc12345") == "m/M1/.abc12345"
     assert node_dir("g", "c", ".default", group="D1") == "g/D1/c/.default"
     assert node_dir("m", "M1", ".abc12345", flat=True) == "m.M1.abc12345"
-    assert node_dir("m", "M1", ".default", flat=True) == "m.M1.default"
-    assert node_dir("g", "c", ".default", group="D1", flat=True) == "g.c.D1.default"
+    assert node_dir("m", "M1", ".default", flat=True) == "m.M1"
     join = node_dir("j", "J", ".default", (a, b), flat=True)
-    stage, module, param = join.split(".")
-    assert (stage, module) == ("j", "J")
-    assert param.split("-")[0] == "default" and len(param.split("-")[1]) == 8
+    assert join.startswith("j.J-") and len(join) == len("j.J-") + 8
+    assert join.split("-")[0] == "j.J"
 
 
 @pytest.mark.short
@@ -1451,9 +1649,176 @@ def test_flat_layout_from_api_0_8_0():
     assert errors == []
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
     assert method == [
-        "data.D1.default/method.M1.default/M1_m.txt",
-        "data.D2.default/method.M1.default/M1_m.txt",
+        "data.D1/method.M1/M1_m.txt",
+        "data.D2/method.M1/M1_m.txt",
     ]
     nodes, _, _ = _plan(_chain_yaml())
     method = sorted(n.get_output_list()[0] for n in nodes if n.stage_id == "method")
     assert method[0] == "data/D1/.default/method/M1/.default/M1_m.txt"
+
+
+@pytest.mark.short
+def test_pruned_gather_gets_its_own_directory_on_0_8():
+    """#405: a gather built from fewer members (`--filter`, capabilities)
+    must not share its id or directory with the full gather."""
+    nodes_by_id = {
+        "d1.default": _node("d1.default", None, "data", "d1", "data.d1.default"),
+        "d1-clu-ma": _node("d1-clu-ma", "d1.default", "clu", "ma", "x/a"),
+        "d1-clu-mb": _node("d1-clu-mb", "d1.default", "clu", "mb", "x/b"),
+    }
+    full = [("d1-clu-ma", "d1/a.tsv"), ("d1-clu-mb", "d1/b.tsv")]
+    stage = SimpleNamespace(
+        id="metrics",
+        gather=[SimpleNamespace(from_="clustering", group_by="data")],
+        modules=[
+            SimpleNamespace(
+                id="summ", name="summ", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="metrics.summary", path="summary.tsv")],
+        resources=None,
+    )
+    benchmark = _fake_benchmark()
+    benchmark.model.api_version = APIVersion.V0_8_0
+
+    def gather(producers):
+        (node,) = expand_gather_stage(
+            stage=stage,
+            benchmark=benchmark,
+            resolved_modules_cache={("metrics", "summ"): object()},
+            output_to_nodes={"clustering": producers},
+            nodes_by_id=nodes_by_id,
+        )
+        return node
+
+    whole, pruned = gather(full), gather(full[:1])
+
+    # 0.8.0 groups by node: the gather sits under its data node (010 §3.2.1).
+    by = "data.d1.default/"
+    assert whole.node_dir.startswith(by + "metrics.summ-")
+    assert pruned.node_dir == by + "metrics.summ"  # no digest
+    assert whole.id != pruned.id
+    # The digest names the member set, so it is stable under member order.
+    assert gather(full[::-1]).node_dir == whole.node_dir
+
+
+def _gather_inputs_yaml(api="0.8.0", group_by="group_by: feat", inputs="[feat_out]"):
+    """data (D1, D2) -> feat (F1) -> pca (P1, P2); pcam gathers pca_out per feat
+    node and takes `inputs:` from that node's lineage (010 §3.5.2)."""
+    return f"""
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: {api}
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: data
+    outputs: [{{id: data_out, path: "{{module.id}}_d.txt"}}]
+    modules:
+      - id: D1
+{_BLOCK_REPO}
+      - id: D2
+{_BLOCK_REPO}
+  - id: feat
+    inputs: [data_out]
+    outputs: [{{id: feat_out, path: "{{module.id}}_f.txt"}}]
+    modules:
+      - id: F1
+{_BLOCK_REPO}
+  - id: pca
+    inputs: [feat_out]
+    outputs: [{{id: pca_out, path: "{{module.id}}_p.txt"}}]
+    modules:
+      - id: P1
+{_BLOCK_REPO}
+      - id: P2
+{_BLOCK_REPO}
+  - id: pcam
+    inputs: {inputs}
+    gather:
+      - from: pca_out
+        {group_by}
+    outputs: [{{id: pcam_out, path: "{{module.id}}_m.txt"}}]
+    modules:
+      - id: PM
+{_BLOCK_REPO}
+"""
+
+
+@pytest.mark.short
+def test_node_grouped_gather_takes_inputs_from_its_group_node():
+    nodes, _, errors = _plan(_gather_inputs_yaml())
+    assert errors == []
+    feat = {n.id: n for n in nodes if n.stage_id == "feat"}
+    gathers = [n for n in nodes if n.stage_id == "pcam"]
+    assert len(gathers) == 2
+    for g in gathers:
+        own = feat[g.parent_id].get_output_list()[0]
+        assert g.inputs["group_feat_out"] == own
+        assert g.input_name_mapping["group_feat_out"] == "feat_out"
+        members = [k for k in g.inputs if k.startswith("input_")]
+        assert len(members) == 2  # P1 and P2 under this feat node
+
+
+@pytest.mark.short
+def test_gather_input_from_below_the_group_node_is_an_error():
+    with pytest.raises(ValueError, match="is not produced by its group node"):
+        _plan(_gather_inputs_yaml(inputs="[pca_out]"))
+
+
+@pytest.mark.short
+def test_inputs_on_a_global_gather_rejected():
+    msg = _parse_error(_gather_inputs_yaml(group_by=""))
+    assert "global gather" in msg
+
+
+@pytest.mark.short
+def test_inputs_on_a_gather_before_0_8_rejected():
+    msg = _parse_error(_gather_inputs_yaml(api="0.7.0"))
+    assert "requires api_version >= 0.8.0" in msg
+
+
+@pytest.mark.short
+def test_gather_path_names_the_node_directory():
+    """`path` replaces the generated segment: under the group node with
+    `group_by`, at the output root without (007 §3.1.6)."""
+    nodes, _, errors = _plan(
+        _gather_inputs_yaml(
+            group_by="group_by: feat\n        path: reports/{module.id}"
+        )
+    )
+    assert errors == []
+    feat = {n.id: n for n in nodes if n.stage_id == "feat"}
+    gathers = [n for n in nodes if n.stage_id == "pcam"]
+    assert len(gathers) == 2
+    for g in gathers:
+        assert g.node_dir == f"{feat[g.parent_id].node_dir}/reports/PM"
+        assert g.outputs["pcam_out"] == f"{g.node_dir}/PM_m.txt"
+
+    text = _gather_inputs_yaml(group_by="path: reports").replace(
+        "    inputs: [feat_out]\n    gather", "    gather"
+    )
+    nodes, _, errors = _plan(text)
+    assert errors == []
+    (g,) = [n for n in nodes if n.stage_id == "pcam"]
+    assert g.node_dir == "reports"
+
+
+@pytest.mark.short
+def test_gather_path_rejects_shared_reserved_and_node_like_directories():
+    from omnibenchmark.core._expand import _gather_custom_dir
+
+    assert _gather_custom_dir("S", "reports", "data.D1", []) == "data.D1/reports"
+    for path, taken, match in [
+        ("reports", ["reports"], "already writes into"),
+        ("../x", [], "relative path"),
+        ("/abs", [], "relative path"),
+        ("by-params/x", [], "reserved"),
+        (".logs", [], "reserved"),
+        ("data.D1.default", [], "reads as a node directory"),
+    ]:
+        with pytest.raises(ValueError, match=match):
+            _gather_custom_dir("S", path, None, taken)

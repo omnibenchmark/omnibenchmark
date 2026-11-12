@@ -288,9 +288,20 @@ class BenchmarkValidator:
         def input_groups(stage) -> List[List[str]]:
             return [ic.entries for ic in (stage.inputs or [])]  # type: ignore
 
+        def gather_ids(stage) -> List[str]:
+            return [spec.from_ for spec in (stage.gather or [])]  # type: ignore
+
+        from omnibenchmark.model.benchmark import APIVersion
+
+        def node_grouped(stage) -> bool:
+            return self.api_version >= APIVersion.V0_8_0 and all(  # type: ignore
+                spec.group_by
+                for spec in stage.gather  # type: ignore
+            )
+
         def producer_stage_ids(stage) -> set:
             result: set = set()
-            for group in input_groups(stage):
+            for group in input_groups(stage) + [gather_ids(stage)]:
                 for input_id in group:
                     producer = output_stage.get(input_id)
                     if producer is not None and producer != stage.id:  # type: ignore
@@ -318,6 +329,18 @@ class BenchmarkValidator:
             stage = stage_by_id[stage_id]
             groups = input_groups(stage)
             for module in stage.modules:  # type: ignore
+                if stage.gather and node_grouped(stage):  # type: ignore
+                    # A node-grouped gather (0.8.0) is a child of its group node,
+                    # so it sits on its members' lineages: it inherits their
+                    # roots. Any other gather cuts the chain and stays a root.
+                    reachable[module.id] = {  # type: ignore
+                        root
+                        for input_id in gather_ids(stage)
+                        if output_stage.get(input_id) is not None
+                        for pm in stage_by_id[output_stage[input_id]].modules  # type: ignore
+                        for root in reachable.get(pm.id, ())
+                    }
+                    continue
                 if not groups:
                     # initial stage: the module is itself a root
                     reachable[module.id] = {module.id}  # type: ignore

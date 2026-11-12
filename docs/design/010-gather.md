@@ -23,6 +23,7 @@
 | 3       | 2026-08-25 | Simplify: syntax moves to 004 §3.11–3.12, mechanism moves to §5, alternatives cut to one line each. | btraven00 |
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
+| 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--from-files` (lineage.json v2, the manifest), not member argv | btraven00 |
 
 ## 1. Problem Statement
 
@@ -93,6 +94,9 @@ Both fan-in shapes break that, differently:
 - **Neither path encodes its members.** A gather's records only the group key, a
   join's only its deepest input, so the rest of the closure survives only if
   written down — `gathered_from`/`parents` in the plan, `lineage.json` on disk.
+  From api 0.8.0 a gather's segment also carries a digest of its member set,
+  as a join's does (007 §3.1.1): it tells member sets apart but does not name
+  them, so `lineage.json` stays the record.
 
 This document defines what a gather node is, what its lineage means, and how the
 metadata that used to live on the chain is represented once the chain is cut.
@@ -186,7 +190,7 @@ alternate, so existing plans are identical.
 ### 3.2 The gather stage
 
 Syntax and validation rules: [004 §3.12](004-yaml-specification.md). In short, a
-stage declares `gather: [{from, group_by}]` in place of `inputs:`.
+stage declares `gather: [{from, group_by}]` (or `gather: {group_by, from: [...]}`) in place of `inputs:`.
 
 Members are every node producing `from`. They are partitioned by the ancestor
 module of the `group_by` stage, one gather node per group. This is *structural*
@@ -212,6 +216,33 @@ id (`D1`), not its node id. Per-parameter grouping needs a label-based
 
 **Deferred**: `where` (member filtering), label-value `group_by`, and plain
 `inputs:` mixed with `gather:`.
+
+#### 3.2.1 api ≥ 0.8.0: grouping by node
+
+From 0.8.0, `group_by: S` partitions members by the ancestor **node** of S, not by
+its module. That keeps every axis above and including S, and merges only what lies
+below it.
+
+The gather node becomes a **child of that node**:
+- id `<S node id>-<stage>-<module><param>`;
+- directory `<S node dir>/<stage>.<module>.<param>`;
+- `parent_id` is the S node, so the chain does not cut.
+
+It inherits the S node's labels like a scatter child does, and it still binds the
+group key (`{S}` = the S module id). `exclude` and `requires` downstream see the
+chain up to S. Members stay in `gathered_from` and `lineage.json`. They are not
+ancestors.
+
+Why the change:
+- **Module grouping merged things that must not merge.** On omni-scrna,
+  `group_by: FEAT` put up to 342 kNN graphs from every dataset and NORM branch
+  into one group, where per FEAT node there are at most 11.
+- **It tripled a per-pool join in ambient-plan** (omni-scrna/ambient-plan#1).
+- **Large groups also overflow the command line:** a gather rule is run as one
+  `bash -c` string, capped at 128 KiB.
+
+A global gather (no `group_by`) is unchanged, and so is the < 0.8.0 behavior
+(§3.2–§3.3).
 
 ### 3.3 The cut: what lineage becomes
 
@@ -312,6 +343,81 @@ byte-identical Snakefiles, or Snakemake reruns unchanged work. Position carries
 no meaning: modules identify members by path, and the CLI order need not match
 the `gathered_from` order in `lineage.json`.
 
+#### 3.5.1 api ≥ 0.8.0: the manifest
+
+The member-path flags above are gone from 0.8.0. A fan-in module (gather or
+collector) receives exactly one path:
+
+```
+<entrypoint> --output_dir … --name summarizer --output summary=/abs/… \
+    --from-files /abs/<node dir>/lineage.json \
+    [param flags]
+```
+
+Why: Snakemake runs a rule's shell block as a single `bash -c` argument, which
+the kernel caps at 128 KiB (`MAX_ARG_STRLEN`). Inlining member paths, plus the
+old lineage echo, cost about 625 bytes per member, so a gather failed with
+E2BIG at roughly 200–350 members (omni-scrna: 580 kNN graphs = 353 KB). The
+command is now the same size at any member count.
+
+The flag is named for what the module does with it (read its files from
+here); ob calls the file the manifest. The manifest is `lineage.json` version 2. Each member lists its files by output
+id (absolute paths) and its full ancestry, so modules never parse ob paths:
+
+```json
+{"version": 2, "node_id": "…", "stage": "metrics", "module": "summ",
+ "kind": "gather",
+ "members": [
+   {"node_id": "…", "commit": "…", "dir": "…",
+    "files": {"clustering": "/abs/…/ma_clusters.tsv"},
+    "lineage": [{"node_id": "…", "stage": "data", "module": "D1", "params": "…",
+                 "parameters": {"dataset_name": "be1"}},
+                …,
+                {"node_id": "…", "stage": "clu", "module": "ma", "params": "…",
+                 "parameters": {"k": 5}}]}]}
+```
+
+A member's own stage, module and parameters are its last `lineage` entry, and
+nowhere else. `params` is the hash in the node's directory name, null for a node
+without parameters; `parameters` holds the values behind it (as in the node's
+`parameters.json`), so a module can label its rows by them.
+
+- A member that contributes several gathered ids appears once, with several
+  `files`.
+- Members are in plan order, and position carries no meaning.
+
+It is written by a local `run:` rule (`<rule>_manifest`) that ob emits next to
+the fan-in rule, from a JSON record built at generation time. That rule is ob
+bookkeeping, not a module: modules still run through `shell:` only. A changed
+member set changes the record, which reruns the manifest and then the gather.
+
+#### 3.5.2 api ≥ 0.8.0: a node-grouped gather's own inputs
+
+A gather with `group_by: S` is the child of one S node (§3.2.1), so it has one
+lineage, and it may declare `inputs:` like a scatter stage. Each input resolves
+the way it would for a scatter child of the group node: from the group node's
+own outputs or its ancestors', nearest first. It reaches the module as an
+ordinary `--<id> <path>` flag, next to `--from-files`, and is not a member:
+
+```yaml
+  - id: PCA_M
+    inputs: [normalized_selected_h5]   # the FEAT node's own matrix
+    gather:
+      group_by: FEAT
+      from: [embedding_tsv, loadings_tsv]
+```
+
+The mapping form names the axis once; it is the list form
+`[{from: embedding_tsv, group_by: FEAT}, {from: loadings_tsv, group_by: FEAT}]`,
+which stays valid.
+
+Rejected:
+
+- `inputs:` on a global gather, or on any gather before api 0.8.0: the group
+  merges lineages, so there is nothing to resolve them from (plan error).
+- An input not produced by the group node or its ancestors, e.g. an output of a
+  stage below S (expansion error). Members come only through `gather:`.
+
 ### 3.6 Metric collectors are a global gather
 
 A `metric_collector` is a gather with no `group_by`, declared terminal by
@@ -332,7 +438,13 @@ Deprecation is a **notice, not a rewrite**. Reimplementing the collector
 resolver on top of gather nodes rewires a working path for no user-visible
 gain; a warning pointing at the equivalent `gather:` stanza does the actual
 work of moving people, and the code deletes itself once nobody declares
-`metric_collectors:`. Removal waits for a later major api version.
+`metric_collectors:`. ~~Removal waits for a later major api version.~~
+
+**Amended (0.8.0):** api 0.8.0 removes them. A 0.8.0 plan that declares
+`metric_collectors:` fails to load with a pointer to `gather:`; older plans
+keep them. 0.8.0 already breaks every output path (flat layout, 007 §3.1), so
+moving to `gather:` costs nothing extra there, and fan-in modules get one
+contract (the manifest, §3.5) instead of two.
 
 ### 3.7 Worked example: a report module
 
@@ -364,7 +476,7 @@ stage, module, commit, parameter hash and directory:
 
 ```
 render.R          # reads $OUTPUT_DIR/lineage.json and the --metrics.summary paths
-template.Rmd
+template.Rmd      # (api ≥ 0.8.0: reads only --from-files, which has both; §3.5.1)
 ```
 
 So the sidecar is not only a provenance artifact for humans — for a gather

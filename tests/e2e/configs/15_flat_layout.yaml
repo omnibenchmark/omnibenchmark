@@ -3,7 +3,8 @@ description: >-
   Flat output layout (007 §3.1, api 0.8.0). Every segment kind in one plan:
   a plain chain (data -> shallow, deep), a join (join, one per data module,
   its directory carrying the parent-set digest), a grouped gather over the
-  join (metrics, one per data module), and a scatter after the gather (report).
+  join (metrics, one per data module), a scatter after the gather (report),
+  and a global gather over the reports (summary).
 version: "1.0"
 benchmarker: "E2E Test Suite"
 api_version: "0.8.0"
@@ -112,3 +113,19 @@ stages:
     outputs:
       - id: report_out
         path: "{module.id}_r.json"
+
+  # A global gather (no group_by) sits at the root with its own manifest.
+  - id: summary
+    gather:
+      - from: report_out
+    modules:
+      - id: SC
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1", "--kind", "t"]
+    outputs:
+      - id: summary_out
+        path: "{module.id}_t.json"

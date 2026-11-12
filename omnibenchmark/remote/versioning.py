@@ -7,6 +7,14 @@ from omnibenchmark.core._lineage import parse_node_segment
 from omnibenchmark.storage import StorageOptions, get_expected_benchmark_output_files
 
 
+def _is_node_root(root: str) -> bool:
+    # A top-level file such as `performances.tsv` reads as `stage.module` too;
+    # no stage or module is called after a file extension we write there.
+    return parse_node_segment(root) is not None and not root.endswith(
+        (".tsv", ".jsonl", ".json", ".txt", ".yaml", ".log")
+    )
+
+
 def _is_tracked(root: str, storage_options: StorageOptions) -> bool:
     """A tracked directory, or a flat node segment (007 §3.1).
 
@@ -14,10 +22,7 @@ def _is_tracked(root: str, storage_options: StorageOptions) -> bool:
     ``data.D1.94686c86/D1_data.json`` whose root is the node, not a stage
     directory; the segment grammar recognises it whatever the stage is called.
     """
-    return (
-        root in storage_options.tracked_directories
-        or parse_node_segment(root) is not None
-    )
+    return root in storage_options.tracked_directories or _is_node_root(root)
 
 
 def get_objects_to_tag(
@@ -85,7 +90,7 @@ def filter_objects_to_tag(
             for i, obj in enumerate(object_names_to_tag)
             if obj in object_names_to_keep
             or rootdirs[i] in overwrite_dirs_to_keep
-            or parse_node_segment(rootdirs[i]) is not None
+            or _is_node_root(rootdirs[i])
         ]
         if filtered_items:
             objects, versions = zip(*filtered_items)

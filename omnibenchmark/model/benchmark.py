@@ -473,6 +473,15 @@ class GatherSpec(BaseModel):
             "collected into one node, with no group segment in the output path."
         ),
     )
+    path: Optional[str] = Field(
+        None,
+        description=(
+            "Directory for the gather node, instead of the generated "
+            "`STAGE.module...` one (api >= 0.8.0). A template like an output "
+            "path. Relative to the group node's directory with `group_by`, to "
+            "the output root without. Two gather nodes may not share one."
+        ),
+    )
 
 
 class Resources(BaseModel):
@@ -767,6 +776,24 @@ class Stage(DescribableEntity):
         ),
     )
 
+    @field_validator("gather", mode="before")
+    @classmethod
+    def expand_gather_mapping(cls, v):
+        """`gather: {group_by: S, from: [a, b]}` is the list form with S on each entry."""
+        if not isinstance(v, dict):
+            return v
+        unknown = set(v) - {"from", "group_by", "path"}
+        if unknown:
+            raise ValueError(f"gather: unknown keys {sorted(unknown)}")
+        froms = v.get("from")
+        froms = [froms] if isinstance(froms, str) else froms
+        if not froms:
+            raise ValueError("gather: `from` needs at least one output id")
+        return [
+            {"from": f, "group_by": v.get("group_by"), "path": v.get("path")}
+            for f in froms
+        ]
+
     @model_validator(mode="after")
     def validate_gather(self) -> "Stage":
         if self.gather:
@@ -780,6 +807,11 @@ class Stage(DescribableEntity):
                     f"Stage '{self.id}' has gather entries with differing "
                     f"group_by {shown}. A gather stage has one grouping "
                     f"axis; multiple axes are deferred (design 010 §3.3)."
+                )
+            if len({spec.path for spec in self.gather}) > 1:
+                raise ValueError(
+                    f"Stage '{self.id}' has gather entries with differing "
+                    f"`path`. A gather node has one directory."
                 )
         return self
 
@@ -884,7 +916,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
     )
     stages: List[Stage] = Field(..., description="Benchmark stages")
     metric_collectors: Optional[List[MetricCollector]] = Field(
-        None, description="Metric collectors"
+        None,
+        description="Metric collectors (deprecated: removed in api_version 0.8.0, use a gather stage)",
     )
     storage: Optional[Storage] = Field(None, description="Remote storage configuration")
     # Legacy Compatibility Fields - Migration Strategy
@@ -1614,6 +1647,14 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                             f"declares {self.api_version.value})."
                         )
 
+        # 0.8.0 replaces metric collectors with gather stages (010 §3.6).
+        if self.metric_collectors and self.api_version >= APIVersion.V0_8_0:
+            ids = ", ".join(c.id for c in self.metric_collectors)
+            raise ValueError(
+                f"`metric_collectors` ({ids}) were removed in api_version 0.8.0; "
+                f"use a stage with `gather:` instead (design 010 §3.6)."
+            )
+
         for collector in self.metric_collectors or []:
             files = collector.outputs + [
                 i for i in collector.inputs if isinstance(i, IOFile)
@@ -1661,12 +1702,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         # `--<id>` input flags downstream, nowhere else, so only `=` and
         # whitespace are out.
         if self.api_version >= APIVersion.V0_8_0:
-            collector_outputs = [
-                o for c in self.metric_collectors or [] for o in c.outputs or []
-            ]
-            for o in [o for s in self.stages for o in s.outputs or []] + (
-                collector_outputs
-            ):
+            for o in [o for s in self.stages for o in s.outputs or []]:
                 if _BAD_OUTPUT_ID.search(o.id):
                     raise ValueError(
                         f"Output id '{o.id}' may not contain '=' or whitespace."
@@ -1796,6 +1832,26 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                         f"{spec.group_by}`, but '{spec.group_by}' is a "
                         f"reserved builtin label. Hint: rename the stage."
                     )
+
+        # A gather may declare `inputs:` only when it is the child of one group
+        # node (api >= 0.8.0, `group_by` set): the inputs resolve from that
+        # node's lineage (010 §3.5.2). A global gather, or a module-grouped one
+        # before 0.8.0, merges lineages and has nothing to resolve them from.
+        for stage in self.stages:
+            if not (stage.gather and stage.inputs):
+                continue
+            if self.api_version < APIVersion.V0_8_0:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares `inputs:` on a gather, which "
+                    f"requires api_version >= 0.8.0 (this benchmark declares "
+                    f"{self.api_version.value})."
+                )
+            if stage.gather[0].group_by is None:
+                raise ValueError(
+                    f"Stage '{stage.id}' declares `inputs:` on a global gather. "
+                    f"Only a gather with `group_by` has one lineage to resolve "
+                    f"them from."
+                )
 
         # Call the pure model validation from the validator base class
         self.validate_model_structure()

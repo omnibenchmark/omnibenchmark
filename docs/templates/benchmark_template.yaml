@@ -185,7 +185,7 @@ stages:
     prefix: example_prefix
 
 
-# optional (array), Metric collectors
+# optional (array), Metric collectors (deprecated: removed in api_version 0.8.0, use a gather stage)
 metric_collectors: ...
 
 # optional (Storage), Remote storage configuration

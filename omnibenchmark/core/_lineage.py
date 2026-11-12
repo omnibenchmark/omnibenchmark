@@ -29,15 +29,21 @@ def iter_ancestors(node, nodes_by_id, through_gather: bool = True):
     plus explicit `parents` edges, so a node downstream of a join sees every
     branch (010 §5.2).
 
-    `through_gather=False` is the GATING walk — it stops at a gather, whose
-    partition deliberately forgets (010 §3.3), so one excluded member among
-    hundreds must not poison everything downstream.
+    `through_gather=False` is the GATING walk — it stops at a gather that cuts
+    the chain (no `parent_id`: a global gather, or a module-grouped one before
+    0.8.0), whose partition deliberately forgets (010 §3.3), so one excluded
+    member among hundreds must not poison everything downstream. A node-grouped
+    gather (0.8.0) is a child of its group node and is walked like any node.
     """
     seen = {node.id}
     queue: deque = deque()
 
     def _push(n):
-        if not through_gather and getattr(n, "is_gather", False):
+        if (
+            not through_gather
+            and getattr(n, "is_gather", False)
+            and not getattr(n, "parent_id", None)
+        ):
             return
         parent_id = getattr(n, "parent_id", None)
         if parent_id:
@@ -247,6 +253,26 @@ def ancestor_module_at_stage(member_id, group_stage, nodes_by_id):
     return None
 
 
+def ancestor_node_at_stage(member_id, group_stage, nodes_by_id):
+    """The `group_stage` node a member descends from, or itself if it is one
+    (0.8.0 gather grouping: by node, i.e. the full lineage up to that stage).
+    Same walk and ambiguity rule as `ancestor_module_at_stage`, keyed by node:
+    None when there is no such ancestor or the ancestry crosses a fan-in that
+    reaches several nodes of that stage.
+    """
+    node = nodes_by_id.get(member_id)
+    if node is None:
+        return None
+    found = {
+        n.id
+        for n in (node, *iter_ancestors(node, nodes_by_id))
+        if n.stage_id == group_stage
+    }
+    if len(found) == 1:
+        return nodes_by_id[found.pop()]
+    return None
+
+
 def _stage_ancestry(node, nodes_by_id) -> dict:
     """Map stage_id → node ids over `node` and its full (parents-aware)
     ancestry. The per-stage sets are the join-compatibility fingerprint."""
@@ -363,7 +389,9 @@ def select_input_bundles(
                 for i, x in enumerate(combo)
                 for y in combo[i + 1 :]
             ):
-                bundles.append((anchor,) + combo)
+                # A partner supplying several missing inputs appears once.
+                members = {n.id: n for n in (anchor,) + combo}
+                bundles.append(tuple(members.values()))
                 emitted += 1
         if not emitted:
             logger.warning(
@@ -393,37 +421,50 @@ def node_dir(
     """The output directory one node adds under its parent's (007 §3.1).
 
     v1 (nested, api < 0.8.0): ``stage/[group/]module/.param[-join]``.
-    v2 (flat, api ≥ 0.8.0): ``stage.module[.group].param[-join]``, a single
-    segment. It splits back on ``.`` because 0.8.0 ids cannot contain ``.``
-    or ``-``.
+    v2 (flat, api ≥ 0.8.0): ``stage.module[.param][-join]``, a single
+    segment; a node without parameters has no param field. It splits back on
+    ``.`` and ``-`` because 0.8.0 ids contain neither. No group field: a 0.8.0
+    gather is grouped by node and nests under it.
     """
     seg = expansion_segment(param_id, members)
     if flat:
-        group_field = [str(group)] if group is not None else []
-        return ".".join([stage_id, module_id, *group_field, seg.lstrip(".")])
+        seg = seg.removeprefix(".default")  # "", "-<join>", ".<hash>[-<join>]"
+        return f"{stage_id}.{module_id}{seg}"
     group_dir = f"{group}/" if group is not None else ""
     return f"{stage_id}/{group_dir}{module_id}/{seg}"
 
 
 _ID = r"[A-Za-z_][A-Za-z0-9_]*"
+# `.default` is no longer written; still read, so trees from before the change parse.
 _SEGMENT_RE = re.compile(
-    rf"({_ID})\.({_ID})(?:\.({_ID}))?\.(default|[0-9a-f]{{8}})(?:-([0-9a-f]{{8}}))?"
+    rf"({_ID})\.({_ID})(?:\.(default|[0-9a-f]{{8}}))?(?:-([0-9a-f]{{8}}))?"
 )
 
 
 def parse_node_segment(part: str) -> Optional[tuple]:
     """``(stage, module, group, param, join)`` of a flat node segment, else None.
 
-    The grammar of 007 §3.1.1; ``group`` and ``join`` are None when absent.
-    Anything else (a template subdirectory such as ``v1.0.0``) is not a node.
+    The grammar of 007 §3.1.1: ``stage.module[.param][-join]``. ``param`` is
+    ``default`` for a node without parameters, ``join`` is None when absent;
+    ``group`` is always None (kept so callers unpack as before). Anything else
+    (a template subdirectory such as ``v1.0.0``) is not a node.
+
+    The name alone decides: a module output directory called ``counts.zarr``
+    reads as a node too. Callers that walk inside node directories live with it.
     """
     m = _SEGMENT_RE.fullmatch(part)
-    return m.groups() if m else None
+    if not m:
+        return None
+    stage, module, param, join = m.groups()
+    return stage, module, None, param or "default", join
 
 
 def node_depth(path: str) -> int:
-    """How many flat node segments *path* passes through (0 on the v1 layout)."""
-    return sum(1 for part in path.split("/") if parse_node_segment(part))
+    """How many flat node segments the file *path* sits under (0 on the v1 layout).
+
+    The file name is left out: ``D1.h5ad`` reads as a segment, ``labels`` does not.
+    """
+    return sum(1 for part in path.split("/")[:-1] if parse_node_segment(part))
 
 
 def resolve_label_value(label: str, module_provides, module_id: str) -> str:

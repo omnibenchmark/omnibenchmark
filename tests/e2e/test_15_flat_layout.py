@@ -2,7 +2,7 @@
 
 One 0.8.0 plan with every segment kind: chain, join (parent-set digest),
 grouped gather, and a scatter after the gather. Checks the tree the run
-leaves behind, the `human/` view, `ob collect` over it, and that a second run
+leaves behind, the `by-params/` view, `ob collect` over it, and that a second run
 executes nothing.
 """
 
@@ -33,7 +33,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
     # Every result directory is one node segment; nothing hidden, no links.
     for path in out.rglob("*"):
         rel = path.relative_to(out)
-        if rel.parts[0].startswith(".") or rel.parts[0] in ("human", "Snakefile"):
+        if rel.parts[0].startswith(".") or rel.parts[0] in ("by-params", "Snakefile"):
             continue
         # The bundled dummy module mkdirs its raw `--output id=PATH` argument.
         if any(p.endswith("=") for p in rel.parts):
@@ -43,23 +43,34 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
             assert _SEGMENT.fullmatch(path.name), f"not a node segment: {rel}"
 
     for group in ("D1", "D2"):
-        (gather,) = out.glob(f"metrics.MC.{group}.*")
+        # 0.8.0 groups by node: the gather is a child of its data node.
+        (gather,) = out.glob(f"data.{group}.*/metrics.MC.*")
         assert (gather / "MC_g.json").is_file()
         lineage = json.loads((gather / "lineage.json").read_text())
-        assert [m["module"] for m in lineage["members"]] == ["J1"]
+        assert [m["lineage"][-1]["module"] for m in lineage["members"]] == ["J1"]
         (report,) = gather.glob("report.R1.*/R1_r.json")
 
         joins = list(out.glob(f"data.{group}.*/*/join.J1.*-*/J1_j.json"))
         assert len(joins) == 1, joins
 
         # The readable mirror resolves to the same files.
-        (readable,) = (out / "human").glob(
-            f"metrics.MC.{group}.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
+        (readable,) = (out / "by-params").glob(
+            f"data.{group}.*/metrics.MC.evaluate-1+1_kind-g/report.R1.*/R1_r.json"
         )
         assert readable.is_symlink()
         assert readable.resolve() == report.resolve()
 
-    # `ob collect` reads the flat tree and does not count `human/` twice.
+    # The global gather owns its manifest: both reports, one per data node.
+    (summary,) = out.glob("summary.SC.*")
+    assert (summary / "SC_t.json").is_file()
+    lineage = json.loads((summary / "lineage.json").read_text())
+    assert sorted(m["lineage"][0]["module"] for m in lineage["members"]) == [
+        "D1",
+        "D2",
+    ]
+    assert not (out / "lineage.json").exists()
+
+    # `ob collect` reads the flat tree and does not count `by-params/` twice.
     from omnibenchmark.cli.collect import collect
 
     result = CliRunner().invoke(collect, ["performance", "-o", str(out)])
@@ -72,7 +83,7 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
     reports = [r for r in rows if r["stage"] == "report"]
     assert sorted(r["dataset"] for r in reports) == ["D1", "D2"]
 
-    # Rebuilding `human/` happens outside Snakemake, so a rerun is a no-op.
+    # Rebuilding `by-params/` happens outside Snakemake, so a rerun is a no-op.
     rerun = runner.execute_cli_command(config_file, debug_label="rerun")
     assert "Nothing to be done" in rerun.stdout + rerun.stderr or (
         "Completed 0 jobs" in rerun.stdout

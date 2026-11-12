@@ -73,7 +73,7 @@ def test_expand_output_path_keeps_filename():
     "api, expected",
     [
         (APIVersion.V0_7_0, "out/data/D1/.default/methods/M1/.abc123/M1.txt"),
-        (APIVersion.V0_8_0, "out/data.D1.default/methods.M1.abc123/M1.txt"),
+        (APIVersion.V0_8_0, "out/data.D1/methods.M1.abc123/M1.txt"),
     ],
 )
 def test_predicted_paths_follow_the_layout(api, expected):

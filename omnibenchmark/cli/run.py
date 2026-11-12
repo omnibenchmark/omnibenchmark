@@ -1027,7 +1027,7 @@ def _run_snakemake(
             try:
                 build_human_view(out_dir)
             except OSError as e:  # the view is disposable; never fail the run
-                logger.warning(f"Could not build {out_dir}/human: {e}")
+                logger.warning(f"Could not build {out_dir}/by-params: {e}")
 
 
 def log_error_and_quit(logger, error):
