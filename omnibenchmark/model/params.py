@@ -3,11 +3,48 @@ from collections.abc import Mapping
 import json
 import hashlib
 import itertools
+import re
 
-from typing import List, TYPE_CHECKING
+from typing import Any, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from omnibenchmark.model.benchmark import Parameter
+
+
+_RANGE = re.compile(r"\{(\d+)\.\.(\d+)\}")
+
+
+def _expand_string(value: str) -> List[str]:
+    m = _RANGE.search(value)
+    if m is None:
+        return [value]
+    lo, hi = m.group(1), m.group(2)
+    if int(lo) > int(hi):
+        raise ValueError(f"Range '{m.group(0)}' in '{value}' is descending.")
+    width = len(lo) if lo.startswith("0") or hi.startswith("0") else 0
+    head, rests = value[: m.start()], _expand_string(value[m.end() :])
+    return [
+        f"{head}{i:0{width}d}{rest}"
+        for i in range(int(lo), int(hi) + 1)
+        for rest in rests
+    ]
+
+
+def expand_ranges(value: Any) -> Any:
+    """Expand bash-style `{a..b}` ranges in a parameter value (api >= 0.8.0).
+
+    A string holding a range becomes a list, so it fans out as one Cartesian
+    axis; list elements that expand are flattened in place. Zero padding
+    follows the written bounds: `s{001..099}` is `s001` .. `s099`.
+    """
+    if isinstance(value, str):
+        return _expand_string(value) if _RANGE.search(value) else value
+    if isinstance(value, list):
+        items: List[Any] = list(value)  # pyright: ignore[reportUnknownArgumentType]
+        return [
+            x for v in items for x in (_expand_string(v) if isinstance(v, str) else [v])
+        ]
+    return value
 
 
 class Params:
