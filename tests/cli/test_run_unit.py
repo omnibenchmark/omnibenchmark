@@ -14,10 +14,10 @@ from omnibenchmark.cli.run import (
     _read_rule_log,
     _run_benchmark,
     _run_snakemake,
-    _with_container_binds,
     _with_mem_budget,
     run,
 )
+from omnibenchmark.backend.snakemake import with_container_binds
 from omnibenchmark.core.prefetch import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
 
@@ -1034,7 +1034,7 @@ def test_run_snakemake_passes_mem_budget(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _with_container_binds — plan dir and out dir visible inside container jobs
+# with_container_binds — plan dir and out dir visible inside container jobs
 # ---------------------------------------------------------------------------
 
 
@@ -1042,7 +1042,7 @@ def test_run_snakemake_passes_mem_budget(tmp_path):
 def test_container_binds_added(tmp_path):
     out = tmp_path / "out"
     with patch("tempfile.gettempdir", return_value="/scratch/t"):
-        assert _with_container_binds(["--forceall"], tmp_path, out) == [
+        assert with_container_binds(["--forceall"], tmp_path, out) == [
             "--forceall",
             "--singularity-args",
             f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out},/scratch/t:/scratch/t",
@@ -1056,7 +1056,7 @@ def test_container_binds_host_tmpdir(tmp_path, monkeypatch):
     host_tmp.mkdir()
     monkeypatch.setenv("TMPDIR", str(host_tmp))
     monkeypatch.setattr("tempfile.tempdir", None)  # drop the cached value
-    (args,) = _with_container_binds([], tmp_path, tmp_path / "out")[1:]
+    (args,) = with_container_binds([], tmp_path, tmp_path / "out")[1:]
     assert args.endswith(f",{host_tmp}:{host_tmp}")
 
 
@@ -1067,11 +1067,11 @@ def test_container_binds_join_user_args(tmp_path, flag):
     out = tmp_path / "out"
     bind = f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out},/t:/t"
     with patch("tempfile.gettempdir", return_value="/t"):
-        assert _with_container_binds([flag, "--nv"], tmp_path, out) == [
+        assert with_container_binds([flag, "--nv"], tmp_path, out) == [
             flag,
             f"{bind} --nv",
         ]
-        assert _with_container_binds([f"{flag}=--nv"], tmp_path, out) == [
+        assert with_container_binds([f"{flag}=--nv"], tmp_path, out) == [
             f"{flag}={bind} --nv"
         ]
 
