@@ -5,8 +5,11 @@ environment, parameters, paths, parent keys). A slice is a set of nodes closed
 under ancestors; its hash is over its node keys, so a matching slice file is
 valid for the plan that computed the same hash, node for node.
 
-`ob run` writes the keys to out/.metadata/nodes.json. `pack` and `seed` read
-only that file, so neither resolves a plan.
+`ob run` writes the keys to out/.metadata/nodes.json; packing and
+`ob run --use-snapshots` read only that file.
+
+Snapshots live in a local directory: `ob config [--local] snapshots.path DIR`,
+else `snapshots/` next to the plan.
 """
 
 import hashlib
@@ -19,8 +22,21 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 NODES_FILE = Path(".metadata") / "nodes.json"
+LOCAL_CONFIG = Path(".ob") / "config"  # next to the plan, not committed
 MOUNTS_DIR = ".slices"
 _APPTAINER_BIN = "/usr/libexec/apptainer/bin"  # apptainer ships squashfuse_ll
+
+
+def store_dir(plan_dir: Path) -> Path:
+    """The snapshots directory: the plan's .ob/config, then the user's
+    config, then `snapshots/`. A relative path is relative to the plan."""
+    from omnibenchmark.config import ConfigAccessor
+
+    for cfg in (ConfigAccessor(plan_dir / LOCAL_CONFIG), ConfigAccessor()):
+        path = cfg.get("snapshots", "path")
+        if path:
+            return plan_dir / Path(path).expanduser()
+    return plan_dir / "snapshots"
 
 
 def _sha(obj) -> str:
@@ -252,9 +268,11 @@ def _extract(image: Path, out_dir: Path) -> None:
             tar.extractall(out_dir, filter="data")
 
 
-def seed(out_dir: Path, source: Path, squashfs: bool = False) -> List[str]:
-    """Seed out_dir from every slice file in `source` whose hash this plan
-    computes too. Returns one line per slice used."""
+def use_snapshots(out_dir: Path, source: Path, apply: bool = True) -> List[str]:
+    """Fill out_dir from every snapshot in `source` whose slice hash this
+    plan computes too: a squashfs image is mounted read-only when it can be,
+    anything else is extracted. Returns one line per snapshot; with
+    `apply=False` it only says what would be used."""
     meta = read_nodes(out_dir)
     datasets = sorted({n["dataset"] for n in meta["nodes"] if n["dataset"]})
     wanted: Dict[str, List[dict]] = {}
@@ -267,7 +285,7 @@ def seed(out_dir: Path, source: Path, squashfs: bool = False) -> List[str]:
     # hash -> (file, base hash or ""); a file named `_<hash>~<base>` holds
     # only what `<base>` lacks
     found: Dict[str, tuple] = {}
-    exts = (".sqfs", ".tar.gz") if squashfs else (".tar.gz",)
+    exts = (".sqfs", ".tar.gz") if _squashfuse() else (".tar.gz", ".sqfs")
     for ext in reversed(exts):  # the preferred format overwrites the other
         for path in sorted(source.glob(f"*{ext}"), key=lambda p: "~" in p.name):
             h, _, base = path.name[: -len(ext)].rsplit("_", 1)[-1].partition("~")
@@ -286,7 +304,9 @@ def seed(out_dir: Path, source: Path, squashfs: bool = False) -> List[str]:
         if ids <= covered:
             continue
         how = "extracted"
-        if image.name.endswith(".sqfs") and _mount(image, out_dir):
+        if not apply:
+            how = "would use"
+        elif image.name.endswith(".sqfs") and _mount(image, out_dir):
             how = "mounted"
         else:
             _extract(image, out_dir)

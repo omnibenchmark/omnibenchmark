@@ -4,20 +4,28 @@ import sys
 
 import click
 
-from omnibenchmark.config import config as cfg
-
 
 @click.command(name="config")
 @click.argument("key", required=False)
 @click.argument("value", required=False)
 @click.option("--list", "-l", "list_", is_flag=True, help="List all settings.")
 @click.option("--unset", is_flag=True, help="Remove KEY from the config file.")
-def config(key, value, list_, unset):
+@click.option(
+    "--local", is_flag=True, help="Use .ob/config in this directory (not committed)."
+)
+def config(key, value, list_, unset, local):
     """Get or set a setting, e.g. `ob config user.name "Ada Lovelace"`.
 
     KEY is `section.name`. With VALUE, the setting is written to the config file;
     without, its current value is printed. `--unset` removes it.
     """
+    global cfg
+    if local:
+        from omnibenchmark.config import ConfigAccessor
+        from omnibenchmark.slices import LOCAL_CONFIG
+
+        LOCAL_CONFIG.parent.mkdir(exist_ok=True)
+        cfg = ConfigAccessor(LOCAL_CONFIG)
     if list_:
         for section in cfg.sections():
             for name in cfg.options(section):

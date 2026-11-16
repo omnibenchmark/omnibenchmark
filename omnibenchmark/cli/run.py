@@ -120,6 +120,15 @@ def format_pydantic_errors(e: PydanticValidationError) -> str:
     default=False,
 )
 @click.option(
+    "--use-snapshots",
+    help=(
+        "Start from the snapshots in the configured snapshots.path that match "
+        "this plan, and compute the rest. With --dry, only report the matches."
+    ),
+    is_flag=True,
+    default=False,
+)
+@click.option(
     "-m",
     "--module",
     "module_filter",
@@ -200,6 +209,7 @@ def run(
     unpinned,
     yes_flag,
     use_remote_storage,
+    use_snapshots,
     module_filter,
     telemetry,
     telemetry_output,
@@ -296,6 +306,7 @@ def run(
         dirty=dirty,
         unpinned=unpinned,
         use_remote_storage=use_remote_storage,
+        use_snapshots=use_snapshots,
         module_filter=module_filter,
         telemetry=telemetry,
         telemetry_output=telemetry_output,
@@ -317,6 +328,7 @@ def _run_benchmark(
     dirty,
     unpinned=False,
     use_remote_storage=False,
+    use_snapshots=False,
     module_filter=None,
     telemetry=None,
     telemetry_output=None,
@@ -340,6 +352,11 @@ def _run_benchmark(
 
     try:
         benchmark_path_abs = Path(benchmark_path).resolve()
+        snapshots_dir = None
+        if use_snapshots:
+            from omnibenchmark.slices import store_dir
+
+            snapshots_dir = store_dir(benchmark_path_abs.parent)
         b = BenchmarkExecution(benchmark_path_abs, out_dir_path)
         logger.info("Benchmark YAML file integrity check passed.")
     except PydanticValidationError as e:
@@ -420,6 +437,13 @@ def _run_benchmark(
 
     # Write run manifest
     write_run_manifest(output_dir=out_dir_path)
+
+    if snapshots_dir is not None:
+        from omnibenchmark import slices
+
+        used = slices.use_snapshots(out_dir_path, snapshots_dir, apply=not dry)
+        for line in used or [f"none in {snapshots_dir} matches this plan"]:
+            logger.info(f"snapshots: {line}")
 
     if dry:
         software_backend = b.get_benchmark_software_backend()
