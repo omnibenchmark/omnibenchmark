@@ -1,10 +1,11 @@
-"""Container jobs see the plan directory and the host TMPDIR.
+"""Container jobs see the plan directory read-only and a writable TMPDIR.
 
 Snakemake runs a container job with ``--home <out dir>``, so a file the plan
 refers to next to itself is missing inside the job unless ob binds the plan
-directory. Snakemake also exports the host TMPDIR into the job, where it does
-not exist unless bound (#319). The module calls mktemp and copies a
-plan-relative asset to its output.
+directory. Snakemake also exports its tmpdir resource (the host TMPDIR, or a
+``tmpdir=`` resource from the command line) into the job, where it does not
+exist unless bound (#319). The module calls mktemp, copies a plan-relative
+asset to its output, and checks that it cannot write next to the asset.
 """
 
 import shutil
@@ -28,6 +29,10 @@ while [[ $# -gt 0 ]]; do
 done
 mktemp > /dev/null
 cp "$asset" "$out"
+if touch "$(dirname "$asset")/written" 2> /dev/null; then
+  echo "the plan directory is writable" >&2
+  exit 1
+fi
 """
 
 PLAN = """\
@@ -64,16 +69,29 @@ def _git(cwd: Path, *args: str) -> str:
 
 @pytest.mark.e2e
 @pytest.mark.skipif(not shutil.which("apptainer"), reason="needs apptainer")
-def test_container_job_sees_plan_dir_and_tmpdir(monkeypatch):
-    # Not pytest's tmp_path: apptainer mounts /tmp by default, which would hide
-    # both bugs.
+@pytest.mark.parametrize(
+    "host_tmp, resource_tmp",
+    [
+        ("hosttmp", None),  # a host TMPDIR outside /tmp and the plan dir
+        (".", None),  # a host TMPDIR that contains the plan dir
+        ("hosttmp", "restmp"),  # a tmpdir resource overrides the host TMPDIR
+    ],
+)
+def test_container_job_sees_plan_dir_and_tmpdir(monkeypatch, host_tmp, resource_tmp):
+    # Not pytest's tmp_path: apptainer mounts /tmp by default, which would
+    # hide a missing bind.
     with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as d:
-        (Path(d) / "hosttmp").mkdir()
-        monkeypatch.setenv("TMPDIR", str(Path(d) / "hosttmp"))
-        _run(Path(d))
+        root = Path(d)
+        (root / host_tmp).mkdir(exist_ok=True)
+        monkeypatch.setenv("TMPDIR", str(root / host_tmp))
+        extra = []
+        if resource_tmp:
+            (root / resource_tmp).mkdir()
+            extra = ["--", "--default-resources", f"tmpdir='{root / resource_tmp}'"]
+        _run(root, extra)
 
 
-def _run(root: Path):
+def _run(root: Path, extra: list):
     mod = root / "mod"
     mod.mkdir()
     (mod / "run.sh").write_text(RUN_SH)
@@ -104,7 +122,9 @@ def _run(root: Path):
     (plan / "plan.yml").write_text(PLAN.format(mod=mod, commit=commit, asset=asset))
 
     with OmniCLISetup() as omni:
-        run = omni.call(["run", "plan.yml", "--dirty", "--cores", "1"], cwd=plan)
+        run = omni.call(
+            ["run", "plan.yml", "--dirty", "--cores", "1", *extra], cwd=plan
+        )
     logs = "".join(p.read_text() for p in (plan / "out" / ".logs").glob("data_*.log"))
     assert run.returncode == 0, run.stdout + run.stderr + logs
     (copied,) = (plan / "out").glob("data.copy.*/greeting.txt")
