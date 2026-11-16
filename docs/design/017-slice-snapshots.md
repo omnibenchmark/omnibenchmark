@@ -114,7 +114,7 @@ Packing appends one row per snapshot to `README.md` in the store: the file, the 
 
 1. Compute the slice hash for every root named by a file in the store (and none) × every stage cut (and none) of the resolved plan.
 2. Keep the files in the store named by one of these hashes. A file with a base is kept only if its base is also there.
-3. Apply them largest slice first, skipping a file that adds no node.
+3. Apply them largest slice first, skipping a file that adds no node. Before a file is applied, the `.key` of every node it holds is read from the file and compared with the plan's key for that node; on any difference the file is skipped.
 4. Apply a `.sqfs` by mounting it read-only under `out/.slices/<file>/` and symlinking each of its files into `out/`. Directories are created for real, so new child nodes are written next to cached files, and a write to a cached file fails. Without FUSE, or for a `.tar.gz`, the file is extracted.
 5. Run Snakemake, which treats the nodes that are present as done.
 
@@ -216,7 +216,6 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 - **Data remotes (§3.8).** None is implemented. `dir` and `http` first; the `zenodo` and `thoa` rows are from their documentation and client, not from a test.
 - **Run record.** Which nodes came from which snapshot, in `runs.jsonl`.
-- **Check keys when a snapshot is used.** Each node directory in a snapshot carries its `.key` (16 hex digits); comparing it with the plan's key would catch a file that matches on the 8-digit slice hash by accident, or was packed wrongly. Today only packing checks.
 - **Container jobs and mounts.** The mount under `out/` must be visible inside the job. Apptainer can also bind the image itself, without a host mount.
 - **A local hardlink store** (012 draft) for reuse across out dirs on one volume without extracting twice.
 - **zstd for tar.** Needs the `tar` binary or Python 3.14.

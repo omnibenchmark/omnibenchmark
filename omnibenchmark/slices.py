@@ -417,6 +417,29 @@ def _extract(image: Path, out_dir: Path) -> None:
             tar.extractall(out_dir, filter="data")
 
 
+def stored_keys(image: Path, dirs: List[str]) -> Dict[str, str]:
+    """{node dir: the key its rule left in the snapshot}, for the dirs that
+    have one. Read from the file itself: no mount, nothing extracted."""
+    keys: Dict[str, str] = {}
+    if image.name.endswith(".sqfs"):
+        for d in dirs:  # one call each: a missing file fails only its own
+            cat = subprocess.run(
+                ["unsquashfs", "-cat", str(image), f"{d}/{KEY_FILE}"],
+                capture_output=True,
+                text=True,
+            )
+            if cat.returncode == 0:
+                keys[d] = cat.stdout.strip()
+        return keys
+    wanted = {f"{d}/{KEY_FILE}": d for d in dirs}
+    with tarfile.open(image) as tar:
+        for member in tar:
+            if member.name in wanted:
+                data = tar.extractfile(member)
+                keys[wanted[member.name]] = data.read().decode().strip() if data else ""
+    return keys
+
+
 def use_snapshots(out_dir: Path, source: Path, apply: bool = True) -> List[str]:
     """Fill out_dir from every snapshot in `source` whose slice hash this
     plan computes too: a squashfs image is mounted read-only when it can be,
@@ -463,7 +486,22 @@ def use_snapshots(out_dir: Path, source: Path, apply: bool = True) -> List[str]:
         how = "extracted"
         if not apply:
             how = "would use"
-        elif image.name.endswith(".sqfs") and _mount(image, out_dir):
+            covered |= ids
+            report.append(f"{how} {image.name}: {len(ids)} nodes")
+            continue
+        # The name only promises a slice hash. Each node's own key, left in
+        # its directory by the rule that ran, has to be the one this plan
+        # computes: that is what makes a node reusable, not the plan's hash.
+        expected = {n["dir"]: n["key"] for n in wanted[h] if n["id"] in ids}
+        stored = stored_keys(image, sorted(expected))
+        wrong = sorted(d for d, key in expected.items() if stored.get(d) != key)
+        if wrong:
+            report.append(
+                f"skipped {image.name}: {len(wrong)} of its {len(expected)} nodes "
+                f"do not carry this plan's key, e.g. {wrong[0]}"
+            )
+            continue
+        if image.name.endswith(".sqfs") and _mount(image, out_dir):
             how = "mounted"
         else:
             _extract(image, out_dir)
