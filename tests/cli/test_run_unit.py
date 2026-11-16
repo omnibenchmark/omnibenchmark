@@ -1045,7 +1045,7 @@ def test_container_binds_added(tmp_path):
         assert with_container_binds(["--forceall"], tmp_path, out) == [
             "--forceall",
             "--singularity-args",
-            f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out},/scratch/t:/scratch/t",
+            f"--bind /scratch/t:/scratch/t,{tmp_path}:{tmp_path}:ro,{out}:{out}",
         ]
 
 
@@ -1056,8 +1056,60 @@ def test_container_binds_host_tmpdir(tmp_path, monkeypatch):
     host_tmp.mkdir()
     monkeypatch.setenv("TMPDIR", str(host_tmp))
     monkeypatch.setattr("tempfile.tempdir", None)  # drop the cached value
-    (args,) = with_container_binds([], tmp_path, tmp_path / "out")[1:]
-    assert args.endswith(f",{host_tmp}:{host_tmp}")
+    assert f"{host_tmp}:{host_tmp}" in _binds(
+        with_container_binds([], tmp_path, tmp_path / "out")
+    )
+
+
+def _binds(args: list) -> list:
+    value = args[args.index("--singularity-args") + 1]
+    return value.removeprefix("--bind ").split(",")
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "resource", ["tmpdir={d}", "tmpdir='{d}'", 'some_rule:tmpdir="{d}"']
+)
+def test_container_binds_tmpdir_resource(tmp_path, resource):
+    """A tmpdir resource from the command line replaces the host TMPDIR in
+    the job, so it is bound as well."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    args = ["--default-resources", "mem_mb=1", resource.format(d=scratch)]
+    assert f"{scratch}:{scratch}" in _binds(
+        with_container_binds(args, tmp_path / "plan", tmp_path / "plan" / "out")
+    )
+
+
+@pytest.mark.short
+def test_container_binds_skip_missing_tmpdir_resource(tmp_path):
+    """Apptainer refuses to bind a source that does not exist."""
+    args = ["--default-resources", f"tmpdir={tmp_path}/nope"]
+    binds = _binds(with_container_binds(args, tmp_path, tmp_path))
+    assert not any("nope" in b for b in binds)
+
+
+@pytest.mark.short
+def test_container_binds_plan_stays_read_only_inside_tmpdir(tmp_path):
+    """Parents first: a temp dir that contains the plan dir is bound before
+    it, so the read-only plan bind is the one that holds."""
+    plan, out = tmp_path / "plan", tmp_path / "plan" / "out"
+    with patch("tempfile.gettempdir", return_value=str(tmp_path)):
+        assert _binds(with_container_binds([], plan, out)) == [
+            f"{tmp_path}:{tmp_path}",
+            f"{plan}:{plan}:ro",
+            f"{out}:{out}",
+        ]
+
+
+@pytest.mark.short
+def test_container_binds_same_path_is_writable(tmp_path):
+    """The out dir (or temp dir) on the plan dir itself: read-write wins."""
+    with patch("tempfile.gettempdir", return_value="/t"):
+        assert _binds(with_container_binds([], tmp_path, tmp_path)) == [
+            "/t:/t",
+            f"{tmp_path}:{tmp_path}",
+        ]
 
 
 @pytest.mark.short
@@ -1065,7 +1117,7 @@ def test_container_binds_host_tmpdir(tmp_path, monkeypatch):
 def test_container_binds_join_user_args(tmp_path, flag):
     """Snakemake keeps only the last --singularity-args: join the user's."""
     out = tmp_path / "out"
-    bind = f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out},/t:/t"
+    bind = f"--bind /t:/t,{tmp_path}:{tmp_path}:ro,{out}:{out}"
     with patch("tempfile.gettempdir", return_value="/t"):
         assert with_container_binds([flag, "--nv"], tmp_path, out) == [
             flag,
