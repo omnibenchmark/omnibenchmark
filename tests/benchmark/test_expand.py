@@ -1822,3 +1822,74 @@ def test_gather_path_rejects_shared_reserved_and_node_like_directories():
     ]:
         with pytest.raises(ValueError, match=match):
             _gather_custom_dir("S", path, None, taken)
+
+
+def _two_id_gather_yaml(api="0.8.0"):
+    """data (D1) -> feat (F1) -> pca (P1, P2: emb + load) and iso (I1: emb
+    only); pcam gathers `from: [emb, load]` per feat node."""
+    return f"""
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: {api}
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: data
+    outputs: [{{id: data_out, path: "{{module.id}}_d.txt"}}]
+    modules:
+      - id: D1
+{_BLOCK_REPO}
+  - id: feat
+    inputs: [data_out]
+    outputs: [{{id: feat_out, path: "{{module.id}}_f.txt"}}]
+    modules:
+      - id: F1
+{_BLOCK_REPO}
+  - id: pca
+    inputs: [feat_out]
+    outputs:
+      - {{id: emb, path: "{{module.id}}_e.txt"}}
+      - {{id: load, path: "{{module.id}}_l.txt"}}
+    modules:
+      - id: P1
+{_BLOCK_REPO}
+      - id: P2
+{_BLOCK_REPO}
+  - id: iso
+    inputs: [feat_out]
+    outputs: [{{id: emb, path: "{{module.id}}_e.txt"}}]
+    modules:
+      - id: I1
+{_BLOCK_REPO}
+  - id: pcam
+    gather: {{group_by: feat, from: [emb, load]}}
+    outputs: [{{id: pcam_out, path: "{{module.id}}_m.txt"}}]
+    modules:
+      - id: PM
+{_BLOCK_REPO}
+"""
+
+
+@pytest.mark.short
+def test_gather_of_several_ids_keeps_only_members_producing_all_of_them():
+    """`from: [emb, load]` is an AND per member on api 0.8.0: a node producing
+    only `emb` (iso) is not a member, so every `files` entry in lineage.json
+    has both ids."""
+    nodes, _, errors = _plan(_two_id_gather_yaml())
+    assert errors == []
+    (gather,) = [n for n in nodes if n.stage_id == "pcam"]
+    assert sorted(gather.gathered_from) == [
+        "data-D1-feat-F1-pca-P1",
+        "data-D1-feat-F1-pca-P2",
+    ]
+    assert sorted(gather.input_name_mapping.values()) == ["emb", "emb", "load", "load"]
+
+
+@pytest.mark.short
+def test_gather_of_several_ids_is_a_union_before_0_8():
+    nodes, _, _ = _plan(_two_id_gather_yaml(api="0.7.0").replace("module.id", "name"))
+    gathers = [n for n in nodes if n.stage_id == "pcam"]
+    assert any("iso" in m for g in gathers for m in g.gathered_from)

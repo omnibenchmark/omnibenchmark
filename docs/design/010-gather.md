@@ -393,6 +393,13 @@ member set changes the record, which reruns the manifest and then the gather.
 
 #### 3.5.2 api ≥ 0.8.0: a node-grouped gather's own inputs
 
+From api 0.8.0 a member is one node with a file for every `from` id, as
+`lineage.json` records it (§3.5.1). A node producing only some of the ids is
+not a member, and ob warns with the count: `from: [embedding_tsv, loadings_tsv]`
+leaves out a stage that declares `embedding_tsv` alone. A group with no such
+member emits no node. Before 0.8.0 each id is its own path list and the union
+stands, with the three cases above.
+
 A gather with `group_by: S` is the child of one S node (§3.2.1), so it has one
 lineage, and it may declare `inputs:` like a scatter stage. Each input resolves
 the way it would for a scatter child of the group node: from the group node's
