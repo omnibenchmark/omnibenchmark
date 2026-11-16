@@ -55,7 +55,13 @@ def test_run_from_snapshot(tmp_path, bundled_repos, keep_files, pack_args):
         # A base and what lies above it, in two files.
         _ob(tmp_path, "archive", "plan.yaml", "--until", "data", *pack_args[2:])
         _ob(tmp_path, "archive", "plan.yaml", *pack_args, "--base-until", "data")
-    assert len(list((tmp_path / "snapshots").iterdir())) == 2
+    store = tmp_path / "snapshots"
+    packed = sorted(p.name for p in store.iterdir() if p.name != "README.md")
+    assert len(packed) == 2
+    # The README has one row per file, and names the base of the one that has one.
+    rows = [r for r in (store / "README.md").read_text().splitlines() if r[:3] == "| `"]
+    assert sorted(r.split("`")[1] for r in rows) == packed
+    assert sum("the file ending" in r for r in rows) == ("--group-by" not in pack_args)
 
     # The metrics stage changes: everything up to `join` keeps its keys.
     changed = tmp_path / "changed.yaml"

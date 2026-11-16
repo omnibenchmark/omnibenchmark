@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import tarfile
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -278,12 +279,14 @@ def _pack_one(meta, anc, out_dir, dest, until, root, squashfs, base_until) -> st
         f"{meta['benchmark']}-{meta['version']}-{meta['plan_hash'][:8]}"
         f"-{slice_label(until, root)}_{slice_hash(nodes)}"
     )
+    whole, needs = len(nodes), ""
     if base_until:
         # below the group's own stage the base is the ungrouped slice
         base = select(meta, base_until, root_id, anc) or []
         if not any(n["id"] == root_id for n in base):
             base = select(meta, base_until, None, anc)
-        name += f"~{slice_hash(base)}"
+        needs = slice_hash(base)
+        name += f"~{needs}"
         nodes = [n for n in nodes if n not in base]
     if not nodes:
         raise ValueError("the slice selects no nodes")
@@ -318,7 +321,50 @@ def _pack_one(meta, anc, out_dir, dest, until, root, squashfs, base_until) -> st
         os.replace(part, target)
     finally:
         part.unlink(missing_ok=True)
+    _index(meta, target, nodes, whole, root, until, needs)
     return f"created {target}"
+
+
+INDEX = "README.md"
+_INDEX_HEAD = """# Snapshots
+
+One row per file. A file matches a plan when the plan computes the same slice
+hash (the 8 characters after the last `_`). A file that names a base holds
+only what the base lacks, and is used together with it.
+
+| File | Benchmark | Slice | Holds | Size | Needs | Packed |
+|---|---|---|---|---|---|---|
+"""
+
+
+def _index(meta, target: Path, nodes, whole: int, root, until, needs: str) -> None:
+    """Append the new snapshot to the store's README.md, for people. Nothing
+    reads it back."""
+    stages = [s for s in meta["stages"] if any(n["stage"] == s for n in nodes)]
+    held = f"{len(nodes)} of the slice's {whole} nodes" if needs else f"{whole} nodes"
+    what = " and ".join(
+        filter(
+            None,
+            [
+                f"below `{os.path.basename(root['dir'])}`" if root else "",
+                f"up to `{until}`" if until else "",
+            ],
+        )
+    )
+    row = [
+        f"`{target.name}`",
+        f"{meta['benchmark']} {meta['version']} (plan {meta['plan_hash'][:8]})",
+        what or "the whole run",
+        f"{held}; stages {', '.join(stages)}",
+        f"{target.stat().st_size / 1e6:.1f} MB",
+        f"the file ending `_{needs}`" if needs else "",
+        datetime.now().astimezone().isoformat(timespec="seconds"),
+    ]
+    index = target.parent / INDEX
+    if not index.exists():
+        index.write_text(_INDEX_HEAD)
+    with index.open("a") as f:
+        f.write("| " + " | ".join(row) + " |\n")
 
 
 def _squashfuse() -> Optional[str]:

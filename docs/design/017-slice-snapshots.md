@@ -104,6 +104,8 @@ Snapshots live in a local directory, resolved in this order:
 
 A relative path is relative to the plan. A remote (§6) mirrors this directory; nothing reads a remote directly.
 
+Packing appends one row per snapshot to `README.md` in the store: the file, the benchmark and plan hash, what the slice covers, how many nodes and which stages the file holds, its size, and the base it needs. It is for people; matching never reads it.
+
 ### 3.6 Using snapshots
 
 `ob run PLAN --use-snapshots`, after the plan is resolved and before Snakemake starts:
