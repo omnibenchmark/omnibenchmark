@@ -1041,11 +1041,23 @@ def test_run_snakemake_passes_mem_budget(tmp_path):
 @pytest.mark.short
 def test_container_binds_added(tmp_path):
     out = tmp_path / "out"
-    assert _with_container_binds(["--forceall"], tmp_path, out) == [
-        "--forceall",
-        "--singularity-args",
-        f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out}",
-    ]
+    with patch("tempfile.gettempdir", return_value="/scratch/t"):
+        assert _with_container_binds(["--forceall"], tmp_path, out) == [
+            "--forceall",
+            "--singularity-args",
+            f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out},/scratch/t:/scratch/t",
+        ]
+
+
+@pytest.mark.short
+def test_container_binds_host_tmpdir(tmp_path, monkeypatch):
+    """Snakemake exports the host TMPDIR into the job; it must exist there (#319)."""
+    host_tmp = tmp_path / "scratch"
+    host_tmp.mkdir()
+    monkeypatch.setenv("TMPDIR", str(host_tmp))
+    monkeypatch.setattr("tempfile.tempdir", None)  # drop the cached value
+    (args,) = _with_container_binds([], tmp_path, tmp_path / "out")[1:]
+    assert args.endswith(f",{host_tmp}:{host_tmp}")
 
 
 @pytest.mark.short
@@ -1053,14 +1065,15 @@ def test_container_binds_added(tmp_path):
 def test_container_binds_join_user_args(tmp_path, flag):
     """Snakemake keeps only the last --singularity-args: join the user's."""
     out = tmp_path / "out"
-    bind = f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out}"
-    assert _with_container_binds([flag, "--nv"], tmp_path, out) == [
-        flag,
-        f"{bind} --nv",
-    ]
-    assert _with_container_binds([f"{flag}=--nv"], tmp_path, out) == [
-        f"{flag}={bind} --nv"
-    ]
+    bind = f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out},/t:/t"
+    with patch("tempfile.gettempdir", return_value="/t"):
+        assert _with_container_binds([flag, "--nv"], tmp_path, out) == [
+            flag,
+            f"{bind} --nv",
+        ]
+        assert _with_container_binds([f"{flag}=--nv"], tmp_path, out) == [
+            f"{flag}={bind} --nv"
+        ]
 
 
 @pytest.mark.short

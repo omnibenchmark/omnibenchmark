@@ -1,8 +1,10 @@
-"""Container jobs see the plan directory.
+"""Container jobs see the plan directory and the host TMPDIR.
 
 Snakemake runs a container job with ``--home <out dir>``, so a file the plan
 refers to next to itself is missing inside the job unless ob binds the plan
-directory. The module copies a plan-relative asset to its output.
+directory. Snakemake also exports the host TMPDIR into the job, where it does
+not exist unless bound (#319). The module calls mktemp and copies a
+plan-relative asset to its output.
 """
 
 import shutil
@@ -24,6 +26,7 @@ while [[ $# -gt 0 ]]; do
     *) shift 2;;
   esac
 done
+mktemp > /dev/null
 cp "$asset" "$out"
 """
 
@@ -61,10 +64,12 @@ def _git(cwd: Path, *args: str) -> str:
 
 @pytest.mark.e2e
 @pytest.mark.skipif(not shutil.which("apptainer"), reason="needs apptainer")
-def test_container_job_reads_plan_relative_file():
+def test_container_job_sees_plan_dir_and_tmpdir(monkeypatch):
     # Not pytest's tmp_path: apptainer mounts /tmp by default, which would hide
-    # the bug.
+    # both bugs.
     with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as d:
+        (Path(d) / "hosttmp").mkdir()
+        monkeypatch.setenv("TMPDIR", str(Path(d) / "hosttmp"))
         _run(Path(d))
 
 
