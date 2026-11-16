@@ -51,6 +51,12 @@ sys.exit(0 if os.path.getsize(sys.argv[1]) > 0 else 1)
 
 @pytest.mark.e2e
 @pytest.mark.skipif(not shutil.which("apptainer"), reason="needs apptainer")
+# Apptainer >= 1.5 mounts the pulled .sif through squashfuse; sandboxed shells
+# and some CI runners hide /dev/fuse.
+@pytest.mark.skipif(
+    not Path("/dev/fuse").exists(),
+    reason="/dev/fuse unavailable (e.g. sandboxed shells)",
+)
 def test_validators_run_inside_apptainer():
     # Not pytest's tmp_path: apptainer mounts /tmp by default, which would hide
     # the bug. The repo checkout is outside both /tmp and out/.
