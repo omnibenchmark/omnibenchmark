@@ -14,6 +14,7 @@ from omnibenchmark.cli.run import (
     _read_rule_log,
     _run_benchmark,
     _run_snakemake,
+    _with_container_binds,
     _with_mem_budget,
     run,
 )
@@ -1030,3 +1031,68 @@ def test_run_snakemake_passes_mem_budget(tmp_path):
         )
     i = seen["cmd"].index("--resources")
     assert seen["cmd"][i + 1] == "mem_mb=90000"
+
+
+# ---------------------------------------------------------------------------
+# _with_container_binds — plan dir and out dir visible inside container jobs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_container_binds_added(tmp_path):
+    out = tmp_path / "out"
+    assert _with_container_binds(["--forceall"], tmp_path, out) == [
+        "--forceall",
+        "--singularity-args",
+        f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out}",
+    ]
+
+
+@pytest.mark.short
+@pytest.mark.parametrize("flag", ["--singularity-args", "--apptainer-args"])
+def test_container_binds_join_user_args(tmp_path, flag):
+    """Snakemake keeps only the last --singularity-args: join the user's."""
+    out = tmp_path / "out"
+    bind = f"--bind {tmp_path}:{tmp_path}:ro,{out}:{out}"
+    assert _with_container_binds([flag, "--nv"], tmp_path, out) == [
+        flag,
+        f"{bind} --nv",
+    ]
+    assert _with_container_binds([f"{flag}=--nv"], tmp_path, out) == [
+        f"{flag}={bind} --nv"
+    ]
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "backend, bound",
+    [
+        (SoftwareBackendEnum.apptainer, True),
+        (SoftwareBackendEnum.docker, True),
+        (SoftwareBackendEnum.conda, False),
+        (SoftwareBackendEnum.host, False),
+    ],
+)
+def test_run_snakemake_binds_only_for_containers(tmp_path, backend, bound):
+    (tmp_path / "Snakefile").write_text("rule all:\n    input: []\n")
+    seen = {}
+    real_popen = subprocess.Popen
+
+    def fake_popen(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return real_popen([sys.executable, "-c", "pass"], **kwargs)
+
+    with (
+        patch("subprocess.Popen", side_effect=fake_popen),
+        patch("omnibenchmark.cli.run.conda_env", return_value=None),
+        pytest.raises(SystemExit),
+    ):
+        _run_snakemake(
+            out_dir=tmp_path,
+            cores=1,
+            continue_on_error=False,
+            software_backend=backend,
+            debug=False,
+            plan_dir=tmp_path,
+        )
+    assert ("--singularity-args" in seen["cmd"]) is bound
