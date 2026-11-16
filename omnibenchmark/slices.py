@@ -22,10 +22,10 @@ import tarfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from omnibenchmark.config import LOCAL_CONFIG
 from omnibenchmark.constants import KEY_FILE
 
 NODES_FILE = Path(".metadata") / "nodes.json"
-LOCAL_CONFIG = Path(".ob") / "config"  # next to the plan, not committed
 MOUNTS_DIR = ".slices"
 _APPTAINER_BIN = "/usr/libexec/apptainer/bin"  # apptainer ships squashfuse_ll
 

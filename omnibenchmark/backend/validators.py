@@ -150,7 +150,7 @@ def run_validators(
     env = None
     if backend_flag == BACKEND_FLAGS[SoftwareBackendEnum.conda]:
         try:
-            env = conda_env()
+            env = conda_env(Path(benchmark_dir).resolve())
         except ValueError as e:
             logger.error(str(e))
             return 1

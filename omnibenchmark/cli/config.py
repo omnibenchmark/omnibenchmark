@@ -21,10 +21,11 @@ def config(key, value, list_, unset, local):
     """
     global cfg
     if local:
-        from omnibenchmark.config import ConfigAccessor
-        from omnibenchmark.slices import LOCAL_CONFIG
+        from pathlib import Path
 
-        LOCAL_CONFIG.parent.mkdir(exist_ok=True)
+        from omnibenchmark.config import LOCAL_CONFIG, ConfigAccessor, local_dir
+
+        local_dir(Path.cwd())
         cfg = ConfigAccessor(LOCAL_CONFIG)
     if list_:
         for section in cfg.sections():

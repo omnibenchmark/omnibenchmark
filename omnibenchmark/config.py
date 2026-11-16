@@ -265,11 +265,30 @@ def get_git_cache_dir() -> Path:
     return git_cache_dir
 
 
-def conda_env() -> dict:
+# Next to the plan: local settings and caches. Never committed: the directory
+# ignores itself.
+LOCAL_DIR = Path(".ob")
+LOCAL_CONFIG = LOCAL_DIR / "config"
+
+
+def local_dir(plan_dir: Path) -> Path:
+    """`<plan dir>/.ob`, created with a .gitignore that covers all of it."""
+    path = plan_dir / LOCAL_DIR
+    path.mkdir(exist_ok=True)
+    ignore = path / ".gitignore"
+    if not ignore.exists():
+        ignore.write_text("*\n")
+    return path
+
+
+def conda_env(plan_dir: Optional[Path] = None) -> dict:
     """Environment for a conda-backed snakemake run, from the `[conda]` section.
 
     `conda.cache` becomes SNAKEMAKE_CONDA_PREFIX, so environments are built
-    once and shared across benchmarks. `conda.channel_alias` becomes
+    once and shared across benchmarks. Without it, and given the plan's
+    directory, they go to `<plan dir>/.ob/conda-cache`: shared by every out
+    dir of that plan, where snakemake's own default is one copy per out dir.
+    `conda.channel_alias` becomes
     CONDA_CHANNEL_ALIAS, for a channel mirror. `conda.proxy` becomes HTTP_PROXY
     and HTTPS_PROXY, for a forward proxy. Variables already set in the
     environment win over the config file. Raises ValueError on an unusable value.
@@ -289,6 +308,10 @@ def conda_env() -> dict:
                 "built there can be used",
                 stacklevel=2,
             )
+        env["SNAKEMAKE_CONDA_PREFIX"] = str(path.resolve())
+    elif plan_dir is not None and "SNAKEMAKE_CONDA_PREFIX" not in env:
+        path = local_dir(plan_dir) / "conda-cache"
+        path.mkdir(exist_ok=True)
         env["SNAKEMAKE_CONDA_PREFIX"] = str(path.resolve())
     for key, variables in (
         ("channel_alias", ("CONDA_CHANNEL_ALIAS",)),

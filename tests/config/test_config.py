@@ -260,13 +260,27 @@ def test_conda_env(tmp_path, monkeypatch):
 
     assert "SNAKEMAKE_CONDA_PREFIX" not in cfgmod.conda_env()
 
+    # With no conda.cache, a plan's environments go next to the plan, in a
+    # directory git ignores, and are shared by its out dirs.
+    plan_dir = tmp_path / "plan"
+    plan_dir.mkdir()
+    default = plan_dir / ".ob" / "conda-cache"
+    assert cfgmod.conda_env(plan_dir)["SNAKEMAKE_CONDA_PREFIX"] == str(
+        default.resolve()
+    )
+    assert default.is_dir()
+    assert (plan_dir / ".ob" / ".gitignore").read_text() == "*\n"
+    monkeypatch.setenv("SNAKEMAKE_CONDA_PREFIX", "/mine")
+    assert cfgmod.conda_env(plan_dir)["SNAKEMAKE_CONDA_PREFIX"] == "/mine"
+    monkeypatch.delenv("SNAKEMAKE_CONDA_PREFIX")
+
     acc.set("conda", "cache", str(tmp_path / "missing"))
     with pytest.raises(ValueError, match="not an existing directory"):
         cfgmod.conda_env()
 
     acc.set("conda", "cache", str(tmp_path))
     acc.set("conda", "proxy", "http://proxy:3128")
-    env = cfgmod.conda_env()
+    env = cfgmod.conda_env(plan_dir)  # conda.cache wins over the default
     assert env["SNAKEMAKE_CONDA_PREFIX"] == str(tmp_path.resolve())
     assert env["HTTPS_PROXY"] == "http://proxy:3128"
 

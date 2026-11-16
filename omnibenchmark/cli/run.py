@@ -562,7 +562,9 @@ def _run_snakemake(
     env = None
     if software_backend == SoftwareBackendEnum.conda:
         try:
-            env = conda_env()
+            env = conda_env(
+                benchmark.get_definition_file().resolve().parent if benchmark else None
+            )
         except ValueError as e:
             log_error_and_quit(logger, str(e))
             return
