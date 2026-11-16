@@ -18,6 +18,7 @@ see omnibenchmark.backend._snakemake_debug.DebugSnakemakeGenerator.
 
 import json
 import os
+import re
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -72,29 +73,45 @@ def environment_directive(env: Optional[ResolvedEnvironment]) -> str:
 
 
 _CONTAINER_ARGS_FLAGS = ("--singularity-args", "--apptainer-args")
+# A tmpdir resource on the command line: `tmpdir=/scratch` after
+# --default-resources, `rule:tmpdir='/scratch'` after --set-resources.
+_TMPDIR_RESOURCE = re.compile(r"""(?:^|:)tmpdir=(['"]?)(/.*)\1$""")
 
 
 def with_container_binds(snakemake_args: list, plan_dir: Path, out_dir: Path) -> list:
-    """Bind the plan directory read-only and the out dir read-write into jobs.
+    """Bind the plan directory read-only, the out dir and the job's temp
+    directories read-write, into container jobs.
 
     Snakemake runs a container job with ``--home <out dir>``, so apptainer
     mounts only that, the cwd and ``/tmp``: files the plan refers to next to
-    itself are missing inside the job. The out dir is bound after the plan
-    dir so it stays writable when it is nested in it (apptainer mounts binds
-    in order).
+    itself are missing inside the job.
 
-    Snakemake also exports its ``tmpdir`` resource, the host's
-    ``tempfile.gettempdir()``, as ``TMPDIR`` into every job. Under a host
-    ``TMPDIR`` outside ``/tmp`` that path does not exist in the container and
-    ``mktemp`` fails (#319), so it is bound read-write too.
+    Snakemake also exports its ``tmpdir`` resource as ``TMPDIR`` into every
+    job: the host's ``tempfile.gettempdir()``, or what the user passed as a
+    ``tmpdir=`` resource. Outside ``/tmp`` that path does not exist in the
+    container and ``mktemp`` fails (#319), so both are bound read-write.
+
+    The binds nest: the out dir is usually inside the plan dir, and a temp dir
+    may contain the plan dir. The inner bind has to hold, so the out dir stays
+    writable and the plan dir read-only. Apptainer 1.5 does that for any
+    order; parents go first so that no runtime has to. On the same path
+    read-write wins, or the job could not write its outputs or temp files.
 
     Snakemake keeps only the last ``--singularity-args``, so the binds join a
     user's value instead of adding a second flag, ahead of it so the user's
     own binds win.
+
+    Regression tests: tests/e2e/test_18_container_binds.py and the
+    ``test_container_binds_*`` tests in tests/cli/test_run_unit.py.
     """
-    plan, out = plan_dir.resolve(), out_dir.resolve()
-    tmp = tempfile.gettempdir()
-    bind = f"--bind {plan}:{plan}:ro,{out}:{out},{tmp}:{tmp}"
+    writable = [str(out_dir.resolve()), tempfile.gettempdir()]
+    for a in snakemake_args:
+        m = _TMPDIR_RESOURCE.search(a)
+        if m and os.path.isdir(m.group(2)):  # apptainer refuses a missing source
+            writable.append(m.group(2))
+    modes = {str(plan_dir.resolve()): ":ro", **{p: "" for p in writable}}
+    paths = sorted(modes, key=lambda p: len(Path(p).parts))
+    bind = "--bind " + ",".join(f"{p}:{p}{modes[p]}" for p in paths)
     args = list(snakemake_args)
     for i, a in enumerate(args):
         if a in _CONTAINER_ARGS_FLAGS and i + 1 < len(args):
