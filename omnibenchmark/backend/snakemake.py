@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 import sys
+import tempfile
 from typing import List, Optional, TextIO
 
 from omnibenchmark.core._paths import (
@@ -70,6 +71,42 @@ def environment_directive(env: Optional[ResolvedEnvironment]) -> str:
     return ""
 
 
+_CONTAINER_ARGS_FLAGS = ("--singularity-args", "--apptainer-args")
+
+
+def with_container_binds(snakemake_args: list, plan_dir: Path, out_dir: Path) -> list:
+    """Bind the plan directory read-only and the out dir read-write into jobs.
+
+    Snakemake runs a container job with ``--home <out dir>``, so apptainer
+    mounts only that, the cwd and ``/tmp``: files the plan refers to next to
+    itself are missing inside the job. The out dir is bound after the plan
+    dir so it stays writable when it is nested in it (apptainer mounts binds
+    in order).
+
+    Snakemake also exports its ``tmpdir`` resource, the host's
+    ``tempfile.gettempdir()``, as ``TMPDIR`` into every job. Under a host
+    ``TMPDIR`` outside ``/tmp`` that path does not exist in the container and
+    ``mktemp`` fails (#319), so it is bound read-write too.
+
+    Snakemake keeps only the last ``--singularity-args``, so the binds join a
+    user's value instead of adding a second flag, ahead of it so the user's
+    own binds win.
+    """
+    plan, out = plan_dir.resolve(), out_dir.resolve()
+    tmp = tempfile.gettempdir()
+    bind = f"--bind {plan}:{plan}:ro,{out}:{out},{tmp}:{tmp}"
+    args = list(snakemake_args)
+    for i, a in enumerate(args):
+        if a in _CONTAINER_ARGS_FLAGS and i + 1 < len(args):
+            args[i + 1] = f"{bind} {args[i + 1]}"
+            return args
+        flag, eq, value = a.partition("=")
+        if eq and flag in _CONTAINER_ARGS_FLAGS:
+            args[i] = f"{flag}={bind} {value}"
+            return args
+    return args + ["--singularity-args", bind]
+
+
 __all__ = [
     "BACKEND_FLAGS",
     "SnakemakeGenerator",
@@ -77,6 +114,7 @@ __all__ = [
     "_make_human_name",
     "environment_directive",
     "snakemake_bin",
+    "with_container_binds",
 ]
 
 # Indentation constants for generated Snakemake syntax.
