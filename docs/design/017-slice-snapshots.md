@@ -94,6 +94,8 @@ clustering-1.2-94686c86-data.D1.94686c86.until-preprocess_deadbeef.tar.gz
 
 A snapshot packed with a base holds only the nodes its base slice lacks. The base has the same root, or no root when the base cut lies below the root's stage. Its hash is still the hash of the whole slice, and its name ends in `~<base hash>`. It is used only together with its base, which may itself have a base.
 
+A base is named by its slice hash, never by a location. Any file with that hash serves, wherever it was fetched from and whether or not it has a base of its own. Where to find it is the business of the remotes and the lock (§3.8), so a snapshot on one remote can build on a base published on another.
+
 ### 3.5 Store
 
 Snapshots live in a local directory, resolved in this order:
@@ -214,6 +216,7 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 - **Data remotes (§3.8).** None is implemented. `dir` and `http` first; the `zenodo` and `thoa` rows are from their documentation and client, not from a test.
 - **Run record.** Which nodes came from which snapshot, in `runs.jsonl`.
+- **Check keys when a snapshot is used.** Each node directory in a snapshot carries its `.key` (16 hex digits); comparing it with the plan's key would catch a file that matches on the 8-digit slice hash by accident, or was packed wrongly. Today only packing checks.
 - **Container jobs and mounts.** The mount under `out/` must be visible inside the job. Apptainer can also bind the image itself, without a host mount.
 - **A local hardlink store** (012 draft) for reuse across out dirs on one volume without extracting twice.
 - **zstd for tar.** Needs the `tar` binary or Python 3.14.
@@ -221,7 +224,6 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 ## 7. Open questions
 
 - **Lock or listing.** Should every remote go through `snapshots.lock`, so that what a plan uses is always pinned and reviewable, or only those that cannot list?
-- **Layers on thoa.** One dataset per job means a layered snapshot is re-uploaded with its bases, or snapshots for thoa are packed without a base.
 - **Timings.** A node taken from a snapshot keeps the `performance.txt` of the machine that ran it. Is a run with mixed origins flagged, or are timings from snapshots dropped from `ob collect`?
 - **The key in the directory name.** `.key` catches a stale directory when packing. Putting the key in the name would make one impossible, but changes the layout.
 - **Stage order.** `--until` cuts by plan order, then closes under ancestors. Is a cut by graph depth needed?
