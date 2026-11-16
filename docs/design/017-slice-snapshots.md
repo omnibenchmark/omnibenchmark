@@ -84,6 +84,7 @@ clustering-1.2-94686c86-D1.until-preprocess_deadbeef.tar.gz
 - **Only the slice hash decides a match.** Benchmark, version, plan hash and label are for people.
 - **Contents:** the files of the slice's nodes at their paths relative to `out/`, with no wrapping directory. A node's files exclude the directories of its child nodes, which the layout nests inside it.
 - **Formats:** `.tar.gz` (default) and `.sqfs` (squashfs, zstd), chosen when packing.
+- **`lineage.json` is rewritten when packed:** the absolute paths of its member files become relative to `out/`. In a run they stay absolute, for the module that reads them.
 - **Written once.** Packing onto an existing name fails.
 
 ### 3.4 Base
@@ -148,7 +149,6 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 - **Remote.** `write = ssh://…` and `read = https://…` under `[remote "name"]` in the config: push copies files out of the store, fetch downloads the matching names into it. Listing over https uses the web server's JSON directory listing. The read URL may later also live in the plan.
 - **S3 as a third transport** of the same four operations (list, exists, get, put once), replacing `remote/versioning.py`.
-- **Absolute paths in `lineage.json`** of gathers and joins point into the `out/` that produced them. They must become relative before a snapshot leaves its machine.
 - **Run record.** Which nodes came from which snapshot, in `runs.jsonl`.
 - **Refuse to pack a node with missing outputs.** Today the files present are packed as they are.
 - **Container jobs and mounts.** The mount under `out/` must be visible inside the job. Apptainer can also bind the image itself, without a host mount.

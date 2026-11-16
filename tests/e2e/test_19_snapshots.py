@@ -77,5 +77,13 @@ def test_run_from_snapshot(tmp_path, bundled_repos, keep_files, pack_args):
             assert second.read_text() == first.read_text()
             assert second.is_symlink() == ("--squashfs" in pack_args)
         assert len(list(out2.glob("data.*/metrics.MC.*/report.R1.*/R1_r.json"))) == 2
+
+        # A lineage.json from a snapshot names its files relative to out/; one
+        # written by this run names them by absolute path.
+        (packed,) = out2.glob("data.D1.*/shallow.*/join.*/lineage.json")
+        (fresh,) = out2.glob("data.D1.*/metrics.MC.*/lineage.json")
+        assert str(tmp_path) not in packed.read_text()
+        assert "data.D1." in packed.read_text()
+        assert str(out2) in fresh.read_text()
     finally:
         _ob(tmp_path, "slice", "unmount", "--out-dir", "out2")

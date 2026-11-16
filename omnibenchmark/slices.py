@@ -13,6 +13,7 @@ else `snapshots/` next to the plan.
 """
 
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -161,6 +162,32 @@ def _node_files(out_dir: Path, nodes: List[dict], all_dirs: set) -> List[str]:
     return sorted(files)
 
 
+def _relative(value, prefix: str):
+    """`value` with every string under `prefix` made relative to it."""
+    if isinstance(value, str):
+        return value.removeprefix(prefix)
+    if isinstance(value, list):
+        return [_relative(v, prefix) for v in value]
+    if isinstance(value, dict):
+        return {k: _relative(v, prefix) for k, v in value.items()}
+    return value
+
+
+def _add(tar: tarfile.TarFile, out_dir: Path, f: str) -> None:
+    """Add out_dir/f as f. A lineage.json names its member files by absolute
+    path, for the module that reads it; in a snapshot they are relative to
+    out/, so the record holds on another machine."""
+    if os.path.basename(f) != "lineage.json":
+        tar.add(out_dir / f, arcname=f)
+        return
+    prefix = str(out_dir.resolve()) + os.sep
+    body = json.loads((out_dir / f).read_text())
+    data = json.dumps(_relative(body, prefix), indent=1).encode()
+    info = tar.gettarinfo(out_dir / f, arcname=f)
+    info.size = len(data)
+    tar.addfile(info, io.BytesIO(data))
+
+
 def pack(
     out_dir: Path,
     dest: Path,
@@ -203,7 +230,7 @@ def pack(
             )
             with tarfile.open(fileobj=proc.stdin, mode="w|") as tar:
                 for f in files:
-                    tar.add(out_dir / f, arcname=f)
+                    _add(tar, out_dir, f)
             assert proc.stdin is not None
             proc.stdin.close()
             if proc.wait() != 0:
@@ -211,7 +238,7 @@ def pack(
         else:
             with tarfile.open(part, "w:gz") as tar:
                 for f in files:
-                    tar.add(out_dir / f, arcname=f)
+                    _add(tar, out_dir, f)
         os.replace(part, target)
     finally:
         part.unlink(missing_ok=True)
