@@ -28,6 +28,7 @@ import shutil
 import sys
 from typing import List, Optional, TextIO
 
+from omnibenchmark.constants import KEY_FILE
 from omnibenchmark.core._paths import (
     _UNSAFE_CHARS,
     make_human_name as _make_human_name,
@@ -191,6 +192,7 @@ class SnakemakeGenerator:
         self.api_version = api_version
         self._nodes_by_id: dict = {}
         self._producer_by_path: dict = {}
+        self._node_keys: dict = {}
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""
@@ -200,6 +202,9 @@ class SnakemakeGenerator:
         self._producer_by_path = {
             path: (n.id, out_id) for n in nodes for out_id, path in n.outputs.items()
         }
+        from omnibenchmark.slices import node_keys
+
+        self._node_keys = node_keys(nodes, Path(output_path).parent)
         with open(output_path, "w") as f:
             self._write_header(f)
             for node in nodes:
@@ -542,6 +547,15 @@ class SnakemakeGenerator:
         body = body.replace("'", "'\\''")
         return [f"echo '{body}' > $OUTPUT_DIR/lineage.json"]
 
+    def _node_key_lines(self, node: ResolvedNode) -> list:
+        """From 0.8, the rule leaves the node's key (design 017 §3.1) next to
+        its outputs, so a snapshot can tell which plan produced a directory.
+        Earlier rules keep their text so existing trees do not rerun."""
+        key = self._node_keys.get(node.id)
+        if not key or self.api_version < APIVersion.V0_8_0:
+            return []
+        return [f"echo {key} > $OUTPUT_DIR/{KEY_FILE}"]
+
     def _parameters_json_line(self, parameters) -> str:
         params_json = json.dumps(parameters._params)
         params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
@@ -603,6 +617,8 @@ class SnakemakeGenerator:
 
         # Fan-in nodes: record the parents the path prefix cannot carry.
         lines += self._lineage_sidecar_lines(node)
+
+        lines += self._node_key_lines(node)
 
         # Write parameters.json (and, before 0.8.0, a readable sibling link).
         if node.parameters:
@@ -739,6 +755,7 @@ class SnakemakeGenerator:
         # (pre-0.8.0) rules keep their text so existing trees do not rerun.
         if node.parameters and self.api_version >= APIVersion.V0_8_0:
             lines.append(self._parameters_json_line(node.parameters))
+        lines += self._node_key_lines(node)
         lines += self._output_file_lines(node)
         for key in group_keys:
             lines.append(

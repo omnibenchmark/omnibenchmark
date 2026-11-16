@@ -87,3 +87,28 @@ def test_run_from_snapshot(tmp_path, bundled_repos, keep_files, pack_args):
         assert str(out2) in fresh.read_text()
     finally:
         _ob(tmp_path, "slice", "unmount", "--out-dir", "out2")
+
+
+@pytest.mark.e2e
+def test_archive_refuses_nodes_another_plan_produced(
+    tmp_path, bundled_repos, keep_files
+):
+    """Each rule leaves its node key in its directory. Resolving a changed plan
+    into the same out dir must not let its new keys label the old files."""
+    runner = E2ETestRunner(tmp_path, keep_files)
+    config = Path(__file__).parent / "configs" / "15_flat_layout.yaml"
+    plan = runner.setup_test_environment(config, "plan.yaml")
+    runner.execute_cli_command(plan)
+
+    old = '"input+1"'  # the shallow stage
+    assert plan.read_text().count(old) == 1
+    changed = tmp_path / "changed.yaml"
+    changed.write_text(plan.read_text().replace(old, '"input+3"'))
+    _ob(tmp_path, "run", "changed.yaml", "--dry")
+
+    with OmniCLISetup() as omni:
+        stale = omni.call(["archive", "changed.yaml", "--snapshot"], cwd=str(tmp_path))
+    assert stale.returncode != 0
+    assert "not produced by the plan" in stale.stdout + stale.stderr
+    # The data stage is upstream of the change: its keys still hold.
+    _ob(tmp_path, "archive", "changed.yaml", "--until", "data")

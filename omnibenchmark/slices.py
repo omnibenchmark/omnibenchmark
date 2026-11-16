@@ -22,6 +22,8 @@ import tarfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from omnibenchmark.constants import KEY_FILE
+
 NODES_FILE = Path(".metadata") / "nodes.json"
 LOCAL_CONFIG = Path(".ob") / "config"  # next to the plan, not committed
 MOUNTS_DIR = ".slices"
@@ -104,6 +106,7 @@ def write_nodes(nodes, model, out_dir: Path) -> None:
                 "stage": n.stage_id,
                 "dir": n.node_dir,
                 "key": keys[n.id],
+                "outputs": sorted(n.outputs.values()),
                 "dataset": (
                     n.template_context.provides.get("dataset")
                     if n.template_context
@@ -162,6 +165,29 @@ def _node_files(out_dir: Path, nodes: List[dict], all_dirs: set) -> List[str]:
     return sorted(files)
 
 
+def _check_produced(out_dir: Path, nodes: List[dict]) -> None:
+    """Every node's directory must hold the outputs the plan declares and the
+    key the plan computes now. The key is left there by the rule that ran, so
+    a directory produced under another commit, environment, parameter or
+    parent is caught, as is one that never ran."""
+    stale, incomplete = [], []
+    for n in nodes:
+        key_file = out_dir / n["dir"] / KEY_FILE
+        if not key_file.is_file() or key_file.read_text().strip() != n["key"]:
+            stale.append(n["dir"])
+        elif not all((out_dir / o).exists() for o in n.get("outputs", [])):
+            incomplete.append(n["dir"])
+    for dirs, why in (
+        (stale, "not produced by the plan as it resolves now"),
+        (incomplete, "missing declared outputs"),
+    ):
+        if dirs:
+            raise ValueError(
+                f"{len(dirs)} node(s) {why}, e.g. {sorted(dirs)[0]}. "
+                "Run the plan to completion, then archive."
+            )
+
+
 def _relative(value, prefix: str):
     """`value` with every string under `prefix` made relative to it."""
     if isinstance(value, str):
@@ -201,6 +227,7 @@ def pack(
     base slice has to be seeded with it."""
     meta = read_nodes(out_dir)
     nodes = select(meta, until, dataset)
+    _check_produced(out_dir, nodes)
     name = (
         f"{meta['benchmark']}-{meta['version']}-{meta['plan_hash'][:8]}"
         f"-{slice_label(until, dataset)}_{slice_hash(nodes)}"

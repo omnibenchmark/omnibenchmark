@@ -31,3 +31,7 @@ STATUS_REPORT_FILE = "status_report.html"
 INTERNAL_OUT_DIRS = frozenset(
     {".modules", ".snakemake", ".envs", ".logs", ".cache", ".validation", "by-params"}
 )
+
+# The file a rule leaves in its node directory, holding the node key the
+# directory was produced under (design 017 §3.1).
+KEY_FILE = ".key"
