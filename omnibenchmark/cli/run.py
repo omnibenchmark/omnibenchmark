@@ -518,6 +518,7 @@ def _run_benchmark(
         telemetry_emitter=telemetry_emitter,
         benchmark=b,
         resolved_nodes=resolved_nodes,
+        plan_dir=benchmark_path_abs.parent,
     )
 
 
@@ -573,6 +574,36 @@ def _with_mem_budget(snakemake_args: list) -> list:
     return args + ["--resources", budget]
 
 
+_CONTAINER_ARGS_FLAGS = ("--singularity-args", "--apptainer-args")
+
+
+def _with_container_binds(snakemake_args: list, plan_dir: Path, out_dir: Path) -> list:
+    """Bind the plan directory read-only and the out dir read-write into jobs.
+
+    Snakemake runs a container job with ``--home <out dir>``, so apptainer
+    mounts only that, the cwd and ``/tmp``: files the plan refers to next to
+    itself are missing inside the job. The out dir is bound after the plan
+    dir so it stays writable when it is nested in it (apptainer mounts binds
+    in order).
+
+    Snakemake keeps only the last ``--singularity-args``, so the binds join a
+    user's value instead of adding a second flag, ahead of it so the user's
+    own binds win.
+    """
+    plan, out = plan_dir.resolve(), out_dir.resolve()
+    bind = f"--bind {plan}:{plan}:ro,{out}:{out}"
+    args = list(snakemake_args)
+    for i, a in enumerate(args):
+        if a in _CONTAINER_ARGS_FLAGS and i + 1 < len(args):
+            args[i + 1] = f"{bind} {args[i + 1]}"
+            return args
+        flag, eq, value = a.partition("=")
+        if eq and flag in _CONTAINER_ARGS_FLAGS:
+            args[i] = f"{flag}={bind} {value}"
+            return args
+    return args + ["--singularity-args", bind]
+
+
 def _run_snakemake(
     out_dir: Path,
     cores: int,
@@ -583,6 +614,7 @@ def _run_snakemake(
     telemetry_emitter=None,
     benchmark: Optional[BenchmarkExecution] = None,
     resolved_nodes: Optional[list] = None,
+    plan_dir: Optional[Path] = None,
 ):
     """Run snakemake on the generated Snakefile.
 
@@ -596,6 +628,7 @@ def _run_snakemake(
         telemetry_emitter: Pre-initialized TelemetryEmitter (or None).
         benchmark: BenchmarkExecution instance (for telemetry metadata).
         resolved_nodes: List of ResolvedNode objects (for telemetry manifest).
+        plan_dir: Directory of the benchmark YAML, bound into container jobs.
     """
     from omnibenchmark.progress import ProgressDisplay, InteractiveProgress
     from datetime import datetime
@@ -632,7 +665,13 @@ def _run_snakemake(
     if debug:
         cmd.extend(["--verbose", "--debug"])
 
-    cmd.extend(_with_mem_budget(extra_snakemake_args or []))
+    extra = _with_mem_budget(extra_snakemake_args or [])
+    if plan_dir is not None and software_backend in (
+        SoftwareBackendEnum.apptainer,
+        SoftwareBackendEnum.docker,
+    ):
+        extra = _with_container_binds(extra, plan_dir, out_dir)
+    cmd.extend(extra)
 
     env = None
     if software_backend == SoftwareBackendEnum.conda:
