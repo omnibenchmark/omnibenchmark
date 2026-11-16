@@ -192,6 +192,21 @@ Credentials come from the environment (`ZENODO_TOKEN`, `THOA_API_KEY`, the ssh a
 - `ob run PLAN --use-snapshots`: compute the wanted slice hashes (§3.6 step 1, with root candidates taken from remote names as well); for each remote in config order, fetch the wanted names the store lacks, with their bases; then continue as in §3.6. With `--dry`, report what would be fetched and its size.
 - `ob archive PLAN --snapshot ... --push REMOTE`: pack into the store, then push what the remote lacks.
 
+### 3.9 Content and run records (planned, not implemented)
+
+A node directory holds three kinds of file:
+
+| Kind | Files | Determined by |
+|---|---|---|
+| Content | the declared stage outputs | the node's inputs, when the module is deterministic |
+| Plan-derived | `parameters.json`, `lineage.json`, `.key` | the node key |
+| Run records | `performance.txt`, logs, resource traces, telemetry | one execution on one machine |
+
+- **Declared outputs get a content hash.** Packing records a sha256 per declared output inside the snapshot. The node key says what a node was computed from; the content hash says what it produced.
+- **Matching stays on the key.** A content hash exists only after a node has run, and many outputs are not byte-reproducible (timestamps in HDF5, gzip headers, thread order). Downstream keys keep using parent keys.
+- **Datasets should be byte-reproducible.** For a data stage, two snapshots with the same key and different content hashes are an error to report, not noise. For other stages the same disagreement is recorded as evidence that the module is not deterministic.
+- **Run records stay in the snapshot by default,** tied to the manifest of the run that produced them (host, hardware, ob and Snakemake versions). Timings from a different hardware class are not comparable with this run's; they still give an idea, and the manifest says which class they came from.
+
 ## 4. Alternatives
 
 - **Version convention (012 draft).** Reuse when `(major, minor)` match, with a prefix hash as a warning. A promise where the node key gives a proof.
@@ -216,6 +231,7 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 - **Data remotes (§3.8).** None is implemented. `dir` and `http` first; the `zenodo` and `thoa` rows are from their documentation and client, not from a test.
 - **Run record.** Which nodes came from which snapshot, in `runs.jsonl`.
+- **Content hashes and run-record manifests (§3.9).**
 - **Container jobs and mounts.** The mount under `out/` must be visible inside the job. Apptainer can also bind the image itself, without a host mount.
 - **A local hardlink store** (012 draft) for reuse across out dirs on one volume without extracting twice.
 - **zstd for tar.** Needs the `tar` binary or Python 3.14.
@@ -223,7 +239,7 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 ## 7. Open questions
 
 - **Lock or listing.** Should every remote go through `snapshots.lock`, so that what a plan uses is always pinned and reviewable, or only those that cannot list?
-- **Timings.** A node taken from a snapshot keeps the `performance.txt` of the machine that ran it. Is a run with mixed origins flagged, or are timings from snapshots dropped from `ob collect`?
+- **Run records from several runs.** An out dir built up over several runs holds nodes with different run manifests. Does each node's record name its run id, or does a snapshot carry one manifest per contributing run?
 - **The key in the directory name.** `.key` catches a stale directory when packing. Putting the key in the name would make one impossible, but changes the layout.
 - **Stage order.** `--until` cuts by plan order, then closes under ancestors. Is a cut by graph depth needed?
 - **Dangling links.** After a reboot the symlinks into an unmounted image dangle, and a run without `--use-snapshots` recomputes those nodes. Should `ob run` refuse, or remount on its own?
