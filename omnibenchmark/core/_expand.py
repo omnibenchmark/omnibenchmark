@@ -139,6 +139,26 @@ def expand_gather_stage(
                 continue
             grouped.setdefault(gval, []).append((member_id, spec.from_, path))
 
+    # 0.8.0: a member is one node with a file per `from` id (lineage.json
+    # `files`), so several ids are an AND per member: a node producing only
+    # some of them is not a member (010 §3.2). Before 0.8.0 each id is its own
+    # path list, and the union stands.
+    from_ids = {s.from_ for s in stage.gather}
+    if flat and len(from_ids) > 1:
+        dropped = set()
+        for gval, members in grouped.items():
+            have: dict = {}
+            for member_id, from_id, _path in members:
+                have.setdefault(member_id, set()).add(from_id)
+            dropped |= {m for m, ids in have.items() if ids != from_ids}
+            grouped[gval] = [m for m in members if have[m[0]] == from_ids]
+        grouped = {gval: members for gval, members in grouped.items() if members}
+        if dropped:
+            logger.warning(
+                f"      Gather '{stage.id}': {len(dropped)} node(s) produce only "
+                f"some of {sorted(from_ids)} and are not members."
+            )
+
     if not grouped:
         logger.warning(f"Stage '{stage.id}' gathered no members.")
 
