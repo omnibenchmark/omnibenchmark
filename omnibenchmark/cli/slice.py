@@ -1,5 +1,5 @@
-"""`ob slice`: pack part of a run as a snapshot. `ob run --use-snapshots`
-reads them back. SPIKE, local paths only."""
+"""`ob slice`: housekeeping for the snapshots a run was started from.
+`ob archive --snapshot` writes them, `ob run --use-snapshots` reads them."""
 
 from pathlib import Path
 
@@ -17,28 +17,7 @@ _out = click.option(
 
 @click.group(name="slice")
 def slice_group():
-    """Pack and reuse slices of a run (experimental)."""
-
-
-@slice_group.command()
-@_out
-@click.option(
-    "--to",
-    "dest",
-    type=click.Path(path_type=Path),
-    help="Default: snapshots.path from the config, else ./snapshots.",
-)
-@click.option("--until", help="Cut after this stage.")
-@click.option("--dataset", help="Keep this dataset's subtree.")
-@click.option("--squashfs", is_flag=True, help="Write a squashfs image, not tar.gz.")
-@click.option("--base-until", help="Leave out what the slice up to this stage holds.")
-def pack(out_dir, dest, until, dataset, squashfs, base_until):
-    """Pack a slice of OUT_DIR into the snapshots directory."""
-    try:
-        dest = dest or slices.store_dir(Path.cwd())
-        click.echo(slices.pack(out_dir, dest, until, dataset, squashfs, base_until))
-    except (ValueError, KeyError, OSError, RuntimeError) as e:
-        raise click.ClickException(str(e))
+    """Snapshots in use by an out dir (experimental)."""
 
 
 @slice_group.command()

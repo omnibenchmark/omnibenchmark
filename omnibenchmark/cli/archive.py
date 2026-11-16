@@ -85,6 +85,21 @@ from .debug import add_debug_option
     default=None,
     type=click.Path(),
 )
+@click.option(
+    "--snapshot",
+    is_flag=True,
+    help=(
+        "Pack the results as a snapshot for `ob run --use-snapshots` (design "
+        "017), into snapshots.path from the config, else ./snapshots next to "
+        "the plan. Implied by the four options below."
+    ),
+)
+@click.option("--until", help="Snapshot: only the stages up to this one.")
+@click.option("--dataset", help="Snapshot: only this dataset's subtree.")
+@click.option(
+    "--base-until", help="Snapshot: leave out what the snapshot up to this stage holds."
+)
+@click.option("--squashfs", is_flag=True, help="Snapshot: squashfs image, not tar.gz.")
 @click.pass_context
 def archive(
     ctx,
@@ -98,11 +113,39 @@ def archive(
     use_remote_storage,
     out_dir,
     output_file,
+    snapshot,
+    until,
+    dataset,
+    base_until,
+    squashfs,
 ):
     """Archive a benchmark and its artifacts.
 
     BENCHMARK: Path to benchmark YAML file.
     """
+    if snapshot or until or dataset or base_until or squashfs:
+        # A snapshot is a slice of a local run in one file; it shares nothing
+        # with the archive below, so it returns before any of it.
+        if code or software or results or use_remote_storage or output_file or dry_run:
+            raise click.UsageError(
+                "a snapshot takes only --until, --dataset, --base-until, "
+                "--squashfs and --out-dir"
+            )
+        from omnibenchmark import slices
+
+        try:
+            target = slices.pack(
+                Path(out_dir or "out"),
+                slices.store_dir(Path(benchmark).resolve().parent),
+                until,
+                dataset,
+                squashfs,
+                base_until,
+            )
+        except (ValueError, KeyError, OSError, RuntimeError) as e:
+            raise click.ClickException(str(e))
+        click.echo(f"Created snapshot: {target}")
+        return
 
     # Validate compression=none with compresslevel
     if compression == "none" and compresslevel != 9:

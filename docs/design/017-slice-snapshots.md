@@ -1,12 +1,12 @@
 # 017: Slice snapshots
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 0.1](https://img.shields.io/badge/Version-0.1-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 1](https://img.shields.io/badge/Version-1-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: btraven
 **Date**: 2026-11-16
 **Status**: Draft
-**Version**: 0.1
+**Version**: 1
 **Supersedes**: the mechanism of [003](./003-storage.md) §3 and §6 (its goals stand); the unmerged drafts "013 remote storage" (`scratch/`) and "012 incremental snapshots" (`feat/snapshots`)
 **Reviewed-by**: TBD
 **Related Issues**: #404
@@ -15,7 +15,7 @@
 
 | Version | Date | Description | Author |
 |---------|------|-------------|--------|
-| 0.1 | 2026-11-16 | Initial draft, written against the spike on `feat/slice-snapshots` | btraven |
+| 1 | 2026-11-16 | Initial draft, written against `feat/slice-snapshots` | btraven |
 
 ## 1. Problem
 
@@ -117,10 +117,12 @@ A relative path is relative to the plan. A remote (§6) mirrors this directory; 
 
 | Command | Does |
 |---|---|
-| `ob slice pack [--until S] [--dataset D] [--base-until S0] [--squashfs] [--to DIR]` | pack a slice of `out/` into the store |
+| `ob archive PLAN --snapshot [--until S] [--dataset D] [--base-until S0] [--squashfs] [--out-dir DIR]` | pack a slice of `out/` into the store. `--snapshot` alone packs everything; the other options imply it |
 | `ob run PLAN --use-snapshots [--dry]` | start from matching snapshots |
 | `ob slice unmount` | unmount the squashfs snapshots of `out/` |
 | `ob config --local KEY [VALUE]` | read or write `<cwd>/.ob/config` |
+
+`ob archive` in snapshot mode shares no code with the zip archive or its S3 path: it returns before them, and rejects their options.
 
 ## 4. Alternatives
 
@@ -135,7 +137,8 @@ A relative path is relative to the plan. A remote (§6) mirrors this directory; 
 
 State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/configs/15_flat_layout.yaml` with Snakemake 9.6 and the host backend:
 
-- §3.1–§3.7 are implemented in `omnibenchmark/slices.py`, `cli/slice.py`, and hooks in `cli/run.py` and `cli/config.py`.
+- §3.1–§3.7 are implemented in `omnibenchmark/slices.py`, with hooks in `cli/run.py`, `cli/archive.py`, `cli/config.py` and `cli/slice.py`.
+- Regression test: `tests/e2e/test_19_snapshots.py` (a base and a snapshot above it, tar.gz and squashfs, then a changed plan run from them).
 - A full snapshot gives a run with 0 jobs. After a parameter change in a late stage, a snapshot up to an earlier stage still matches and only the later nodes run. The same holds for a mounted `.sqfs`, and for a base `.sqfs` under a `.tar.gz` that has it as base.
 - Snakemake did not rerun present nodes although `out/.snakemake` was empty, for extracted files and for symlinks. The symlinks carry the mtimes of their targets.
 - `mksquashfs` ≥ 4.5 is needed (it reads the tar stream). `squashfuse_ll` is looked up on `PATH` and in apptainer's `libexec`.
@@ -143,7 +146,6 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 ## 6. Deferred
 
-- **`ob archive` as the packing command** (`ob archive PLAN --until S …`), in a branch that returns before the S3 code. `ob slice pack` then goes away.
 - **Remote.** `write = ssh://…` and `read = https://…` under `[remote "name"]` in the config: push copies files out of the store, fetch downloads the matching names into it. Listing over https uses the web server's JSON directory listing. The read URL may later also live in the plan.
 - **S3 as a third transport** of the same four operations (list, exists, get, put once), replacing `remote/versioning.py`.
 - **Absolute paths in `lineage.json`** of gathers and joins point into the `out/` that produced them. They must become relative before a snapshot leaves its machine.
