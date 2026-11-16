@@ -25,10 +25,11 @@ def slice_group():
 @click.option("--until", help="Cut after this stage.")
 @click.option("--dataset", help="Keep this dataset's subtree.")
 @click.option("--squashfs", is_flag=True, help="Write a squashfs image, not tar.gz.")
-def pack(out_dir, dest, until, dataset, squashfs):
+@click.option("--base-until", help="Leave out what the slice up to this stage holds.")
+def pack(out_dir, dest, until, dataset, squashfs, base_until):
     """Pack a slice of OUT_DIR into the directory TO."""
     try:
-        click.echo(slices.pack(out_dir, dest, until, dataset, squashfs))
+        click.echo(slices.pack(out_dir, dest, until, dataset, squashfs, base_until))
     except (ValueError, KeyError, OSError, RuntimeError) as e:
         raise click.ClickException(str(e))
 

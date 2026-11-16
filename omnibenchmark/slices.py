@@ -151,16 +151,24 @@ def pack(
     until: Optional[str] = None,
     dataset: Optional[str] = None,
     squashfs: bool = False,
+    base_until: Optional[str] = None,
 ) -> Path:
+    """With `base_until`, the file holds only the nodes above that cut and is
+    named `..._<hash>~<base hash>`: the hash is still the whole slice's, the
+    base slice has to be seeded with it."""
     meta = read_nodes(out_dir)
     nodes = select(meta, until, dataset)
-    if not nodes:
-        raise ValueError("the slice selects no nodes")
-    files = _node_files(out_dir, nodes, {n["dir"] for n in meta["nodes"]})
     name = (
         f"{meta['benchmark']}-{meta['version']}-{meta['plan_hash'][:8]}"
         f"-{slice_label(until, dataset)}_{slice_hash(nodes)}"
     )
+    if base_until:
+        base = select(meta, base_until, dataset)
+        name += f"~{slice_hash(base)}"
+        nodes = [n for n in nodes if n not in base]
+    if not nodes:
+        raise ValueError("the slice selects no nodes")
+    files = _node_files(out_dir, nodes, {n["dir"] for n in meta["nodes"]})
     dest.mkdir(parents=True, exist_ok=True)
     target = dest / (name + (".sqfs" if squashfs else ".tar.gz"))
     if target.exists():
@@ -256,20 +264,27 @@ def seed(out_dir: Path, source: Path, squashfs: bool = False) -> List[str]:
             if nodes:
                 wanted.setdefault(slice_hash(nodes), nodes)
 
-    found: Dict[str, Path] = {}
+    # hash -> (file, base hash or ""); a file named `_<hash>~<base>` holds
+    # only what `<base>` lacks
+    found: Dict[str, tuple] = {}
     exts = (".sqfs", ".tar.gz") if squashfs else (".tar.gz",)
     for ext in reversed(exts):  # the preferred format overwrites the other
-        for path in source.glob(f"*_????????{ext}"):
-            h = path.name[: -len(ext)].rsplit("_", 1)[1]
-            if h in wanted:
-                found[h] = path
+        for path in sorted(source.glob(f"*{ext}"), key=lambda p: "~" in p.name):
+            h, _, base = path.name[: -len(ext)].rsplit("_", 1)[-1].partition("~")
+            if h in wanted and (not base or base in wanted):
+                found[h] = (path, base)
 
     report, covered = [], set()
     for h in sorted(found, key=lambda h: -len(wanted[h])):  # biggest first
+        image, base = found[h]
         ids = {n["id"] for n in wanted[h]}
+        if base:
+            if base not in found:
+                report.append(f"skipped {image.name}: its base slice is missing")
+                continue
+            ids -= {n["id"] for n in wanted[base]}
         if ids <= covered:
             continue
-        image = found[h]
         how = "extracted"
         if image.name.endswith(".sqfs") and _mount(image, out_dir):
             how = "mounted"
