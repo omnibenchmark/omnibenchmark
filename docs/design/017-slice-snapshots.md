@@ -102,7 +102,7 @@ Snapshots live in a local directory, resolved in this order:
 2. `snapshots.path` in the user's config (`ob config`);
 3. `<plan dir>/snapshots`.
 
-A relative path is relative to the plan. A remote (§6) mirrors this directory; nothing reads a remote directly.
+A relative path is relative to the plan. A data remote (§3.8) mirrors this directory; nothing else reads a remote.
 
 Packing appends one row per snapshot to `README.md` in the store: the file, the benchmark and plan hash, what the slice covers, how many nodes and which stages the file holds, its size, and the base it needs. It is for people; matching never reads it.
 
@@ -130,6 +130,66 @@ Packing appends one row per snapshot to `README.md` in the store: the file, the 
 
 `ob archive` in snapshot mode shares no code with the zip archive or its S3 path: it returns before them, and rejects their options.
 
+### 3.8 Data remotes (sketch, not implemented)
+
+A data remote holds snapshot files somewhere else. It lists names and moves bytes; it never looks inside a snapshot. Running and packing only ever read the store (§3.5): a fetch fills it, a push copies out of it.
+
+**Model**
+
+```python
+@dataclass(frozen=True)
+class RemoteFile:            # one snapshot file, as a remote holds it
+    name: str                # the snapshot file name (§3.3): its identity
+    locator: str             # what this remote needs to fetch it: URL, path, backend id
+    size: int | None
+    checksum: str | None     # "sha256:..." or "md5:...", when the remote has one
+
+
+class DataRemote(Protocol):
+    name: str                                            # the config section's name
+    def list(self) -> list[RemoteFile]: ...
+    def fetch(self, file: RemoteFile, into: Path) -> Path: ...   # via <name>.part; checksum verified
+    def push(self, path: Path) -> RemoteFile: ...        # optional; an existing name is left alone
+```
+
+**Config**, in `<plan dir>/.ob/config` or the user's config:
+
+```ini
+[remote "lab"]
+kind  = http
+read  = https://omni.example.org/snapshots/clustering
+write = ssh://omni/srv/www/snapshots/clustering
+
+[remote "paper"]
+kind = zenodo
+read = 10.5281/zenodo.1234567
+```
+
+Credentials come from the environment (`ZENODO_TOKEN`, `THOA_API_KEY`, the ssh agent), never from a config file.
+
+**Kinds**
+
+| kind | `list` | `fetch` | `push` | Constraints |
+|---|---|---|---|---|
+| `dir` | directory listing | copy | copy | another local folder or a mounted share |
+| `http` | the server's JSON directory listing of `read` | GET | over ssh to `write`: stream to `<name>.part`, then a non-overwriting rename | the listing has no checksum: size only, unless a `.sha256` file is pushed alongside |
+| `zenodo` | the record's file list | GET | deposit API; each push publishes a new version of the record | published files are immutable; md5 checksums; per-record size and file-count limits |
+| `thoa` | the lock (below) | download by file id | upload, which creates a new dataset | datasets cannot be listed by snapshot name; a thoa job takes one dataset, so a snapshot and its bases must be in the same dataset to be staged for a job |
+| `s3` | objects under a prefix | GET | conditional PUT | would replace `remote/versioning.py` |
+
+**Lock.** A remote that cannot list by name needs an index, and a reader of a published plan should not need credentials or a listing. Both are served by `snapshots.lock`, committed next to the plan, one `RemoteFile` per line:
+
+```
+<remote>  <name>  <size>  <checksum>  <locator>
+```
+
+`list()` of a lock-backed remote is its lines. A push appends one. For a remote that can list, the lock is optional and pins which snapshots a plan was published with.
+
+**Flow**
+
+- `ob run PLAN --use-snapshots`: compute the wanted slice hashes (§3.6 step 1, with root candidates taken from remote names as well); for each remote in config order, fetch the wanted names the store lacks, with their bases; then continue as in §3.6. With `--dry`, report what would be fetched and its size.
+- `ob archive PLAN --snapshot ... --push REMOTE`: pack into the store, then push what the remote lacks.
+
 ## 4. Alternatives
 
 - **Version convention (012 draft).** Reuse when `(major, minor)` match, with a prefix hash as a warning. A promise where the node key gives a proof.
@@ -152,8 +212,7 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 ## 6. Deferred
 
-- **Remote.** `write = ssh://…` and `read = https://…` under `[remote "name"]` in the config: push copies files out of the store, fetch downloads the matching names into it. Listing over https uses the web server's JSON directory listing. The read URL may later also live in the plan.
-- **S3 as a third transport** of the same four operations (list, exists, get, put once), replacing `remote/versioning.py`.
+- **Data remotes (§3.8).** None is implemented. `dir` and `http` first; the `zenodo` and `thoa` rows are from their documentation and client, not from a test.
 - **Run record.** Which nodes came from which snapshot, in `runs.jsonl`.
 - **Container jobs and mounts.** The mount under `out/` must be visible inside the job. Apptainer can also bind the image itself, without a host mount.
 - **A local hardlink store** (012 draft) for reuse across out dirs on one volume without extracting twice.
@@ -161,6 +220,8 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 
 ## 7. Open questions
 
+- **Lock or listing.** Should every remote go through `snapshots.lock`, so that what a plan uses is always pinned and reviewable, or only those that cannot list?
+- **Layers on thoa.** One dataset per job means a layered snapshot is re-uploaded with its bases, or snapshots for thoa are packed without a base.
 - **Timings.** A node taken from a snapshot keeps the `performance.txt` of the machine that ran it. Is a run with mixed origins flagged, or are timings from snapshots dropped from `ob collect`?
 - **The key in the directory name.** `.key` catches a stale directory when packing. Putting the key in the name would make one impossible, but changes the layout.
 - **Stage order.** `--until` cuts by plan order, then closes under ancestors. Is a cut by graph depth needed?
