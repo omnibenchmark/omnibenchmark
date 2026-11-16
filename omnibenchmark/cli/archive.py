@@ -95,7 +95,11 @@ from .debug import add_debug_option
     ),
 )
 @click.option("--until", help="Snapshot: only the stages up to this one.")
-@click.option("--dataset", help="Snapshot: only this dataset's subtree.")
+@click.option(
+    "--group-by",
+    help="Snapshot: one per node of this stage (e.g. one per dataset), each "
+    "with what descends from that node alone.",
+)
 @click.option(
     "--base-until", help="Snapshot: leave out what the snapshot up to this stage holds."
 )
@@ -115,7 +119,7 @@ def archive(
     output_file,
     snapshot,
     until,
-    dataset,
+    group_by,
     base_until,
     squashfs,
 ):
@@ -123,28 +127,28 @@ def archive(
 
     BENCHMARK: Path to benchmark YAML file.
     """
-    if snapshot or until or dataset or base_until or squashfs:
+    if snapshot or until or group_by or base_until or squashfs:
         # A snapshot is a slice of a local run in one file; it shares nothing
         # with the archive below, so it returns before any of it.
         if code or software or results or use_remote_storage or output_file or dry_run:
             raise click.UsageError(
-                "a snapshot takes only --until, --dataset, --base-until, "
+                "a snapshot takes only --until, --group-by, --base-until, "
                 "--squashfs and --out-dir"
             )
         from omnibenchmark import slices
 
         try:
-            target = slices.pack(
+            report = slices.pack(
                 Path(out_dir or "out"),
                 slices.store_dir(Path(benchmark).resolve().parent),
                 until,
-                dataset,
+                group_by,
                 squashfs,
                 base_until,
             )
         except (ValueError, KeyError, OSError, RuntimeError) as e:
             raise click.ClickException(str(e))
-        click.echo(f"Created snapshot: {target}")
+        click.echo("\n".join(report))
         return
 
     # Validate compression=none with compresslevel

@@ -107,11 +107,6 @@ def write_nodes(nodes, model, out_dir: Path) -> None:
                 "dir": n.node_dir,
                 "key": keys[n.id],
                 "outputs": sorted(n.outputs.values()),
-                "dataset": (
-                    n.template_context.provides.get("dataset")
-                    if n.template_context
-                    else None
-                ),
                 "parents": _parent_ids(n),
             }
             for n in nodes
@@ -126,31 +121,64 @@ def read_nodes(out_dir: Path) -> dict:
     return json.loads((out_dir / NODES_FILE).read_text())
 
 
-def select(meta: dict, until: Optional[str], dataset: Optional[str]) -> List[dict]:
-    """Nodes up to stage `until` and/or in `dataset`'s subtree, plus ancestors."""
+def _ancestors(meta: dict) -> Dict[str, set]:
+    """{node id: ids of all its ancestors}."""
+    by_id = {n["id"]: n for n in meta["nodes"]}
+    done: Dict[str, set] = {}
+
+    def of(node_id: str) -> set:
+        if node_id not in done:
+            done[node_id] = set()  # a plan is acyclic; this only guards a bad file
+            parents = [p for p in by_id[node_id]["parents"] if p in by_id]
+            done[node_id] = set(parents).union(*(of(p) for p in parents))
+        return done[node_id]
+
+    for n in meta["nodes"]:
+        of(n["id"])
+    return done
+
+
+def select(
+    meta: dict,
+    until: Optional[str] = None,
+    root: Optional[str] = None,
+    ancestors: Optional[Dict[str, set]] = None,
+) -> List[dict]:
+    """Nodes up to stage `until`, in the group of the node `root`, plus their
+    ancestors.
+
+    A node is in `root`'s group when `root` is its only ancestor at `root`'s
+    stage. A gather over several groups is therefore in none of them.
+    """
     order = {s: i for i, s in enumerate(meta["stages"])}
     by_id = {n["id"]: n for n in meta["nodes"]}
-    todo = [
-        n
+    anc = ancestors if ancestors is not None else _ancestors(meta)
+
+    def in_group(n: dict) -> bool:
+        if root is None or n["id"] == root:
+            return True
+        stage = by_id[root]["stage"]
+        return {a for a in anc[n["id"]] if by_id[a]["stage"] == stage} == {root}
+
+    picked = {
+        n["id"]
         for n in meta["nodes"]
         if (until is None or order.get(n["stage"], len(order)) <= order[until])
-        and (dataset is None or n["dataset"] == dataset)
-    ]
-    picked: Dict[str, dict] = {}
-    while todo:
-        n = todo.pop()
-        if n["id"] not in picked:
-            picked[n["id"]] = n
-            todo += [by_id[p] for p in n["parents"] if p in by_id]
-    return list(picked.values())
+        and in_group(n)
+    }
+    for node_id in list(picked):
+        picked |= anc[node_id]
+    return [n for n in meta["nodes"] if n["id"] in picked]
 
 
 def slice_hash(nodes: List[dict]) -> str:
     return _sha(sorted(n["key"] for n in nodes))[:8]
 
 
-def slice_label(until: Optional[str], dataset: Optional[str]) -> str:
-    return ".".join(filter(None, [dataset, until and f"until-{until}"])) or "all"
+def slice_label(until: Optional[str], root: Optional[dict]) -> str:
+    """`DATA.d1.94686c86.until-PCA`: the root's directory segment, then the cut."""
+    segment = os.path.basename(root["dir"]) if root else None
+    return ".".join(filter(None, [segment, until and f"until-{until}"])) or "all"
 
 
 def _node_files(out_dir: Path, nodes: List[dict], all_dirs: set) -> List[str]:
@@ -218,22 +246,43 @@ def pack(
     out_dir: Path,
     dest: Path,
     until: Optional[str] = None,
-    dataset: Optional[str] = None,
+    group_by: Optional[str] = None,
     squashfs: bool = False,
     base_until: Optional[str] = None,
-) -> Path:
-    """With `base_until`, the file holds only the nodes above that cut and is
-    named `..._<hash>~<base hash>`: the hash is still the whole slice's, the
-    base slice has to be seeded with it."""
+) -> List[str]:
+    """Pack one snapshot, or with `group_by` one per node of that stage.
+    Returns one line per snapshot. A snapshot that is already there is left
+    alone: the same name is the same content."""
     meta = read_nodes(out_dir)
-    nodes = select(meta, until, dataset)
+    anc = _ancestors(meta)
+    roots: List[Optional[dict]] = [None]
+    if group_by:
+        roots = [n for n in meta["nodes"] if n["stage"] == group_by]
+        if not roots:
+            raise ValueError(f"no node of stage {group_by!r} to group by")
+    report = []
+    for root in roots:
+        target = _pack_one(meta, anc, out_dir, dest, until, root, squashfs, base_until)
+        report.append(target)
+    return report
+
+
+def _pack_one(meta, anc, out_dir, dest, until, root, squashfs, base_until) -> str:
+    """With `base_until`, the file holds only the nodes above that cut and is
+    named `..._<hash>~<base hash>`: the hash is still the whole slice's, and
+    the base snapshot has to be used with it."""
+    root_id = root["id"] if root else None
+    nodes = select(meta, until, root_id, anc)
     _check_produced(out_dir, nodes)
     name = (
         f"{meta['benchmark']}-{meta['version']}-{meta['plan_hash'][:8]}"
-        f"-{slice_label(until, dataset)}_{slice_hash(nodes)}"
+        f"-{slice_label(until, root)}_{slice_hash(nodes)}"
     )
     if base_until:
-        base = select(meta, base_until, dataset)
+        # below the group's own stage the base is the ungrouped slice
+        base = select(meta, base_until, root_id, anc) or []
+        if not any(n["id"] == root_id for n in base):
+            base = select(meta, base_until, None, anc)
         name += f"~{slice_hash(base)}"
         nodes = [n for n in nodes if n not in base]
     if not nodes:
@@ -242,7 +291,7 @@ def pack(
     dest.mkdir(parents=True, exist_ok=True)
     target = dest / (name + (".sqfs" if squashfs else ".tar.gz"))
     if target.exists():
-        raise FileExistsError(f"{target} exists; a slice is written once")
+        return f"exists  {target}"
     part = target.with_name(target.name + ".part")
     part.unlink(missing_ok=True)
     try:
@@ -269,7 +318,7 @@ def pack(
         os.replace(part, target)
     finally:
         part.unlink(missing_ok=True)
-    return target
+    return f"created {target}"
 
 
 def _squashfuse() -> Optional[str]:
@@ -328,11 +377,19 @@ def use_snapshots(out_dir: Path, source: Path, apply: bool = True) -> List[str]:
     anything else is extracted. Returns one line per snapshot; with
     `apply=False` it only says what would be used."""
     meta = read_nodes(out_dir)
-    datasets = sorted({n["dataset"] for n in meta["nodes"] if n["dataset"]})
+    anc = _ancestors(meta)
+    # A grouped snapshot carries its root's directory segment in its name, so
+    # only the nodes some file names can be roots.
+    names = [p.name for p in source.glob("*") if p.is_file()]
+    roots = [
+        n["id"]
+        for n in meta["nodes"]
+        if any(f"-{os.path.basename(n['dir'])}" in name for name in names)
+    ]
     wanted: Dict[str, List[dict]] = {}
-    for dataset in [None, *datasets]:
+    for root in [None, *roots]:
         for until in [None, *meta["stages"]]:
-            nodes = select(meta, until, dataset)
+            nodes = select(meta, until, root, anc)
             if nodes:
                 wanted.setdefault(slice_hash(nodes), nodes)
 

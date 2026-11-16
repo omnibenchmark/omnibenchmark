@@ -38,6 +38,7 @@ def _ob(tmp_path: Path, *args: str) -> str:
             ["--until", "join", "--squashfs"],
             marks=pytest.mark.skipif(not _FUSE, reason="needs fuse and squashfs"),
         ),
+        ["--until", "join", "--group-by", "data"],
     ],
 )
 def test_run_from_snapshot(tmp_path, bundled_repos, keep_files, pack_args):
@@ -46,9 +47,14 @@ def test_run_from_snapshot(tmp_path, bundled_repos, keep_files, pack_args):
     plan = runner.setup_test_environment(config, "plan.yaml")
     runner.execute_cli_command(plan)
 
-    # A base and what lies above it, in two files.
-    _ob(tmp_path, "archive", "plan.yaml", "--until", "data", *pack_args[2:])
-    _ob(tmp_path, "archive", "plan.yaml", *pack_args, "--base-until", "data")
+    if "--group-by" in pack_args:
+        # One snapshot per data node, from one call; a second call adds nothing.
+        _ob(tmp_path, "archive", "plan.yaml", *pack_args)
+        assert "created" not in _ob(tmp_path, "archive", "plan.yaml", *pack_args)
+    else:
+        # A base and what lies above it, in two files.
+        _ob(tmp_path, "archive", "plan.yaml", "--until", "data", *pack_args[2:])
+        _ob(tmp_path, "archive", "plan.yaml", *pack_args, "--base-until", "data")
     assert len(list((tmp_path / "snapshots").iterdir())) == 2
 
     # The metrics stage changes: everything up to `join` keeps its keys.

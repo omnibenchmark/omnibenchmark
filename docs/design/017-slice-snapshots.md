@@ -25,7 +25,7 @@
 
 ## 2. Goals
 
-- A **slice** names part of a run, by stage and by dataset.
+- A **slice** names part of a run: up to a stage, and below one node (one dataset, say).
 - A slice is stored as **one file**, in a plain directory.
 - A run **starts from** the stored slices that are valid for its plan and computes the rest.
 - Validity is **exact**: decided by a hash, not by a version convention.
@@ -53,7 +53,9 @@ key(n) = sha256(repository, commit, entrypoint, environment, parameters,
 - **A module run from a working copy** (`--dirty`) gets a random key: it is never reused.
 - The key is **not** the hash in the directory name, which covers the node's own parameters only.
 
-`ob run` writes all keys to `out/.metadata/nodes.json`, with each node's stage, directory, dataset label and parent ids.
+`ob run` writes all keys to `out/.metadata/nodes.json`, with each node's stage, directory, outputs and parent ids.
+
+From api 0.8.0 every rule also leaves its node's key in `<node dir>/.key`. The file says under which key a directory was actually produced; `nodes.json` only says what the plan resolves to now. They differ after a module reference moves, or after a changed plan is resolved into an old out dir.
 
 ### 3.2 Slice
 
@@ -61,12 +63,12 @@ A slice is a set of nodes closed under ancestors. It is selected by:
 
 | Selector | Nodes |
 |---|---|
-| `--until STAGE` | nodes of stages up to `STAGE` in plan order |
-| `--dataset D` | nodes whose `dataset` label is `D` |
+| a cut, `until STAGE` | nodes of stages up to `STAGE` in plan order |
+| a root node | the root's **group**: the nodes whose only ancestor at the root's stage is the root |
 | both | their intersection |
 | neither | all nodes |
 
-Ancestors of the selected nodes are always added. A gather over several datasets has no dataset label, so it belongs to no dataset slice.
+Ancestors of the selected nodes are always added. A gather over several groups has several ancestors at the root's stage, so it is in no group.
 
 ```
 slice hash = sha256(sorted node keys)[:8]
@@ -78,18 +80,19 @@ A snapshot is one slice in one file:
 
 ```
 <benchmark>-<version>-<plan hash:8>-<label>_<slice hash>[~<base hash>].<ext>
-clustering-1.2-94686c86-D1.until-preprocess_deadbeef.tar.gz
+clustering-1.2-94686c86-data.D1.94686c86.until-preprocess_deadbeef.tar.gz
 ```
 
-- **Only the slice hash decides a match.** Benchmark, version, plan hash and label are for people.
+- **Only the slice hash decides a match.** Benchmark, version and plan hash are for people. The label is the root's directory segment, then the cut; it tells a reader of the store which nodes can be roots.
 - **Contents:** the files of the slice's nodes at their paths relative to `out/`, with no wrapping directory. A node's files exclude the directories of its child nodes, which the layout nests inside it.
 - **Formats:** `.tar.gz` (default) and `.sqfs` (squashfs, zstd), chosen when packing.
 - **`lineage.json` is rewritten when packed:** the absolute paths of its member files become relative to `out/`. In a run they stay absolute, for the module that reads them.
-- **Written once.** Packing onto an existing name fails.
+- **Written once.** A name that exists is left alone: the same name is the same content.
+- **Checked when packed.** Every node of the slice must hold its declared outputs and a `.key` equal to the key in `nodes.json`. Otherwise nothing is packed.
 
 ### 3.4 Base
 
-A snapshot packed with a base holds only the nodes its base slice lacks. Its hash is still the hash of the whole slice, and its name ends in `~<base hash>`. It is used only together with its base, which may itself have a base.
+A snapshot packed with a base holds only the nodes its base slice lacks. The base has the same root, or no root when the base cut lies below the root's stage. Its hash is still the hash of the whole slice, and its name ends in `~<base hash>`. It is used only together with its base, which may itself have a base.
 
 ### 3.5 Store
 
@@ -105,7 +108,7 @@ A relative path is relative to the plan. A remote (§6) mirrors this directory; 
 
 `ob run PLAN --use-snapshots`, after the plan is resolved and before Snakemake starts:
 
-1. Compute the slice hash for every dataset (and none) × every stage cut (and none) of the resolved plan.
+1. Compute the slice hash for every root named by a file in the store (and none) × every stage cut (and none) of the resolved plan.
 2. Keep the files in the store named by one of these hashes. A file with a base is kept only if its base is also there.
 3. Apply them largest slice first, skipping a file that adds no node.
 4. Apply a `.sqfs` by mounting it read-only under `out/.slices/<file>/` and symlinking each of its files into `out/`. Directories are created for real, so new child nodes are written next to cached files, and a write to a cached file fails. Without FUSE, or for a `.tar.gz`, the file is extracted.
@@ -118,7 +121,7 @@ A relative path is relative to the plan. A remote (§6) mirrors this directory; 
 
 | Command | Does |
 |---|---|
-| `ob archive PLAN --snapshot [--until S] [--dataset D] [--base-until S0] [--squashfs] [--out-dir DIR]` | pack a slice of `out/` into the store. `--snapshot` alone packs everything; the other options imply it |
+| `ob archive PLAN --snapshot [--until S] [--group-by G] [--base-until S0] [--squashfs] [--out-dir DIR]` | pack a slice of `out/` into the store. `--snapshot` alone packs everything; the other options imply it. `--group-by G` packs one snapshot per node of stage `G` |
 | `ob run PLAN --use-snapshots [--dry]` | start from matching snapshots |
 | `ob slice unmount` | unmount the squashfs snapshots of `out/` |
 | `ob config --local KEY [VALUE]` | read or write `<cwd>/.ob/config` |
@@ -143,22 +146,20 @@ State of `feat/slice-snapshots` (based on `integ/0.8`), verified on `tests/e2e/c
 - A full snapshot gives a run with 0 jobs. After a parameter change in a late stage, a snapshot up to an earlier stage still matches and only the later nodes run. The same holds for a mounted `.sqfs`, and for a base `.sqfs` under a `.tar.gz` that has it as base.
 - Snakemake did not rerun present nodes although `out/.snakemake` was empty, for extracted files and for symlinks. The symlinks carry the mtimes of their targets.
 - `mksquashfs` ≥ 4.5 is needed (it reads the tar stream). `squashfuse_ll` is looked up on `PATH` and in apptainer's `libexec`.
-- Not exercised: `--dataset` end to end, conda and container backends, extraction of a `.sqfs` without FUSE, a base chain deeper than one.
+- Not exercised: extraction of a `.sqfs` without FUSE, a base chain deeper than two, container backends end to end.
 
 ## 6. Deferred
 
 - **Remote.** `write = ssh://…` and `read = https://…` under `[remote "name"]` in the config: push copies files out of the store, fetch downloads the matching names into it. Listing over https uses the web server's JSON directory listing. The read URL may later also live in the plan.
 - **S3 as a third transport** of the same four operations (list, exists, get, put once), replacing `remote/versioning.py`.
 - **Run record.** Which nodes came from which snapshot, in `runs.jsonl`.
-- **Refuse to pack a node with missing outputs.** Today the files present are packed as they are.
 - **Container jobs and mounts.** The mount under `out/` must be visible inside the job. Apptainer can also bind the image itself, without a host mount.
-- **Slices by any lineage label**, not only `dataset`.
 - **A local hardlink store** (012 draft) for reuse across out dirs on one volume without extracting twice.
 - **zstd for tar.** Needs the `tar` binary or Python 3.14.
 
 ## 7. Open questions
 
 - **Timings.** A node taken from a snapshot keeps the `performance.txt` of the machine that ran it. Is a run with mixed origins flagged, or are timings from snapshots dropped from `ob collect`?
-- **Where the key lives.** In `nodes.json` only (today), or also in the directory name, which makes a stale directory impossible but changes the layout.
+- **The key in the directory name.** `.key` catches a stale directory when packing. Putting the key in the name would make one impossible, but changes the layout.
 - **Stage order.** `--until` cuts by plan order, then closes under ancestors. Is a cut by graph depth needed?
 - **Dangling links.** After a reboot the symlinks into an unmounted image dangle, and a run without `--use-snapshots` recomputes those nodes. Should `ob run` refuse, or remount on its own?
