@@ -1399,6 +1399,9 @@ def _generate_explicit_snakefile(
         output_dir=out_dir,
         nodes=resolved_nodes,
     )
+    from omnibenchmark import slices
+
+    slices.write_nodes(resolved_nodes, benchmark.model, out_dir)
 
     if quiet:
         elapsed = time.time() - start_time
