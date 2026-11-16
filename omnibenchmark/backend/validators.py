@@ -9,6 +9,7 @@ from omnibenchmark.backend.snakemake import (
     BACKEND_FLAGS,
     environment_directive,
     snakemake_bin,
+    with_container_binds,
 )
 
 from omnibenchmark.core.validators import (
@@ -152,6 +153,8 @@ def run_validators(
     ]
     if backend_flag:
         cmd.append(backend_flag)
+    if backend_flag == BACKEND_FLAGS[SoftwareBackendEnum.apptainer]:
+        cmd = with_container_binds(cmd, benchmark_dir, out_path)
     if force:
         cmd.append("--forceall")
 

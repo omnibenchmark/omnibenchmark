@@ -17,6 +17,7 @@ from omnibenchmark.cli.run import (
     _with_mem_budget,
     run,
 )
+from omnibenchmark.backend.snakemake import with_container_binds
 from omnibenchmark.core.prefetch import populate_git_cache
 from omnibenchmark.model import SoftwareBackendEnum
 
@@ -1030,3 +1031,133 @@ def test_run_snakemake_passes_mem_budget(tmp_path):
         )
     i = seen["cmd"].index("--resources")
     assert seen["cmd"][i + 1] == "mem_mb=90000"
+
+
+# ---------------------------------------------------------------------------
+# with_container_binds — plan dir and out dir visible inside container jobs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.short
+def test_container_binds_added(tmp_path):
+    out = tmp_path / "out"
+    with patch("tempfile.gettempdir", return_value="/scratch/t"):
+        assert with_container_binds(["--forceall"], tmp_path, out) == [
+            "--forceall",
+            "--singularity-args",
+            f"--bind /scratch/t:/scratch/t,{tmp_path}:{tmp_path}:ro,{out}:{out}",
+        ]
+
+
+@pytest.mark.short
+def test_container_binds_host_tmpdir(tmp_path, monkeypatch):
+    """Snakemake exports the host TMPDIR into the job; it must exist there (#319)."""
+    host_tmp = tmp_path / "scratch"
+    host_tmp.mkdir()
+    monkeypatch.setenv("TMPDIR", str(host_tmp))
+    monkeypatch.setattr("tempfile.tempdir", None)  # drop the cached value
+    assert f"{host_tmp}:{host_tmp}" in _binds(
+        with_container_binds([], tmp_path, tmp_path / "out")
+    )
+
+
+def _binds(args: list) -> list:
+    value = args[args.index("--singularity-args") + 1]
+    return value.removeprefix("--bind ").split(",")
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "resource", ["tmpdir={d}", "tmpdir='{d}'", 'some_rule:tmpdir="{d}"']
+)
+def test_container_binds_tmpdir_resource(tmp_path, resource):
+    """A tmpdir resource from the command line replaces the host TMPDIR in
+    the job, so it is bound as well."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    args = ["--default-resources", "mem_mb=1", resource.format(d=scratch)]
+    assert f"{scratch}:{scratch}" in _binds(
+        with_container_binds(args, tmp_path / "plan", tmp_path / "plan" / "out")
+    )
+
+
+@pytest.mark.short
+def test_container_binds_skip_missing_tmpdir_resource(tmp_path):
+    """Apptainer refuses to bind a source that does not exist."""
+    args = ["--default-resources", f"tmpdir={tmp_path}/nope"]
+    binds = _binds(with_container_binds(args, tmp_path, tmp_path))
+    assert not any("nope" in b for b in binds)
+
+
+@pytest.mark.short
+def test_container_binds_plan_stays_read_only_inside_tmpdir(tmp_path):
+    """Parents first: a temp dir that contains the plan dir is bound before
+    it, so the read-only plan bind is the one that holds."""
+    plan, out = tmp_path / "plan", tmp_path / "plan" / "out"
+    with patch("tempfile.gettempdir", return_value=str(tmp_path)):
+        assert _binds(with_container_binds([], plan, out)) == [
+            f"{tmp_path}:{tmp_path}",
+            f"{plan}:{plan}:ro",
+            f"{out}:{out}",
+        ]
+
+
+@pytest.mark.short
+def test_container_binds_same_path_is_writable(tmp_path):
+    """The out dir (or temp dir) on the plan dir itself: read-write wins."""
+    with patch("tempfile.gettempdir", return_value="/t"):
+        assert _binds(with_container_binds([], tmp_path, tmp_path)) == [
+            "/t:/t",
+            f"{tmp_path}:{tmp_path}",
+        ]
+
+
+@pytest.mark.short
+@pytest.mark.parametrize("flag", ["--singularity-args", "--apptainer-args"])
+def test_container_binds_join_user_args(tmp_path, flag):
+    """Snakemake keeps only the last --singularity-args: join the user's."""
+    out = tmp_path / "out"
+    bind = f"--bind /t:/t,{tmp_path}:{tmp_path}:ro,{out}:{out}"
+    with patch("tempfile.gettempdir", return_value="/t"):
+        assert with_container_binds([flag, "--nv"], tmp_path, out) == [
+            flag,
+            f"{bind} --nv",
+        ]
+        assert with_container_binds([f"{flag}=--nv"], tmp_path, out) == [
+            f"{flag}={bind} --nv"
+        ]
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "backend, bound",
+    [
+        (SoftwareBackendEnum.apptainer, True),
+        (SoftwareBackendEnum.docker, True),
+        (SoftwareBackendEnum.conda, False),
+        (SoftwareBackendEnum.host, False),
+    ],
+)
+def test_run_snakemake_binds_only_for_containers(tmp_path, backend, bound):
+    (tmp_path / "Snakefile").write_text("rule all:\n    input: []\n")
+    seen = {}
+    real_popen = subprocess.Popen
+
+    def fake_popen(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return real_popen([sys.executable, "-c", "pass"], **kwargs)
+
+    with (
+        patch("subprocess.Popen", side_effect=fake_popen),
+        patch("omnibenchmark.cli.run.conda_env", return_value=None),
+        pytest.raises(SystemExit),
+    ):
+        _run_snakemake(
+            out_dir=tmp_path,
+            cores=1,
+            continue_on_error=False,
+            software_backend=backend,
+            debug=False,
+            plan_dir=tmp_path,
+        )
+    assert ("--singularity-args" in seen["cmd"]) is bound

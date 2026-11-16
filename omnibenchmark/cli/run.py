@@ -26,6 +26,7 @@ from omnibenchmark.backend.snakemake import (
     BACKEND_FLAGS,
     SnakemakeGenerator,
     snakemake_bin,
+    with_container_binds,
 )
 from omnibenchmark.core import BenchmarkExecution
 from omnibenchmark.core._paths import (
@@ -500,6 +501,7 @@ def _run_benchmark(
         telemetry_emitter=telemetry_emitter,
         benchmark=b,
         resolved_nodes=resolved_nodes,
+        plan_dir=benchmark_path_abs.parent,
     )
 
 
@@ -565,6 +567,7 @@ def _run_snakemake(
     telemetry_emitter=None,
     benchmark: Optional[BenchmarkExecution] = None,
     resolved_nodes: Optional[list] = None,
+    plan_dir: Optional[Path] = None,
 ):
     """Run snakemake on the generated Snakefile.
 
@@ -578,6 +581,7 @@ def _run_snakemake(
         telemetry_emitter: Pre-initialized TelemetryEmitter (or None).
         benchmark: BenchmarkExecution instance (for telemetry metadata).
         resolved_nodes: List of ResolvedNode objects (for telemetry manifest).
+        plan_dir: Directory of the benchmark YAML, bound into container jobs.
     """
     from omnibenchmark.progress import ProgressDisplay, InteractiveProgress
     from datetime import datetime
@@ -614,7 +618,13 @@ def _run_snakemake(
     if debug:
         cmd.extend(["--verbose", "--debug"])
 
-    cmd.extend(_with_mem_budget(extra_snakemake_args or []))
+    extra = _with_mem_budget(extra_snakemake_args or [])
+    if plan_dir is not None and software_backend in (
+        SoftwareBackendEnum.apptainer,
+        SoftwareBackendEnum.docker,
+    ):
+        extra = with_container_binds(extra, plan_dir, out_dir)
+    cmd.extend(extra)
 
     env = None
     if software_backend == SoftwareBackendEnum.conda:

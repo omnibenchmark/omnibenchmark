@@ -18,11 +18,13 @@ see omnibenchmark.backend._snakemake_debug.DebugSnakemakeGenerator.
 
 import json
 import os
+import re
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 import shutil
 import sys
+import tempfile
 from typing import List, Optional, TextIO
 
 from omnibenchmark.core._paths import (
@@ -70,6 +72,58 @@ def environment_directive(env: Optional[ResolvedEnvironment]) -> str:
     return ""
 
 
+_CONTAINER_ARGS_FLAGS = ("--singularity-args", "--apptainer-args")
+# A tmpdir resource on the command line: `tmpdir=/scratch` after
+# --default-resources, `rule:tmpdir='/scratch'` after --set-resources.
+_TMPDIR_RESOURCE = re.compile(r"""(?:^|:)tmpdir=(['"]?)(/.*)\1$""")
+
+
+def with_container_binds(snakemake_args: list, plan_dir: Path, out_dir: Path) -> list:
+    """Bind the plan directory read-only, the out dir and the job's temp
+    directories read-write, into container jobs.
+
+    Snakemake runs a container job with ``--home <out dir>``, so apptainer
+    mounts only that, the cwd and ``/tmp``: files the plan refers to next to
+    itself are missing inside the job.
+
+    Snakemake also exports its ``tmpdir`` resource as ``TMPDIR`` into every
+    job: the host's ``tempfile.gettempdir()``, or what the user passed as a
+    ``tmpdir=`` resource. Outside ``/tmp`` that path does not exist in the
+    container and ``mktemp`` fails (#319), so both are bound read-write.
+
+    The binds nest: the out dir is usually inside the plan dir, and a temp dir
+    may contain the plan dir. The inner bind has to hold, so the out dir stays
+    writable and the plan dir read-only. Apptainer 1.5 does that for any
+    order; parents go first so that no runtime has to. On the same path
+    read-write wins, or the job could not write its outputs or temp files.
+
+    Snakemake keeps only the last ``--singularity-args``, so the binds join a
+    user's value instead of adding a second flag, ahead of it so the user's
+    own binds win.
+
+    Regression tests: tests/e2e/test_18_container_binds.py and the
+    ``test_container_binds_*`` tests in tests/cli/test_run_unit.py.
+    """
+    writable = [str(out_dir.resolve()), tempfile.gettempdir()]
+    for a in snakemake_args:
+        m = _TMPDIR_RESOURCE.search(a)
+        if m and os.path.isdir(m.group(2)):  # apptainer refuses a missing source
+            writable.append(m.group(2))
+    modes = {str(plan_dir.resolve()): ":ro", **{p: "" for p in writable}}
+    paths = sorted(modes, key=lambda p: len(Path(p).parts))
+    bind = "--bind " + ",".join(f"{p}:{p}{modes[p]}" for p in paths)
+    args = list(snakemake_args)
+    for i, a in enumerate(args):
+        if a in _CONTAINER_ARGS_FLAGS and i + 1 < len(args):
+            args[i + 1] = f"{bind} {args[i + 1]}"
+            return args
+        flag, eq, value = a.partition("=")
+        if eq and flag in _CONTAINER_ARGS_FLAGS:
+            args[i] = f"{flag}={bind} {value}"
+            return args
+    return args + ["--singularity-args", bind]
+
+
 __all__ = [
     "BACKEND_FLAGS",
     "SnakemakeGenerator",
@@ -77,6 +131,7 @@ __all__ = [
     "_make_human_name",
     "environment_directive",
     "snakemake_bin",
+    "with_container_binds",
 ]
 
 # Indentation constants for generated Snakemake syntax.
