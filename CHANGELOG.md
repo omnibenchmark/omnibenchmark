@@ -43,6 +43,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: reject whitespace in stage and module ids at every api version (#402)
 - chore: the HTML status report defaults to `<out-dir>/status_report.html` (#358)
 - chore: lock snakemake 9.27.2 (was 9.6.2); `tox` moves to its own pixi env (`pixi run -e tox test-tox`)
+- docs: tutorial and how-to guides for api 0.8.0; API versions reference page; glossary (#425)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
