@@ -24,6 +24,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: `ob config KEY [VALUE]`; `ob create` prefills the author from git (#394)
 - feat: `ob describe status --watch SECONDS` (#386)
 - feat: `ob create benchmark` scaffolds an api 0.8.0 plan (#329)
+- feat: `{module.id}` in a string parameter value expands to the module's id, before hashing (#426)
 - deprecate: `{dataset}` in output path templates; prefer `{module.id}` or `{params.KEY}` (#329)
 - deprecate: plans below api 0.8.0 keep the nested layout and warn at `ob run` (#387)
 - fix: a gather over several ids keeps only the nodes that produce all of them (api 0.8.0, #416)

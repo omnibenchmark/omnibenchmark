@@ -225,7 +225,7 @@ def expand_gather_stage(
         if module.parameters:
             params_list = []
             for param in module.parameters:
-                params_list.extend(Params.expand_from_parameter(param))
+                params_list.extend(Params.expand_from_parameter(param, module_id))
         else:
             params_list = [None]
 
@@ -550,7 +550,7 @@ def expand_scatter_stage(
             if module.parameters:
                 params_list = []
                 for param in module.parameters:
-                    params_list.extend(Params.expand_from_parameter(param))
+                    params_list.extend(Params.expand_from_parameter(param, module_id))
             else:
                 params_list = [None]
 

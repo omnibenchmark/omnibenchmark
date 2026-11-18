@@ -163,7 +163,7 @@ def find_orphans(picks, model):
         have = set()
         for module in modules:
             for pset in module.parameters or []:
-                for p in Params.expand_from_parameter(pset):
+                for p in Params.expand_from_parameter(pset, module.id):
                     have.add(p.hash_short())
         return have
 
