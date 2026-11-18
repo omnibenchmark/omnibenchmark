@@ -1,0 +1,104 @@
+id: Benchmark_005
+description: the tutorial benchmark (api 0.8.0); two gather stages
+version: "1.0"
+benchmarker: "Mary the Benchmarker, mary@uzh.ch"
+api_version: "0.8.0"
+software_backend: host
+software_environments:
+  host:
+    description: "the environment ob runs in"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        name: "Dataset 1"
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: a21cdbd
+      - id: D2
+        name: "Dataset 2"
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/data.git
+          commit: a21cdbd
+    outputs:
+      - id: data.counts
+        path: "{module.id}.txt.gz"
+      - id: data.meta
+        path: "{module.id}.meta.json"
+
+  - id: methods
+    modules:
+      - id: M1
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 263c91f
+      - id: M2
+        software_environment: "host"
+        parameters:
+          - e: [1, 2]
+        repository:
+          url: https://github.com/omnibenchmark-example/method.git
+          commit: 263c91f
+    inputs:
+      - data.counts
+      - data.meta
+    outputs:
+      - id: methods.mapping
+        path: "{module.id}.model.out.gz"
+
+  - id: metrics
+    modules:
+      - id: m1
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 7547cb6
+      - id: m2
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/metric.git
+          commit: 7547cb6
+    inputs:
+      - methods.mapping
+      - data.meta
+    outputs:
+      - id: metrics.scores
+        path: "{module.id}.scores.txt"
+        validators:
+          - script: validators/metrics/metrics.scores/not_empty.py
+
+  # One job per dataset, over the scores computed from it.
+  - id: per_dataset
+    modules:
+      - id: summary
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/summary.git
+          commit: 62b51fc
+    gather:
+      from: metrics.scores
+      group_by: data
+    outputs:
+      - id: summary_tsv
+        path: "summary.tsv"
+
+  # One job over every score of the run, written to out/reports/.
+  - id: report
+    modules:
+      - id: biometrics
+        software_environment: "host"
+        repository:
+          url: https://github.com/omnibenchmark-example/summary.git
+          commit: 62b51fc
+    gather:
+      from: metrics.scores
+      path: reports
+    outputs:
+      - id: report_html
+        path: "biometrics_report.html"
+      - id: report_tsv
+        path: "biometrics.tsv"
