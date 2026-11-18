@@ -23,7 +23,7 @@ api_version: "0.8.0"
 | 0.4.0 and below | Legacy contract. | `--name` is the dataset (first-stage module) id. | Nested, `stage/module/params/`. |
 | 0.5.0 | `{dataset}` in an output path warns. | `--name` is the module's own id. | `performance.txt` instead of `{dataset}_performance.txt`. |
 | 0.6.0 | No change. | No change. | No change. |
-| 0.7.0 | `provides` / `requires` lineage labels; `gather:` stages; a stage may join inputs from divergent branches. | A gather module receives `--<id> p1 p2 …`. | Fan-in nodes write `lineage.json`. |
+| 0.7.0 | `provides` / `requires` [labels](glossary.md#label); `gather:` stages; a stage may join inputs from divergent branches. | A gather module receives `--<id> p1 p2 …`. | Fan-in nodes write `lineage.json`. |
 | 0.8.0 | Stage and module ids are letters, digits and underscores; output `validators`; `metric_collectors` rejected; `group_by` groups by ancestor node; a grouped gather may declare `inputs`. | `--output id=PATH` per stage output; a gather module receives `--from-files <lineage.json>`. | Flat, one directory `stage.module[.params]` per node; `out/by-params/` view. |
 
 Template variables `{module.id}`, `{module.name}`, `{module.stage}` and
