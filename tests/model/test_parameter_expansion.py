@@ -656,3 +656,26 @@ stages:
     assert bool(hits) is warns
     if warns:
         assert "{module.id}" in hits[0]
+
+
+def test_module_id_in_parameter_value():
+    """`{module.id}` in a string value is the module's id, before hashing."""
+    from types import SimpleNamespace
+
+    from omnibenchmark.model.params import Params
+
+    parameter = SimpleNamespace(
+        values=None, params={"generator": "{module.id}", "dataset": ["a", "b"], "n": 3}
+    )
+    expanded = Params.expand_from_parameter(parameter, "fcps")
+    assert [p["generator"] for p in expanded] == ["fcps", "fcps"]
+    assert [p["n"] for p in expanded] == [3, 3]
+    literal = SimpleNamespace(
+        values=None, params={"generator": "fcps", "dataset": "a", "n": 3}
+    )
+    assert (
+        expanded[0].hash_short()
+        == Params.expand_from_parameter(literal)[0].hash_short()
+    )
+    # without a module id the value is left alone
+    assert Params.expand_from_parameter(parameter)[0]["generator"] == "{module.id}"

@@ -1552,7 +1552,7 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
 
         result: List[Any] = []
         for p in module_obj.parameters:
-            result.extend(Params.expand_from_parameter(p))
+            result.extend(Params.expand_from_parameter(p, module_obj.id))
 
         return result
 

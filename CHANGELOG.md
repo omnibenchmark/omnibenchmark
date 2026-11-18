@@ -5,6 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
+- feat: `{module.id}` in a string parameter value is the id of the module the parameter belongs to (`generator: "{module.id}"`), substituted before hashing, so the node is the one the literal value gives
 - feat: `ob describe plan [--json]` prints a plan's identity: `id`, `version`, `api_version`, `summary_hash` and provenance (`canonical_url`, `derived_from`, `subset_of`), from the plan file alone, so external tools can match runs to a plan
 - feat: `ob run` records each run in `out/.metadata/runs.jsonl`: benchmark `id`, `version`, `summary_hash` and the selection (`-m`, `--until`, `--filter`), with the plan copy, filter blob and node list it used. `run_id` is 32 hex characters and, with telemetry on, the trace's `traceId` and `trace` records where the spans went. `ob run` refuses an out dir recorded with another benchmark `id` or `version`; `ob validate outputs` and `ob describe status` also refuse a plan edited since the last run, and warn on a partial out dir. `--dry` no longer writes `.metadata/` (007 §4.6)
 - **breaking (api 0.8.0)**: a node without parameters has no `.default` field in its directory or its node id (`data.D1/`, not `data.D1.default/`); existing 0.8.0 trees recompute
