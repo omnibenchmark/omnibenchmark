@@ -486,8 +486,8 @@ stages:
   requires, 0 by exclude.`
 - A label cannot be named `name`, `dataset` or like a stage id.
 
-`requires` is about the data. To gate a module on the machine instead (GPU,
-memory), use `requires_capabilities`, below. A module can use both.
+`requires` is about the data. To restrict a module by the machine instead
+(GPU, memory), use `requires_capabilities`, below. A module can use both.
 
 ## Filter modules by what the machine has
 
@@ -618,8 +618,19 @@ only lets the run log that the benchmark changed. To pack or inspect a blob, use
 
 For the full picks schema, see the docstring of
 [`omnibenchmark/filter.py`](https://github.com/omnibenchmark/omnibenchmark/blob/main/omnibenchmark/filter.py).
-For how filters relate to `--until`, capabilities and lineage gates, see
-[design 008: Filtering and gating](https://github.com/omnibenchmark/omnibenchmark/blob/main/docs/design/008-filtering.md).
+`--filter` is one of four ways to run less than the whole benchmark:
+
+| To | Use |
+|---|---|
+| run a hand-picked set of stages, modules and parameters | `--filter` (this section) |
+| stop after a stage | [`--until`](#stop-a-run-partway-through-the-benchmark) |
+| skip modules this machine cannot run | [`--with-capability`](#filter-modules-by-what-the-machine-has) |
+| keep a module off some data, for every run | [`requires`](#run-a-module-only-on-matching-data) or [`exclude`](#exclude-certain-module-module-chains) in the plan |
+
+The first three are choices made on the command line for one run; the last is
+part of the benchmark itself. The
+[design document on filtering](https://github.com/omnibenchmark/omnibenchmark/blob/main/docs/design/008-filtering.md)
+explains how they combine.
 
 ## Use a custom apptainer container to run methods
 
