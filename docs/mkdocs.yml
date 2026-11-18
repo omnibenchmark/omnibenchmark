@@ -12,6 +12,7 @@ nav:
   - How-to guides: howto.md
   - Reference:
     - Spec Reference: spec-reference.md
+    - API versions: api-versions.md
     - CLI Reference: reference.md
   # - Configuration: config.md
   - Examples: examples.md

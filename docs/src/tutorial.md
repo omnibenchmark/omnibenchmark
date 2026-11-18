@@ -77,6 +77,28 @@ software_environments:
 
 Hence, the header acts as a preamble, defining general attributes of the benchmark. The body contains the individual benchmark components (methods, metrics, etc) and their linking to each other.
 
+### API version
+
+A plan states which version of the benchmark format it is written for:
+
+```yaml
+api_version: "0.8.0"
+```
+
+The api version fixes the YAML fields a plan may use, the command line its
+modules receive, and the layout of the output tree. It is not the version of
+the installed `ob`: a newer `ob` still runs plans written for an older api
+version.
+
+Declare it explicitly. A plan without `api_version` is read as `0.4.0`, a
+legacy contract. New plans should use the latest version, which is what
+`ob create benchmark` writes. This tutorial uses `0.8.0`.
+
+Raising the api version of an existing benchmark is a migration: output paths
+change and modules may need a new command line. See
+[API versions](api-versions.md) for what each version changes and what is
+deprecated.
+
 ### Benchmark YAML body
 
 The benchmark body is structured in stages grouping benchmarking components that produce similarly shaped outputs and ingest similarly shaped inputs. That is:
