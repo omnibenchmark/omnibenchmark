@@ -13,7 +13,7 @@ CONFIG_FILENAME = "15_foreach.yaml"
 
 # One script, three roles, told apart by the flags it receives.
 _MODULE = r"""#!/usr/bin/env python3
-import os, sys
+import json, os, sys
 
 args, i = {}, 1
 while i < len(sys.argv):
@@ -37,8 +37,12 @@ if out and "{sample}" in out:                       # producer
 elif "counts" in args:                              # per sample
     text = open(args["counts"][0]).read()
     open(out.split("=", 1)[1], "w").write(text.upper())
-else:                                               # gather
-    parts = [open(p).read() for p in args["processed"]]
+else:                                               # gather (manifest) or over (argv)
+    paths = args.get("processed")
+    if paths is None:
+        members = json.load(open(args["from-files"][0]))["members"]
+        paths = [m["files"]["processed"] for m in members]
+    parts = [open(p).read() for p in paths]
     open(os.path.join(args["output_dir"][0], "summary.txt"), "w").write("".join(parts))
 """
 
@@ -72,7 +76,7 @@ def _setup(tmp_path, keep_files, config_name=CONFIG_FILENAME):
 
 
 def _summary(runner) -> str:
-    found = list(runner.out_dir.glob("per_dataset.*/summary.txt"))
+    found = list(runner.out_dir.glob("data.D1.*/per_dataset.*/summary.txt"))
     assert len(found) == 1, found
     return found[0].read_text()
 
@@ -134,8 +138,8 @@ def test_over_closes_foreach_per_lineage(tmp_path, keep_files):
 
     found = sorted(runner.out_dir.glob("data.D1.*/process*/per_dataset.*/summary.txt"))
     assert [p.parts[-3] for p in found] == [
-        "process.upper.default",
-        "process2.upper2.default",
+        "process.upper",
+        "process2.upper2",
     ]
     assert [p.read_text() for p in found] == ["S1\nS2\nS3\n"] * 2
     # The closed value is gone from the path; nothing sits beside the samples

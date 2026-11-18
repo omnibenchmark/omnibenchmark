@@ -185,8 +185,15 @@ rule per_dataset_G_D1_default:
   outputs lack — a gather, a metric collector, or `rule all` — gets the path
   through `_ob_foreach`. The producer is the one whose node directory plus
   `/{name}/` starts the path; node directories are unique, so the match is.
+- **Gather manifest** (010 §3.5.1): a gather's members below a `foreach` are
+  not known when the Snakefile is written. Its manifest rule takes the
+  checkpoint's sentinel as input and writes one member per value found, the
+  value filled into `dir` and `files`; `node_id` and `lineage` are the same
+  for every value. An `over` node is not a gather and still takes
+  `--<id> p1 p2 …`.
 - `checkpoint` is a Snakefile keyword, hence `ckpt`. Glob order is unstable
-  and becomes a gather's CLI order, hence `sorted`.
+  and becomes the member order (a gather's manifest, an `over` node's CLI),
+  hence `sorted`.
 
 Because `rule all` is wrapped the same way, a wildcard leaf with no gather
 still runs, and `--until` a stage below the `foreach` works.

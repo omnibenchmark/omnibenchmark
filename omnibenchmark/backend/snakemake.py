@@ -104,6 +104,22 @@ def _ob_foreach(ckpt, pattern, name, template, wc=None):
     fixed = dict(wc.items()) if wc is not None else {}
     return expand(template, **fixed, **{name: sorted(getattr(found, name))})
 
+
+def _ob_members(record, foreach):
+    # A member below a foreach is one per value found on disk; the value is
+    # in its `dir` and `files`.
+    members = []
+    for member in record["members"]:
+        if member["node_id"] not in foreach:
+            members.append(member)
+            continue
+        ckpt, pattern, name = foreach[member["node_id"]]
+        for path in _ob_foreach(ckpt, pattern, name, "{%s}" % name):
+            fill = lambda s: s.replace("{%s}" % name, path)
+            files = {k: fill(v) for k, v in member["files"].items()}
+            members.append({**member, "dir": fill(member["dir"]), "files": files})
+    record["members"] = members
+
 """
 
 
@@ -336,17 +352,24 @@ class SnakemakeGenerator:
         literal = f'"{path}"'
         if not isinstance(path, str) or path_wildcards(path) <= rule_wildcards:
             return literal
+        found = self._foreach_of(path)
+        if found is None:
+            return literal
+        rule, pattern, name = found
+        return (
+            f"lambda wc: _ob_foreach(checkpoints.{rule}, "
+            f'"{pattern}", "{name}", "{path}")'
+        )
+
+    def _foreach_of(self, path: str) -> Optional[tuple]:
+        """(checkpoint rule, pattern, name) of the foreach a path sits below."""
         for producer in self._foreach_producers:
             assert producer.foreach is not None
             name, output_id = producer.foreach
             if path.startswith(f"{_foreach_dir(producer)}/{{{name}}}/"):
                 rule = self._sanitize_rule_name(producer.id)
-                pattern = producer.outputs[output_id]
-                return (
-                    f"lambda wc: _ob_foreach(checkpoints.{rule}, "
-                    f'"{pattern}", "{name}", "{path}")'
-                )
-        return literal
+                return rule, producer.outputs[output_id], name
+        return None
 
     def _write_node_rule(
         self,
@@ -650,9 +673,26 @@ class SnakemakeGenerator:
         here at generation time; the rule only makes paths absolute and writes
         it. It has no file inputs, so it never waits on members, and a change
         to the member set changes params, which reruns it and the gather.
+
+        Members below a foreach (design 013) are known only once its
+        checkpoint has run: the rule then waits on the checkpoint alone and
+        writes one member per value found on disk.
         """
-        record = json.dumps(self._manifest_record(node), sort_keys=True)
+        manifest_record = self._manifest_record(node)
+        record = json.dumps(manifest_record, sort_keys=True)
+        foreach = {}
+        for member in manifest_record["members"]:
+            found = next(
+                filter(None, map(self._foreach_of, member["files"].values())), None
+            )
+            if found:
+                foreach[member["node_id"]] = found
         f.write(f"rule {self._sanitize_rule_name(node.id)}_manifest:\n")
+        if foreach:
+            rules = sorted({rule for rule, _, _ in foreach.values()})
+            f.write("    input:\n")
+            for rule in rules:
+                f.write(f"        lambda wc: checkpoints.{rule}.get().output[0],\n")
         f.write("    output:\n")
         f.write(f'        "{manifest}",\n')
         f.write("    params:\n")
@@ -663,6 +703,12 @@ class SnakemakeGenerator:
         f.write("    run:\n")
         f.write("        import json, os\n")
         f.write("        record = json.loads(params.record)\n")
+        if foreach:
+            entries = ", ".join(
+                f'"{member_id}": (checkpoints.{rule}, "{pattern}", "{name}")'
+                for member_id, (rule, pattern, name) in foreach.items()
+            )
+            f.write(f"        _ob_members(record, {{{entries}}})\n")
         f.write('        for member in record["members"]:\n')
         f.write('            member["files"] = {\n')
         f.write(
