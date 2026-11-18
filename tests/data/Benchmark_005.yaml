@@ -16,13 +16,13 @@ stages:
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 18257a5
+          commit: a21cdbd
       - id: D2
         name: "Dataset 2"
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/data.git
-          commit: 18257a5
+          commit: a21cdbd
     outputs:
       - id: data.counts
         path: "{module.id}.txt.gz"
@@ -35,14 +35,14 @@ stages:
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/method.git
-          commit: 3e668e0
+          commit: 263c91f
       - id: M2
         software_environment: "host"
         parameters:
           - e: [1, 2]
         repository:
           url: https://github.com/omnibenchmark-example/method.git
-          commit: 3e668e0
+          commit: 263c91f
     inputs:
       - data.counts
       - data.meta
@@ -56,12 +56,12 @@ stages:
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
-          commit: daffdd9
+          commit: 7547cb6
       - id: m2
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/metric.git
-          commit: daffdd9
+          commit: 7547cb6
     inputs:
       - methods.mapping
       - data.meta
@@ -78,7 +78,7 @@ stages:
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/metric-collector.git
-          commit: eff6e5f
+          commit: 62b51fc
     gather:
       from: metrics.scores
       group_by: data
@@ -93,7 +93,7 @@ stages:
         software_environment: "host"
         repository:
           url: https://github.com/omnibenchmark-example/metric-collector.git
-          commit: eff6e5f
+          commit: 62b51fc
     gather:
       from: metrics.scores
     outputs:
