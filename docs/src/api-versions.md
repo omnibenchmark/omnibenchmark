@@ -1,6 +1,6 @@
 # API versions
 
-`api_version` in a benchmark plan selects the contract the plan is written
+`api_version` in a benchmark [plan](glossary.md#plan) selects the contract the plan is written
 against: which YAML fields are valid, what command line each module receives,
 and how the output tree is laid out. It is independent of the installed
 `omnibenchmark` version: a release keeps running plans written for older api

@@ -13,6 +13,7 @@ nav:
   - Reference:
     - Spec Reference: spec-reference.md
     - API versions: api-versions.md
+    - Glossary: glossary.md
     - CLI Reference: reference.md
     - Configuration: config.md
   - Examples: examples.md
