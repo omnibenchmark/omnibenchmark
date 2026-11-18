@@ -334,7 +334,7 @@ We add two such stages: a table per dataset, then one report for the run.
       - id: summary
         software_environment: "host"
         repository:
-          url: https://github.com/omnibenchmark-example/metric-collector.git
+          url: https://github.com/omnibenchmark-example/summary.git
           commit: 62b51fc
     gather:
       from: metrics.scores
@@ -375,7 +375,7 @@ Without `group_by`, one job collects every member:
       - id: biometrics
         software_environment: "host"
         repository:
-          url: https://github.com/omnibenchmark-example/metric-collector.git
+          url: https://github.com/omnibenchmark-example/summary.git
           commit: 62b51fc
     gather:
       from: metrics.scores
@@ -463,7 +463,7 @@ The order of members carries no meaning. Reading them takes a few lines:
     ```
 
 The example
-[collector](https://github.com/omnibenchmark-example/metric-collector/blob/master/metric_collector.py)
+[`summary` module](https://github.com/omnibenchmark-example/summary/blob/master/metric_collector.py)
 writes one table row per gathered file, labelled with its lineage.
 
 ### Reuse a report module
@@ -578,7 +578,7 @@ stages:
       - id: summary
         software_environment: "host"
         repository:
-          url: https://github.com/omnibenchmark-example/metric-collector.git
+          url: https://github.com/omnibenchmark-example/summary.git
           commit: 62b51fc
     gather:
       from: metrics.scores
@@ -593,7 +593,7 @@ stages:
       - id: biometrics
         software_environment: "host"
         repository:
-          url: https://github.com/omnibenchmark-example/metric-collector.git
+          url: https://github.com/omnibenchmark-example/summary.git
           commit: 62b51fc
     gather:
       from: metrics.scores

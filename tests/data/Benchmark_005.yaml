@@ -77,7 +77,7 @@ stages:
       - id: summary
         software_environment: "host"
         repository:
-          url: https://github.com/omnibenchmark-example/metric-collector.git
+          url: https://github.com/omnibenchmark-example/summary.git
           commit: 62b51fc
     gather:
       from: metrics.scores
@@ -92,7 +92,7 @@ stages:
       - id: biometrics
         software_environment: "host"
         repository:
-          url: https://github.com/omnibenchmark-example/metric-collector.git
+          url: https://github.com/omnibenchmark-example/summary.git
           commit: 62b51fc
     gather:
       from: metrics.scores
