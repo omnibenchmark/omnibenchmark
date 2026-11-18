@@ -5,51 +5,47 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (UNRELEASED)
 
-- feat: `ob describe plan [--json]` prints a plan's identity: `id`, `version`, `api_version`, `summary_hash` and provenance (`canonical_url`, `derived_from`, `subset_of`), from the plan file alone, so external tools can match runs to a plan
-- feat: `ob run` records each run in `out/.metadata/runs.jsonl`: benchmark `id`, `version`, `summary_hash` and the selection (`-m`, `--until`, `--filter`), with the plan copy, filter blob and node list it used. `run_id` is 32 hex characters and, with telemetry on, the trace's `traceId` and `trace` records where the spans went. `ob run` refuses an out dir recorded with another benchmark `id` or `version`; `ob validate outputs` and `ob describe status` also refuse a plan edited since the last run, and warn on a partial out dir. `--dry` no longer writes `.metadata/` (007 §4.6)
-- **breaking (api 0.8.0)**: a node without parameters has no `.default` field in its directory or its node id (`data.D1/`, not `data.D1.default/`); existing 0.8.0 trees recompute
-- **breaking (api 0.8.0)**: a fan-in manifest member no longer repeats its own `stage`, `module`, `params` and `parameters`; they are its last `lineage` entry. `params` is null for a node without parameters
-- **feat (api 0.8.0)**: `gather: {from: x, path: reports}` names the gather's directory. A gather with `group_by` nests in its group node's directory, a global one sits at the top of `out/` (design 007 §3.1.6)
-- **feat (api 0.8.0)**: the fan-in manifest carries each member's and each lineage entry's `parameters` (values by name) next to the `params` hash.
-- **feat**: `gather: {group_by: S, from: [a, b]}` names the grouping axis once; the list form stays valid.
-- fix (api 0.8.0): a gather over several ids keeps only the nodes that produce all of them. `from: [a, b]` used to take any producer of `a` or `b`, so a member's `files` could lack an id (design 010 §3.2)
-- **breaking (api 0.8.0)**: a fan-in module (gather or collector) receives `--from-files <lineage.json>` instead of `--<id> p1 p2 …`. The manifest (lineage.json v2) lists every member's files by output id and its full lineage. A local `run:` rule writes it, so the command line no longer grows with the member count. Snakemake passes a shell block to `bash -c` as one argument, capped at 128 KiB, and gathers failed with "Argument list too long" at a few hundred members (design 010 §3.5.1)
-- **feat (api 0.8.0)**: a gather with `group_by` may declare `inputs:`. They resolve from its group node's lineage, as for a scatter child of that node, and reach the module as `--<id> <path>` next to `--from-files` (design 010 §3.5.2). A global gather, or any gather before 0.8.0, still rejects them
-- **breaking (api 0.8.0)**: `group_by: S` partitions a gather's members by the ancestor *node* of S (its full lineage), not by its module, and the gather node is a child of that node instead of a cut chain (design 010 §3.2.1). api < 0.8.0 keeps module grouping
-- fix: a gather left out of a `--filter`'s picks is dropped instead of failing with "gathers from output id …, which no stage produces" when the filter also pruned its producers
-
-- fix: a gather whose every producer was pruned (`--filter`, `--until`, `requires`/`exclude`, capabilities) is skipped with a warning instead of failing the DAG; an output id that no stage declares is still an error
-- feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the omnibenchmark config; `--author-name`/`--author-email` are no longer required with `--non-interactive`
-- feat: `ob run` passes Snakemake a global memory budget (`--resources mem_mb=`, 90% of physical RAM) on local runs, so a stage's `resources.mem_mb` limits how many of its jobs start at once. Before, a declared `mem_mb` was ignored and `--cores N` started N jobs whatever they declared. Stages without `mem_mb` are unaffected; `-- --resources mem_mb=N` overrides the budget
-- feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style
-- feat: `ob describe status --watch SECONDS` redraws the text report on an interval and exits once every expected output exists; it only reads the output tree, so it works with any executor (#386)
-- fix: `ob describe status` looked for parameterless modules under `default/` while `ob run` writes `.default/`, so it reported 0% complete for them; node ids for such modules are now `<stage>-<module>-.default`
-- fix: `ob describe status` counts a stage's nodes once per lineage, instead of once per module and parameter set
-- fix: a join lists a partner once even when it supplies several of the join's inputs. The parent set, and so the join's node id and output directory (`.<params>-<join_hash>`), changes for existing plans whose joins hit this case, which forces those nodes to rerun
-- fix: gather stages run the entrypoint from the module root, like regular nodes, instead of the workflow directory (metric collectors still run from the workflow dir)
-- fix: gather rules write to their declared log, and record `parameters.json` next to their outputs, like regular nodes
-- fix: a stage resolves its inputs from their producers, not from whichever stage expanded just before it. A stage with no modules sorting between producer and consumer (ties are hash order) made the consumer expand as a root with no inputs, depending on PYTHONHASHSEED; and a stage whose producers were all pruned no longer chains onto an unrelated stage
-- fix: the DAG is deterministic. Nodes and edges keep insertion order instead of set (hash) order, and the topological sort breaks ties by declaration order, so the same plan expands in the same order on every run and machine
-- refactor: input resolution is a pure function of a stage's declared inputs and their producers; the `previous_stage_nodes` parameter is gone from `select_input_nodes`, `select_input_bundles` and `expand_scatter_stage`, so expansion order cannot change which nodes a stage chains onto
-- feat(breaking)!: stage and module ids may only contain letters, digits and underscores (api 0.8.0); older plans get a deprecation warning. Output ids stay free-form; only `=` and whitespace are rejected
-- fix: duplicate output ids within a stage are rejected instead of silently dropping one
-- fix: `ob archive`, `ob describe status` and remote storage predicted wrong paths for output templates using `{name}` or `{module.*}`, and crashed on `{module.id}`
-- feat: named outputs — modules receive one `--output id=path` flag per declared stage output, decoupling module code from benchmark filenames; `--output` paths are absolute. See "Upgrade a benchmark to api 0.8.0" in the how-to guides (#329)
-- deprecate: `{dataset}` in output path templates now warns at load time for api ≥ 0.5.0, naming the offending path; prefer `{module.id}` or `{params.KEY}`
-- feat: `ob create benchmark` scaffolds an api 0.8.0 plan using `{module.id}` and identifier output ids
-- fix: a `modules:` (or `stages:`) entry with no value — and an empty YAML
-  document — now raises a `BenchmarkParseError` that names the stage and shows
-  what to write instead, instead of a bare `'NoneType' object is not iterable`
-  (#391)
-- feat(breaking)!: flat output layout (layout v2, api 0.8.0): each node adds one directory `stage.module[.group].param[-join]` instead of three (`stage/module/.param`), with no hidden directories or symlinks in the result tree. Readable parameter names move to a derived `out/by-params/` view that `ob run` rebuilds after every run; `ob archive`, `ob collect` and remote storage skip it. Raising `api_version` changes every output path, so the next run recomputes everything (design 007 §3.1, #387)
-- deprecate: plans below api 0.8.0 keep the nested layout and warn at `ob run`
-- feat: output validators (api 0.8.0). Scripts declared on a stage output (`outputs[].validators: [{script}]`) check each produced file (exit 0 = pass) in the environment named by `validators.env`, or the current one; `ob validate outputs` runs them and exits 1 unless every verdict passes; a validator that cannot run (exit 126/127) is reported as an error, not a failure. `ob describe status --html` shows the results per node and per file (design 004 §3.14, #358)
-- chore: the HTML status report is written to `<out-dir>/status_report.html` by default and regenerated in place there (an explicit `--html-file` still needs `--force`); `ob archive` skips it. It keeps only a CSV download, and names its staleness columns "stale: input changed" / "stale: module changed" (#358)
-- feat(breaking)!: `metric_collectors` are removed in api 0.8.0; a 0.8.0 plan that declares them fails to load. Use a stage with `gather:` and no `group_by` (design 010 §3.6). Older plans keep them
-- fix: whitespace in a stage or module id is a validation error at every api version, instead of passing `ob validate plan` and failing at run time (#402)
-- feat: `[conda]` config section for conda-backed runs: `cache` shares built environments across benchmarks (`SNAKEMAKE_CONDA_PREFIX`), `channel_alias` fetches named channels from a mirror (`CONDA_CHANNEL_ALIAS`), `proxy` routes downloads through a forward proxy (`HTTP(S)_PROXY`). Exported variables take precedence
-- fix: on api 0.8.0 a gather's directory carries a digest of its member set, as a join's does, so a run that prunes members (`--filter`, `--with-capability`) no longer overwrites the full gather's result under the same path (#405)
-- feat: `foreach` outputs — a stage output whose file count the module decides at run time (e.g. one file per downloaded sample); each file gets its own downstream node, and a stage with `over: <name>` closes the fan-out per upstream lineage (a `gather` still collects them per `group_by` axis) (api 0.8.0, design 013)
+- feat: `ob describe plan [--json]` prints a plan's identity (`id`, `version`, `api_version`, `summary_hash`, provenance) from the plan file alone (#414)
+- feat: `ob run` records each run in `out/.metadata/runs.jsonl` (benchmark identity, selection, `run_id`) and refuses an out dir recorded with another benchmark `id` or `version`; `ob validate outputs` and `ob describe status` refuse a plan edited since the last run. `--dry` no longer writes `.metadata/` (007 §4.6, #407, #265)
+- **breaking (api 0.8.0)**: a node without parameters has no `.default` in its directory or node id (`data.D1/`, not `data.D1.default/`); existing 0.8.0 trees recompute (#416)
+- **breaking (api 0.8.0)**: a fan-in manifest member no longer repeats its `stage`, `module`, `params` and `parameters`; they are its last `lineage` entry (#416)
+- **feat (api 0.8.0)**: `gather: {from: x, path: reports}` names the gather's directory. A grouped gather nests in its group node's directory, a global one sits at the top of `out/` (design 007 §3.1.6, #416)
+- **feat (api 0.8.0)**: the fan-in manifest carries `parameters` (values by name) next to each `params` hash (#416)
+- **feat**: `gather: {group_by: S, from: [a, b]}` names the grouping axis once; the list form stays valid (#416)
+- fix (api 0.8.0): a gather over several ids keeps only the nodes that produce all of them (design 010 §3.2, #416)
+- **breaking (api 0.8.0)**: a gather module receives `--from-files <lineage.json>` instead of `--<id> p1 p2 …`; the manifest lists every member's files and lineage. Fixes "Argument list too long" at a few hundred members (design 010 §3.5.1, #416)
+- **feat (api 0.8.0)**: a gather with `group_by` may declare `inputs:`, resolved from its group node's lineage and passed as `--<id> <path>` (design 010 §3.5.2, #416)
+- **breaking (api 0.8.0)**: `group_by: S` partitions a gather's members by the ancestor *node* of S, not by its module, and the gather is a child of that node (design 010 §3.2.1, #416)
+- fix: a gather left out of a `--filter`'s picks is dropped instead of failing with "no stage produces" (#416)
+- fix: a gather whose every producer was pruned is skipped with a warning instead of failing the DAG (#416)
+- feat: `ob create` prefills the author from git's `user.name`/`user.email`, overridable via `[user]` in the config (#394)
+- feat: `ob run` passes Snakemake a memory budget (`--resources mem_mb=`, 90% of physical RAM) on local runs, so a stage's `resources.mem_mb` limits how many of its jobs start at once; `-- --resources mem_mb=N` overrides it (#418)
+- feat: `ob config KEY [VALUE]` / `--list` / `--unset` reads and writes the omnibenchmark config, git-style (#394)
+- feat: `ob describe status --watch SECONDS` redraws the report until every expected output exists (#386)
+- fix: `ob describe status` reported 0% complete for parameterless modules (#386)
+- fix: `ob describe status` counts a stage's nodes once per lineage (#386)
+- fix: a join lists a partner once even when it supplies several inputs; affected joins get a new node id and rerun (#416)
+- fix: gather stages run the entrypoint from the module root, like regular nodes (#416)
+- fix: gather rules write to their declared log and record `parameters.json` (#416)
+- fix: a stage resolves its inputs from their producers, not from whichever stage expanded just before it (#393)
+- fix: the DAG is deterministic: the same plan expands in the same order on every run and machine (#393)
+- refactor: input resolution is a pure function of a stage's inputs and their producers; `previous_stage_nodes` is gone (#393)
+- feat(breaking)!: stage and module ids may only contain letters, digits and underscores (api 0.8.0); older plans warn. Output ids stay free-form, minus `=` and whitespace (#329)
+- fix: duplicate output ids within a stage are rejected instead of silently dropping one (#329)
+- fix: `ob archive`, `ob describe status` and remote storage predicted wrong paths for output templates using `{name}` or `{module.*}` (#329)
+- feat: named outputs: modules receive one `--output id=path` flag (absolute path) per declared stage output. See "Upgrade a benchmark to api 0.8.0" in the how-to guides (#329, #409)
+- deprecate: `{dataset}` in output path templates warns at load time for api ≥ 0.5.0; prefer `{module.id}` or `{params.KEY}` (#329)
+- feat: `ob create benchmark` scaffolds an api 0.8.0 plan (#329)
+- fix: an empty `modules:` or `stages:` entry, or an empty YAML document, raises a `BenchmarkParseError` naming the stage (#391, #392)
+- feat(breaking)!: flat output layout (api 0.8.0): one directory `stage.module[.group].param[-join]` per node instead of three, no hidden directories or symlinks. Readable parameter names move to a derived `out/by-params/` view. Raising `api_version` recomputes everything (design 007 §3.1, #387)
+- deprecate: plans below api 0.8.0 keep the nested layout and warn at `ob run` (#387)
+- feat: output validators (api 0.8.0): scripts declared on a stage output (`outputs[].validators: [{script}]`) check each produced file; `ob validate outputs` runs them, `ob describe status --html` shows the verdicts (design 004 §3.14, #358)
+- chore: the HTML status report defaults to `<out-dir>/status_report.html`, regenerated in place; `ob archive` skips it (#358)
+- feat(breaking)!: `metric_collectors` are removed in api 0.8.0; use a stage with `gather:` and no `group_by` (design 010 §3.6, #416)
+- fix: whitespace in a stage or module id is a validation error at every api version (#402, #403)
+- feat: `[conda]` config section: `cache` shares built environments, `channel_alias` sets a channel mirror, `proxy` a forward proxy. Exported variables take precedence (#412)
+- fix: on api 0.8.0 a gather's directory carries a digest of its member set, so a run that prunes members no longer overwrites the full gather's result (#405, #416)
+- feat: `foreach` outputs (api 0.8.0): a stage output whose file count the module decides at run time; each file gets its own downstream node, and `over: <name>` closes the fan-out per upstream lineage (design 013, #399)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
