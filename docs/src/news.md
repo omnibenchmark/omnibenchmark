@@ -1,3 +1,8 @@
+### January 2027
+
+- SIB training course in Zürich, Switzerland, on 25-26 January (application deadline 18 January):
+  - [Evaluating computational methods with Omnibenchmark](https://www.sib.swiss/training/course/20270125_BENCH)
+
 ### September 2026
 
 - Full-day workshop at [ECCB 2026](https://eccb2026.org/) in Geneva, Switzerland, on 3 September:
