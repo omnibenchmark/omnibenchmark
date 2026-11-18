@@ -1,3 +1,8 @@
+### September 2026
+
+- Full-day workshop at [ECCB 2026](https://eccb2026.org/) in Geneva, Switzerland, on 3 September:
+  - [W1: Constructing standardized benchmarks using Omnibenchmark](https://eccb2026.org/tutorials-workshops#w1-constructing-standardized-benchmarks-using-omnibenchmark)
+
 ### November - December 2025
 
 - Community benchmarking event at the University of Copenhagen. Onsite 17-18 November and asynchronous afterwards
