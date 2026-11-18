@@ -101,7 +101,7 @@ Then, download the omnibenchmark environment file and install it in a new conda 
     Successfully built omnibenchmark easybuild easybuild-easyblocks easybuild-easyconfigs easybuild-framework snakedeploy
     Installing collected packages: throttler, sortedcontainers, pytz, fastjsonschema, easybuild-framework, easybuild-easyconfigs, easybuild-easyblocks, connection_pool, async, appdirs, wrapt, urllib3, tzdata, typing-extensions, traitlets, tqdm, tabulate, spdx-license-list, smmap, six, rpds-py, reretry, PyYAML, pytrie, pyparsing, pyjwt, pygments, pycparser, pulp, psutil, propcache, pluggy, platformdirs, pillow, packaging, numpy, networkx, multidict, MarkupSafe, kiwisolver, iniconfig, immutables, idna, humanfriendly, hbreader, frozenlist, fonttools, filelock, easybuild, dpath, docutils, cycler, configargparse, click, charset_normalizer, certifi, attrs, argparse-dataclass, annotated-types, aiohappyeyeballs, yte, yarl, typing-inspection, snakemake-interface-common, smart-open, requests, referencing, rdflib, python-dateutil, pytest, pydot, pydantic-core, jupyter-core, jsonasobj2, json-flattener, jinja2, gitdb, deprecated, contourpy, conda-inject, cffi, aiosignal, snakemake-interface-storage-plugins, snakemake-interface-report-plugins, snakemake-interface-logger-plugins, snakemake-interface-executor-plugins, pytest-logging, pynacl, pydantic, pandas, matplotlib, jsonschema-specifications, GitPython, cryptography, aiohttp, prefixcommons, jsonschema, curies, pygithub, prefixmaps, nbformat, snakemake, snakedeploy, linkml-runtime, omni-schema, omnibenchmark
     ...
-    Successfully installed GitPython-3.1.44 MarkupSafe-3.0.2 PyYAML-6.0.2 aiohappyeyeballs-2.6.1 aiohttp-3.12.14 aiosignal-1.4.0 annotated-types-0.7.0 appdirs-1.4.4 argparse-dataclass-2.0.0 async-0.6.2 attrs-25.3.0 certifi-2025.7.14 cffi-1.17.1 charset_normalizer-3.4.2 click-8.2.1 conda-inject-1.3.2 configargparse-1.7.1 connection_pool-0.0.3 contourpy-1.3.2 cryptography-45.0.5 curies-0.10.19 cycler-0.12.1 deprecated-1.2.18 docutils-0.21.2 dpath-2.2.0 easybuild-5.1.1 easybuild-easyblocks-5.1.1 easybuild-easyconfigs-5.1.1 easybuild-framework-5.1.1 fastjsonschema-2.21.1 filelock-3.18.0 fonttools-4.59.0 frozenlist-1.7.0 gitdb-4.0.12 hbreader-0.9.1 humanfriendly-10.0 idna-3.10 immutables-0.21 iniconfig-2.1.0 jinja2-3.1.6 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.25.0 jsonschema-specifications-2025.4.1 jupyter-core-5.8.1 kiwisolver-1.4.8 linkml-runtime-1.9.4 matplotlib-3.8.0 multidict-6.6.3 nbformat-5.10.4 networkx-3.5 numpy-1.26.4 omni-schema-0.0.6 omnibenchmark-0.7.0 packaging-25.0 pandas-2.3.1 pillow-11.3.0 platformdirs-4.3.8 pluggy-1.6.0 prefixcommons-0.1.12 prefixmaps-0.2.6 propcache-0.3.2 psutil-7.0.0 pulp-3.2.1 pycparser-2.22 pydantic-2.11.7 pydantic-core-2.33.2 pydot-4.0.1 pygithub-2.6.1 pygments-2.19.2 pyjwt-2.10.1 pynacl-1.5.0 pyparsing-3.2.3 pytest-8.4.1 pytest-logging-2015.11.4 python-dateutil-2.9.0.post0 pytrie-0.4.0 pytz-2025.2 rdflib-7.1.4 referencing-0.36.2 requests-2.32.4 reretry-0.11.8 rpds-py-0.26.0 six-1.17.0 smart-open-7.3.0.post1 smmap-5.0.2 snakedeploy-0.11.0 snakemake-9.8.1 snakemake-interface-common-1.20.2 snakemake-interface-executor-plugins-9.3.8 snakemake-interface-logger-plugins-1.2.3 snakemake-interface-report-plugins-1.1.1 snakemake-interface-storage-plugins-4.2.1 sortedcontainers-2.4.0 spdx-license-list-3.27.0 tabulate-0.9.0 throttler-1.2.2 tqdm-4.67.1 traitlets-5.14.3 typing-extensions-4.14.1 typing-inspection-0.4.1 tzdata-2025.2 urllib3-2.5.0 wrapt-1.17.2 yarl-1.20.1 yte-1.9.0
+    Successfully installed GitPython-3.1.44 MarkupSafe-3.0.2 PyYAML-6.0.2 aiohappyeyeballs-2.6.1 aiohttp-3.12.14 aiosignal-1.4.0 annotated-types-0.7.0 appdirs-1.4.4 argparse-dataclass-2.0.0 async-0.6.2 attrs-25.3.0 certifi-2025.7.14 cffi-1.17.1 charset_normalizer-3.4.2 click-8.2.1 conda-inject-1.3.2 configargparse-1.7.1 connection_pool-0.0.3 contourpy-1.3.2 cryptography-45.0.5 curies-0.10.19 cycler-0.12.1 deprecated-1.2.18 docutils-0.21.2 dpath-2.2.0 easybuild-5.1.1 easybuild-easyblocks-5.1.1 easybuild-easyconfigs-5.1.1 easybuild-framework-5.1.1 fastjsonschema-2.21.1 filelock-3.18.0 fonttools-4.59.0 frozenlist-1.7.0 gitdb-4.0.12 hbreader-0.9.1 humanfriendly-10.0 idna-3.10 immutables-0.21 iniconfig-2.1.0 jinja2-3.1.6 json-flattener-0.1.9 jsonasobj2-1.0.4 jsonschema-4.25.0 jsonschema-specifications-2025.4.1 jupyter-core-5.8.1 kiwisolver-1.4.8 linkml-runtime-1.9.4 matplotlib-3.8.0 multidict-6.6.3 nbformat-5.10.4 networkx-3.5 numpy-1.26.4 omni-schema-0.0.6 omnibenchmark-0.8.0 packaging-25.0 pandas-2.3.1 pillow-11.3.0 platformdirs-4.3.8 pluggy-1.6.0 prefixcommons-0.1.12 prefixmaps-0.2.6 propcache-0.3.2 psutil-7.0.0 pulp-3.2.1 pycparser-2.22 pydantic-2.11.7 pydantic-core-2.33.2 pydot-4.0.1 pygithub-2.6.1 pygments-2.19.2 pyjwt-2.10.1 pynacl-1.5.0 pyparsing-3.2.3 pytest-8.4.1 pytest-logging-2015.11.4 python-dateutil-2.9.0.post0 pytrie-0.4.0 pytz-2025.2 rdflib-7.1.4 referencing-0.36.2 requests-2.32.4 reretry-0.11.8 rpds-py-0.26.0 six-1.17.0 smart-open-7.3.0.post1 smmap-5.0.2 snakedeploy-0.11.0 snakemake-9.8.1 snakemake-interface-common-1.20.2 snakemake-interface-executor-plugins-9.3.8 snakemake-interface-logger-plugins-1.2.3 snakemake-interface-report-plugins-1.1.1 snakemake-interface-storage-plugins-4.2.1 sortedcontainers-2.4.0 spdx-license-list-3.27.0 tabulate-0.9.0 throttler-1.2.2 tqdm-4.67.1 traitlets-5.14.3 typing-extensions-4.14.1 typing-inspection-0.4.1 tzdata-2025.2 urllib3-2.5.0 wrapt-1.17.2 yarl-1.20.1 yte-1.9.0
     ```
 
 Check Omnibenchmark has successfully installed.
@@ -115,7 +115,7 @@ Check Omnibenchmark has successfully installed.
 === "Output"
 
     ```
-    OmniBenchmark CLI, version 0.7.0
+    OmniBenchmark CLI, version 0.8.0
     ```
 
 ### Installation via pip
@@ -127,7 +127,7 @@ You can install omnibenchmark as a python package with `pip`.
 === "Shell"
 
     ```shell
-    pip install omnibenchmark==0.7.0
+    pip install omnibenchmark==0.8.0
     ```
 
 ### Installation from source
@@ -380,7 +380,8 @@ ob create module ~/clustering_method \
 
 ## Add parameters to a benchmark YAML
 
-Module `P1` is parametrized and will run twice, once with `-a 0 -b 0.1` and second with `-a 1 -b 0.1`.
+Module `P1` is parametrized and will run twice, once with `--a 0 --b 0.1` and once with `--a 1 --b 0.1`.
+Each list entry is one parameter set; each key becomes a `--key value` flag.
 
 
 ```yaml
@@ -392,14 +393,20 @@ stages:
       - id: P1
         software_environment: "R"
         parameters:
-          - values: ["-a 0", "-b 0.1"]
-          - values: ["-a 1", "-b 0.1"]
+          - a: 0
+            b: 0.1
+          - a: 1
+            b: 0.1
         repository:
           url: https://github.com/omnibenchmark-example/process.git
           commit: 706edb9
 [snip]
 
 ```
+
+A list value is expanded: `- e: [1, 2]` is two parameter sets, `--e 1` and
+`--e 2`, and several lists in one entry give every combination. The older
+`- values: ["-a 0", "-b 0.1"]` form is deprecated.
 
 ## Exclude certain module-module chains
 
@@ -489,9 +496,9 @@ Semantics worth knowing:
   depends on is kept; everything downstream or unrelated is pruned. This uses
   the input/output topology, not the order stages happen to appear in the YAML,
   so an upstream stage declared *after* the named one is still kept.
-- **Metric collectors that reach past the cut are skipped.** A collector whose
-  inputs reference a pruned stage is dropped with a log line rather than
-  failing.
+- **Gathers that reach past the cut are skipped.** A gather stage whose
+  members were all pruned is dropped with a warning rather than failing (as
+  is, below api 0.8.0, a metric collector).
 - **Not combinable with `-m/--module`**, which already truncates the DAG its own
   way; passing both is an error.
 
@@ -517,8 +524,10 @@ Semantics worth knowing:
   since the picks were made and something they name no longer exists, the run stops and
   lists what went missing. Fix or re-export the picks, or pass `--allow-drift` to run
   whatever still matches.
-- **Metric collectors that reach into a pruned stage are skipped**, with a log
-  line for each.
+- **Gathers that reach into a pruned stage are skipped**, with a warning for
+  each. A gather that keeps some of its members runs on those, and writes to a
+  directory of its own (the suffix after `-` names the member set), so the
+  full result is not overwritten.
 - **Combines with `--until`**, which cuts the benchmark short first; the picks
   then apply to what is left. Not combinable with `-m/--module`, which selects
   modules its own way; passing both is an error.
@@ -546,7 +555,7 @@ ob run benchmark.yaml --filter picks.obfilter.yaml --dry
 |------|-------|
 | `all` | every parameter combination |
 | `first` | the first combination only |
-| `[dc8f7f3b, ...]` | the combinations with these short hashes, as in the `.<hash>` output directories |
+| `[dc8f7f3b, ...]` | the combinations with these short hashes, as in the output directory names (`methods.M2.9da5174a`) |
 
 `'*'` needs quotes in YAML and cannot be mixed with explicit module ids in the
 same stage. `tests/e2e/test_10_obfilter.py` runs this file against
@@ -587,7 +596,7 @@ software_environments:
 
 ## Simplify benchmark YAMLs using branch names instead of commit names
 
-The `commit` field within a module stanza can accept branch names or git tags. Using commits or tags is recommended.
+The `commit` field within a module stanza can accept branch names or git tags. Using commits or tags is recommended: a branch does not name a fixed version, so `ob run` refuses it unless you pass `--unpinned`.
 
 ```yaml
 stages:
@@ -687,20 +696,24 @@ Output `path` fields in the benchmark YAML accept template variables that are re
 
 | Variable | Resolves to | Notes |
 |----------|-------------|-------|
-| `{dataset}` | Root dataset ID (e.g. `D1`) | **Deprecated** — inherited from the first stage; warns on load, see below |
+| `{dataset}` | Id of the first-stage module (e.g. `D1`) | **Deprecated**; warns on load, see below |
 | `{module.id}` | Current module's own ID (e.g. `M1`) | Always the *current* module — never inherited |
 | `{name}` | Current module's own ID | Alias of `{module.id}`; prefer `{module.id}`, since `{name}` reads like `{module.name}` |
 | `{module.name}` | Module's human-readable `name` attribute | Falls back to the module ID if `name` is not set |
 | `{module.stage}` | Current stage ID (e.g. `methods`) | |
 | `{params.KEY}` | Value of parameter `KEY` for this node | Fully resolved before Snakemake sees the path; one output path per parameter combination |
 
-### When to use `{dataset}` vs `{module.id}`
+### Name files after the module that wrote them
 
-Use **`{module.id}`** when you want the filename to reflect *which module produced the file* — this is the recommended choice for method and metric stages, where each module's output should be independently identifiable.
+Use **`{module.id}`** so each file says which module produced it. To name a
+file after a parameter value, use `{params.KEY}`.
 
-Use **`{dataset}`** when the first-stage module IDs are themselves meaningful dataset identifiers (e.g. `D1`, `pbmc3k`) and you want that identity to propagate through the whole pipeline. **`{dataset}` is only useful if the first-stage module `id` values are semantically meaningful.** If the first stage uses a single dispatcher module with a fixed ID (e.g. `id: loader`) and instead varies datasets via parameters, `{dataset}` will always resolve to `"loader"` — which is not useful. In that case use `{params.dataset}` or `{module.id}` instead.
-
-> **Deprecated:** `{dataset}` couples output filenames to first-stage module IDs. Loading a benchmark that uses it prints a warning naming the offending path, and it will be removed in a future release. Prefer `{module.id}`, or `{params.KEY}` to name outputs after a parameter.
+> **Deprecated:** `{dataset}` resolves to the id of the first-stage module a
+> result descends from, which couples file names in every stage to the first
+> one. Loading a plan that uses it prints a warning naming the path, and it
+> will be removed in a future release. Replace it with `{module.id}`. If a
+> single first-stage module loads several datasets through a parameter, use
+> `{params.KEY}`.
 
 ```yaml
 stages:
@@ -727,7 +740,7 @@ stages:
         path: "{module.id}_result.txt"  # → M1_result.txt / M2_result.txt
 ```
 
-From api_version 0.5.0, the `--name` CLI argument passed to each module script receives the current module's own ID, matching `{module.id}`. Below 0.5.0 it receives the dataset ID, so downstream stages of those plans still need `{dataset}`.
+The `--name` argument passed to each module is the module's own id, matching `{module.id}` (below api 0.5.0 it was the dataset id).
 
 ### Using the human-readable module name
 
@@ -786,7 +799,7 @@ For interactive inspection of a telemetry stream — live progress, span timelin
 
 ## Use local module repositories
 
-Local Git repositories can be referenced directly in the `url` field of benchmarking YAML manifestos, without the need to push to GitHub, GitLab, Bitbucket, or any other remote. To ensure changes are tracked, remember to stage them with `git add` and commit them with `git commit` in the local repository. It is recommended to specify full paths (beginning with `/`) to the local Git repository (i.e. `/home/user/repos/data` in the example below).
+Local Git repositories can be referenced directly in the `url` field of benchmarking YAML manifestos, without the need to push to GitHub, GitLab, Bitbucket, or any other remote. To ensure changes are tracked, remember to stage them with `git add` and commit them with `git commit` in the local repository. It is recommended to specify full paths (beginning with `/`) to the local Git repository (i.e. `/home/user/repos/data` in the example below). `ob run` refuses local paths unless you pass `--dirty`, since they are not reproducible on another machine.
 
 
 
@@ -805,11 +818,97 @@ stages:
         path: "{module.id}.png"
 ```
 
+## Limit how many memory-hungry jobs run at once
+
+On a local run, `ob run` gives Snakemake a memory budget of 90% of the
+machine's RAM. A stage that declares `resources.mem_mb` then only starts as
+many jobs as fit the budget, whatever `--cores` allows. Stages without
+`mem_mb` are not limited. To set the budget yourself:
+
+```bash
+ob run benchmark.yaml --cores 16 -- --resources mem_mb=64000
+```
+
+## Keep an output directory tied to its benchmark
+
+`ob run` records every run in `out/.metadata/runs.jsonl`: the benchmark's
+`id`, `version` and content hash, and what was selected (`-m`, `--until`,
+`--filter`).
+
+- `ob run` refuses an output directory recorded with another benchmark `id` or
+  `version`. Use a new `--out-dir`, or bump `version` deliberately.
+- `ob validate outputs` and `ob describe status` refuse a plan edited since
+  the last run, and warn when the last run was partial.
+- `ob describe plan benchmark.yaml [--json]` prints the identity a plan would
+  be recorded with.
+
+## Share results in S3-compatible object storage
+
+Remote storage is optional. When enabled, omnibenchmark can store results in S3-compatible object storage, which covers Amazon S3 as well as free software servers such as RustFS. This is the only backend omnibenchmark supports natively: setting `storage.api` to `S3` in the benchmark YAML (the flat `storage_api: S3` key still works but is deprecated) makes `ob run` inject the right Snakemake storage flags for you, and the `ob remote` subcommands (bucket creation, versioning, policy) also assume S3.
+
+Other backends from the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/), such as fs, http, or azure, are not wired into omnibenchmark, but you can still use them indirectly. Because `ob run` forwards anything after `--` straight to Snakemake, you can install the relevant Snakemake storage plugin and pass its flags yourself. Snakemake then handles the transfers during the run. For example, to route storage through an alternative provider:
+
+```
+ob run benchmark.yaml -- \
+    --default-storage-provider <provider> \
+    --default-storage-prefix <prefix> \
+    --storage-<provider>-<option> <value>
+```
+
+Omit all storage configuration from the YAML in this case: the nested `storage:` block, the legacy flat keys (`storage_api`, `storage_bucket_name`), and any top-level `storage:` endpoint string. Otherwise omnibenchmark injects its own S3 flags (`--default-storage-provider s3` and `--default-storage-prefix s3://<bucket>`, plus the S3 endpoint and key flags), which would clash with the provider you set by hand. The bundled `tests/data/Benchmark_003.yaml` sets `storage.api: S3`, so it is not a suitable starting point for a non-S3 backend.
+
+To restrict access to a bucket, generate an access key with a specific policy.
+
+### Create an access policy
+
+Create an access policy restricted to the benchmark's bucket using your storage provider's IAM tooling (for example the AWS console or CLI). Omnibenchmark ships a helper that prints a matching policy JSON:
+```
+ob remote policy create --benchmark tests/data/Benchmark_001.yaml
+```
+This command is deprecated, so prefer the provider's IAM tooling. Add the resulting policy to your storage provider as described below.
+
+### Create new access key
+
+The steps depend on the provider. For Amazon S3, create a user, create a policy from the output above, attach the policy to the user, and create an access key for the user. For a self-hosted S3-compatible server, use its console or client to create an access key restricted to the same policy, then copy the access key and secret key.
+
+### Save access key information locally (Optional)
+
+Save the access key and secret key in a `<CONFIG>.json` file somewhere with the following format:
+
+```
+{"access_key": "<ACCESS_KEY>", "secret_key": "<SECRET_KEY>"}
+```
+
+### Usage
+
+To use the credentials to write to the remote storage the access key and secret key are passed to omnibenchmark with environment variables. If the credentials have been stored as described above the environment variable `OB_STORAGE_S3_CONFIG` can be set which is the name of the config file. For example:
+
+```
+OB_STORAGE_S3_CONFIG=<CONFIG>.json ob run tests/data/Benchmark_003.yaml
+```
+
+alternatively `OB_STORAGE_S3_ACCESS_KEY` and `OB_STORAGE_S3_SECRET_KEY` can be set. For example:
+
+```
+OB_STORAGE_S3_ACCESS_KEY=<ACCESS_KEY> OB_STORAGE_S3_SECRET_KEY=<SECRET_KEY> ob run tests/data/Benchmark_003.yaml
+```
+
+### Versioning
+
+To version currently stored data in the remote (i.e. make it read-only) run the following:
+```
+ob remote version create tests/data/Benchmark_003.yaml
+```
+
+A second execution will result in an error since this version now already exists. To create a new version, first update the version in the Benchmark.yaml file and then rerun the above command.
+
 ## Upgrade a benchmark to api 0.8.0
 
 api 0.8.0 passes each module the exact path of every output it must write
-(`--output id=PATH`). Upgrading is opt-in per benchmark: bump `api_version` in
-the plan once its modules are ready.
+(`--output id=PATH`), lays results out one directory per node, and replaces
+metric collectors with gather stages. Upgrading is opt-in per benchmark: bump
+`api_version` in the plan once its modules are ready. For a summary of every
+version, see [API versions](api-versions.md).
 
 ### In the plan
 
@@ -821,6 +920,36 @@ the plan once its modules are ready.
   flags downstream modules read stay the same. Only `=` and whitespace are
   rejected.
 - **Output paths**: prefer `{module.id}` to the deprecated `{dataset}`.
+- **Metric collectors** are rejected. Move each one to a stage with `gather:`
+  and no `group_by`, at the end of `stages:`:
+
+    ```yaml
+    # api < 0.8.0
+    metric_collectors:
+      - id: biometrics
+        software_environment: "python"
+        repository: { url: ..., commit: ... }
+        inputs: [metrics.scores]
+        outputs:
+          - id: report_html
+            path: "biometrics_report.html"
+
+    # api 0.8.0
+    stages:
+      - id: report
+        modules:
+          - id: biometrics
+            software_environment: "python"
+            repository: { url: ..., commit: ... }
+        gather:
+          from: metrics.scores
+        outputs:
+          - id: report_html
+            path: "biometrics_report.html"
+    ```
+
+- **`group_by: S`** on a gather now makes one job per *node* of stage `S`
+  (module and parameters and everything above it), not one per module of `S`.
 
 ### Output layout
 
@@ -873,3 +1002,20 @@ Write each output to `outputs[id]` instead of building the filename from
 `--output_dir` and `--name`. Then the module no longer depends on the
 filenames a particular benchmark chooses. `--output_dir` and `--name` are
 dropped in api 0.10.
+
+### In each gather module
+
+A gather module, a former metric collector included, no longer receives its
+members as `--<id> p1 p2 …`. It receives `--from-files <lineage.json>` and
+reads the member paths from that file:
+
+```python
+parser.add_argument("--from-files", dest="from_files")
+args, _ = parser.parse_known_args()
+members = json.load(open(args.from_files))["members"]
+scores = [m["files"]["metrics.scores"] for m in members]
+```
+
+Each member also carries its `lineage` (stage, module and parameter values of
+every ancestor), so the module does not need to parse paths. See
+[A gather module](tutorial.md#a-gather-module) in the tutorial.
