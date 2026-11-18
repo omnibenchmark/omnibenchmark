@@ -69,7 +69,7 @@ stages:
       - id: metrics.scores
         path: "{module.id}.scores.txt"
         validators:
-          - script: checks/scores_not_empty.py
+          - script: validators/metrics/metrics.scores/not_empty.py
 
   # One job per dataset, over the scores computed from it.
   - id: per_dataset
@@ -86,7 +86,7 @@ stages:
       - id: summary_tsv
         path: "summary.tsv"
 
-  # One job over every score of the run.
+  # One job over every score of the run, written to out/reports/.
   - id: report
     modules:
       - id: biometrics
@@ -96,6 +96,7 @@ stages:
           commit: 62b51fc
     gather:
       from: metrics.scores
+      path: reports
     outputs:
       - id: report_html
         path: "biometrics_report.html"
