@@ -1,130 +1,121 @@
-# Configuration System
+# Configuration
 
-Omnibenchmark uses a configuration file to store settings such as paths and environment variables. This document describes both the user-facing aspects and the programmatic interface for developers.
+Omnibenchmark keeps per-user settings in one file. They are about your
+machine (where things are cached, how conda is reached, who you are), not
+about a benchmark: nothing here changes a benchmark's results. Every setting
+is optional.
 
-## File Location
+## The file
 
-The configuration file is stored at:
+| Platform | Location |
+|---|---|
+| Linux | `~/.config/omnibenchmark/omnibenchmark.cfg` (or under `$XDG_CONFIG_HOME`) |
+| macOS | `~/Library/Application Support/omnibenchmark/omnibenchmark.cfg` |
 
-- Linux: `~/.config/omnibenchmark/omnibenchmark.cfg`
-- macOS: `~/Library/Application Support/omnibenchmark/omnibenchmark.cfg`
-
-## Format
-
-The configuration file uses the INI format with sections and key-value pairs:
+It is an INI file: `[section]` headers, then `key = value` lines. An example
+with every setting:
 
 ```ini
-[section1]
-key1 = value1
-key2 = value2
+[user]
+# author prefilled by `ob create benchmark` and `ob create module`
+name = Ada Lovelace
+email = ada@example.org
 
-[section2]
-key3 = value3
+[dirs]
+# cache of fetched module repositories, shared by all your benchmarks
+git_cache = ~/.cache/omnibenchmark/git
+# where `ob archive` checks module code out, relative to where it runs
+git_modules = .omnibenchmark/git
+
+[conda]
+# build each conda environment once, shared by all benchmarks
+cache = ~/.cache/omnibenchmark/conda
+# fetch conda-forge, bioconda, ... from a mirror
+channel_alias = https://mirror.example.org/conda
+# reach the internet through a forward proxy
+proxy = http://proxy.example.org:3128
 ```
 
-## Common Sections and Keys
+## Read and change settings
 
-Omnibenchmark uses the following standard configuration sections:
+Edit the file, or use `ob config` with keys written as `section.key`:
 
-- `easybuild`: Contains settings for Easybuild integration
-  - `MODULEPATH`: Path to module installations
-  - `ROBOTPATH`: Path to easyconfigs repository
+```sh
+ob config user.name "Ada Lovelace"   # set
+ob config user.name                  # print
+ob config --list                     # print everything
+ob config --unset user.name          # remove
+```
 
-- `dirs`: Contains paths for dataset storage and git module caching
-  - `datasets`: Path to store benchmark datasets
-  - `git_modules`: Path to cache cloned git repositories (default: `.omnibenchmark/git`)
+## Sections
 
-- `conda`: Applies to runs with the conda software backend (`ob run`, `ob validate outputs`)
-  - `cache`: Directory where Snakemake builds conda environments, passed as `SNAKEMAKE_CONDA_PREFIX`. Point several benchmarks (or users, on a shared filesystem) at the same directory and each environment is built once, keyed by the hash of its YAML. The directory must exist; if it is not writable, only environments already built there can be used. Default: `out/.snakemake/conda`, one per benchmark.
+### `[user]`: who you are
 
-    Off by default. To share environments across your own benchmarks:
+| Key | Meaning | Default |
+|---|---|---|
+| `name` | Author name for new benchmarks and modules | git's `user.name` |
+| `email` | Author email for new benchmarks and modules | git's `user.email` |
 
-    ```sh
-    mkdir -p ~/.cache/omnibenchmark/conda
-    ob config conda.cache ~/.cache/omnibenchmark/conda
-    ```
+Used by `ob create benchmark` and `ob create module`. `--author-name` and
+`--author-email` on the command line override both.
 
-    The cache only grows; remove environment directories by hand to reclaim space. Do not pass `--conda-cleanup-envs` to Snakemake with a shared cache: it deletes environments from the shared directory (in Snakemake 9.6, the ones the current workflow uses), including ones other benchmarks still need.
+### `[dirs]`: where repositories are kept
 
-  - `channel_alias`: Base URL of a conda channel mirror, set as `CONDA_CHANNEL_ALIAS`. Channels named in env files (`conda-forge`, `bioconda`) are then fetched from `<channel_alias>/<channel>`; channels given as full URLs bypass it.
-  - `proxy`: An `http(s)://host:port` forward proxy, set as `HTTP_PROXY` / `HTTPS_PROXY` for the Snakemake process — for compute nodes without direct internet access. Module jobs inherit it too.
+| Key | Meaning | Default |
+|---|---|---|
+| `git_cache` | Cache of fetched module repositories, shared by all your benchmarks | `~/.cache/omnibenchmark/git` (or under `$XDG_CACHE_HOME`) |
+| `git_modules` | Directory where `ob archive` checks out module code | `.omnibenchmark/git`, relative to where `ob` runs |
 
-  Variables already exported in the shell take precedence over these keys.
+`ob run` fetches each module repository into `git_cache` once, then copies the
+pinned commit into the run's own `out/.modules/`. Point `git_cache` at a
+larger disk if your home directory is small. It is safe to delete:
+repositories are fetched again when needed.
 
-  ```ini
-  [conda]
-  cache = /shared/conda-envs
-  # caching mirror of conda.anaconda.org
-  channel_alias = https://mirror.example.org/conda
-  # or, behind a forward proxy:
-  # proxy = http://proxy.example.org:3128
-  ```
+### `[conda]`: conda-backed runs
 
-- `user`: Default author for `ob create benchmark` / `ob create module`; falls back to git's `user.name` / `user.email`
-  - `name`
-  - `email`
+Applies to `ob run` and `ob validate outputs` on a plan with
+`software_backend: conda`. Each key sets an environment variable for
+Snakemake; a variable you already exported in the shell wins over the file.
 
-Values can be read and written from the command line with `ob config section.key [value]`, listed with `ob config --list`, and removed with `ob config --unset section.key`.
+| Key | Meaning | Sets | Default |
+|---|---|---|---|
+| `cache` | Existing directory where conda environments are built | `SNAKEMAKE_CONDA_PREFIX` | unset: environments are built inside each output directory (`out/.snakemake/conda`) |
+| `channel_alias` | Base URL of a conda channel mirror | `CONDA_CHANNEL_ALIAS` | unset |
+| `proxy` | `http(s)://host:port` forward proxy | `HTTP_PROXY`, `HTTPS_PROXY` | unset |
 
-## Programmatic Access
+**`cache`** lets several benchmarks (or several users on a shared filesystem)
+build each environment once. Environments are keyed by the hash of their env
+file, so the same file gives the same environment.
 
-The configuration system provides a Python API for reading and writing configuration values.
+```sh
+mkdir -p ~/.cache/omnibenchmark/conda
+ob config conda.cache ~/.cache/omnibenchmark/conda
+```
 
-### Reading Configuration Values
+The cache only grows; remove environment directories by hand to reclaim
+space. Do not pass `--conda-cleanup-envs` to Snakemake with a shared cache:
+it deletes environments from the shared directory, including ones other
+benchmarks still need.
+
+**`channel_alias`** makes channels named in env files (`conda-forge`,
+`bioconda`) come from `<channel_alias>/<channel>`. Channels written as full
+URLs are not affected.
+
+**`proxy`** is for compute nodes without direct internet access. Module jobs
+inherit it too.
+
+## For developers
+
+The same settings are available from Python through `omnibenchmark.config`:
 
 ```python
 from omnibenchmark.config import config
 
-# Get a value with a default if key doesn't exist
-value = config.get('section', 'key', default='default_value')
+value = config.get("conda", "cache", default=None)   # read
+config.set("user", "name", "Ada Lovelace")           # change in memory
+config.save()                                        # write the file
+config.sections()                                    # all sections
+config.options("conda")                              # keys of a section
 ```
 
-### Writing Configuration Values
-
-```python
-from omnibenchmark.config import config
-
-# Set a value
-config.set('section', 'key', 'new_value')
-
-# Save changes to disk
-config.save()
-```
-
-### Accessing Configuration Options
-
-```python
-from omnibenchmark.config import config
-
-# Get all sections
-sections = config.sections()
-
-# Get all keys in a section
-keys = config.options('section')
-```
-
-### Creating a Custom Configuration Accessor
-
-In most cases, you should use the global `config` instance. However, you can create a custom accessor if needed:
-
-```python
-from omnibenchmark.config import ConfigAccessor
-from pathlib import Path
-
-# Create a custom config accessor with a specific path
-custom_config = ConfigAccessor(Path('/path/to/custom/omnibenchmark.cfg'))
-
-# Use it the same way as the global config
-value = custom_config.get('section', 'key', default='default_value')
-```
-
-## Implementation Details
-
-The configuration system is implemented in `omnibenchmark/config.py`. It provides:
-
-- Platform-specific paths for configuration files
-- A `ConfigAccessor` class that provides dict-like access to the configuration
-- Initialization of necessary directories
-- Graceful handling of missing sections or keys
-
-When adding new configuration options to Omnibenchmark, be sure to update this documentation with the new sections and keys.
+When adding a setting to omnibenchmark, document it on this page.
