@@ -632,26 +632,46 @@ part of the benchmark itself. The
 [design document on filtering](https://github.com/omnibenchmark/omnibenchmark/blob/main/docs/design/008-filtering.md)
 explains how they combine.
 
-## Use a custom apptainer container to run methods
+## Run modules in a container
 
-We recommend building apptainer containers using apptainer. Still, it is possible to use any apptainer container from an ORAS-compatible registry (could be a GitLab registry), or available locally as a SIF file.
+With `software_backend: apptainer`, each software environment names a
+container image and its modules run inside it. Apptainer is the only thing
+you need installed; it also runs Docker images, without a Docker daemon.
+
+We recommend pointing at a **Docker image in a registry** with `docker://`:
 
 ```yaml
----
-id: bench1
-
-[snip]
+software_backend: apptainer
 
 software_environments:
-  remote_custom_container:
-    description: "An apptainer container from a registry"
-    ## update the path to an ORAS-compatible registry
-    apptainer: oras://registry.renkulab.io/izaskun.mallona/sing
-  local_custom_container:
-    description: "A singularity container - locally available as a SIF"
-    ## local path to a local SIF file
-    apptainer: /home/user/singularity_image.sif
+  python:
+    description: "Python 3.12"
+    apptainer: docker://python:3.12-slim
+  r:
+    description: "R 4.4 with tidyverse"
+    apptainer: docker://rocker/tidyverse:4.4.1
 ```
+
+Docker images are what most tools already publish, registries keep them
+available, and anyone can run the benchmark without building anything.
+Apptainer pulls and converts each image on first use and caches it.
+
+Pin the image so the benchmark keeps meaning the same thing: use a specific
+tag (`python:3.12-slim`, not `python:latest`), or a digest for an exact image
+(`docker://python@sha256:...`).
+
+The `apptainer` field also accepts:
+
+| Image | Example | Use when |
+|---|---|---|
+| Docker registry (recommended) | `docker://ghcr.io/org/image:1.2.0` | the image is on Docker Hub, GHCR, Quay or another Docker registry |
+| ORAS registry | `oras://registry.example.org/org/image:1.2.0` | you already have an Apptainer image (SIF) pushed to a registry |
+| Local SIF file | `envs/image.sif` | the image only exists as a file; the path is relative to the plan |
+
+A local SIF file ties the benchmark to machines that have that file, so prefer
+a registry for anything you share. We no longer recommend building SIF files
+by hand as the way to provide environments: publish a Docker image and
+reference it instead.
 
 ## Simplify benchmark YAMLs using branch names instead of commit names
 
