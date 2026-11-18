@@ -660,11 +660,25 @@ stages:
       - id: scores
         path: "{module.id}_scores.tsv"
         validators:
-          - script: checks/scores_columns.py   # relative to the plan
-          - script: checks/no_nan.R
+          - script: validators/methods/scores/columns.py   # relative to the plan
+          - script: validators/methods/scores/no_nan.R
 validators:            # optional
-  env: checks_env      # a software_environments id; omitted = current env
+  env: validators_env  # a software_environments id; omitted = current env
 ```
+
+Keep the scripts under `validators/<stage>/<output id>/`, next to the plan:
+
+```
+benchmark.yaml
+validators/
+└── methods/              # stage
+    └── scores/           # output id
+        ├── columns.py
+        └── no_nan.R
+```
+
+The nesting is a convention that makes a script's path say what it checks;
+only the scripts declared in the plan are run, wherever they are.
 
 The script gets the file path as its only argument and exits 0 to pass. `.py`
 runs with `python3`, `.R` with `Rscript`, anything else with `bash`:

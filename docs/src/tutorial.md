@@ -634,7 +634,7 @@ stages:
       - id: metrics.scores
         path: "{module.id}.scores.txt"
         validators:
-          - script: checks/scores_not_empty.py
+          - script: validators/metrics/metrics.scores/not_empty.py
 
   # One job per dataset, over the scores computed from it.
   - id: per_dataset
@@ -752,12 +752,16 @@ on a stage output and applies to that output for every module of the stage:
       - id: metrics.scores
         path: "{module.id}.scores.txt"
         validators:
-          - script: checks/scores_not_empty.py   # relative to the plan
+          - script: validators/metrics/metrics.scores/not_empty.py   # relative to the plan
 ```
+
+Scripts are kept next to the plan under `validators/<stage>/<output id>/`, so
+the path says what a script checks. That layout is a convention, not a
+requirement: only the scripts a plan declares are run.
 
 The script receives the file to check as its only argument and exits 0 if it
 passes. Ours, in
-[`tests/data/checks/scores_not_empty.py`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/checks/scores_not_empty.py),
+[`tests/data/validators/metrics/metrics.scores/not_empty.py`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/validators/metrics/metrics.scores/not_empty.py),
 rejects an empty file:
 
 ```python
