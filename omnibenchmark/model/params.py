@@ -4,7 +4,7 @@ import json
 import hashlib
 import itertools
 
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from omnibenchmark.model.benchmark import Parameter
@@ -91,7 +91,9 @@ class Params:
         return cls(params)
 
     @staticmethod
-    def expand_from_parameter(parameter: "Parameter") -> List["Params"]:
+    def expand_from_parameter(
+        parameter: "Parameter", module_id: Optional[str] = None
+    ) -> List["Params"]:
         """
         Expand a Parameter into a list of Params instances.
 
@@ -137,6 +139,15 @@ class Params:
             else:
                 # No lists, just use the params as-is
                 result.append(Params(non_list_params))
+
+        if module_id is not None:
+            # `{module.id}` in a string value is the id of the module the
+            # parameter belongs to, substituted before hashing: a plan can
+            # name the module once, as its id.
+            for params in result:
+                for key, value in params._params.items():
+                    if isinstance(value, str):
+                        params._params[key] = value.replace("{module.id}", module_id)
 
         return result
 
