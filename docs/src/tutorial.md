@@ -479,8 +479,9 @@ metric_collector.py --output_dir /abs/out/reports --name biometrics \
     --from-files /abs/out/reports/lineage.json
 ```
 
-`lineage.json`, the [**manifest**](glossary.md#manifest), is written by
-omnibenchmark next to the gather's outputs. It has one entry in `members` per
+`lineage.json` is written by omnibenchmark next to the gather's outputs. A
+gather's own path cannot say where its many inputs came from, so this file
+does. It has one entry in `members` per
 collected node. One of them:
 
 ```json
@@ -529,8 +530,8 @@ writes one table row per gathered file, labelled with its lineage.
 
 ### Reuse a report module
 
-A report rarely needs benchmark-specific code: it reads the manifest and
-renders it. [**obcommons**](glossary.md#obcommons), at
+A report rarely needs benchmark-specific code: it reads `lineage.json` and
+renders what it lists. [**obcommons**](glossary.md#obcommons), at
 [omnibenchmark.github.io/obcommons](https://omnibenchmark.github.io/obcommons/),
 is the community registry of omnibenchmark modules; look there before writing
 one.

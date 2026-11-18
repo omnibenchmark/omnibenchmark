@@ -64,7 +64,21 @@ it reads from. A plan expands into nodes; each node has one directory in the
 ## Lineage
 
 The chain of nodes a result descends from, from the first stage down to the
-node that wrote it. A node's directory path spells out its lineage.
+node that wrote it.
+
+- For an ordinary node, the directory path spells it out:
+  `out/data.D1/methods.M2.9da5174a/` was computed by `M2` from `D1`.
+- A [gather](#gather) collects results from many lineages, so its path cannot
+  hold them. They are written to `lineage.json` in the gather's directory,
+  one entry per collected node; the gather's module receives that file as
+  `--from-files`.
+
+## Label
+
+A named value a stage attaches to its nodes with `provides`, carried down the
+[lineage](#lineage). A later module with `requires` runs only where the label
+has the value it asks for. See
+[Run a module only on matching data](howto.md#run-a-module-only-on-matching-data).
 
 ## Output tree
 
@@ -102,14 +116,9 @@ with the benchmark's identity and what was selected. With telemetry on, the
 
 A stage that runs one module over many upstream results at once, instead of
 one at a time. With `group_by` it runs once per node of an upstream stage;
-without, once for the whole run. Replaces the metric collector of older api
-versions. See [Gather results](tutorial.md#gather-results).
-
-## Manifest
-
-The `lineage.json` file a gather module receives through `--from-files`. It
-lists every node the gather collects, with its files and its
-[lineage](#lineage).
+without, once for the whole run. Its module reads what was collected from
+`lineage.json` (see [lineage](#lineage)). Replaces the metric collector of
+older api versions. See [Gather results](tutorial.md#gather-results).
 
 ## Validator
 

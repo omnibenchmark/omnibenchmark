@@ -413,7 +413,9 @@ A list value is expanded: `- e: [1, 2]` is two parameter sets, `--e 1` and
 
 ## Exclude certain module-module chains
 
-Module `M1` won't use inputs from module `D2`.
+Module `M1` won't use inputs from module `D2`. (To rule out a kind of data
+instead of naming modules, see
+[Run a module only on matching data](#run-a-module-only-on-matching-data).)
 
 ```yaml
 [snip]
@@ -443,6 +445,49 @@ Semantics worth knowing:
 - **OR over the list.** `exclude: [D2, D3]` means "not with D2, *and* not with
   D3" as two independent rules: a path is pruned if it contains M1 together with
   D2 **or** with D3. There is no "exclude only when both are present" (AND) form.
+
+## Run a module only on matching data
+
+`exclude` names the modules a module must not be combined with. When the rule
+is about a *kind* of data rather than specific modules ("only on small
+datasets", "only on simulated data"), label the data and let modules ask for
+a label value. Needs api 0.7.0 or later.
+
+```yaml
+stages:
+  - id: data
+    provides: [size]              # this stage labels its results with `size`
+    modules:
+      - id: D1
+        provides: {size: small}   # the value for results of D1
+        ...
+      - id: D2
+        provides: {size: large}
+        ...
+
+  - id: methods
+    modules:
+      - id: M1
+        requires: {size: small}   # runs only below D1
+        ...
+      - id: M2                    # no `requires`: runs on every dataset
+        ...
+```
+
+- **`provides` on a stage** lists the labels its nodes carry. Each module
+  gives its value with its own `provides`; without one, the value is the
+  module id.
+- **Labels travel down the lineage.** A metric two stages below `D1` still
+  sees `size: small`, so `requires` works at any depth.
+- **`requires` on a module** keeps only the lineages where every label it
+  names has exactly that value (string equality).
+- **A value nobody provides prunes the module everywhere**, without an error.
+  `ob run --dry` reports what was dropped: `Pruned 2 combination(s): 2 by
+  requires, 0 by exclude.`
+- A label cannot be named `name`, `dataset` or like a stage id.
+
+`requires` is about the data. To gate a module on the machine instead (GPU,
+memory), use `requires_capabilities`, below. A module can use both.
 
 ## Filter modules by what the machine has
 
