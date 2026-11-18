@@ -32,6 +32,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: gathers run from the module root and write to their declared log (#416)
 - fix: a join lists a partner once when it supplies several inputs (#416)
 - fix: a stage resolves its inputs from their producers, not from expansion order; the DAG order is deterministic (#393)
+- fix: on api 0.8.0 `ob describe status` and `ob validate outputs` find the outputs of modules without parameters (#424)
 - fix: `ob describe status` reported 0% for parameterless modules and counted nodes per module, not per lineage (#386)
 - fix: reject duplicate output ids within a stage (#329)
 - fix: wrong predicted paths for `{name}` and `{module.*}` templates in archive, status and remote storage (#329)
