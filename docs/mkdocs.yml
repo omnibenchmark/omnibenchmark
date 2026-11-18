@@ -55,6 +55,7 @@ plugins:
       bib_file: "refs.bib"
 
 markdown_extensions:
+  - admonition
   - mkdocs-click
   - pymdownx.superfences:
       custom_fences:

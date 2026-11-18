@@ -407,7 +407,7 @@ instead of overwriting the full result. To choose the directory yourself, add
 `path:` to the gather (`gather: {from: metrics.scores, path: reports}`); such a
 directory has no suffix, so a filtered run overwrites it.
 
-!!! note "Metric collectors"
+!!! warning "Metric collectors are removed in api 0.8.0"
 
     Plans below api 0.8.0 collected results with a top-level
     `metric_collectors:` list. api 0.8.0 rejects it: declare a stage with
