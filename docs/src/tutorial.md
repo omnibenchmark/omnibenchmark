@@ -176,7 +176,8 @@ The next stage has inputs as well as outputs.
 
 `path` is only a file name. Omnibenchmark decides the directory: each module
 run (a [**node**](glossary.md#node)) gets one directory, named `stage.module`, inside the
-directory of the node it took its inputs from. A node with parameters adds a
+directory of the node it took its inputs from. This is the flat
+[**layout**](glossary.md#layout) of api 0.8.0. A node with parameters adds a
 short hash of them. So the two stages above write:
 
 ```
@@ -351,9 +352,9 @@ We add two such stages: a table per dataset, then one report for the run.
         path: "summary.tsv"
 ```
 
-- `from` names an output id, or a list of them. Every node producing it is a
-  [**member**](glossary.md#member) of the gather; here, the 12 metric nodes.
-- `group_by: data` splits the members by the `data` node they descend from, and
+- `from` names an output id, or a list of them. The gather collects every node
+  producing it; here, the 12 metric nodes.
+- `group_by: data` splits them by the `data` node they descend from, and
   runs one job per group.
 
 So `summary` runs twice: once over the 6 scores below `D1`, once over the 6
@@ -373,7 +374,7 @@ gives each `summary` job the metadata of its own dataset.
 
 ### A report for the whole run
 
-Without `group_by`, one job collects every member:
+Without `group_by`, one job collects every node producing the output:
 
 ```yaml
   ## One job over every score of the run.
@@ -400,8 +401,8 @@ out/report.biometrics-4bfefbda/biometrics_report.html
 out/report.biometrics-4bfefbda/biometrics.tsv
 ```
 
-The suffix after the last `-` identifies the set of members. A run that leaves
-some members out (for example with `--filter`) writes to a different directory
+The suffix after the last `-` identifies the set of collected nodes. A run that
+leaves some of them out (for example with `--filter`) writes to a different directory
 instead of overwriting the full result. To choose the directory yourself, add
 `path:` to the gather (`gather: {from: metrics.scores, path: reports}`); such a
 directory has no suffix, so a filtered run overwrites it.
@@ -415,9 +416,9 @@ directory has no suffix, so a filtered run overwrites it.
 
 ### A gather module
 
-A gather module receives `--output` and its parameters like any other. Its
-members do not come as paths on the command line, since their number is
-unbounded. It gets one file listing them:
+A gather module receives `--output` and its parameters like any other. The
+results it collects do not come as paths on the command line, since their
+number is unbounded. It gets one file listing them:
 
 ```
 metric_collector.py --output_dir /abs/out/report.biometrics-4bfefbda --name biometrics \
@@ -427,7 +428,8 @@ metric_collector.py --output_dir /abs/out/report.biometrics-4bfefbda --name biom
 ```
 
 `lineage.json`, the [**manifest**](glossary.md#manifest), is written by
-omnibenchmark next to the gather's outputs. One member of it:
+omnibenchmark next to the gather's outputs. It has one entry in `members` per
+collected node. One of them:
 
 ```json
 {"version": 2, "kind": "gather", "stage": "per_dataset", "module": "summary", "node_id": "...",
@@ -444,13 +446,13 @@ omnibenchmark next to the gather's outputs. One member of it:
 
 | field | meaning |
 |---|---|
-| `files` | the member's gathered outputs by output id, absolute paths; a member may contribute several |
-| `lineage` | every ancestor from the first stage down to the member itself (the last entry), each with stage, module and parameters |
+| `files` | the node's collected outputs by output id, absolute paths; a node may contribute several |
+| `lineage` | every ancestor from the first stage down to the collected node itself (the last entry), each with stage, module and parameters |
 | `params` | in a lineage entry: short hash of that node's parameters, as in its directory name; null without parameters |
 | `parameters` | in a lineage entry: the parameter values behind that hash |
 
 Use `lineage` and `parameters` to label results; do not parse directory names.
-The order of members carries no meaning. Reading them takes a few lines:
+The order of `members` carries no meaning. Reading them takes a few lines:
 
 === "Python"
 

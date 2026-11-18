@@ -499,8 +499,8 @@ Semantics worth knowing:
   depends on is kept; everything downstream or unrelated is pruned. This uses
   the input/output topology, not the order stages happen to appear in the YAML,
   so an upstream stage declared *after* the named one is still kept.
-- **Gathers that reach past the cut are skipped.** A gather stage whose
-  members were all pruned is dropped with a warning rather than failing (as
+- **Gathers that reach past the cut are skipped.** A gather stage with nothing
+  left to collect is dropped with a warning rather than failing (as
   is, below api 0.8.0, a metric collector).
 - **Not combinable with `-m/--module`**, which already truncates the DAG its own
   way; passing both is an error.
@@ -528,8 +528,8 @@ Semantics worth knowing:
   lists what went missing. Fix or re-export the picks, or pass `--allow-drift` to run
   whatever still matches.
 - **Gathers that reach into a pruned stage are skipped**, with a warning for
-  each. A gather that keeps some of its members runs on those, and writes to a
-  directory of its own (the suffix after `-` names the member set), so the
+  each. A gather that keeps some of the nodes it collects runs on those, and
+  writes to a directory of its own (the suffix after `-` names that set), so the
   full result is not overwritten.
 - **Combines with `--until`**, which cuts the benchmark short first; the picks
   then apply to what is left. Not combinable with `-m/--module`, which selects
@@ -834,9 +834,21 @@ ob run benchmark.yaml --cores 16 -- --resources mem_mb=64000
 
 ## Keep an output directory tied to its benchmark
 
-`ob run` records every run in `out/.metadata/runs.jsonl`: the benchmark's
-`id`, `version` and content hash, and what was selected (`-m`, `--until`,
-`--filter`).
+`ob run` records every [run](glossary.md#run) as one line of
+`out/.metadata/runs.jsonl`: a `run_id`, the benchmark's `id`, `version` and
+content hash, and what was selected (`-m`, `--until`, `--filter`).
+
+```json
+{"run_id": "eda275b6436145a48f6d6435090bdad9",
+ "timestamp": "2026-11-18T10:13:53+00:00",
+ "benchmark": {"id": "Benchmark_005", "version": "1.0",
+               "summary_hash": "e4e73c22...", "api_version": "0.8.0"},
+ "selection": null, "node_count": 23, "trace": null}
+```
+
+`run_id` is 32 hex characters, new for every `ob run` that executes (not for
+`--dry`). With `--telemetry` it is also the `traceId` of the run's spans, so a
+trace and a line of `runs.jsonl` match by plain equality.
 
 - `ob run` refuses an output directory recorded with another benchmark `id` or
   `version`. Use a new `--out-dir`, or bump `version` deliberately.
@@ -1008,9 +1020,9 @@ dropped in api 0.10.
 
 ### In each gather module
 
-A gather module, a former metric collector included, no longer receives its
-members as `--<id> p1 p2 …`. It receives `--from-files <lineage.json>` and
-reads the member paths from that file:
+A gather module, a former metric collector included, no longer receives the
+files it collects as `--<id> p1 p2 …`. It receives `--from-files <lineage.json>`
+and reads their paths from that file:
 
 ```python
 parser.add_argument("--from-files", dest="from_files")
@@ -1019,6 +1031,6 @@ members = json.load(open(args.from_files))["members"]
 scores = [m["files"]["metrics.scores"] for m in members]
 ```
 
-Each member also carries its `lineage` (stage, module and parameter values of
+Each entry of `members` also carries its `lineage` (stage, module and parameter values of
 every ancestor), so the module does not need to parse paths. See
 [A gather module](tutorial.md#a-gather-module) in the tutorial.

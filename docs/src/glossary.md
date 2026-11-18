@@ -57,7 +57,7 @@ sets runs once per set.
 
 ## Node
 
-One run of one module: a module, one parameter set, and the upstream nodes
+One unit of execution: a module, one parameter set, and the upstream nodes
 it reads from. A plan expands into nodes; each node has one directory in the
 [output tree](#output-tree).
 
@@ -68,9 +68,35 @@ node that wrote it. A node's directory path spells out its lineage.
 
 ## Output tree
 
-The directory `ob run` writes to (`out/` by default). Each node adds one
-directory, `stage.module[.params]`, inside the directory of the node it read
-from.
+The directory `ob run` writes to (`out/` by default), holding one directory
+per [node](#node). How those directories are arranged is the
+[layout](#layout).
+
+## Layout
+
+How node directories are arranged in the [output tree](#output-tree). The
+[api version](#api-version) of the plan selects it.
+
+- **Flat** (api 0.8.0): each node adds one directory,
+  `stage.module[.params]`, inside the directory of the node it read from:
+  `out/data.D1/methods.M2.9da5174a/`. No hidden directories or symlinks;
+  `out/by-params/` is a derived view with readable parameter names.
+- **Nested** (below api 0.8.0): each node adds three,
+  `stage/module/.params`: `out/data/D1/.default/methods/M2/.9da5174a/`.
+  **Deprecated**: `ob run` warns on such plans, and the nested layout is
+  removed at api 0.10.0.
+
+Moving a plan to the flat layout changes every output path, so the next run
+recomputes everything. See
+[Upgrade a benchmark to api 0.8.0](howto.md#output-layout).
+
+## Run
+
+One execution of `ob run` on an output tree. Each run gets a `run_id` (32
+hex characters) and is recorded as one line of `out/.metadata/runs.jsonl`,
+with the benchmark's identity and what was selected. With telemetry on, the
+`run_id` is the trace id of the run's spans. See
+[Keep an output directory tied to its benchmark](howto.md#keep-an-output-directory-tied-to-its-benchmark).
 
 ## Gather
 
@@ -79,14 +105,11 @@ one at a time. With `group_by` it runs once per node of an upstream stage;
 without, once for the whole run. Replaces the metric collector of older api
 versions. See [Gather results](tutorial.md#gather-results).
 
-## Member
-
-A node whose output a [gather](#gather) collects.
-
 ## Manifest
 
 The `lineage.json` file a gather module receives through `--from-files`. It
-lists every [member](#member) with its files and its [lineage](#lineage).
+lists every node the gather collects, with its files and its
+[lineage](#lineage).
 
 ## Validator
 
