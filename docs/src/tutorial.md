@@ -178,7 +178,8 @@ The next stage has inputs as well as outputs.
 run (a [**node**](glossary.md#node)) gets one directory, named `stage.module`, inside the
 directory of the node it took its inputs from. This is the flat
 [**layout**](glossary.md#layout) of api 0.8.0. A node with parameters adds a
-short hash of them. So the two stages above write:
+short hash of them (see [Reading the output tree](#reading-the-output-tree)).
+So the two stages above write:
 
 ```
 out/data.D1/D1.txt.gz
@@ -377,7 +378,7 @@ gives each `summary` job the metadata of its own dataset.
 Without `group_by`, one job collects every node producing the output:
 
 ```yaml
-  ## One job over every score of the run.
+  ## One job over every score of the run, written to out/reports/.
   - id: report
     modules:
       - id: biometrics
@@ -387,6 +388,7 @@ Without `group_by`, one job collects every node producing the output:
           commit: 62b51fc
     gather:
       from: metrics.scores
+      path: reports
     outputs:
       - id: report_html
         path: "biometrics_report.html"
@@ -394,18 +396,16 @@ Without `group_by`, one job collects every node producing the output:
         path: "biometrics.tsv"
 ```
 
-It has no group to sit in, so it writes at the top of the output tree:
+It has no group to sit in, so it writes at the top of the output tree. `path`
+names its directory, which gives the run one tidy place to look for reports:
 
 ```
-out/report.biometrics-4bfefbda/biometrics_report.html
-out/report.biometrics-4bfefbda/biometrics.tsv
+out/reports/biometrics_report.html
+out/reports/biometrics.tsv
 ```
 
-The suffix after the last `-` identifies the set of collected nodes. A run that
-leaves some of them out (for example with `--filter`) writes to a different directory
-instead of overwriting the full result. To choose the directory yourself, add
-`path:` to the gather (`gather: {from: metrics.scores, path: reports}`); such a
-directory has no suffix, so a filtered run overwrites it.
+Without `path`, the directory would be named like any other gather,
+`out/report.biometrics-4bfefbda/`.
 
 !!! warning "Metric collectors are removed in api 0.8.0"
 
@@ -414,6 +414,58 @@ directory has no suffix, so a filtered run overwrites it.
     `gather:` and no `group_by` instead, as `report` above. See
     [Upgrade a benchmark to api 0.8.0](howto.md#upgrade-a-benchmark-to-api-080).
 
+### Reading the output tree
+
+After a run, `out/` looks like this (files of `D2` and of most nodes left out):
+
+```
+out/
+├── data.D1/
+│   ├── D1.txt.gz
+│   ├── D1.meta.json
+│   ├── methods.M1/
+│   │   ├── M1.model.out.gz
+│   │   ├── metrics.m1/m1.scores.txt
+│   │   └── metrics.m2/m2.scores.txt
+│   ├── methods.M2.9da5174a/                  # e = 1
+│   │   └── ...
+│   ├── methods.M2.e44a1eb8/                  # e = 2
+│   │   └── ...
+│   └── per_dataset.summary-7a8ece18/
+│       └── summary.tsv
+├── data.D2/
+│   └── ...
+├── reports/
+│   ├── biometrics_report.html
+│   └── biometrics.tsv
+└── by-params/                                # the same tree, readable names
+```
+
+Directory names follow one pattern, and the two hashes in them mean different
+things:
+
+```
+methods.M2.9da5174a              per_dataset.summary-7a8ece18
+   │     │     │                      │         │       │
+ stage module  │                    stage     module    │
+          parameters hash                      collected-set hash
+```
+
+- **Parameters hash** (after a `.`): identifies the node's parameter values.
+  `M2` with `e = 1` is `9da5174a` under every dataset. A node without
+  parameters has none (`methods.M1`). The values are in `parameters.json`
+  inside the directory, and `out/by-params/` spells them out
+  (`methods.M2.e-1`).
+- **Collected-set hash** (after a `-`, gathers only): identifies which nodes
+  the gather collected. `summary` has a different one under `D1` and `D2`,
+  since each collects different scores. A run that leaves some nodes out (for
+  example with `--filter`) gets another hash, and so another directory,
+  instead of overwriting the full result. A gather with `path` has no hash:
+  `out/reports/` is overwritten by such a run.
+
+Neither is random: the same plan gives the same names on every machine, which
+is how a second `ob run` finds the results that already exist.
+
 ### A gather module
 
 A gather module receives `--output` and its parameters like any other. The
@@ -421,10 +473,10 @@ results it collects do not come as paths on the command line, since their
 number is unbounded. It gets one file listing them:
 
 ```
-metric_collector.py --output_dir /abs/out/report.biometrics-4bfefbda --name biometrics \
-    --output report_html=/abs/.../biometrics_report.html \
-    --output report_tsv=/abs/.../biometrics.tsv \
-    --from-files /abs/out/report.biometrics-4bfefbda/lineage.json
+metric_collector.py --output_dir /abs/out/reports --name biometrics \
+    --output report_html=/abs/out/reports/biometrics_report.html \
+    --output report_tsv=/abs/out/reports/biometrics.tsv \
+    --from-files /abs/out/reports/lineage.json
 ```
 
 `lineage.json`, the [**manifest**](glossary.md#manifest), is written by
@@ -502,6 +554,7 @@ module is shared:
           - template: report.Rmd
     gather:
       from: metrics.scores
+      path: reports
     outputs:
       - id: report_html
         path: "report.html"
@@ -598,7 +651,7 @@ stages:
       - id: summary_tsv
         path: "summary.tsv"
 
-  # One job over every score of the run.
+  # One job over every score of the run, written to out/reports/.
   - id: report
     modules:
       - id: biometrics
@@ -608,6 +661,7 @@ stages:
           commit: 62b51fc
     gather:
       from: metrics.scores
+      path: reports
     outputs:
       - id: report_html
         path: "biometrics_report.html"
@@ -636,7 +690,7 @@ It is in the repository as
 `ob describe plan` prints the identity of a plan: its `id`, `version`,
 `api_version` and a hash of its content.
 
-## Run a benchmark
+## Run the full benchmark
 
 `--dry` resolves the plan and writes the workflow without running it:
 
