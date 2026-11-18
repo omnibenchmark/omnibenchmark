@@ -182,7 +182,7 @@ stages:
       gpu: 1
 
 
-    # optional (array), Fan-in specs (design 010). Each collects every node producing a shared output id, grouped by a stage they descend from. A gather cuts the lineage chain; its outputs root at the stage id. Requires api_version ≥ 0.7.0.
+    # optional (array), Fan-in specs (design 010): run one module over every node producing an output id (`from`). `group_by` names an upstream stage and gives one job per node of it (per module of it below api_version 0.8.0); without it, one job collects the whole run. From api_version 0.8.0 a grouped gather sits in its group node's directory and a global one at the top of the output tree, or in `path` when given. Written as a mapping `{from, group_by, path}` or a list of them. Requires api_version ≥ 0.7.0.
     gather: ...
 
 
