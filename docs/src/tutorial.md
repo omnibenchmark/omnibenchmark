@@ -486,7 +486,7 @@ module is shared:
         software_environment: "quarto"
         repository:
           url: https://github.com/omnibenchmark/omni-quarto-report.git
-          commit: 1b90c98
+          commit: 492c767
         parameters:
           - template: report.Rmd
     gather:
