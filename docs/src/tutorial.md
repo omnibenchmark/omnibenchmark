@@ -1,8 +1,10 @@
 ## Design a benchmark YAML
 
-A benchmark is described by one YAML file, the **plan**. It names the
+A [benchmark](glossary.md#benchmark) is described by one YAML file, the [**plan**](glossary.md#plan). It names the
 benchmark's components (datasets, methods, metrics), where their code lives,
 and how the output of one feeds the next.
+
+Terms in bold are defined in the [glossary](glossary.md).
 
 This tutorial builds a small benchmark:
 
@@ -73,13 +75,16 @@ software_environments:
 The header holds general attributes of the benchmark. The body holds the
 components and how they connect.
 
+Each module runs in a [**software environment**](glossary.md#software-environment),
+provided by the plan's [**software backend**](glossary.md#software-backend).
 `host` needs no setup, which suits a tutorial. A real benchmark uses a
 reproducible backend (`conda`, `apptainer`, `envmodules`); see
 [Software backends](howto.md#software-backends).
 
 ### API version
 
-A plan states which version of the benchmark format it is written for:
+A plan states which version of the benchmark format it is written for, its
+[**api version**](glossary.md#api-version):
 
 ```yaml
 api_version: "0.8.0"
@@ -101,8 +106,9 @@ deprecated.
 
 ### Benchmark YAML body
 
-The body is a list of **stages**. A stage groups modules that take the same
-inputs and produce the same outputs, so that any module of one stage can feed
+The body is a list of [**stages**](glossary.md#stage). A stage groups
+[**modules**](glossary.md#module) that take the same
+[inputs](glossary.md#input) and produce the same [outputs](glossary.md#output), so that any module of one stage can feed
 any module of the next.
 
 Let's start with the first stage, containing `D1` and `D2`. We call it `data`.
@@ -169,7 +175,7 @@ The next stage has inputs as well as outputs.
 ```
 
 `path` is only a file name. Omnibenchmark decides the directory: each module
-run (a **node**) gets one directory, named `stage.module`, inside the
+run (a [**node**](glossary.md#node)) gets one directory, named `stage.module`, inside the
 directory of the node it took its inputs from. A node with parameters adds a
 short hash of them. So the two stages above write:
 
@@ -182,7 +188,7 @@ out/data.D1/methods.M2.e44a1eb8/M2.model.out.gz     # e = 2
 out/data.D2/...
 ```
 
-A file's directory is its provenance: `M2.model.out.gz` above was computed by
+A file's directory is its [**lineage**](glossary.md#lineage): `M2.model.out.gz` above was computed by
 `M2` with `e = 1` from dataset `D1`. The values behind a hash are in
 `parameters.json` next to the outputs, and `out/by-params/` shows the same
 tree with readable names (`methods.M2.e-1`).
@@ -217,7 +223,8 @@ from the dataset each method result descends from.
 
 ## Create a module suitable to be used in omnibenchmark
 
-A module is a git repository with a script omnibenchmark can call. Any
+A [module](glossary.md#module) is a git repository with a script omnibenchmark can call, its
+[**entrypoint**](glossary.md#entrypoint). Any
 repository `git` can clone works: GitHub, GitLab, a local path. The plan pins
 each module to a commit; `commit` also accepts a tag or a branch name, but a
 branch needs `ob run --unpinned`, since it does not name a fixed version.
@@ -320,8 +327,8 @@ args <- parser$parse_known_args()[[1]]
 ## Gather results
 
 So far every node reads the outputs of one upstream node. A summary table or a
-report needs many results side by side. A stage with `gather:` runs one module
-over many upstream results at once.
+report needs many results side by side. A [**gather**](glossary.md#gather), a
+stage with `gather:`, runs one module over many upstream results at once.
 
 We add two such stages: a table per dataset, then one report for the run.
 
@@ -345,7 +352,7 @@ We add two such stages: a table per dataset, then one report for the run.
 ```
 
 - `from` names an output id, or a list of them. Every node producing it is a
-  **member** of the gather; here, the 12 metric nodes.
+  [**member**](glossary.md#member) of the gather; here, the 12 metric nodes.
 - `group_by: data` splits the members by the `data` node they descend from, and
   runs one job per group.
 
@@ -419,8 +426,8 @@ metric_collector.py --output_dir /abs/out/report.biometrics-4bfefbda --name biom
     --from-files /abs/out/report.biometrics-4bfefbda/lineage.json
 ```
 
-`lineage.json` is written by omnibenchmark next to the gather's outputs. One
-member of it:
+`lineage.json`, the [**manifest**](glossary.md#manifest), is written by
+omnibenchmark next to the gather's outputs. One member of it:
 
 ```json
 {"version": 2, "kind": "gather", "stage": "per_dataset", "module": "summary", "node_id": "...",
@@ -677,7 +684,7 @@ Anything after `--` is passed to Snakemake, e.g. `ob run plan.yaml -- --forceall
 ## Check the results with a validator
 
 A run that finishes says the modules exited cleanly, not that their files are
-right. A **validator** is a script that checks one output file. It is declared
+right. A [**validator**](glossary.md#validator) is a script that checks one output file. It is declared
 on a stage output and applies to that output for every module of the stage:
 
 ```yaml

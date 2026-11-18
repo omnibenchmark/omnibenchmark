@@ -18,7 +18,7 @@ For Conda, a benchmark also needs its packages to exist for that operating syste
 
 ### Software backends
 
-A benchmark plan picks one backend using the `software_backend` field:
+A benchmark [plan](glossary.md#plan) picks one [backend](glossary.md#software-backend) using the `software_backend` field:
 
 - `conda`: builds environments from conda specifications.
 - `apptainer`: runs Apptainer (formerly Singularity) images.
@@ -646,7 +646,7 @@ This reads `out/performances.tsv` and writes `out/bettr_dashboard.json`. If the 
 
 ## Check outputs with validators
 
-A validator is a script that checks one output file after a run: a table has
+A [validator](glossary.md#validator) is a script that checks one output file after a run: a table has
 the expected columns, a matrix has no NaNs. Declare it on the stage output
 (api 0.8.0); it applies to that output for every module of the stage.
 
