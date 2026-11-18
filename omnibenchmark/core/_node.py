@@ -93,7 +93,11 @@ class BenchmarkNode:
         dataset = config["dataset"]
         output_paths = []
         for path in self.get_outputs().values():
-            path = substitute_node_vars(path, self, pre)
+            # The flat layout (api 0.8.0, 007 §3.1) writes no param field for a
+            # node without parameters; its template is the only place a node
+            # can tell which layout it is in.
+            flat = "{stage}.{module}{params}" in path
+            path = substitute_node_vars(path, self, pre, flat)
             output_paths.append(
                 path.replace("{pre}", str(pre)).replace("{dataset}", dataset)
             )
