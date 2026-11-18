@@ -293,6 +293,9 @@ optional, and if no identity is found the template placeholders are used.
 
 ## Create a new module
 
+Before writing one, check [obcommons](glossary.md#obcommons), the registry of
+existing modules.
+
 Create a standalone module:
 
 ```bash

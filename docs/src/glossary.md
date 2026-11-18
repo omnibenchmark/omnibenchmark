@@ -106,6 +106,15 @@ How a benchmark's software environments are provided: `conda`, `apptainer`,
 `docker`, `envmodules` or `host`. One per plan. See
 [Software backends](howto.md#software-backends).
 
+## obcommons
+
+The community registry of omnibenchmark modules, at
+[omnibenchmark.github.io/obcommons](https://omnibenchmark.github.io/obcommons/).
+Each entry gives a module's repository and pinned commit, the stage it fits,
+its inputs and outputs, and the api version it needs. Look there before
+writing a module; add yours with a pull request to
+[omnibenchmark/obcommons](https://github.com/omnibenchmark/obcommons).
+
 ## Benchmarker
 
 The person who designs and maintains a benchmark: defines the stages, the

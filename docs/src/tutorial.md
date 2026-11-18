@@ -476,8 +476,10 @@ writes one table row per gathered file, labelled with its lineage.
 ### Reuse a report module
 
 A report rarely needs benchmark-specific code: it reads the manifest and
-renders it. [obcommons](https://omnibenchmark.github.io/obcommons/) is the
-community registry of omnibenchmark modules; look there before writing one.
+renders it. [**obcommons**](glossary.md#obcommons), at
+[omnibenchmark.github.io/obcommons](https://omnibenchmark.github.io/obcommons/),
+is the community registry of omnibenchmark modules; look there before writing
+one.
 
 For reports it lists
 [omni-quarto-report](https://github.com/omnibenchmark/omni-quarto-report), a
