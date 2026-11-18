@@ -569,6 +569,8 @@ stages:
     outputs:
       - id: metrics.scores
         path: "{module.id}.scores.txt"
+        validators:
+          - script: checks/scores_not_empty.py
 
   # One job per dataset, over the scores computed from it.
   - id: per_dataset
@@ -671,6 +673,59 @@ The methods are fast, so we can run it:
 Results are under `out/`, laid out as described above. Running the same
 command again does nothing: only missing or outdated results are computed.
 Anything after `--` is passed to Snakemake, e.g. `ob run plan.yaml -- --forceall`.
+
+## Check the results with a validator
+
+A run that finishes says the modules exited cleanly, not that their files are
+right. A **validator** is a script that checks one output file. It is declared
+on a stage output and applies to that output for every module of the stage:
+
+```yaml
+  - id: metrics
+    ...
+    outputs:
+      - id: metrics.scores
+        path: "{module.id}.scores.txt"
+        validators:
+          - script: checks/scores_not_empty.py   # relative to the plan
+```
+
+The script receives the file to check as its only argument and exits 0 if it
+passes. Ours, in
+[`tests/data/checks/scores_not_empty.py`](https://github.com/omnibenchmark/omnibenchmark/blob/main/tests/data/checks/scores_not_empty.py),
+rejects an empty file:
+
+```python
+import sys
+
+with open(sys.argv[1]) as f:
+    lines = [line for line in f if line.strip()]
+
+if not lines:
+    sys.exit(f"{sys.argv[1]} is empty")
+```
+
+Validators are part of the benchmark, not of a module: a contributed module
+has to pass the checks the benchmarker wrote. They run after the benchmark, on
+demand:
+
+=== "Shell"
+
+    ```shell
+    ob validate outputs tests/data/Benchmark_005.yaml
+    ```
+
+=== "Output"
+
+    ```
+    Validating 12 output file(s)
+    ```
+
+The command exits 1 if any file fails. `ob describe status
+tests/data/Benchmark_005.yaml --html` writes `out/status_report.html`, with the
+verdict next to every file. See
+[Check outputs with validators](howto.md#check-outputs-with-validators) for
+running them in their own environment and for what makes a verdict stale.
 
 ## Run a single module
 

@@ -68,6 +68,8 @@ stages:
     outputs:
       - id: metrics.scores
         path: "{module.id}.scores.txt"
+        validators:
+          - script: checks/scores_not_empty.py
 
   # One job per dataset, over the scores computed from it.
   - id: per_dataset
