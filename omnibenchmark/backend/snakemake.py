@@ -107,17 +107,19 @@ def _ob_foreach(ckpt, pattern, name, template, wc=None):
 
 def _ob_members(record, foreach):
     # A member below a foreach is one per value found on disk; the value is
-    # in its `dir` and `files`.
+    # its `value`, and is filled into its `dir` and `files`.
     members = []
     for member in record["members"]:
         if member["node_id"] not in foreach:
             members.append(member)
             continue
         ckpt, pattern, name = foreach[member["node_id"]]
-        for path in _ob_foreach(ckpt, pattern, name, "{%s}" % name):
-            fill = lambda s: s.replace("{%s}" % name, path)
+        for value in _ob_foreach(ckpt, pattern, name, "{%s}" % name):
+            fill = lambda s: s.replace("{%s}" % name, value)
             files = {k: fill(v) for k, v in member["files"].items()}
-            members.append({**member, "dir": fill(member["dir"]), "files": files})
+            members.append(
+                {**member, "dir": fill(member["dir"]), "files": files, "value": value}
+            )
     record["members"] = members
 
 """
@@ -235,6 +237,7 @@ class SnakemakeGenerator:
         self._nodes_by_id: dict = {}
         self._producer_by_path: dict = {}
         self._groups: list = []
+        self._foreach_producers: list = []
 
     def generate_snakefile(self, nodes: List[ResolvedNode], output_path: Path):
         """Write a complete Snakefile to *output_path*."""

@@ -42,6 +42,7 @@ else:                                               # gather (manifest) or over 
     if paths is None:
         members = json.load(open(args["from-files"][0]))["members"]
         paths = [m["files"]["processed"] for m in members]
+        assert [m["value"] for m in members] == [p.split("/")[-3] for p in paths]
     parts = [open(p).read() for p in paths]
     open(os.path.join(args["output_dir"][0], "summary.txt"), "w").write("".join(parts))
 """
