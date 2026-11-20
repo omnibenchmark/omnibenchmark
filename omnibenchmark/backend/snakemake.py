@@ -41,6 +41,7 @@ from omnibenchmark.core._paths import (
 from omnibenchmark.model.benchmark import APIVersion
 from omnibenchmark.core._lineage import iter_ancestors, join_hash
 from omnibenchmark.model.benchmark import SoftwareBackendEnum
+from omnibenchmark.model.failure import node_dir as _failure_dir
 from omnibenchmark.model.resolved import (
     ResolvedEnvironment,
     ResolvedModule,
@@ -307,6 +308,12 @@ class SnakemakeGenerator:
         self._groups, covered = _wildcard.group_nodes(
             nodes, self._foreach_producers, _foreach_dir
         )
+        if self.api_version >= APIVersion.V0_8_0:
+            # The node wrapper every rule sources (design 014).
+            shutil.copy(
+                Path(__file__).with_name("ob_node.sh"),
+                output_path.parent / ".ob_node.sh",
+            )
         with open(output_path, "w") as f:
             self._write_header(f)
             self._write_foreach_header(f)
@@ -728,15 +735,15 @@ class SnakemakeGenerator:
 
         The record is a plain JSON string in params (no live objects), built
         here at generation time; the rule only makes paths absolute and writes
-        it. It has no file inputs, so it never waits on members, and a change
-        to the member set changes params, which reruns it and the gather.
+        it. It waits for the members, because a member that failed is only
+        known once it has run (design 014); a change to the member set
+        changes params, which reruns it and the gather.
 
         Members below a foreach (design 013) are known only once its
-        checkpoint has run: the rule then waits on the checkpoint alone and
+        checkpoint has run: for them the rule waits on the checkpoint and
         writes one member per value found on disk.
         """
         manifest_record = self._manifest_record(node)
-        record = json.dumps(manifest_record, sort_keys=True)
         foreach = {}
         for member in manifest_record["members"]:
             found = next(
@@ -744,10 +751,28 @@ class SnakemakeGenerator:
             )
             if found:
                 foreach[member["node_id"]] = found
+        # Where each member's failure.json would be; popped by the rule. A
+        # member below a foreach has a pattern here, so its failure is not
+        # seen: it counts as succeeded.
+        manifest_record["_failure"] = {
+            m["node_id"]: os.path.join(
+                _failure_dir(self._nodes_by_id[m["node_id"]]), "failure.json"
+            )
+            for m in manifest_record["members"]
+            if m["node_id"] in self._nodes_by_id
+        }
+        record = json.dumps(manifest_record, sort_keys=True)
         f.write(f"rule {self._sanitize_rule_name(node.id)}_manifest:\n")
-        if foreach:
-            rules = sorted({rule for rule, _, _ in foreach.values()})
+        # Waits for the members: a failed one is only known once it has run.
+        members = [
+            p
+            for k, p in node.inputs.items()
+            if _is_member_key(k) and not self._foreach_of(p)
+        ]
+        rules = sorted({rule for rule, _, _ in foreach.values()})
+        if members or rules:
             f.write("    input:\n")
+            f.writelines(f'        "{p}",\n' for p in members)
             for rule in rules:
                 f.write(f"        lambda wc: checkpoints.{rule}.get().output[0],\n")
         f.write("    output:\n")
@@ -760,6 +785,7 @@ class SnakemakeGenerator:
         f.write("    run:\n")
         f.write("        import json, os\n")
         f.write("        record = json.loads(params.record)\n")
+        f.write('        where = record.pop("_failure")\n')
         if foreach:
             entries = ", ".join(
                 f'"{member_id}": (checkpoints.{rule}, "{pattern}", "{name}")'
@@ -772,6 +798,17 @@ class SnakemakeGenerator:
             '                k: os.path.abspath(v) for k, v in member["files"].items()\n'
         )
         f.write("            }\n")
+        # A member with a failure.json moves to `failed` (design 014 §3.5).
+        f.write('        failed = [m for m in record["members"]\n')
+        f.write('                  if os.path.exists(where.get(m["node_id"], ""))]\n')
+        f.write("        for m in failed:\n")
+        f.write('            with open(where[m["node_id"]]) as fh:\n')
+        f.write('                m["failure"] = json.load(fh)\n')
+        f.write("        if failed:\n")
+        f.write(
+            '            record["members"] = [m for m in record["members"] if m not in failed]\n'
+        )
+        f.write('            record["failed"] = failed\n')
         f.write('        with open(output[0], "w") as fh:\n')
         f.write("            json.dump(record, fh, indent=1)\n")
         f.write("\n")
@@ -798,6 +835,25 @@ class SnakemakeGenerator:
         params_json_escaped = params_json.replace("{", "{{").replace("}", "}}")
         params_json_escaped = params_json_escaped.replace("'", "'\\''")
         return f"echo '{params_json_escaped}' > $OUTPUT_DIR/parameters.json"
+
+    def _ob_run(self, node: ResolvedNode, input_keys, manifest: bool = False) -> str:
+        """The `ob_run` prefix of a module command (design 014), or "" before
+        api 0.8.0. Upstream: the directories of the nodes producing
+        *input_keys*; a gather's members are handled by its manifest."""
+        if self.api_version < APIVersion.V0_8_0:
+            return ""
+        producers = (self._producer_by_path.get(node.inputs[k]) for k in input_keys)
+        upstream = sorted(
+            {_failure_dir(self._nodes_by_id[p[0]]) for p in producers if p}
+        )
+        outputs = " ".join(f"$OUTPUT_FILE_{i}" for i in range(len(node.outputs)))
+        prefix = f'OB_NODE={_failure_dir(node)} OB_UPSTREAM="{" ".join(upstream)}" OB_OUTPUTS="{outputs}"'
+        if manifest:
+            prefix += ' OB_MANIFEST="$MANIFEST"'
+        return prefix + " ob_run "
+
+    def _source_lines(self) -> list:
+        return ["source .ob_node.sh"] if self.api_version >= APIVersion.V0_8_0 else []
 
     def _write_shell_lines(self, f: TextIO, lines: list) -> None:
         """Write a shell: block from a list of content lines.
@@ -830,7 +886,7 @@ class SnakemakeGenerator:
         - Writes parameters.json next to outputs
         - Uses pre-resolved shebang / interpreter info
         """
-        lines: list = []
+        lines: list = self._source_lines()
 
         # Resolve output and log directories to absolute paths before cd-ing
         # into the module directory.
@@ -889,11 +945,12 @@ class SnakemakeGenerator:
         # Build command with backslash-continuations between parts.
         # --name is always the current module's own ID (spec §3.5 Reserved Parameters)
         # TODO: do not assume python3, only if .py maybe?
+        run = self._ob_run(node, node.inputs)
         if node.module.has_shebang:
-            cmd = ["./{params.entrypoint}"]
+            cmd = [run + "./{params.entrypoint}"]
         else:
             interpreter = node.module.interpreter or "python3"
-            cmd = [f"{interpreter} {{params.entrypoint}}"]
+            cmd = [f"{run}{interpreter} {{params.entrypoint}}"]
 
         # Determine the value for --name parameter
         # BUG WORKAROUND (API <= 0.4): Legacy modules have a design flaw where they
@@ -1011,7 +1068,8 @@ class SnakemakeGenerator:
         group_keys = [k for k in (node.inputs or {}) if not _is_member_key(k)]
 
         # The log block comes first so path-resolution errors are captured too.
-        lines: list = ["mkdir -p {params.output_dir} $(dirname {log})"]
+        lines: list = self._source_lines()
+        lines.append("mkdir -p {params.output_dir} $(dirname {log})")
         lines += self._log_lines()
         lines += [
             "MODULE_DIR=$(cd {params.module_dir} && pwd)",
@@ -1058,11 +1116,12 @@ class SnakemakeGenerator:
 
         # Build the multi-line command.  Continuation args are indented 4 extra
         # spaces relative to the entrypoint line so they visually align.
+        run = self._ob_run(node, group_keys, manifest=bool(manifest))
         if node.module.has_shebang:
-            lines.append("$MODULE_DIR/{params.entrypoint} \\\\")
+            lines.append(run + "$MODULE_DIR/{params.entrypoint} \\\\")
         else:
             interpreter = node.module.interpreter or "python3"
-            lines.append(f"{interpreter} $MODULE_DIR/{{params.entrypoint}} \\\\")
+            lines.append(f"{run}{interpreter} $MODULE_DIR/{{params.entrypoint}} \\\\")
 
         # Gather args: each on its own continuation line, 4 extra spaces.
         # Array expansion: ${{var[@]}} in the Snakefile so Snakemake unescapes {{ → {

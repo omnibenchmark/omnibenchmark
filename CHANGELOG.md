@@ -3,6 +3,10 @@
 This document records all notable changes to `omnibenchmark`.
 This project adheres to [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## Unreleased
+
+- feat: a failed module leaves `failure.json` in its node directory; with `-k` the run continues and a gather runs on the members that succeeded; `ob run --timeout`, `--retry-failed`, and exit 1 when any node failed (api 0.8.0, design 014, #427)
+
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (Nov 26th 2026)
 
 - feat: `ob describe plan [--json]` prints a plan's identity (#414)
