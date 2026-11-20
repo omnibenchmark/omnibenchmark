@@ -385,6 +385,8 @@ without parameters; `parameters` holds the values behind it (as in the node's
 - A member that contributes several gathered ids appears once, with several
   `files`.
 - Members are in plan order, and position carries no meaning.
+- With `ob run -k`, a member that failed is not in `members`: it is listed
+  under `failed`, with its `failure` record (design 014 §3.5).
 
 It is written by a local `run:` rule (`<rule>_manifest`) that ob emits next to
 the fan-in rule, from a JSON record built at generation time. That rule is ob

@@ -82,7 +82,7 @@ where = ["."]
 include = ["omnibenchmark*"]
 
 [tool.setuptools.package-data]
-omnibenchmark = ["templates/**/*"]
+omnibenchmark = ["templates/**/*", "backend/*.sh"]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
