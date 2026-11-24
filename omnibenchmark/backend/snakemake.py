@@ -509,6 +509,10 @@ class SnakemakeGenerator:
                 benchmark_file = f"{benchmark_dir}/{dataset_name}_performance.txt"
             f.write("    benchmark:\n")
             f.write(f'        "{benchmark_file}"\n')
+        elif manifest:
+            # api >= 0.8.0: a gather owns its directory, next to its manifest.
+            f.write("    benchmark:\n")
+            f.write(f'        "{os.path.dirname(manifest)}/performance.txt"\n')
 
         # Output, log and benchmark must share wildcards.
         suffix = "".join(f".{{{w}}}" for w in sorted(wildcards))

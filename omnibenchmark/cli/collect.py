@@ -156,6 +156,13 @@ def _build_record(out_dir: Path, perf_file: Path) -> Optional[Dict[str, Any]]:
 
     rel_parts = perf_file.relative_to(out_dir).parts[:-1]  # drop filename
     group, segments = _segments(list(rel_parts))
+    lineage = perf_file.parent / "lineage.json"
+    if not segments and lineage.exists():
+        # A gather placed by `path:` (007 §3.2): its directory names no node,
+        # its manifest does.
+        node = json.loads(lineage.read_text())
+        group = ""  # a global gather has no dataset
+        segments = [(node["stage"], node["module"], ".default", "/".join(rel_parts))]
     if not segments:
         logger.warning(f"Unexpected path layout for {perf_file}; skipping.")
         return None

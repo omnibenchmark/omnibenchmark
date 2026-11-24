@@ -859,6 +859,26 @@ class TestBenchmarkDirective:
         content = output_path.read_text()
         assert "D1_performance.txt" in content
 
+    def test_v0_8_gather_benchmark_in_its_node_dir(self, tmp_path, minimal_module):
+        gen = SnakemakeGenerator(
+            benchmark_name="Test",
+            benchmark_version="1.0",
+            benchmark_author="Author",
+            api_version=APIVersion.V0_8_0,
+        )
+        node = ResolvedNode(
+            id="report-quarto",
+            stage_id="report",
+            module_id="quarto",
+            param_id="default",
+            module=minimal_module,
+            is_gather=True,
+            outputs=["report/report.html"],
+        )
+        output_path = tmp_path / "Snakefile"
+        gen.generate_snakefile(nodes=[node], output_path=output_path)
+        assert '"report/performance.txt"' in output_path.read_text()
+
 
 # ---------------------------------------------------------------------------
 # Test environment directives (lines 196-199)
