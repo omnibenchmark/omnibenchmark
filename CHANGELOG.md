@@ -16,6 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat(breaking)!: `metric_collectors` are removed; use a `gather:` stage without `group_by` (api 0.8.0, #416)
 - feat: a gather with `group_by` may declare `inputs:` (api 0.8.0, #416)
 - feat: `gather: {group_by: S, from: [a, b]}` names the grouping axis once; `path:` names the gather's directory (#416)
+- feat: `gather: {group_by: S, split_by: T}` splits each group by the members' module and parameters at stage T (api 0.8.0, design 010 §3.2.2)
 - feat: the fan-in manifest carries parameter values next to the `params` hash (api 0.8.0, #416)
 - feat: `foreach` outputs, a file count decided at run time; `over:` closes the fan-out (api 0.8.0, design 013, #399)
 - feat: output validators, scripts that check each produced file; `ob validate outputs` (api 0.8.0, #358)

@@ -1,12 +1,12 @@
-# 004: Omnibenchmark YAML Specification (v9)
+# 004: Omnibenchmark YAML Specification (v13)
 
 [![Status: Accepted](https://img.shields.io/badge/Status-Accepted-blue.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 9](https://img.shields.io/badge/Version-9-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 13](https://img.shields.io/badge/Version-13-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2025-01-20
 **Status**: Accepted
-**Version**: 9
+**Version**: 13
 **Supersedes**: N/A
 **Reviewed-by**: daninci
 **Related Issues**: #283
@@ -27,6 +27,7 @@
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
 | 11      | 2026-11-03 | §3.14: output validators, declared per output (`outputs[].validators`), run in `validators.env` (api 0.8.0) | ben |
 | 12      | 2026-11-05 | §3.15: `foreach` outputs; `over` closes one (api 0.8.0) | ben |
+| 13      | 2026-11-24 | §3.12: `gather[].split_by` splits a `group_by` group by the module and parameters at further stages (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -523,6 +524,7 @@ them by a stage they descend from, emitting one node per group.
 | `gather` | stage | array of objects | Fan-in specs; replaces `inputs:` for this stage |
 | `gather[].from` | — | string | Output id to collect; every producer is a member |
 | `gather[].group_by` | — | string | **Stage id** to partition members by. Optional: omitted, every producer lands in one node (the global form) |
+| `gather[].split_by` | — | string or array of strings | **Stage ids** that split each `group_by` group further (api ≥ 0.8.0). Optional |
 
 Rules:
 
@@ -536,6 +538,10 @@ Rules:
   `metric_collector` has.
 - All `gather` entries on a stage must share one `group_by`, and "no
   `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
+- `split_by` (api ≥ 0.8.0) needs `group_by` and must name real stages. Inside
+  each group, members with the same module and parameters at every `split_by`
+  stage form one node; stages between `group_by` and those merge
+  ([010 §3.2.2](./010-gather.md)). All entries on a stage share one `split_by`.
 - `requires` on a gather module is a parse-time error: a gather collects members
   from many lineages at once, so there is no single lineage to match. Put the
   `requires` on the modules producing the gathered id, where it decides which
