@@ -121,7 +121,7 @@ The wrapper decides, in this order:
 |---|---|---|---|
 | an input's producer has a `failure.json` | `upstream` | null | `input from a failed node` |
 | a gather whose manifest has no member left | `upstream` | null | `every member failed` |
-| timeout set and exit 124, or exit 137 at or past the limit | `timed_out` | as returned | `timed out after N s` |
+| timeout set and exit 124 | `timed_out` | as returned | `timed out after N s` |
 | exit 126 / 127 | `failed_to_start` | 126 / 127 | `entrypoint not executable`, `entrypoint or interpreter not found` |
 | non-zero exit and stderr matches a start pattern | `failed_to_start` | as returned | the matching line |
 | exit above 128 | `crashed` | as returned | `killed by signal N`, `(out of memory?)` for 9 |
@@ -170,10 +170,11 @@ result.
   rule's shell template changes, so changing either reruns nothing.
   Snakemake's apptainer call does not pass `--cleanenv`, so both reach the
   container.
-- **Bash and coreutils only** (`timeout`, `grep`, `tr`, `mktemp`): the wrapper
-  runs inside the module's environment, which may have no Python.
-- **`timeout` signals its process group**, so children of the entrypoint die
-  with it; `-k 30` sends KILL to whatever ignores TERM.
+- **Bash and coreutils only** (`grep`, `tr`, `mktemp`): the wrapper runs
+  inside the module's environment, which may have no Python.
+- **The timeout is bash, not coreutils `timeout`**, which macOS lacks. It keeps
+  `timeout -k 30`'s contract: the entrypoint runs in its own process group, so
+  its children die with it; TERM, then KILL 30 s later; exit 124.
 - **stderr is teed** to a temporary file in a synchronous pipeline, so the
   reason line is complete when the wrapper reads it; stdout and stderr still
   stream to the rule log.
@@ -334,4 +335,4 @@ Follow-ups, not in this change:
 1. [010: gather](./010-gather.md), §3.5.1 the manifest
 2. 015: host files (PR #419)
 3. [008: filtering](./008-filtering.md), §2 no silent absence
-4. GNU coreutils, `timeout`: exit status 124, 126, 127, 137
+4. GNU coreutils, `timeout`: exit status 124, 126, 127; bash: 126, 127

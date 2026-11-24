@@ -35,6 +35,39 @@ _ob_fail() {
     exit $(( ${rc:-1} > 0 ? ${rc:-1} : 1 ))
 }
 
+# _ob_timeout SECONDS CMD...: GNU `timeout -k 30`, which macOS lacks. Exits
+# 124 when the time ran out (KILL 30 s after TERM), else with CMD's status.
+# A subshell, so `set -m` (CMD in its own process group, signalled as a
+# whole like `timeout` does) stays local.
+_ob_timeout() (
+    t=$1
+    shift
+    set -m +e
+    flag=$(mktemp)
+    rm -f "$flag"
+    "$@" &
+    pid=$!
+    # The watcher's sleeps are killed with it, so none outlives the module.
+    (
+        trap 'kill $s 2>/dev/null; exit' TERM
+        sleep "$t" & s=$!; wait $s
+        : > "$flag"
+        kill -TERM -- -$pid
+        sleep 30 & s=$!; wait $s
+        kill -KILL -- -$pid
+    ) > /dev/null 2>&1 &
+    watcher=$!
+    wait $pid 2> /dev/null  # the job notice ("Terminated"), not CMD's stderr
+    rc=$?
+    kill $watcher 2> /dev/null
+    wait $watcher 2> /dev/null
+    if [ -e "$flag" ]; then
+        rm -f "$flag"
+        exit 124
+    fi
+    exit $rc
+)
+
 ob_run() {
     local d rc up="" t=${OB_TIMEOUT:-0} err msg cmd=("$@")
     rm -f "$OB_OUT/$OB_NODE/failure.json"
@@ -46,7 +79,7 @@ ob_run() {
         _ob_fail upstream "" "every member failed"
     fi
 
-    [ "$t" -gt 0 ] && cmd=(timeout -k 30 "$t" "$@")
+    [ "$t" -gt 0 ] && cmd=(_ob_timeout "$t" "$@")
     err=$(mktemp)
     SECONDS=0
     set +e
@@ -57,7 +90,7 @@ ob_run() {
     [ -n "$msg" ] || msg=$(grep -v -e '^[[:space:]]*$' -e '^Execution halted' "$err" | tail -n1 || true)
     rm -f "$err"
 
-    if [ "$t" -gt 0 ] && { [ "$rc" = 124 ] || { [ "$rc" = 137 ] && [ "$SECONDS" -ge "$t" ]; }; }; then
+    if [ "$t" -gt 0 ] && [ "$rc" = 124 ]; then
         _ob_fail timed_out "$rc" "timed out after $t s"
     elif [ "$rc" = 126 ]; then
         _ob_fail failed_to_start "$rc" "entrypoint not executable"
