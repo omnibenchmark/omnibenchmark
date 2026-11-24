@@ -20,24 +20,24 @@ def model():
     return Benchmark.from_yaml(PLAN)
 
 
+def _manifest(model, **bench) -> dict:
+    """What `write_run_manifest` returns, with *bench* overriding the identity."""
+    identity = {**rr.benchmark_record(model), **bench}
+    return {"run_id": "r1", "timestamp": "t", "ob_version": "v", "benchmark": identity}
+
+
 def _record(out: Path, model, selection=None, **bench):
     """A run line as `ob run` writes it, with *bench* overriding the identity."""
-    rr.write_run_record(out, model, PLAN, ["n1", "n2"], selection)
-    md = out / ".metadata"
-    lines = (md / rr.RUNLOG).read_text().splitlines()
-    last = json.loads(lines[-1])
-    last["benchmark"].update(bench)
-    lines[-1] = json.dumps(last)
-    (md / rr.RUNLOG).write_text("\n".join(lines) + "\n")
+    rr.write_run_record(out, _manifest(model, **bench), PLAN, ["n1", "n2"], selection)
 
 
 @pytest.mark.short
 def test_write_run_record(tmp_path, model):
-    (tmp_path / ".metadata").mkdir()
-    (tmp_path / ".metadata" / "manifest.json").write_text('{"run_id": "r1"}')
     blob = {"picks": {"s": ["m"]}, "parent": {"sha256": "abc"}}
     sel = rr.selection_of(None, None, blob)
-    line = rr.write_run_record(tmp_path, model, PLAN, ["b", "a"], sel, blob, ["gpu"])
+    line = rr.write_run_record(
+        tmp_path, _manifest(model), PLAN, ["b", "a"], sel, blob, ["gpu"]
+    )
 
     md = tmp_path / ".metadata"
     assert line["run_id"] == "r1"
@@ -120,8 +120,17 @@ def test_out_dir_from_an_older_ob(tmp_path, model):
 
 
 @pytest.mark.short
+def test_lines_in_another_format_are_skipped(tmp_path, model):
+    (tmp_path / ".metadata").mkdir()
+    (tmp_path / ".metadata" / rr.RUNLOG).write_text('{"run_id": "x", "status": "ok"}\n')
+    assert rr.read_runs(tmp_path) == []
+    assert rr.check_out_dir(model, tmp_path) == ([], [])
+
+
+@pytest.mark.short
 def test_describe_selection():
     assert rr._describe({"module": "M1"}) == "-m M1"
+    assert rr._describe({"until": "PCA"}) == "--until PCA"
     assert rr._describe({"filter": {"sha256": "abcdef0123"}}) == "--filter abcdef01"
 
 

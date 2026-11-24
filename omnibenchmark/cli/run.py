@@ -398,13 +398,16 @@ def _run_benchmark(
 
     # Setup telemetry emitter early so pre-snakemake phases are traced.
     telemetry_emitter = None
+    trace = None  # where the spans go, for runs.jsonl
     if telemetry:
         from omnibenchmark.telemetry import TelemetryEmitter
 
         if telemetry_output:
             telemetry_emitter = TelemetryEmitter(output=Path(telemetry_output))
+            trace = str(Path(telemetry_output).resolve())
         else:
-            telemetry_emitter = TelemetryEmitter()  # stdout
+            telemetry_emitter = TelemetryEmitter()
+            trace = "stdout"
 
     # Step 1: Populate git cache (fetch all repos)
     resolution_start_ns = int(time.time() * 1_000_000_000)
@@ -456,7 +459,7 @@ def _run_benchmark(
     # A dry run records nothing: out/ stays bound to the runs that executed.
     if not dry:
         # The trace's traceId is the run_id, so spans join runs.jsonl lines by value.
-        write_run_manifest(
+        manifest = write_run_manifest(
             output_dir=out_dir_path,
             run_id=telemetry_emitter.trace_id if telemetry_emitter else None,
             benchmark=benchmark_record(b.model),
@@ -468,21 +471,13 @@ def _run_benchmark(
         )
         write_run_record(
             out_dir_path,
-            b.model,
+            manifest,
             benchmark_path_abs,
             node_ids=(n.id for n in resolved_nodes),
             selection=selection_of(module_filter, until_stage, filter_blob),
             filter_blob=filter_blob,
             capabilities=available_capabilities or (),
-            trace=(
-                (
-                    str(Path(telemetry_output).resolve())
-                    if telemetry_output
-                    else "stdout"
-                )
-                if telemetry_emitter
-                else None
-            ),
+            trace=trace,
         )
 
     if dry:

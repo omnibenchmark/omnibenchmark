@@ -26,7 +26,8 @@ def test_remote(rustfs_storage):  # noqa: F811
             [
                 "run",
                 str(rustfs_storage.benchmark_file),
-            ]
+            ],
+            cwd=os.path.dirname(rustfs_storage.benchmark_file),
         )
 
         print(result.stdout)
