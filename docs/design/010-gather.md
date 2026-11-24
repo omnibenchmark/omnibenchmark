@@ -1,14 +1,14 @@
 # 010: Generic Gather and Joins on Stage Output Contracts
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 5](https://img.shields.io/badge/Version-5-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 7](https://img.shields.io/badge/Version-7-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 | | |
 |---|---|
 | **Authors** | btraven00 |
 | **Date** | 2026-08-25 |
 | **Status** | Draft |
-| **Version** | 5 |
+| **Version** | 7 |
 | **Supersedes** | N/A |
 | **Reviewed-by** | daninci, atchox |
 | **Related Issues** | [#289](https://github.com/omnibenchmark/omnibenchmark/issues/289) (multi-stage outputs), [#291](https://github.com/omnibenchmark/omnibenchmark/pull/291) (earlier gather proposal, held back) |
@@ -24,6 +24,7 @@
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
 | 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--from-files` (lineage.json v2, the manifest), not member argv | btraven00 |
+| 7       | 2026-11-24 | §3.2.2: `split_by` splits a group by the module and parameters at further stages (api 0.8.0). §6 Deferred: bypass stage | btraven00 |
 
 ## 1. Problem Statement
 
@@ -243,6 +244,59 @@ Why the change:
 
 A global gather (no `group_by`) is unchanged, and so is the < 0.8.0 behavior
 (§3.2–§3.3).
+
+#### 3.2.2 api ≥ 0.8.0: `split_by`
+
+`group_by: S` merges only what lies below S. It cannot merge a stage in the
+middle of the chain and keep the ones below it. The case, from
+omni-scrna/ambient-plan: every method runs on the raw matrix and on a merged
+one, and a metric compares the two results of the same method.
+
+```
+CELLCALL (pool P1)
+└─ PREP
+   ├─ as_is ── AMBIENT ├─ decontx bg=true   → filtered_h5ad   A1
+   │                   ├─ decontx bg=false  → filtered_h5ad   A2
+   │                   └─ scar              → filtered_h5ad   A3
+   └─ merged ─ AMBIENT ├─ decontx bg=true   → filtered_h5ad   M1
+                       ├─ decontx bg=false  → filtered_h5ad   M2
+                       └─ scar              → filtered_h5ad   M3
+```
+
+| `group_by` | Groups |
+|---|---|
+| `AMBIENT` | `{A1}` `{A2}` `{A3}` `{M1}` `{M2}` `{M3}` |
+| `PREP` | `{A1,A2,A3}` `{M1,M2,M3}` |
+| `CELLCALL` | `{A1,A2,A3,M1,M2,M3}` |
+
+`split_by` names further stages the members of a node must agree on:
+
+```yaml
+  - id: MERGE_M
+    gather:
+      from: [filtered_h5ad]
+      group_by: CELLCALL     # one group per pool node; the gather is its child
+      split_by: AMBIENT      # inside it, one node per AMBIENT module + parameters
+```
+
+This gives `{A1,M1}` `{A2,M2}` `{A3,M3}`. `PREP` merges because nothing names
+it.
+
+- The split key at a stage is the member's **module id and parameters** there
+  (its own, or its ancestor's). Not the node: a node id carries the stages in
+  between, which are the ones to merge.
+- A member with no node at a `split_by` stage is dropped, with a warning.
+- The gather stays a child of the `group_by` node (§3.2.1), so its labels and
+  its own `inputs:` (§3.5.2) are unchanged. `split_by` binds no label.
+- The node id and directory always carry the member digest. A group may have
+  one member (a pool with no merged variant), and two such groups under one
+  pool would otherwise collide.
+- The module tells the variants apart from each member's `lineage` in the
+  manifest (§3.5.1).
+- An unset `split_by` is left out of the plan's `summary_hash`, so plans
+  written before it keep their hash.
+
+`split_by` needs `group_by` and api ≥ 0.8.0, and takes a stage id or a list.
 
 ### 3.3 The cut: what lineage becomes
 
@@ -589,6 +643,13 @@ outstanding, and its named-output representation folds in when it lands.
 
 ### Deferred
 
+- **Bypass stage** — running downstream both with and without a stage. The
+  stage cannot re-declare its input's id: it is downstream of that producer, so
+  it shadows it (§3.1) and the branch without the stage disappears. Today the
+  stage takes a new output id and an identity module (`as_is`, a symlink)
+  stands for "without". Cost: one extra node per branch.
+- **A label for the split key** — `split_by` (§3.2.2) binds nothing an output
+  path can reference; the directory is told apart by the member digest.
 - Plain `inputs:` mixed with `gather:` on one stage — which chain resolves the
   plain input? It needs the group key to pin it.
 - Multiple `gather:` entries with different `group_by` axes on one stage

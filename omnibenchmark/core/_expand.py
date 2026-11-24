@@ -96,7 +96,9 @@ def expand_gather_stage(
     # and the gather becomes a child of that node. Before 0.8.0: by its module,
     # merging every other axis, with the chain cut (010 §3.2/§3.3).
     by_node = flat and group_label is not None
-    group_nodes: dict = {}  # group value (node id) -> group node, when by_node
+    group_nodes: dict = {}  # group value -> group node, when by_node
+    # Stages whose module and parameters split a group further (010 §3.2.2).
+    split_by = getattr(stage.gather[0], "split_by", None) or []
 
     for spec in stage.gather:
         producers = output_to_nodes.get(spec.from_, [])
@@ -130,14 +132,24 @@ def expand_gather_stage(
                     member_id, spec.group_by, nodes_by_id
                 )
                 gval = group_node.id if group_node is not None else None
-                if group_node is not None:
+                if group_node is not None and split_by:
+                    # The module and parameters at each split stage, not the
+                    # node: its id carries the stages in between, which merge.
+                    at = [
+                        ancestor_node_at_stage(member_id, s, nodes_by_id)
+                        for s in split_by
+                    ]
+                    keys = [(n.module_id, n.param_id) for n in at if n is not None]
+                    gval = (gval, *keys) if len(keys) == len(at) else None
+                if gval is not None:
                     group_nodes[gval] = group_node
             else:
                 gval = ancestor_module_at_stage(member_id, spec.group_by, nodes_by_id)
             if gval is None:
                 logger.warning(
                     f"      Gather '{stage.id}': member {member_id} has no "
-                    f"unambiguous ancestor in stage '{spec.group_by}'; dropped "
+                    f"unambiguous ancestor in stage "
+                    f"'{', '.join([spec.group_by, *split_by])}'; dropped "
                     f"from grouping."
                 )
                 continue
@@ -289,7 +301,9 @@ def expand_gather_stage(
             # its own id and directory instead of overwriting the full
             # gather (#405).
             segment = param_id
-            if flat and len(member_ids) > 1:
+            # A split group always carries it: two one-member groups under
+            # one group node would otherwise share an id and a directory.
+            if flat and (len(member_ids) > 1 or split_by):
                 segment = f"{param_id}-{join_hash(member_ids)}"
             # From 0.8.0 a node without parameters has no `.default` in its
             # id either, as in its directory (007 §3.1.1).

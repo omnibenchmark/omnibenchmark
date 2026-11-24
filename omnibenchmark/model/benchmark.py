@@ -512,6 +512,22 @@ class GatherSpec(BaseModel):
             "the output root without. Two gather nodes may not share one."
         ),
     )
+    split_by: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Stage ids that split each `group_by` group further: one gather "
+            "node per distinct module and parameters of the members at those "
+            "stages (api >= 0.8.0, needs `group_by`). Stages between "
+            "`group_by` and these merge. A stage id or a list of them."
+        ),
+    )
+
+    @field_validator("split_by", mode="before")
+    @classmethod
+    def split_by_as_list(cls, v: Any) -> Any:
+        if v is None:
+            return []
+        return [v] if isinstance(v, str) else v
 
 
 class Resources(BaseModel):
@@ -825,7 +841,7 @@ class Stage(DescribableEntity):
         """`gather: {group_by: S, from: [a, b]}` is the list form with S on each entry."""
         if not isinstance(v, dict):
             return v
-        unknown = set(v) - {"from", "group_by", "path"}
+        unknown = set(v) - {"from", "group_by", "path", "split_by"}
         if unknown:
             raise ValueError(f"gather: unknown keys {sorted(unknown)}")
         froms = v.get("from")
@@ -833,7 +849,12 @@ class Stage(DescribableEntity):
         if not froms:
             raise ValueError("gather: `from` needs at least one output id")
         return [
-            {"from": f, "group_by": v.get("group_by"), "path": v.get("path")}
+            {
+                "from": f,
+                "group_by": v.get("group_by"),
+                "path": v.get("path"),
+                "split_by": v.get("split_by"),
+            }
             for f in froms
         ]
 
@@ -865,6 +886,11 @@ class Stage(DescribableEntity):
                 raise ValueError(
                     f"Stage '{self.id}' has gather entries with differing "
                     f"`path`. A gather node has one directory."
+                )
+            if len({tuple(spec.split_by) for spec in self.gather}) > 1:
+                raise ValueError(
+                    f"Stage '{self.id}' has gather entries with differing "
+                    f"`split_by`. A gather stage has one partition."
                 )
         return self
 
@@ -1474,6 +1500,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     # An unset foreach must not move the hash of existing plans.
                     if io.get("foreach") is None:
                         io.pop("foreach", None)
+            # Unset, it must not change the hash of plans written before it.
+            for spec in entity.get("gather") or []:
+                if not spec.get("split_by"):
+                    spec.pop("split_by", None)
         canonical = _json.dumps(execution, sort_keys=True)
         return _hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -1925,6 +1955,24 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         # `dataset` is legal and stays legal in released 0.6 specs.
         for stage in self.stages:
             for spec in stage.gather or []:
+                if spec.split_by:
+                    if spec.group_by is None:
+                        raise ValueError(
+                            f"Stage '{stage.id}' gathers with `split_by` but no "
+                            f"`group_by`. `split_by` splits a `group_by` group."
+                        )
+                    if self.api_version < APIVersion.V0_8_0:
+                        raise ValueError(
+                            f"Stage '{stage.id}' gathers with `split_by`, which "
+                            f"requires api_version >= 0.8.0 (this benchmark "
+                            f"declares {self.api_version.value})."
+                        )
+                    unknown = sorted(set(spec.split_by) - set(stage_ids))
+                    if unknown:
+                        raise ValueError(
+                            f"Stage '{stage.id}' gathers with `split_by: "
+                            f"{unknown}`, which is not a known stage id."
+                        )
                 if spec.group_by is None:
                     continue
                 if spec.group_by not in stage_ids:

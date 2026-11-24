@@ -218,16 +218,90 @@ def test_gather_whose_producers_were_all_pruned_is_skipped():
     assert nodes == []
 
 
-def _node(node_id, parent_id, stage_id, module_id, node_dir, provides=None):
+def _node(
+    node_id, parent_id, stage_id, module_id, node_dir, provides=None, param_id=""
+):
     ctx = SimpleNamespace(provides=dict(provides or {}))
     return SimpleNamespace(
         id=node_id,
         parent_id=parent_id,
         stage_id=stage_id,
         module_id=module_id,
+        param_id=param_id,
         node_dir=node_dir,
         template_context=ctx,
     )
+
+
+def _split_by_tree(methods_by_prep):
+    """pool -> prep (one node per key) -> ambient, one node per method listed."""
+    pool = _node("p1", None, "cellcall", "ed", "cellcall.ed", {"cellcall": "ed"})
+    nodes_by_id = {pool.id: pool}
+    producers = []
+    for prep, methods in methods_by_prep.items():
+        pn = _node(f"p1-prep-{prep}", pool.id, "prep", prep, f"cellcall.ed/prep.{prep}")
+        nodes_by_id[pn.id] = pn
+        for module, param in methods:
+            mn = _node(
+                f"{pn.id}-ambient-{module}{param}",
+                pn.id,
+                "ambient",
+                module,
+                f"{pn.node_dir}/ambient.{module}{param}",
+                param_id=param,
+            )
+            nodes_by_id[mn.id] = mn
+            producers.append((mn.id, f"{mn.node_dir}/f.h5ad"))
+    stage = SimpleNamespace(
+        id="merge_m",
+        gather=[
+            SimpleNamespace(from_="filtered", group_by="cellcall", split_by=["ambient"])
+        ],
+        modules=[
+            SimpleNamespace(
+                id="cmp", name="cmp", parameters=None, provides=None, resources=None
+            )
+        ],
+        outputs=[SimpleNamespace(id="cmp_json", path="cmp.json")],
+        resources=None,
+    )
+    bench = _fake_benchmark()
+    bench.model.api_version = APIVersion.V0_8_0
+    return expand_gather_stage(
+        stage=stage,
+        benchmark=bench,
+        resolved_modules_cache={("merge_m", "cmp"): object()},
+        output_to_nodes={"filtered": producers},
+        nodes_by_id=nodes_by_id,
+    )
+
+
+@pytest.mark.short
+def test_split_by_pairs_members_across_a_middle_stage():
+    # Each method runs under prep as_is and prep merged. group_by cellcall
+    # alone is one group of six; split_by ambient pairs the two runs of each
+    # method and parameter set, merging prep (010 §3.2.2).
+    methods = [("decontx", ".aaa"), ("decontx", ".bbb"), ("scar", "")]
+    nodes = _split_by_tree({"as_is": methods, "merged": methods})
+
+    assert [n.parent_id for n in nodes] == ["p1"] * 3
+    assert [n.gathered_from for n in nodes] == [
+        [f"p1-prep-as_is-ambient-{m}{p}", f"p1-prep-merged-ambient-{m}{p}"]
+        for m, p in methods
+    ]
+    assert len({n.id for n in nodes}) == 3
+    assert len({n.get_output_list()[0] for n in nodes}) == 3
+
+
+@pytest.mark.short
+def test_split_by_one_member_groups_do_not_collide():
+    # No merged variant (an HTO pool): every group has one member, and the
+    # member digest still tells their ids and directories apart.
+    nodes = _split_by_tree({"as_is": [("decontx", ""), ("scar", "")]})
+
+    assert [len(n.gathered_from) for n in nodes] == [1, 1]
+    assert len({n.id for n in nodes}) == 2
+    assert len({n.get_output_list()[0] for n in nodes}) == 2
 
 
 @pytest.mark.short
@@ -1893,3 +1967,72 @@ def test_gather_of_several_ids_is_a_union_before_0_8():
     nodes, _, _ = _plan(_two_id_gather_yaml(api="0.7.0").replace("module.id", "name"))
     gathers = [n for n in nodes if n.stage_id == "pcam"]
     assert any("iso" in m for g in gathers for m in g.gathered_from)
+
+
+_SPLIT_YAML = """
+id: t
+description: t
+version: '1.0'
+benchmarker: me
+api_version: {api}
+software_backend: host
+software_environments:
+  env: {{description: e, easyconfig: e.eb}}
+stages:
+  - id: data
+    outputs: [{{id: raw, path: r.tsv}}]
+    modules: [{{id: d1, repository: {{url: 'http://x', commit: abc}}, software_environment: env}}]
+  - id: method
+    inputs: [raw]
+    outputs: [{{id: clustering, path: c.tsv}}]
+    modules: [{{id: m1, repository: {{url: 'http://x', commit: abc}}, software_environment: env}}]
+  - id: metrics
+    gather: {gather}
+    modules: [{{id: s, repository: {{url: 'http://x', commit: abc}}, software_environment: env}}]
+    outputs: [{{id: summary, path: summary.tsv}}]
+"""
+
+
+@pytest.mark.short
+def test_split_by_parses_a_stage_id_or_a_list():
+    from omnibenchmark.model.benchmark import Benchmark
+
+    for spelled in ("method", "[method]"):
+        gather = f"{{from: [clustering], group_by: data, split_by: {spelled}}}"
+        bench = Benchmark.from_yaml(_SPLIT_YAML.format(api="0.8.0", gather=gather))
+        assert bench.stages[2].gather[0].split_by == ["method"]
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "api, gather, message",
+    [
+        ("0.8.0", "{from: [clustering], split_by: method}", "no `group_by`"),
+        (
+            "0.8.0",
+            "{from: [clustering], group_by: data, split_by: nope}",
+            "known stage",
+        ),
+        ("0.7.0", "{from: [clustering], group_by: data, split_by: method}", "0.8.0"),
+    ],
+)
+def test_split_by_is_validated(api, gather, message):
+    from omnibenchmark.model.benchmark import Benchmark
+
+    with pytest.raises(Exception, match=message):
+        Benchmark.from_yaml(_SPLIT_YAML.format(api=api, gather=gather))
+
+
+@pytest.mark.short
+def test_split_by_changes_the_plan_hash_only_when_set():
+    from omnibenchmark.model.benchmark import Benchmark
+
+    def plan(gather):
+        return Benchmark.from_yaml(_SPLIT_YAML.format(api="0.8.0", gather=gather))
+
+    plain = plan("{from: [clustering], group_by: data}")
+    split = plan("{from: [clustering], group_by: data, split_by: method}")
+    assert plain.summary_hash() != split.summary_hash()
+    # The hash this plan had before `split_by` existed: an out dir built then
+    # must still be read as the same plan.
+    assert plain.summary_hash().startswith("6c59375b7e5e48d8")
