@@ -1,7 +1,9 @@
 """Design 014: the node wrapper (ob_node.sh) and the Failure model."""
 
 import json
+import shutil
 import subprocess
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -57,6 +59,21 @@ def test_wrapper_times_out_and_continues(tmp_path):
     rc, f = run_node(tmp_path, "sleep 10", OB_TIMEOUT="1", OB_CONTINUE_ON_ERROR="1")
     assert rc == 0  # -k: Snakemake sees a finished job
     assert (f.kind, f.exit_code, f.timeout_s) == (FailureKind.TIMED_OUT, 124, 1)
+
+
+@pytest.mark.skipif(shutil.which("setsid") is None, reason="needs setsid")
+def test_wrapper_times_out_past_a_descendant_holding_stderr(tmp_path):
+    # The grandchild leaves the process group, so the timeout's KILL misses
+    # it, as it misses one stuck in the kernel; it keeps stderr open for 60 s.
+    stray = "setsid sh -c 'echo $$ > stray; exec sleep 60'"
+    t0 = time.monotonic()
+    try:
+        rc, f = run_node(tmp_path, f'sh -c "{stray} & sleep 30"', OB_TIMEOUT="1")
+        assert time.monotonic() - t0 < 20
+        assert f.kind == FailureKind.TIMED_OUT and rc == 124
+    finally:
+        pid = (tmp_path / "stray").read_text().strip()
+        subprocess.run(["kill", pid])
 
 
 def test_wrapper_skips_a_node_below_a_failure(tmp_path):

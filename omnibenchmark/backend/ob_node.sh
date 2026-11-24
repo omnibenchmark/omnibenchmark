@@ -69,7 +69,7 @@ _ob_timeout() (
 )
 
 ob_run() {
-    local d rc up="" t=${OB_TIMEOUT:-0} err msg cmd=("$@")
+    local d rc up="" t=${OB_TIMEOUT:-0} err fifo teepid msg cmd=("$@")
     rm -f "$OB_OUT/$OB_NODE/failure.json"
     for d in ${OB_UPSTREAM:-}; do
         [ -e "$OB_OUT/$d/failure.json" ] && up+=" $d"
@@ -83,8 +83,24 @@ ob_run() {
     err=$(mktemp)
     SECONDS=0
     set +e
-    # stderr to the log as usual, and to $err for the reason.
-    { "${cmd[@]}" 2>&1 1>&3 | tee "$err" >&2; rc=${PIPESTATUS[0]}; } 3>&1
+    # stderr to the log as usual, and to $err for the reason. Through a fifo,
+    # not a pipe: a pipe waits for every process holding its write end, so a
+    # descendant that outlives the module (a daemon, or one stuck in the
+    # kernel where even KILL cannot reach it) would hold the node open past
+    # its timeout. tee gets 5 s to drain once the module has returned.
+    fifo="$err.fifo"
+    mkfifo "$fifo"
+    tee "$err" < "$fifo" >&2 &
+    teepid=$!
+    "${cmd[@]}" 2> "$fifo"
+    rc=$?
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$teepid" 2> /dev/null || break
+        sleep 0.5
+    done
+    kill "$teepid" 2> /dev/null
+    wait "$teepid" 2> /dev/null
+    rm -f "$fifo"
     set -e
     msg=$(grep -E -m1 "$OB_START_PATTERNS" "$err" || true)
     [ -n "$msg" ] || msg=$(grep -v -e '^[[:space:]]*$' -e '^Execution halted' "$err" | tail -n1 || true)
