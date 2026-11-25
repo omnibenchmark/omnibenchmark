@@ -233,7 +233,7 @@ def _node(
     )
 
 
-def _split_by_tree(methods_by_prep):
+def _paired_tree(methods_by_prep):
     """pool -> prep (one node per key) -> ambient, one node per method listed."""
     pool = _node("p1", None, "cellcall", "ed", "cellcall.ed", {"cellcall": "ed"})
     nodes_by_id = {pool.id: pool}
@@ -277,12 +277,12 @@ def _split_by_tree(methods_by_prep):
 
 
 @pytest.mark.short
-def test_split_by_pairs_members_across_a_middle_stage():
+def test_group_by_list_pairs_members_across_a_middle_stage():
     # Each method runs under prep as_is and prep merged. group_by cellcall
-    # alone is one group of six; split_by ambient pairs the two runs of each
+    # alone is one group of six; group_by [cellcall, ambient] pairs the runs of each
     # method and parameter set, merging prep (010 §3.2.2).
     methods = [("decontx", ".aaa"), ("decontx", ".bbb"), ("scar", "")]
-    nodes = _split_by_tree({"as_is": methods, "merged": methods})
+    nodes = _paired_tree({"as_is": methods, "merged": methods})
 
     assert [n.parent_id for n in nodes] == ["p1"] * 3
     assert [n.gathered_from for n in nodes] == [
@@ -294,10 +294,10 @@ def test_split_by_pairs_members_across_a_middle_stage():
 
 
 @pytest.mark.short
-def test_split_by_one_member_groups_do_not_collide():
+def test_group_by_list_one_member_groups_do_not_collide():
     # No merged variant (an HTO pool): every group has one member, and the
     # member digest still tells their ids and directories apart.
-    nodes = _split_by_tree({"as_is": [("decontx", ""), ("scar", "")]})
+    nodes = _paired_tree({"as_is": [("decontx", ""), ("scar", "")]})
 
     assert [len(n.gathered_from) for n in nodes] == [1, 1]
     assert len({n.id for n in nodes}) == 2
@@ -1993,46 +1993,69 @@ stages:
 """
 
 
+_SIBLING = """  - id: norm
+    inputs: [raw]
+    outputs: [{id: normed, path: n.tsv}]
+    modules: [{id: n1, repository: {url: 'http://x', commit: abc}, software_environment: env}]
+  - id: metrics
+"""
+
+
 @pytest.mark.short
-def test_split_by_parses_a_stage_id_or_a_list():
+@pytest.mark.parametrize("listed", ["[data, method]", "[method, data]"])
+def test_group_by_list_anchors_at_the_shallowest_stage(listed):
+    """The list is unordered: the stage the others descend from is the group
+    node, the rest split it (010 §3.2.2)."""
     from omnibenchmark.model.benchmark import Benchmark
 
-    for spelled in ("method", "[method]"):
-        gather = f"{{from: [clustering], group_by: data, split_by: {spelled}}}"
-        bench = Benchmark.from_yaml(_SPLIT_YAML.format(api="0.8.0", gather=gather))
-        assert bench.stages[2].gather[0].split_by == ["method"]
+    gather = f"{{from: [clustering], group_by: {listed}}}"
+    bench = Benchmark.from_yaml(_SPLIT_YAML.format(api="0.8.0", gather=gather))
+    spec = bench.stages[2].gather[0]
+    assert (spec.group_by, spec.split_by) == ("data", ["method"])
+
+
+@pytest.mark.short
+def test_group_by_list_of_one_is_a_plain_group_by():
+    from omnibenchmark.model.benchmark import Benchmark
+
+    def plan(group_by):
+        gather = f"{{from: [clustering], group_by: {group_by}}}"
+        return Benchmark.from_yaml(_SPLIT_YAML.format(api="0.8.0", gather=gather))
+
+    assert plan("[data]").summary_hash() == plan("data").summary_hash()
 
 
 @pytest.mark.short
 @pytest.mark.parametrize(
     "api, gather, message",
     [
-        ("0.8.0", "{from: [clustering], split_by: method}", "no `group_by`"),
-        (
-            "0.8.0",
-            "{from: [clustering], group_by: data, split_by: nope}",
-            "known stage",
-        ),
-        ("0.7.0", "{from: [clustering], group_by: data, split_by: method}", "0.8.0"),
+        ("0.8.0", "{from: [clustering], group_by: [data, nope]}", "known stage"),
+        ("0.8.0", "{from: [clustering], group_by: []}", "at least one"),
+        ("0.8.0", "{from: [clustering], group_by: [data, data]}", "repeats"),
+        ("0.8.0", "{from: [clustering], group_by: [method, norm]}", "upstream"),
+        ("0.8.0", "{from: [clustering], group_by: data, split_by: method}", "split_by"),
+        ("0.7.0", "{from: [clustering], group_by: [data, method]}", "0.8.0"),
     ],
 )
-def test_split_by_is_validated(api, gather, message):
+def test_group_by_list_is_validated(api, gather, message):
     from omnibenchmark.model.benchmark import Benchmark
 
+    plan = _SPLIT_YAML.format(api=api, gather=gather)
+    plan = plan.replace("  - id: metrics\n", _SIBLING)
     with pytest.raises(Exception, match=message):
-        Benchmark.from_yaml(_SPLIT_YAML.format(api=api, gather=gather))
+        Benchmark.from_yaml(plan)
 
 
 @pytest.mark.short
-def test_split_by_changes_the_plan_hash_only_when_set():
+def test_group_by_list_changes_the_plan_hash_only_when_it_has_several_stages():
     from omnibenchmark.model.benchmark import Benchmark
 
     def plan(gather):
         return Benchmark.from_yaml(_SPLIT_YAML.format(api="0.8.0", gather=gather))
 
     plain = plan("{from: [clustering], group_by: data}")
-    split = plan("{from: [clustering], group_by: data, split_by: method}")
+    split = plan("{from: [clustering], group_by: [data, method]}")
     assert plain.summary_hash() != split.summary_hash()
-    # The hash this plan had before `split_by` existed: an out dir built then
-    # must still be read as the same plan.
+    # The hash this plan had before the list form existed: an out dir built
+    # then must still be read as the same plan.
     assert plain.summary_hash().startswith("6c59375b7e5e48d8")

@@ -24,7 +24,7 @@
 | 4       | 2026-08-28 | Drop `prefix:`; a gather's output tree roots at the stage id (§3.3, §4.5) | btraven00 |
 | 5       | 2026-09-15 | §3.3: the group value is the ancestor module id; label names and stage ids are disjoint namespaces | btraven00 |
 | 6       | 2026-11-08 | §3.2.1: from api 0.8.0 `group_by` partitions by the ancestor **node**, and the gather is a child of it (no cut). §3.5.1: fan-in modules receive `--from-files` (lineage.json v2, the manifest), not member argv | btraven00 |
-| 7       | 2026-11-24 | §3.2.2: `split_by` splits a group by the module and parameters at further stages (api 0.8.0). §6 Deferred: bypass stage | btraven00 |
+| 7       | 2026-11-25 | §3.2.2: `group_by` takes a list of stages; the shallowest is the group node, the others split it by module and parameters (api 0.8.0). §6 Deferred: bypass stage, `nest` | btraven00 |
 
 ## 1. Problem Statement
 
@@ -245,7 +245,7 @@ Why the change:
 A global gather (no `group_by`) is unchanged, and so is the < 0.8.0 behavior
 (§3.2–§3.3).
 
-#### 3.2.2 api ≥ 0.8.0: `split_by`
+#### 3.2.2 api ≥ 0.8.0: `group_by` over several stages
 
 `group_by: S` merges only what lies below S. It cannot merge a stage in the
 middle of the chain and keep the ones below it. The case, from
@@ -263,40 +263,64 @@ CELLCALL (pool P1)
                        └─ scar              → filtered_h5ad   M3
 ```
 
-| `group_by` | Groups |
-|---|---|
-| `AMBIENT` | `{A1}` `{A2}` `{A3}` `{M1}` `{M2}` `{M3}` |
-| `PREP` | `{A1,A2,A3}` `{M1,M2,M3}` |
-| `CELLCALL` | `{A1,A2,A3,M1,M2,M3}` |
-
-`split_by` names further stages the members of a node must agree on:
+`group_by` takes a list:
 
 ```yaml
   - id: MERGE_M
     gather:
       from: [filtered_h5ad]
-      group_by: CELLCALL     # one group per pool node; the gather is its child
-      split_by: AMBIENT      # inside it, one node per AMBIENT module + parameters
+      group_by: [CELLCALL, AMBIENT]
 ```
 
-This gives `{A1,M1}` `{A2,M2}` `{A3,M3}`. `PREP` merges because nothing names
-it.
+**Definitions**, for a member `m` and a stage `S`:
 
-- The split key at a stage is the member's **module id and parameters** there
-  (its own, or its ancestor's). Not the node: a node id carries the stages in
-  between, which are the ones to merge.
-- A member with no node at a `split_by` stage is dropped, with a warning.
-- The gather stays a child of the `group_by` node (§3.2.1), so its labels and
-  its own `inputs:` (§3.5.2) are unchanged. `split_by` binds no label.
-- The node id and directory always carry the member digest. A group may have
-  one member (a pool with no merged variant), and two such groups under one
-  pool would otherwise collide.
-- The module tells the variants apart from each member's `lineage` in the
-  manifest (§3.5.1).
-- An unset `split_by` is left out of the plan's `summary_hash`, so plans
-  written before it keep their hash.
+- `n(m, S)`: the unique ancestor-or-self node of `m` at `S`.
+- `v(m, S)`: the module id and parameters of `n(m, S)`. Not the node: a node id
+  carries every stage above it.
 
-`split_by` needs `group_by` and api ≥ 0.8.0, and takes a stage id or a list.
+**Rules**, for `group_by: [S1, …, Sk]`:
+
+1. **Anchor.** The anchor `A` is the listed stage every other listed stage
+   descends from (in the stage graph). No such stage is a plan-time error. List
+   order does not matter.
+2. **Key.** `key(m) = (n(m, A), v(m, Si) for every Si ≠ A)`. One gather node
+   per distinct key.
+3. **Parent and label.** The gather node is a child of `n(m, A)` (§3.2.1) and
+   binds one label, `A`. The other stages bind none, so its `inputs:`
+   (§3.5.2) resolve as with `group_by: A`.
+4. **Merged.** Every unlisted stage below `A` merges; every stage above it is
+   kept, since `n(m, A)` fixes them.
+5. **Dropped.** A member with no unique node at a listed stage is dropped, with
+   a warning.
+6. **Identity.** With more than one stage, the node id and directory always
+   carry the member digest. Groups may have one member, and two such under one
+   anchor node would collide. A `path` cannot tell them apart either (it has no
+   variable for the key), so `path` with a list is a plan-time collision.
+7. **Hash.** A one-stage list is the plain form, and has the same
+   `summary_hash`.
+
+On the tree above: `CELLCALL` gives `{A1…M3}`, `PREP` gives `{A1,A2,A3}`
+`{M1,M2,M3}`, and `[CELLCALL, AMBIENT]` gives `{A1,M1}` `{A2,M2}` `{A3,M3}`:
+PREP merges because nothing names it. The module tells the variants apart from
+each member's `lineage` in the manifest (§3.5.1).
+
+**dplyr.** Read each member as a row with one column per stage holding
+`v(m, S)`. The tree is already grouped by its ancestry, so
+`group_by: [CELLCALL, AMBIENT]` is
+
+```r
+members |> group_by(DATA, CELLCALL) |> group_by(AMBIENT, .add = TRUE) |> nest()
+```
+
+that is, `group_by(across(<root>:CELLCALL), AMBIENT)`, then `nest()`: the gather
+module receives each group's rows (the manifest). In pandas,
+`groupby(["DATA", "CELLCALL", "AMBIENT"])`. Two differences: the anchor's
+columns come as a whole prefix, never one at a time, so a gather cannot merge
+across its ancestry (see `nest` in §6); and the anchor is the node, which also
+tells apart two nodes reached through different joins.
+
+The internal form keeps `group_by` as the anchor and the rest as a derived,
+sorted `split_by`; `split_by` is not a plan key.
 
 ### 3.3 The cut: what lineage becomes
 
@@ -648,8 +672,19 @@ outstanding, and its named-output representation folds in when it lands.
   it shadows it (§3.1) and the branch without the stage disappears. Today the
   stage takes a new output id and an identity module (`as_is`, a symlink)
   stands for "without". Cost: one extra node per branch.
-- **A label for the split key** — `split_by` (§3.2.2) binds nothing an output
-  path can reference; the directory is told apart by the member digest.
+- **A label for the split key** — the non-anchor stages of a `group_by` list
+  (§3.2.2) bind nothing an output path can reference; the directory is told
+  apart by the member digest.
+- **`nest:` — merging across the ancestry.** `group_by` keeps every stage above
+  its anchor, so "per method, across all datasets" has no spelling but a global
+  gather. tidyr's `nest()` takes either the keys (`.by`) or the columns it
+  folds; `nest:` is the second form, on top of the list. Rule: K = the root
+  …anchor prefix plus the other listed stages (as now), minus the `nest`
+  stages, which may sit above the anchor. Parent = the node at the deepest
+  stage S with every stage root…S in K; none, the gather is global. Unset,
+  nothing changes. `group_by: METHOD, nest: [DATA]` on DATA → METHOD → METRIC
+  gives one global gather per method. `group_by: AMBIENT, nest: [PREP]` is a
+  second spelling of `[CELLCALL, AMBIENT]` above.
 - Plain `inputs:` mixed with `gather:` on one stage — which chain resolves the
   plain input? It needs the group key to pin it.
 - Multiple `gather:` entries with different `group_by` axes on one stage

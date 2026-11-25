@@ -27,7 +27,7 @@
 | 10      | 2026-10-23 | §3.13: output ids stay free-form; only `=` and whitespace are rejected (api 0.8.0) | ben |
 | 11      | 2026-11-03 | §3.14: output validators, declared per output (`outputs[].validators`), run in `validators.env` (api 0.8.0) | ben |
 | 12      | 2026-11-05 | §3.15: `foreach` outputs; `over` closes one (api 0.8.0) | ben |
-| 13      | 2026-11-24 | §3.12: `gather[].split_by` splits a `group_by` group by the module and parameters at further stages (api 0.8.0) | ben |
+| 13      | 2026-11-25 | §3.12: `gather[].group_by` takes a list of stage ids (api 0.8.0) | ben |
 
 ## 1. Problem Statement
 
@@ -523,8 +523,7 @@ them by a stage they descend from, emitting one node per group.
 |---|---|---|---|
 | `gather` | stage | array of objects | Fan-in specs; replaces `inputs:` for this stage |
 | `gather[].from` | — | string | Output id to collect; every producer is a member |
-| `gather[].group_by` | — | string | **Stage id** to partition members by. Optional: omitted, every producer lands in one node (the global form) |
-| `gather[].split_by` | — | string or array of strings | **Stage ids** that split each `group_by` group further (api ≥ 0.8.0). Optional |
+| `gather[].group_by` | — | string or array of strings | **Stage id**, or list of them (api ≥ 0.8.0), to partition members by. Optional: omitted, every producer lands in one node (the global form) |
 
 Rules:
 
@@ -538,10 +537,11 @@ Rules:
   `metric_collector` has.
 - All `gather` entries on a stage must share one `group_by`, and "no
   `group_by`" counts as one: a global entry cannot be mixed with a grouped one.
-- `split_by` (api ≥ 0.8.0) needs `group_by` and must name real stages. Inside
-  each group, members with the same module and parameters at every `split_by`
-  stage form one node; stages between `group_by` and those merge
-  ([010 §3.2.2](./010-gather.md)). All entries on a stage share one `split_by`.
+- A `group_by` list (api ≥ 0.8.0) names real stages, one of which every other
+  descends from: the anchor. Members are keyed by their anchor node plus their
+  module and parameters at each other listed stage; unlisted stages below the
+  anchor merge ([010 §3.2.2](./010-gather.md)). Order does not matter, and all
+  entries on a stage share one set.
 - `requires` on a gather module is a parse-time error: a gather collects members
   from many lineages at once, so there is no single lineage to match. Put the
   `requires` on the modules producing the gathered id, where it decides which

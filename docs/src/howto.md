@@ -489,6 +489,133 @@ stages:
 `requires` is about the data. To restrict a module by the machine instead
 (GPU, memory), use `requires_capabilities`, below. A module can use both.
 
+## Compare the variants of a stage with a gather
+
+A plain [gather](tutorial.md#gather-results) merges everything below its
+`group_by` stage. To merge one stage in the middle and keep the ones below it,
+give `group_by` a list. Needs api 0.8.0.
+
+Take a benchmark that runs every method on the data as it is and on a denoised
+copy, and asks how much denoising changes each method's clusters:
+
+```
+data.D1
+├─ prep.as_is ─── methods ├─ kmeans k=2   → clusters
+│                         ├─ kmeans k=3   → clusters
+│                         └─ leiden       → clusters
+└─ prep.denoise ─ methods ├─ kmeans k=2   → clusters
+                          ├─ kmeans k=3   → clusters
+                          └─ leiden       → clusters
+```
+
+(and the same under `data.D2`). The comparison needs the two `kmeans k=2`
+results of `D1` side by side, then the two `kmeans k=3`, and so on:
+
+```yaml
+  - id: prep
+    inputs: [counts]
+    modules:
+      - id: as_is
+        ...
+      - id: denoise
+        ...
+    outputs:
+      - {id: prepped, path: prepped.tsv}
+
+  - id: methods
+    inputs: [prepped]
+    modules:
+      - id: kmeans
+        parameters: [{k: [2, 3]}]
+        ...
+      - id: leiden
+        ...
+    outputs:
+      - {id: clusters, path: clusters.tsv}
+
+  - id: compare
+    gather:
+      from: clusters
+      group_by: [data, methods]   # one job per dataset node × method + parameters
+    modules:
+      - id: ari
+        ...
+    outputs:
+      - {id: agreement, path: agreement.tsv}
+```
+
+`prep` is not listed, so it merges: each `compare` job gets one `as_is` and one
+`denoise` result. Six jobs, three per dataset:
+
+```
+out/data.D1/compare.ari-d49e66f8/agreement.tsv    # kmeans k=2
+out/data.D1/compare.ari-152141fd/agreement.tsv    # kmeans k=3
+out/data.D1/compare.ari-2ea18a8e/agreement.tsv    # leiden
+out/data.D2/...
+```
+
+### What a list groups by
+
+Think of the collected results as a table, one row per result and one column
+per stage:
+
+| result | data | prep | methods |
+|---|---|---|---|
+| 1 | D1 | as_is | kmeans k=2 |
+| 2 | D1 | denoise | kmeans k=2 |
+| 3 | D1 | as_is | kmeans k=3 |
+| … | | | |
+
+- **The shallowest stage in the list is the group's node.** Here it is `data`:
+  results under different `data` nodes never share a job. Everything above
+  that stage is kept too, since a node fixes its whole ancestry.
+- **The other stages split the group by module and parameters.** `methods`
+  puts `kmeans k=2` and `kmeans k=3` in separate jobs.
+- **Stages below the shallowest one and not listed merge.** Here only `prep`.
+- **The order of the list does not matter.** Every other stage must lie below
+  the shallowest one: `group_by: [prep, other]` with `other` on a separate
+  branch is rejected.
+
+Other `group_by` values on the same plan:
+
+| `group_by` | one job per | members per job |
+|---|---|---|
+| `data` | dataset | 6 |
+| `prep` | dataset × prep | 3 |
+| `methods` | dataset × prep × method + parameters | 1 |
+| `[data, methods]` | dataset × method + parameters | 2 (`as_is`, `denoise`) |
+
+In dplyr terms, `group_by: [data, methods]` is
+`group_by(data, methods) |> nest()`, where `data` stands for its node, that is,
+for every stage down to it. With pandas it is `groupby(["data", "methods"])`.
+
+### Inside the module
+
+The members of one job differ only at `prep`. Read which is which from each
+member's `lineage` in `lineage.json`:
+
+```python
+import json
+
+members = json.load(open(args.from_files))["members"]
+by_prep = {
+    next(e["module"] for e in m["lineage"] if e["stage"] == "prep"): m["files"]["clusters"]
+    for m in members
+}
+# {"as_is": "/abs/out/data.D1/prep.as_is/...", "denoise": "/abs/out/data.D1/prep.denoise/..."}
+```
+
+A job may have only one member, for example when `denoise` is excluded for
+some method. Handle that case rather than assume both keys exist.
+
+### Limits
+
+- **No `path`.** A gather with a list always has the collected-set hash in its
+  directory name; nothing in a `path` could tell its jobs apart.
+- **No merging above the shallowest stage.** "One job per method, across all
+  datasets" cannot be written with a list; only a gather without `group_by`
+  collects across datasets.
+
 ## Filter modules by what the machine has
 
 Some modules only work on machines with a particular resource — a GPU, lots of
