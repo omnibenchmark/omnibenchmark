@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 import click
 
 from omnibenchmark.core._lineage import parse_node_segment
+from omnibenchmark.model.params import Params
 from omnibenchmark.constants import INTERNAL_OUT_DIRS
 from omnibenchmark.logging import logger
 from .debug import add_debug_option
@@ -132,6 +133,43 @@ def _segments(rel_parts: List[str]) -> tuple:
     return group, segments
 
 
+def _gather_record(directory: Path) -> Optional[Dict[str, Any]]:
+    """The gather manifest in *directory*, or None if it is not a gather's."""
+    try:
+        record = json.loads((directory / "lineage.json").read_text())
+    except (OSError, ValueError):
+        return None
+    return record if record.get("kind") == "gather" else None
+
+
+def _fold_gather_keys(out_dir: Path, segments: List[tuple]) -> List[tuple]:
+    """Read the key directories of a `path` gather as the gather they are.
+
+    A gather grouped by several stages, with a `path`, nests one
+    `stage.module[.param]` directory per stage below its anchor (010 §3.2.2).
+    They parse as nodes of those stages; its lineage.json `key` says how many
+    of the segments ending at it are its own.
+    """
+    folded: List[tuple] = []
+    for segment in segments:
+        node_dir = segment[3]
+        record = _gather_record(out_dir / node_dir) or {}
+        key = record.get("key") or []
+        # Without a `path` the gather's own `stage.module-hash` directory
+        # parses as itself; only a key directory reads as another stage.
+        if not key or segment[0] == record["stage"]:
+            folded.append(segment)
+            continue
+        del folded[len(folded) - (len(key) - 1) :]
+        try:
+            params = json.loads((out_dir / node_dir / "parameters.json").read_text())
+        except (OSError, ValueError):
+            params = None
+        param_dir = f".{Params(params).hash_short()}" if params else ".default"
+        folded.append((record["stage"], record["module"], param_dir, node_dir))
+    return folded
+
+
 def _collect_params(out_dir: Path, segments: List[tuple]) -> Dict[str, Any]:
     """Read every ``parameters.json`` along the lineage into ``{stage: params}``."""
     params: Dict[str, Any] = {}
@@ -156,6 +194,7 @@ def _build_record(out_dir: Path, perf_file: Path) -> Optional[Dict[str, Any]]:
 
     rel_parts = perf_file.relative_to(out_dir).parts[:-1]  # drop filename
     group, segments = _segments(list(rel_parts))
+    segments = _fold_gather_keys(out_dir, segments)
     if not segments:
         logger.warning(f"Unexpected path layout for {perf_file}; skipping.")
         return None

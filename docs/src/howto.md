@@ -554,6 +554,28 @@ out/data.D1/compare.ari-2ea18a8e/agreement.tsv    # leiden
 out/data.D2/...
 ```
 
+The hash names the set of results each job collected. To name the jobs by
+what they compare instead, give the gather a `path`. Below it, each listed
+stage other than the shallowest adds one directory, named like that stage's
+own result directories:
+
+```yaml
+    gather:
+      from: clusters
+      group_by: [data, methods]
+      path: compare
+```
+
+```
+out/data.D1/compare/methods.kmeans.e16c5319/agreement.tsv    # k=2
+out/data.D1/compare/methods.kmeans.da27e988/agreement.tsv    # k=3
+out/data.D1/compare/methods.leiden/agreement.tsv
+```
+
+`out/by-params/` shows them as `compare/methods.kmeans.k-2/` and so on. As
+with any `path`, there is no hash: a run that collects fewer results, for
+example with `--filter`, overwrites the directory.
+
 ### What a list groups by
 
 Think of the collected results as a table, one row per result and one column
@@ -592,7 +614,12 @@ for every stage down to it. With pandas it is `groupby(["data", "methods"])`.
 ### Inside the module
 
 The members of one job differ only at `prep`. Read which is which from each
-member's `lineage` in `lineage.json`:
+member's `lineage` in `lineage.json`. What they share at the other listed
+stages is under `key`:
+
+```json
+"key": [{"stage": "methods", "module": "kmeans", "params": "e16c5319", "parameters": {"k": 2}}]
+```
 
 ```python
 import json
@@ -610,8 +637,6 @@ some method. Handle that case rather than assume both keys exist.
 
 ### Limits
 
-- **No `path`.** A gather with a list always has the collected-set hash in its
-  directory name; nothing in a `path` could tell its jobs apart.
 - **No merging above the shallowest stage.** "One job per method, across all
   datasets" cannot be written with a list; only a gather without `group_by`
   collects across datasets.

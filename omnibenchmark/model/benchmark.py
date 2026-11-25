@@ -2049,7 +2049,12 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                 f"one is the group node; the rest must descend from it."
             )
         spec.group_by = anchors[0]
-        spec.split_by = sorted(s for s in listed if s != anchors[0])
+        # Root first: the order a `path` gather nests the key directories in.
+        order = [st.id for st in self.stages]
+        spec.split_by = sorted(
+            (s for s in listed if s != anchors[0]),
+            key=lambda s: (len(upstream[s]), order.index(s)),
+        )
 
     def validate_execution_context(self, benchmark_dir: Path) -> None:
         """Validate execution context including file paths and environment availability.

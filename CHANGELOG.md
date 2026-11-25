@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 
 ## Unreleased
 
-- feat: `gather: {from: x, group_by: [S, T]}` groups by the node of S and the module and parameters at T, merging the stages between them (api 0.8.0, design 010 §3.2.2, #428)
+- feat: `gather: {from: x, group_by: [S, T]}` groups by the node of S and the module and parameters at T, merging the stages between them; with `path`, each job nests in a `T.module[.param]` directory (api 0.8.0, design 010 §3.2.2, 007 §3.1.6, #428)
 
 ## [0.8.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.8.0) (Nov 26th 2026)
 

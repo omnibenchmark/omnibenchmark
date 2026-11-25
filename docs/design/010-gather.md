@@ -294,15 +294,20 @@ CELLCALL (pool P1)
    a warning.
 6. **Identity.** With more than one stage, the node id and directory always
    carry the member digest. Groups may have one member, and two such under one
-   anchor node would collide. A `path` cannot tell them apart either (it has no
-   variable for the key), so `path` with a list is a plan-time collision.
+   anchor node would collide. With a `path`, the directory is
+   `<anchor dir>/<path>/<T.module[.param]>/…`, one segment per listed stage
+   below the anchor, root first, and has no digest
+   ([007 §3.1.6](007-output-layout.md)). `lineage.json` carries the key, so
+   readers do not take those segments for nodes.
 7. **Hash.** A one-stage list is the plain form, and has the same
    `summary_hash`.
 
 On the tree above: `CELLCALL` gives `{A1…M3}`, `PREP` gives `{A1,A2,A3}`
 `{M1,M2,M3}`, and `[CELLCALL, AMBIENT]` gives `{A1,M1}` `{A2,M2}` `{A3,M3}`:
 PREP merges because nothing names it. The module tells the variants apart from
-each member's `lineage` in the manifest (§3.5.1).
+each member's `lineage` in the manifest (§3.5.1); the manifest's `key` lists
+what they share at the non-anchor stages (`stage`, `module`, `params`,
+`parameters`), root first.
 
 **dplyr.** Read each member as a row with one column per stage holding
 `v(m, S)`. The tree is already grouped by its ancestry, so

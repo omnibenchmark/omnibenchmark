@@ -1,0 +1,105 @@
+id: GatherGroupByList
+description: >-
+  A gather grouped by a list of stages (010 §3.2.2, api 0.8.0): methods run
+  under two prep variants, and compare pairs the two results of each method
+  and parameter set per dataset. Its `path` nests one directory per method
+  key; a scatter (report) runs below it.
+version: "1.0"
+benchmarker: "E2E Test Suite"
+api_version: "0.8.0"
+software_backend: host
+
+software_environments:
+  host:
+    description: "Host"
+
+stages:
+  - id: data
+    modules:
+      - id: D1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1"]
+      - id: D2
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "2+2"]
+    outputs:
+      - id: data_out
+        path: "{module.id}_data.json"
+
+  - id: prep
+    inputs:
+      - data_out
+    modules:
+      - id: as_is
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+0", "--input", "data_out", "--kind", "p"]
+      - id: denoise
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+100", "--input", "data_out", "--kind", "p"]
+    outputs:
+      - id: prep_out
+        path: "{module.id}_p.json"
+
+  - id: methods
+    inputs:
+      - prep_out
+    modules:
+      - id: M1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "input+1", "--input", "prep_out", "--kind", "m"]
+          - values: ["--evaluate", "input+2", "--input", "prep_out", "--kind", "m"]
+    outputs:
+      - id: method_out
+        path: "{module.id}_m.json"
+
+  - id: compare
+    gather:
+      from: method_out
+      group_by: [methods, data]
+      path: compare
+    modules:
+      - id: C
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1", "--kind", "c"]
+    outputs:
+      - id: compare_out
+        path: "{module.id}_c.json"
+
+  - id: report
+    inputs:
+      - compare_out
+    modules:
+      - id: R1
+        software_environment: "host"
+        repository:
+          url: bundles/dummymodule_4ff8427.bundle
+          commit: 4ff8427
+        parameters:
+          - values: ["--evaluate", "1+1", "--kind", "r"]
+    outputs:
+      - id: report_out
+        path: "{module.id}_r.json"

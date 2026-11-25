@@ -229,11 +229,12 @@ def _node(
         module_id=module_id,
         param_id=param_id,
         node_dir=node_dir,
+        outputs={},
         template_context=ctx,
     )
 
 
-def _paired_tree(methods_by_prep):
+def _paired_tree(methods_by_prep, path=None):
     """pool -> prep (one node per key) -> ambient, one node per method listed."""
     pool = _node("p1", None, "cellcall", "ed", "cellcall.ed", {"cellcall": "ed"})
     nodes_by_id = {pool.id: pool}
@@ -255,7 +256,9 @@ def _paired_tree(methods_by_prep):
     stage = SimpleNamespace(
         id="merge_m",
         gather=[
-            SimpleNamespace(from_="filtered", group_by="cellcall", split_by=["ambient"])
+            SimpleNamespace(
+                from_="filtered", group_by="cellcall", split_by=["ambient"], path=path
+            )
         ],
         modules=[
             SimpleNamespace(
@@ -291,6 +294,21 @@ def test_group_by_list_pairs_members_across_a_middle_stage():
     ]
     assert len({n.id for n in nodes}) == 3
     assert len({n.get_output_list()[0] for n in nodes}) == 3
+
+
+@pytest.mark.short
+def test_group_by_list_path_nests_one_directory_per_key_stage():
+    methods = [("decontx", ".aaa"), ("scar", "")]
+    nodes = _paired_tree({"as_is": methods, "merged": methods}, path="merge")
+
+    assert [n.node_dir for n in nodes] == [
+        "cellcall.ed/merge/ambient.decontx.aaa",
+        "cellcall.ed/merge/ambient.scar",
+    ]
+    assert [n.gather_key for n in nodes] == [
+        ["p1-prep-as_is-ambient-decontx.aaa"],
+        ["p1-prep-as_is-ambient-scar"],
+    ]
 
 
 @pytest.mark.short
@@ -1885,7 +1903,7 @@ def test_gather_path_names_the_node_directory():
 def test_gather_path_rejects_shared_reserved_and_node_like_directories():
     from omnibenchmark.core._expand import _gather_custom_dir
 
-    assert _gather_custom_dir("S", "reports", "data.D1", []) == "data.D1/reports"
+    assert _gather_custom_dir("S", "reports", "data.D1", [], []) == "data.D1/reports"
     for path, taken, match in [
         ("reports", ["reports"], "already writes into"),
         ("../x", [], "relative path"),
@@ -1895,7 +1913,7 @@ def test_gather_path_rejects_shared_reserved_and_node_like_directories():
         ("data.D1.default", [], "reads as a node directory"),
     ]:
         with pytest.raises(ValueError, match=match):
-            _gather_custom_dir("S", path, None, taken)
+            _gather_custom_dir("S", path, None, [], taken)
 
 
 def _two_id_gather_yaml(api="0.8.0"):
