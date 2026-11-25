@@ -23,10 +23,14 @@ pytest-timeout = "==2.3.1"
 
 # Type checking and linting
 pyright = ">=1.1.414,<2"
-ruff = "*"
+ruff = "<0.16"  # 0.17 enables UP/BLE/I by default
 
 # Core dependencies for the package
 git = "*"
+# conda pulls in dateutil 4.x; every botocore needs <3
+python-dateutil = "<3"
+# snakemake >=9.16 needs packaging<26
+packaging = "<26"
 
 
 [target.linux-64.dependencies]
@@ -68,7 +72,6 @@ testcontainers = ">=4.5.1"
 pytest-xdist = "*"
 
 # Development and testing
-tox = "*"
 build = "*"
 
 [tasks]
@@ -97,8 +100,6 @@ build = "python -m build ."
 clean = "rm -rf dist/ build/ *.egg-info/ .pytest_cache/ .coverage"
 
 # Python version testing
-# Tox for comprehensive testing (with library interactions like snakemake)
-test-tox = "tox"
 # Fast pixi alternative for CI (run with: pixi run -e py313 test-py313)
 test-py313 = "pytest -m 'short and not e2e' --ignore=tests/e2e --ignore=tests/cli/test_archive.py --ignore=tests/cli/test_io.py --ignore=tests/cli/test_run_benchmark.py --ignore=tests/cli/test_run_module.py --ignore=tests/io/test_S3Storage.py --ignore=tests/io/test_storage.py --ignore=tests/workflow/test_run_workflow.py"
 
@@ -117,8 +118,16 @@ docs-template = { cmd = "python templategen.py", cwd = "docs", description = "Re
 docs-build = { cmd = "mkdocs build", cwd = "docs", depends-on = ["docs-template"], description = "Build documentation" }
 docs-serve = { cmd = "mkdocs serve", cwd = "docs", depends-on = ["docs-template"], description = "Serve documentation locally" }
 
+# tox needs packaging>=26, snakemake caps packaging<26: keep it out of the default solve
+[feature.tox.dependencies]
+tox = "*"
+
+[feature.tox.tasks]
+test-tox = "tox"
+
 [environments]
 default = { solve-group = "default" }
+tox = { features = ["tox"], no-default-feature = true }
 docs = { features = ["docs"], solve-group = "default" }
 py313 = { features = [
     "py313",
@@ -133,6 +142,10 @@ pytest-cov = ">=4.1.0"
 pytest-timeout = "==2.3.1"
 # Core dependencies for the package
 git = "*"
+# conda pulls in dateutil 4.x; every botocore needs <3
+python-dateutil = "<3"
+# snakemake >=9.16 needs packaging<26
+packaging = "<26"
 
 [feature.py313.pypi-dependencies]
 # Install local package in development mode

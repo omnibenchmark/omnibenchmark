@@ -39,6 +39,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - fix: an empty `modules:` or `stages:` entry raises a parse error naming the stage (#391)
 - fix: reject whitespace in stage and module ids at every api version (#402)
 - chore: the HTML status report defaults to `<out-dir>/status_report.html` (#358)
+- chore: lock snakemake 9.27.2 (was 9.6.2); `tox` moves to its own pixi env (`pixi run -e tox test-tox`)
 
 ## [0.7.0](https://github.com/omnibenchmark/omnibenchmark/releases/tag/v0.7.0) (Sep 30th 2026)
 
