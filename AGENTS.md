@@ -20,7 +20,7 @@ omnibenchmark/          # Main package
   cli/                  # Click-based CLI subcommands
   benchmark/            # Execution orchestration, DAG management
   model/                # Pydantic data models for benchmark YAML
-  workflow/snakemake/   # Snakemake workflow engine
+  backend/              # Snakemake backend (Snakefile generation)
   dag/                  # Custom SimpleDAG (replaces NetworkX)
   remote/               # S3/MinIO remote storage integration
   versioning/           # Benchmark version management
@@ -33,7 +33,6 @@ tests/
   benchmark/            # Benchmark layer unit/integration tests
   cli/                  # CLI tests
   model/                # Model layer tests
-  workflow/             # Workflow tests
   remote/               # Remote storage tests
   e2e/                  # End-to-end scenarios
   data/bundles/         # Git bundles for offline test repos
@@ -54,7 +53,7 @@ The codebase enforces a strict separation:
 |-------|----------|----------------|
 | **Model** | `omnibenchmark/model/` | Pure data models (Pydantic), path-agnostic, YAML ↔ Python |
 | **Benchmark** | `omnibenchmark/benchmark/` | Execution context, file system awareness, DAG construction |
-| **Workflow** | `omnibenchmark/workflow/` | Engine abstraction; `SnakemakeEngine` is the only implementation |
+| **Backend** | `omnibenchmark/backend/` | Snakefile generation and Snakemake invocation |
 | **CLI** | `omnibenchmark/cli/` | User interaction layer only; thin wrappers over benchmark/model |
 
 Do not mix concerns between layers. Model classes should not know about file paths; CLI commands should not contain business logic.
@@ -63,7 +62,7 @@ Do not mix concerns between layers. Model classes should not know about file pat
 
 - `BenchmarkExecution` (`benchmark/benchmark.py`): Central orchestrator; loads YAML, builds DAG, drives execution.
 - `Benchmark` (`model/benchmark.py`): Top-level Pydantic model for the benchmark YAML spec.
-- `SnakemakeEngine` (`workflow/snakemake/snakemake.py`): Translates benchmark definition to Snakemake rules and runs them.
+- `omnibenchmark/backend/snakemake.py`: Translates resolved nodes to Snakemake rules.
 - `SimpleDAG` (`dag/simple_dag.py`): Lightweight DAG implementation (no NetworkX dependency) with topological sort, cycle detection.
 - `DAGBuilder` (`benchmark/_dag_builder.py`): Constructs the execution graph from the benchmark model.
 - `BenchmarkVersionManager` (`versioning/manager.py`): File-locked version tracking.
@@ -127,10 +126,11 @@ cd docs/ && mkdocs serve                 # live preview at localhost:8000
 - Register new commands by importing and adding them to the group in `omnibenchmark/cli/main.py`.
 - Keep CLI thin — delegate logic to `benchmark/` or `model/` layers.
 
-### Workflow Engine
+### Snakemake Backend
 
-- `WorkflowEngine` in `workflow/workflow.py` is the interface; all engines must implement it. **Deprecated — scheduled for removal** ([#201](https://github.com/omnibenchmark/omnibenchmark/issues/201)).
-- Snakemake is pinned to `>=9.0,<9.10`. The `<9.10` upper bound is a workaround: Snakemake ≥9.10 detects duplicate rule names, which our current implementation can produce — a module with the same parameters processing different input collections (e.g., `methods-M2-.dc8f7f3b-after_data` and `methods-M2-.dc8f7f3b-after_process`) both generate the rule name `methods_M2_.dc8f7f3b`. The fix is to include the `after` field in rule name generation in `rule_node.smk`. The upper bound will be relaxed once this is resolved ([#269](https://github.com/omnibenchmark/omnibenchmark/issues/269)).
+- `omnibenchmark/backend/snakemake.py` writes one rule per `ResolvedNode`; rule names come from the full node id, so they are unique.
+- Snakemake is not upper-bounded (`>=9.0` in `pyproject.toml`). The old `<9.10` pin (duplicate rule names, [#269](https://github.com/omnibenchmark/omnibenchmark/issues/269)) is gone.
+- The dev lock caps `packaging<26` and `python-dateutil<3` in `pixi.toml`: snakemake ≥9.16 needs the first, botocore the second. `ruff<0.16` keeps 0.17's new default rules out. `tox` wants `packaging>=26`, so it lives in its own env: `pixi run -e tox test-tox`.
 
 ### Error Handling
 
@@ -166,7 +166,7 @@ cd docs/ && mkdocs serve                 # live preview at localhost:8000
 | CLI entry point | `omnibenchmark/cli/main.py` |
 | Benchmark execution | `omnibenchmark/benchmark/benchmark.py` |
 | Benchmark Pydantic model | `omnibenchmark/model/benchmark.py` |
-| Snakemake engine | `omnibenchmark/workflow/snakemake/snakemake.py` |
+| Snakemake backend | `omnibenchmark/backend/snakemake.py` |
 | DAG implementation | `omnibenchmark/dag/simple_dag.py` |
 | DAG builder | `omnibenchmark/benchmark/_dag_builder.py` |
 | Remote storage factory | `omnibenchmark/remote/storage.py` |
