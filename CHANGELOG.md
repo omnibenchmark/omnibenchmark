@@ -19,6 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: the fan-in manifest carries parameter values next to the `params` hash (api 0.8.0, #416)
 - feat: `foreach` outputs, a file count decided at run time; `over:` closes the fan-out (api 0.8.0, design 013, #399)
 - feat: output validators, scripts that check each produced file; `ob validate outputs` (api 0.8.0, #358)
+- feat: gathers are timed; `ob collect performance` has a row for each (api 0.8.0, #429)
 - feat: `ob run` passes Snakemake a default memory budget, so `resources.mem_mb` limits concurrency (#418)
 - feat: `[conda]` config section for a shared env cache, channel mirror and proxy (#412)
 - feat: `ob config KEY [VALUE]`; `ob create` prefills the author from git (#394)
