@@ -22,7 +22,6 @@ see omnibenchmark.backend._snakemake_debug.DebugSnakemakeGenerator.
 import json
 import re
 import os
-import re
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
