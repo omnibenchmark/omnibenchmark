@@ -86,6 +86,21 @@ def test_export_to_dot_contains_cross_stage_edge():
 
 
 @pytest.mark.short
+def test_export_to_dot_labels_show_params_not_hashes():
+    """Node labels name stage, module and parameter values, never the hash (#207)."""
+    model = BenchmarkModel.from_yaml(
+        (Path(__file__).parent / "../data/Benchmark_001.yaml").read_text()
+    )
+    display = build_topology_dag(model, build_benchmark_dag(model, Path(".")))
+    labels = [n.get_label() or "" for n in export_to_dot(display).get_nodes()]
+    param_nodes = [n for n in display.nodes if n.parameters]
+    assert param_nodes
+    for node in param_nodes:
+        assert node.param_id.lstrip(".") not in "".join(labels)
+    assert any("process" in lbl and "P1" in lbl and "=" in lbl for lbl in labels)
+
+
+@pytest.mark.short
 def test_stage_adjacency_edges_and_labels():
     """stage_adjacency yields every declared edge with its shared output ids."""
     model = BenchmarkModel.from_yaml(_TWO_STAGE_DIAMOND)

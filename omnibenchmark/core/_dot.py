@@ -21,6 +21,21 @@ def _stage_color(index: int, total: int) -> str:
     return _INFERNO[slot]
 
 
+def _node_label(node) -> str:
+    """Readable box label: stage, module, then one ``key=value`` per parameter.
+
+    The node id stays the dot node name (it must be unique); only the label
+    drops the parameter hash and the ``after_`` suffix.
+    """
+    module_id = getattr(node, "module_id", None)
+    if module_id is None:
+        return str(node)
+    lines = [node.stage_id, module_id]
+    if node.parameters:
+        lines += [f"{k}={v}" for k, v in node.parameters.items()]
+    return "\n".join(lines)
+
+
 def export_to_dot(
     G: DiGraph,
     title: str = "",
@@ -63,7 +78,7 @@ def export_to_dot(
     for node in G.nodes:
         node_name = str(node)
         hex_color = _stage_color(unique_stages.index(stages[node]), len(unique_stages))
-        pydot_node = pydot.Node(node_name, label=node_name, fillcolor=hex_color)
+        pydot_node = pydot.Node(node_name, label=_node_label(node), fillcolor=hex_color)
         pydot_graph.add_node(pydot_node)
 
     for source, target in G.edges:
