@@ -1161,3 +1161,26 @@ def test_run_snakemake_binds_only_for_containers(tmp_path, backend, bound):
             plan_dir=tmp_path,
         )
     assert ("--singularity-args" in seen["cmd"]) is bound
+
+
+@pytest.mark.short
+@pytest.mark.parametrize(
+    "line, step",
+    [
+        ("Building DAG of jobs...", "building DAG"),
+        (
+            "Creating conda environment envs/scanpy.yaml...",
+            "building conda env envs/scanpy.yaml",
+        ),
+        (
+            "Pulling singularity image docker://ubuntu:24.04.",
+            "pulling image docker://ubuntu:24.04",
+        ),
+        ("Downloading and installing remote packages.", None),
+    ],
+)
+def test_setup_step(line, step):
+    """The setup spinner names what Snakemake is doing (#420)."""
+    from omnibenchmark.cli.run import _setup_step
+
+    assert _setup_step(line) == step
