@@ -354,7 +354,7 @@ jobs:
       - name: Run clustering benchmark with apptainer backend
         working-directory: clustering_example
         run: |
-          pixi run micromamba run -n base ob run Clustering_docker.yml --dirty --filter slice.obfilter.yaml --cores 4 --continue-on-error
+          pixi run --manifest-path "$GITHUB_WORKSPACE/pixi.toml" micromamba run -n base ob run Clustering_docker.yml --dirty --filter slice.obfilter.yaml --cores 4 --continue-on-error
 
       - name: Upload output artifacts
         if: always()
