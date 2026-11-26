@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -575,6 +576,22 @@ def _with_mem_budget(snakemake_args: list) -> list:
     return args + ["--resources", budget]
 
 
+_SETUP_STEPS = [
+    (re.compile(r"Building DAG of jobs"), "building DAG"),
+    (re.compile(r"Creating conda environment (\S+?)\.*$"), "building conda env {}"),
+    (re.compile(r"Pulling singularity image (\S+?)\.?$"), "pulling image {}"),
+]
+
+
+def _setup_step(line: str) -> Optional[str]:
+    """What Snakemake is doing before the first job, from one log line (#420)."""
+    for pattern, label in _SETUP_STEPS:
+        m = pattern.search(line)
+        if m:
+            return label.format(*m.groups())
+    return None
+
+
 def _run_snakemake(
     out_dir: Path,
     cores: int,
@@ -603,7 +620,6 @@ def _run_snakemake(
     """
     from omnibenchmark.progress import ProgressDisplay, InteractiveProgress
     from datetime import datetime
-    import re
 
     def normalize_rule_name(name: str) -> str:
         return name.replace(".", "_")
@@ -855,6 +871,7 @@ def _run_snakemake(
                 )
 
             setup_status = summary_console.status("Setting up...")
+            envs_built = 0
             setup_status.start()
 
             assert process.stdout is not None
@@ -867,6 +884,14 @@ def _run_snakemake(
                         progress.check_keyboard()
 
                     line_stripped = line.strip()
+
+                    if setup_status is not None:
+                        if "Environment for " in line and " created " in line:
+                            envs_built += 1
+                        step = _setup_step(line_stripped)
+                        if step:
+                            done = f" [{envs_built} built]" if envs_built else ""
+                            setup_status.update(f"Setting up... {step}{done}")
 
                     if telemetry_emitter:
                         if not first_rule_seen:
