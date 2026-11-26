@@ -77,11 +77,13 @@ def test_flat_layout(tmp_path, bundled_repos, keep_files):
     assert result.exit_code == 0, result.output
     with open(out / "performances.tsv", newline="") as fh:
         rows = list(csv.DictReader(fh, delimiter="\t"))
-    # 2 data + 2 shallow + 2 deep + 2 join + 2 report; gathers have no
-    # benchmark file.
-    assert len(rows) == 10, [r["path"] for r in rows]
+    # 2 data + 2 shallow + 2 deep + 2 join + 2 report, plus the gathers:
+    # 2 metrics (one per data node) + 1 global summary.
+    assert len(rows) == 13, [r["path"] for r in rows]
     reports = [r for r in rows if r["stage"] == "report"]
     assert sorted(r["dataset"] for r in reports) == ["D1", "D2"]
+    gathers = [r["stage"] for r in rows if r["stage"] in ("metrics", "summary")]
+    assert sorted(gathers) == ["metrics", "metrics", "summary"]
 
     # Rebuilding `by-params/` happens outside Snakemake, so a rerun is a no-op.
     rerun = runner.execute_cli_command(config_file, debug_label="rerun")
