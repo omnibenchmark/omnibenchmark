@@ -15,16 +15,25 @@ class TestBenchmarkLogicValidation:
     @pytest.mark.short
     def test_benchmark_yaml_spec_numeric_compatibility(self):
         """Test that benchmark_yaml_spec accepts numeric values with deprecation warnings."""
+
+        # Only warnings about the field count: CI raises one unrelated warning
+        # while building the model, so the whole list is shown on failure.
+        def spec_warnings(w):
+            return [x for x in w if "benchmark_yaml_spec" in str(x.message)]
+
+        def shown(w):
+            return [f"{x.category.__name__}: {x.message}" for x in w]
+
         # Test float value
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             benchmark = make_benchmark(benchmark_yaml_spec=0.3)
 
             assert benchmark.benchmark_yaml_spec == "0.3"
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "benchmark_yaml_spec" in str(w[0].message)
-            assert "should be a string" in str(w[0].message)
+            spec = spec_warnings(w)
+            assert len(spec) == 1, shown(w)
+            assert issubclass(spec[0].category, FutureWarning)
+            assert "should be a string" in str(spec[0].message)
 
         # Test integer value
         with warnings.catch_warnings(record=True) as w:
@@ -32,10 +41,10 @@ class TestBenchmarkLogicValidation:
             benchmark = make_benchmark(benchmark_yaml_spec=1)
 
             assert benchmark.benchmark_yaml_spec == "1"
-            assert len(w) == 1
-            assert issubclass(w[0].category, FutureWarning)
-            assert "benchmark_yaml_spec" in str(w[0].message)
-            assert "should be a string" in str(w[0].message)
+            spec = spec_warnings(w)
+            assert len(spec) == 1, shown(w)
+            assert issubclass(spec[0].category, FutureWarning)
+            assert "should be a string" in str(spec[0].message)
 
         # Test that strings work without warnings
         with warnings.catch_warnings(record=True) as w:
@@ -43,7 +52,7 @@ class TestBenchmarkLogicValidation:
             benchmark = make_benchmark(benchmark_yaml_spec="0.3")
 
             assert benchmark.benchmark_yaml_spec == "0.3"
-            assert len(w) == 0  # No warnings for string values
+            assert spec_warnings(w) == [], shown(w)  # none for string values
 
         # Test that None works without warnings
         with warnings.catch_warnings(record=True) as w:
@@ -51,7 +60,7 @@ class TestBenchmarkLogicValidation:
             benchmark = make_benchmark(benchmark_yaml_spec=None)
 
             assert benchmark.benchmark_yaml_spec is None
-            assert len(w) == 0  # No warnings for None
+            assert spec_warnings(w) == [], shown(w)  # none for None
 
         # Test that invalid types still raise errors
         with pytest.raises(ValidationError):
