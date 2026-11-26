@@ -223,6 +223,7 @@ jobs:
 
   e2e-clustering-conda:
     name: E2E Clustering Example (Conda)
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     needs: [build]
     steps:
@@ -259,9 +260,10 @@ jobs:
 
       - name: Clone clustering example repo
         run: |
-          git clone --branch main https://github.com/omnibenchmark/clustering_example.git
-          cd clustering_example
-          ls -la
+          # Pinned: its main tracks the full plan (~6500 jobs) and moves on its own.
+          git clone https://github.com/omnibenchmark/clustering_example.git
+          git -C clustering_example checkout 21330f8
+          git -C clustering_example submodule update --init --recursive
 
       - name: Configure conda to use prefix.dev mirror
         working-directory: clustering_example
@@ -284,7 +286,7 @@ jobs:
           set +e  # Don't exit on error immediately
           # Use conda from miniconda installation
           export PATH="$HOME/miniconda/bin:$PATH"
-          ob run Clustering_conda.yml --yes --continue-on-error --unpinned
+          ob run Clustering_conda.yml --dirty --filter slice.obfilter.yaml --cores 4 --continue-on-error
 
       - name: Upload output artifacts
         if: always()
@@ -302,6 +304,7 @@ jobs:
 
   e2e-clustering-apptainer:
     name: E2E Clustering Example (Apptainer)
+    timeout-minutes: 45
     # the apptainer PPA has no 26.04 build; ubuntu-latest falls back to Ubuntu's 1.4.5
     runs-on: ubuntu-24.04
     needs: [build]
@@ -343,14 +346,15 @@ jobs:
 
       - name: Clone clustering example repo
         run: |
-          git clone --branch main https://github.com/omnibenchmark/clustering_example.git
-          cd clustering_example
-          ls -la
+          # Pinned: its main tracks the full plan (~6500 jobs) and moves on its own.
+          git clone https://github.com/omnibenchmark/clustering_example.git
+          git -C clustering_example checkout 21330f8
+          git -C clustering_example submodule update --init --recursive
 
       - name: Run clustering benchmark with apptainer backend
         working-directory: clustering_example
         run: |
-          pixi run micromamba run -n base ob run Clustering_oras.yml --yes --continue-on-error --unpinned
+          pixi run micromamba run -n base ob run Clustering_docker.yml --dirty --filter slice.obfilter.yaml --cores 4 --continue-on-error
 
       - name: Upload output artifacts
         if: always()
