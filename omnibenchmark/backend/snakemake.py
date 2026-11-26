@@ -846,8 +846,27 @@ class SnakemakeGenerator:
         upstream = sorted(
             {_failure_dir(self._nodes_by_id[p[0]]) for p in producers if p}
         )
-        outputs = " ".join(f"$OUTPUT_FILE_{i}" for i in range(len(node.outputs)))
-        prefix = f'OB_NODE={_failure_dir(node)} OB_UPSTREAM="{" ".join(upstream)}" OB_OUTPUTS="{outputs}"'
+        # A foreach output is a pattern, its values known only once the module
+        # has run (design 013); the checkpoint, not the wrapper, checks it.
+        foreach_id = node.foreach[1] if node.foreach else None
+        outputs = " ".join(
+            f"$OUTPUT_FILE_{i}"
+            for i, output_id in enumerate(node.outputs)
+            if output_id != foreach_id
+        )
+        # Below a foreach, node directories hold the rule's wildcards (011),
+        # which a shell block names as `{wildcards.x}`. A producer dir with a
+        # wildcard the node lacks is every value of a foreach the node closes
+        # (`over:`); it is not checked, so the node runs whatever failed there.
+        own = set(re.findall(r"\{(\w+)\}", _failure_dir(node)))
+        upstream = [d for d in upstream if set(re.findall(r"\{(\w+)\}", d)) <= own]
+
+        def shell(path: str) -> str:
+            return re.sub(r"\{(\w+)\}", r"{wildcards.\1}", path)
+
+        node_dir = shell(_failure_dir(node))
+        up = shell(" ".join(upstream))
+        prefix = f'OB_NODE={node_dir} OB_UPSTREAM="{up}" OB_OUTPUTS="{outputs}"'
         if manifest:
             prefix += ' OB_MANIFEST="$MANIFEST"'
         return prefix + " ob_run "
