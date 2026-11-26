@@ -1,12 +1,12 @@
 # 007: Output Folder Layout and Runtime Manifest
 
 [![Status: Draft](https://img.shields.io/badge/Status-Draft-yellow.svg)](https://github.com/omnibenchmark/docs/design)
-[![Version: 2](https://img.shields.io/badge/Version-2-blue.svg)](https://github.com/omnibenchmark/docs/design)
+[![Version: 2](https://img.shields.io/badge/Version-5-blue.svg)](https://github.com/omnibenchmark/docs/design)
 
 **Authors**: ben
 **Date**: 2026-02-19
 **Status**: Draft
-**Version**: 2
+**Version**: 5
 **Supersedes**: N/A
 **Reviewed-by**: TBD
 **Related Issues**: TBD
@@ -19,6 +19,7 @@
 | 0.2 | 2026-08-25 | Fix the parameter-hash cross-reference: 004 §3.7, not §3.8 | ben |
 | 0.3 | 2026-09-29 | §3.1: layout v2 (api 0.8.0): one directory per node, readable view under `by-params/`; nested layout deprecated | ben |
 | 0.4 | 2026-11-04 | §4.6: run log and out-dir identity; `--dry` writes no `.metadata/` | ben |
+| 5 | 2026-11-25 | §3.1.6: a `path` gather grouped by a list nests one key directory per stage below the anchor; readers take them from `lineage.json` `key` | ben |
 
 ## 1. Problem Statement
 
@@ -169,6 +170,7 @@ A gather's directory follows from its grouping:
 out/<S node dir>/<segment>/      # group_by: S, the gather is that node's child (010 §3.2.1)
 out/<segment>/                   # global gather
 out/<S node dir>/<path>/         # group_by: S, with `path`
+out/<A node dir>/<path>/<T.module[.param]>/…   # group_by: [A, T, …], with `path`
 out/<path>/                      # global gather, with `path`
 ```
 
@@ -177,6 +179,7 @@ out/<path>/                      # global gather, with `path`
 - It is the node directory: `lineage.json` and `parameters.json` are written there, and stages below nest inside it.
 - Plan-time errors: a directory another node already writes into, an absolute path, `.` or `..`, a first component reserved by omnibenchmark (`by-params`, dot-directories), a component that reads as a node segment.
 - A custom path has no member digest. A run that prunes members (`--filter`, capabilities) overwrites it.
+- With a `group_by` list ([010 §3.2.2](010-gather.md)), the gathers under one anchor node differ only in their key, so `path` is followed by one directory per listed stage below the anchor, root first, spelled like that stage's node segment (`methods.kmeans.e16c5319`). The last one is the node directory. They parse as node segments, so readers must not take them for nodes of that stage: `lineage.json` lists them under `key` (`stage`, `module`, `params`, `parameters`), and `ob collect` reads them as the gather, `by-params/` names them from the key's `parameters`.
 - Name-only readers do not see a custom path at the top of `out/`: `by-params/` does not mirror it, remote storage does not track it, and `ob collect` drops nodes below it.
 
 ## 4. Runtime Manifest (`manifest.json`)

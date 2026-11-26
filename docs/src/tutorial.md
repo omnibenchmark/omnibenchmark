@@ -367,7 +367,9 @@ out/data.D2/per_dataset.summary-b6d6e298/summary.tsv
 ```
 
 `group_by` accepts any upstream stage. `group_by: methods` would run one job
-per method result (dataset, method and parameters), over its two scores.
+per method result (dataset, method and parameters), over its two scores. A list
+of stages merges a stage in the middle instead; see
+[Compare the variants of a stage](howto.md#compare-the-variants-of-a-stage-with-a-gather).
 
 A gather with `group_by` may also declare `inputs:`. They resolve from the
 group's node or its ancestors, as for any stage below it: `inputs: [data.meta]`

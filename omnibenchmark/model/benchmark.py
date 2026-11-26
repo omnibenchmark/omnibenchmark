@@ -480,11 +480,15 @@ class GatherSpec(BaseModel):
     """A single fan-in: collect nodes producing a shared output id, grouped by
     a stage they descend from (design 010).
 
-    `group_by` is a single **stage id** (not a tuple, not a label): members are
-    partitioned by which node of that stage they descend from — structural
-    grouping over the existing lineage chain, no `provides` labels needed.
-    Omitting it collects every producer into one node, which is the shape a
-    `metric_collector` has. `where` is deferred.
+    `group_by` is a **stage id** or, from api 0.8.0, a list of them (not a
+    label): members are partitioned by which node of the shallowest listed
+    stage they descend from, and further by their module and parameters at the
+    other listed stages (010 §3.2.2). Omitting it collects every producer into
+    one node, which is the shape a `metric_collector` has. `where` is deferred.
+
+    After `Benchmark` validation `group_by` holds the shallowest stage (the
+    anchor: group node, parent and label) and `split_by` the rest, sorted.
+    `split_by` is not a plan key.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -497,10 +501,11 @@ class GatherSpec(BaseModel):
     group_by: Optional[str] = Field(
         None,
         description=(
-            "Stage id to group members by. One gather node is created per "
-            "distinct ancestor module of that stage among the members. A single "
-            "stage id, not a list. Omit it for a global gather: every producer "
-            "collected into one node, with no group segment in the output path."
+            "Stage id, or list of stage ids (api >= 0.8.0), to group members "
+            "by: one gather node per node of the shallowest listed stage, split "
+            "further by module and parameters at the other listed stages. "
+            "Omit it for a global gather: every producer collected into one "
+            "node, with no group segment in the output path."
         ),
     )
     path: Optional[str] = Field(
@@ -512,6 +517,33 @@ class GatherSpec(BaseModel):
             "the output root without. Two gather nodes may not share one."
         ),
     )
+    split_by: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Derived from a `group_by` list, not a plan key: the listed stages "
+            "below the anchor, whose module and parameters split a group."
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def group_by_list(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "split_by" in data:
+            raise ValueError(
+                "gather: `split_by` is not a plan key. List the stages in "
+                "`group_by` instead: `group_by: [CELLCALL, AMBIENT]`."
+            )
+        group_by = data.get("group_by")
+        if isinstance(group_by, list):
+            if not group_by:
+                raise ValueError("gather: `group_by` needs at least one stage id")
+            if len(set(group_by)) != len(group_by):
+                raise ValueError(f"gather: `group_by` repeats a stage: {group_by}")
+            # Provisional: Benchmark validation moves the shallowest stage here.
+            data = {**data, "group_by": group_by[0], "split_by": group_by[1:]}
+        return data
 
 
 class Resources(BaseModel):
@@ -833,7 +865,11 @@ class Stage(DescribableEntity):
         if not froms:
             raise ValueError("gather: `from` needs at least one output id")
         return [
-            {"from": f, "group_by": v.get("group_by"), "path": v.get("path")}
+            {
+                "from": f,
+                "group_by": v.get("group_by"),
+                "path": v.get("path"),
+            }
             for f in froms
         ]
 
@@ -853,9 +889,12 @@ class Stage(DescribableEntity):
             # One axis per stage — including "no axis": mixing a grouped entry
             # with a global one has no meaning, so {None, "data"} is rejected
             # here just like {"data", "method"}.
-            axes = {spec.group_by for spec in self.gather}
+            axes = {
+                frozenset([spec.group_by, *spec.split_by]) if spec.group_by else None
+                for spec in self.gather
+            }
             if len(axes) > 1:
-                shown = sorted(a or "<global>" for a in axes)
+                shown = sorted(",".join(sorted(a)) if a else "<global>" for a in axes)
                 raise ValueError(
                     f"Stage '{self.id}' has gather entries with differing "
                     f"group_by {shown}. A gather stage has one grouping "
@@ -1474,6 +1513,10 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
                     # An unset foreach must not move the hash of existing plans.
                     if io.get("foreach") is None:
                         io.pop("foreach", None)
+            # Unset, it must not change the hash of plans written before it.
+            for spec in entity.get("gather") or []:
+                if not spec.get("split_by"):
+                    spec.pop("split_by", None)
         canonical = _json.dumps(execution, sort_keys=True)
         return _hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -1925,6 +1968,8 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         # `dataset` is legal and stays legal in released 0.6 specs.
         for stage in self.stages:
             for spec in stage.gather or []:
+                if spec.split_by:
+                    self._anchor_group_by(stage, spec, stage_ids)
                 if spec.group_by is None:
                     continue
                 if spec.group_by not in stage_ids:
@@ -1962,6 +2007,54 @@ class Benchmark(DescribableEntity, BenchmarkValidator):
         # Call the pure model validation from the validator base class
         self.validate_model_structure()
         return self
+
+    def _upstream_stages(self, stage_id: str) -> set:
+        """Stage ids `stage_id` transitively consumes from (inputs and gather)."""
+        seen: set = set()
+        todo = [stage_id]
+        while todo:
+            for group in self.get_stage_implicit_inputs(todo.pop()):
+                for input_id in group:
+                    for producer in self.get_stages_by_output(input_id):
+                        if producer.id not in seen:
+                            seen.add(producer.id)
+                            todo.append(producer.id)
+        return seen
+
+    def _anchor_group_by(self, stage: Stage, spec: GatherSpec, stage_ids) -> None:
+        """Move the shallowest stage of a `group_by` list into `group_by`.
+
+        The anchor is the listed stage every other listed stage descends from;
+        it gives the group node, the parent and the label (010 §3.2.2).
+        """
+        listed = [spec.group_by, *spec.split_by]
+        if self.api_version < APIVersion.V0_8_0:
+            raise ValueError(
+                f"Stage '{stage.id}' gathers with `group_by: {listed}`; a list "
+                f"requires api_version >= 0.8.0 (this benchmark declares "
+                f"{self.api_version.value})."
+            )
+        unknown = sorted(set(listed) - set(stage_ids))
+        if unknown:
+            raise ValueError(
+                f"Stage '{stage.id}' gathers with `group_by: {listed}`, but "
+                f"{unknown} is not a known stage id."
+            )
+        upstream = {s: self._upstream_stages(s) for s in listed}
+        anchors = [a for a in listed if all(a in upstream[s] for s in listed if s != a)]
+        if not anchors:
+            raise ValueError(
+                f"Stage '{stage.id}' gathers with `group_by: {listed}`, but no "
+                f"listed stage is upstream of all the others. The shallowest "
+                f"one is the group node; the rest must descend from it."
+            )
+        spec.group_by = anchors[0]
+        # Root first: the order a `path` gather nests the key directories in.
+        order = [st.id for st in self.stages]
+        spec.split_by = sorted(
+            (s for s in listed if s != anchors[0]),
+            key=lambda s: (len(upstream[s]), order.index(s)),
+        )
 
     def validate_execution_context(self, benchmark_dir: Path) -> None:
         """Validate execution context including file paths and environment availability.

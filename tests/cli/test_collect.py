@@ -185,3 +185,27 @@ def test_build_record_flat_skips_dotted_template_subdir(tmp_path):
     record = _build_record(tmp_path, _write_perf(leaf))
 
     assert record["lineage"] == "data/D1/methods/M1"
+
+
+@pytest.mark.short
+def test_build_record_below_a_path_gather_grouped_by_a_list(tmp_path):
+    """010 §3.2.2: the `methods.M1.<param>` directory under a gather's `path`
+    is the gather's key, read from its lineage.json, not a `methods` node."""
+    gather = tmp_path / "data.D1" / "compare" / "methods.M1.aaaaaaaa"
+    gather.mkdir(parents=True)
+    (gather / "lineage.json").write_text(
+        json.dumps(
+            {
+                "kind": "gather",
+                "stage": "compare",
+                "module": "C",
+                "key": [{"stage": "methods", "module": "M1", "params": "aaaaaaaa"}],
+                "members": [],
+            }
+        )
+    )
+    record = _build_record(tmp_path, _write_perf(gather / "report.R1"))
+
+    assert (record["stage"], record["module"]) == ("report", "R1")
+    assert record["dataset"] == "D1"
+    assert record["lineage"] == "data/D1/compare/C/report/R1"

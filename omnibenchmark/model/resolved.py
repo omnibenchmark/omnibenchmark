@@ -267,6 +267,11 @@ class ResolvedNode:
     # upstream closure is recovered (design 010 §3.3).
     gathered_from: List[str] = field(default_factory=list)
 
+    # A gather grouped by several stages (010 §3.2.2): for each stage below
+    # the anchor, the node of the first member there. Members agree on its
+    # module and parameters; a `path` gather nests one directory per entry.
+    gather_key: List[str] = field(default_factory=list)
+
     # Explicit lineage EDGES — the direct parent node ids. The general
     # multi-parent representation (design 010 §5.2): empty for a linear node
     # (its single parent is `parent_id`, recoverable via the id prefix), and the
@@ -359,6 +364,7 @@ class ResolvedNode:
             "parent_id": self.parent_id,
             "parents": self.parents,
             "gathered_from": self.gathered_from,
+            "gather_key": self.gather_key,
             "inputs": self.inputs,
             "outputs": self.outputs,
             "input_name_mapping": self.input_name_mapping,

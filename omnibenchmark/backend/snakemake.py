@@ -714,7 +714,7 @@ class SnakemakeGenerator:
                 entry["lineage"] = self._member_lineage(member) if member else []
                 members[producer_id] = entry
             entry["files"][out_id] = path
-        return {
+        record = {
             "version": 2,
             "node_id": node.id,
             "stage": node.stage_id,
@@ -722,6 +722,21 @@ class SnakemakeGenerator:
             "kind": "gather",
             "members": list(members.values()),
         }
+        if node.gather_key:
+            # What every member shares at the stages of a `group_by` list below
+            # the anchor (010 §3.2.2), in directory order: a `path` gather
+            # nests one `stage.module[.param]` directory per entry.
+            key_nodes = [self._nodes_by_id[nid] for nid in node.gather_key]
+            record["key"] = [
+                {
+                    "stage": n.stage_id,
+                    "module": n.module_id,
+                    "params": n.get_parameter_hash() if n.parameters else None,
+                    "parameters": _parameter_values(n),
+                }
+                for n in key_nodes
+            ]
+        return record
 
     def _write_manifest_rule(self, f: TextIO, node: ResolvedNode, manifest: str):
         """A local run: rule writing the fan-in node's manifest.
