@@ -201,3 +201,27 @@ def test_module_id_with_hyphen_still_warns_before_0_8_0():
             api_version="0.7.0",
             stages=[{"id": "methods", "modules": [{"id": "osta-r-Method"}]}],
         )
+
+
+@pytest.mark.short
+def test_gather_from_unknown_output_rejected():
+    """A typo in `gather.from` fails validation instead of an IndexError at run (#432)."""
+    with pytest.raises(
+        OmnibenchmarkValidationError, match="perhaps you meant 'metrics_json'"
+    ):
+        make_benchmark(
+            api_version="0.7.0",
+            stages=[
+                {
+                    "id": "metric",
+                    "modules": [],
+                    "outputs": [{"id": "metrics_json", "path": "m.json"}],
+                },
+                {
+                    "id": "collect",
+                    "modules": [],
+                    "gather": [{"from": "metrics_metrics"}],
+                    "outputs": [{"id": "summary", "path": "s.json"}],
+                },
+            ],
+        )
