@@ -27,6 +27,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and [Conventi
 - feat: `{module.id}` in a string parameter value expands to the module's id, before hashing (#426)
 - deprecate: `{dataset}` in output path templates; prefer `{module.id}` or `{params.KEY}` (#329)
 - deprecate: plans below api 0.8.0 keep the nested layout and warn at `ob run` (#387)
+- fix: `ob validate plan` rejects a `gather.from` id no stage produces, and suggests the closest output id (#432)
 - fix: a gather over several ids keeps only the nodes that produce all of them (api 0.8.0, #416)
 - fix: a gather's directory carries a digest of its member set (api 0.8.0, #405)
 - fix: a gather whose producers were all pruned, or that the `--filter` left out, is skipped instead of failing (#416)

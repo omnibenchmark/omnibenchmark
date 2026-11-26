@@ -1,5 +1,6 @@
 """Validation logic for benchmark models."""
 
+import difflib
 import os
 from pathlib import Path
 from typing import Dict, List, TYPE_CHECKING, Any, Optional
@@ -7,6 +8,12 @@ from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from .benchmark import SoftwareEnvironment, SoftwareBackendEnum
+
+
+def _did_you_mean(word: str, candidates: List[str]) -> str:
+    """` (perhaps you meant 'x'?)` for the closest candidate, or ''."""
+    close = difflib.get_close_matches(word, candidates, n=1)
+    return f" (perhaps you meant '{close[0]}'?)" if close else ""
 
 
 class ValidationError(Exception):
@@ -154,7 +161,16 @@ class BenchmarkValidator:
                         if input_id not in output_ids:
                             errors.append(
                                 f"Input with id '{input_id}' in stage '{stage.id}' is not valid"  # type: ignore
+                                + _did_you_mean(input_id, output_ids)
                             )
+            for spec in stage.gather or []:  # type: ignore
+                producers = self.get_stages_by_output(spec.from_)  # type: ignore
+                if not any(p.id != stage.id for p in producers):  # type: ignore
+                    errors.append(
+                        f"Stage '{stage.id}' gathers from output id '{spec.from_}', "  # type: ignore
+                        f"which no other stage produces"
+                        + _did_you_mean(spec.from_, output_ids)  # type: ignore
+                    )
 
         # 4. Validate that software environment references exist
         self._validate_software_environments(errors)
