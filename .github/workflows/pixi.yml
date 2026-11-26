@@ -262,7 +262,7 @@ jobs:
         run: |
           # Pinned: its main tracks the full plan (~6500 jobs) and moves on its own.
           git clone https://github.com/omnibenchmark/clustering_example.git
-          git -C clustering_example checkout 21330f8
+          git -C clustering_example checkout 5436d38
           git -C clustering_example submodule update --init --recursive
 
       - name: Configure conda to use prefix.dev mirror
@@ -348,7 +348,7 @@ jobs:
         run: |
           # Pinned: its main tracks the full plan (~6500 jobs) and moves on its own.
           git clone https://github.com/omnibenchmark/clustering_example.git
-          git -C clustering_example checkout 21330f8
+          git -C clustering_example checkout 5436d38
           git -C clustering_example submodule update --init --recursive
 
       - name: Run clustering benchmark with apptainer backend
