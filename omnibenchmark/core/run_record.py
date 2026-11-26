@@ -3,8 +3,9 @@
 `ob run` appends one line per invocation to `out/.metadata/runs.jsonl` (007 §4.6):
 the benchmark identity (`id`, `version`, `summary_hash`) and the selection. The
 readers (`ob validate outputs`, `ob describe status`) compare the plan they were
-given against the recorded identity, never against a hash recomputed from the
-plan copy: a newer ob may hash the same YAML differently.
+given against the recorded identity, not against a hash recomputed from the
+plan copy (a newer ob may hash the same YAML differently). Only an out/ written
+before runs.jsonl existed falls back to the copy.
 """
 
 import hashlib
@@ -15,9 +16,10 @@ from typing import Iterable, List, Optional, Tuple
 
 import yaml
 
+from omnibenchmark.logging import logger
+
 METADATA_DIR = ".metadata"
 RUNLOG = "runs.jsonl"
-MANIFEST = "manifest.json"
 PLAN_COPY = "benchmark.yaml"
 
 
@@ -54,7 +56,7 @@ def selection_of(
 
 def write_run_record(
     out_dir: Path,
-    model,
+    manifest: dict,
     plan_path: Path,
     node_ids: Iterable[str],
     selection: Optional[dict],
@@ -64,14 +66,14 @@ def write_run_record(
 ) -> dict:
     """Append this run to runs.jsonl, next to content-addressed plan, filter and node list.
 
-    Call after `write_run_manifest`: run_id, timestamp and ob_version are read
-    back from it, so the two records cannot disagree about the same run. With
-    telemetry on, run_id is the trace's traceId and *trace* says where the
-    spans went (a file path, or "stdout").
+    *manifest* is what `write_run_manifest` returned: run_id, timestamp,
+    ob_version and the benchmark identity are taken from it, so the two records
+    cannot disagree about the same run. With telemetry on, run_id is the trace's
+    traceId and *trace* says where the spans went (a file path, or "stdout").
     """
     md = Path(out_dir) / METADATA_DIR
     md.mkdir(parents=True, exist_ok=True)
-    bench = benchmark_record(model)
+    bench = manifest["benchmark"]
 
     plan_copy = md / f"benchmark-{bench['summary_hash'][:8]}.yaml"
     if not plan_copy.exists():
@@ -86,11 +88,10 @@ def write_run_record(
     if not (md / nodes_file).exists():
         (md / nodes_file).write_text(json.dumps(nodes, indent=1) + "\n")
 
-    manifest = _read_json(md / MANIFEST) or {}
     line = {
-        "run_id": manifest.get("run_id"),
-        "timestamp": manifest.get("timestamp"),
-        "ob_version": manifest.get("ob_version"),
+        "run_id": manifest["run_id"],
+        "timestamp": manifest["timestamp"],
+        "ob_version": manifest["ob_version"],
         "benchmark": bench,
         "plan": plan_copy.name,
         "selection": selection,
@@ -105,11 +106,16 @@ def write_run_record(
 
 
 def read_runs(out_dir: Path) -> List[dict]:
-    """Every recorded run, oldest first."""
+    """Every recorded run, oldest first.
+
+    A line without a `benchmark` block was written by an unreleased ob in
+    another format; it is skipped, not read as a run.
+    """
     path = Path(out_dir) / METADATA_DIR / RUNLOG
     if not path.is_file():
         return []
-    return [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+    lines = (json.loads(x) for x in path.read_text().splitlines() if x.strip())
+    return [run for run in lines if "benchmark" in run]
 
 
 def recorded_benchmark(out_dir: Path) -> Optional[dict]:
@@ -199,15 +205,22 @@ def check_out_dir(model, out_dir: Path) -> Tuple[List[str], List[str]]:
     return [], notes
 
 
+def refuse_foreign_out_dir(model, out_dir: Path) -> bool:
+    """Log `check_out_dir`'s errors and notes; False if there were errors."""
+    errors, notes = check_out_dir(model, out_dir)
+    for msg in errors:
+        logger.error(msg)
+    if errors:
+        return False
+    for msg in notes:
+        logger.warning(msg)
+    return True
+
+
 def _describe(selection: dict) -> str:
-    ((kind, value),) = selection.items()
-    if kind == "filter":
-        return f"--filter {value['sha256'][:8]}"
-    return f"{'-m' if kind == 'module' else '--' + kind} {value}"
-
-
-def _read_json(path: Path) -> Optional[dict]:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
+    """The CLI flag that made *selection* (see `selection_of`)."""
+    if "module" in selection:
+        return f"-m {selection['module']}"
+    if "until" in selection:
+        return f"--until {selection['until']}"
+    return f"--filter {selection['filter']['sha256'][:8]}"

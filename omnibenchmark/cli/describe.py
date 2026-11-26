@@ -46,16 +46,11 @@ def _rows_to_html_table(
 
 def _refuse_foreign_out_dir(benchmark: str, out_dir: str) -> None:
     """Exit 1 if *out_dir* was built by another benchmark or an older plan."""
-    from omnibenchmark.core.run_record import check_out_dir
+    from omnibenchmark.core.run_record import refuse_foreign_out_dir
     from omnibenchmark.model import Benchmark
 
-    errors, notes = check_out_dir(Benchmark.from_yaml(Path(benchmark)), Path(out_dir))
-    for msg in errors:
-        logger.error(msg)
-    if errors:
+    if not refuse_foreign_out_dir(Benchmark.from_yaml(Path(benchmark)), Path(out_dir)):
         sys.exit(1)
-    for msg in notes:
-        logger.warning(msg)
 
 
 @click.group(name="describe")
