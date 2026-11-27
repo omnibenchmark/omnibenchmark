@@ -526,7 +526,7 @@ class ExecutionPathStage:
                 return "F"
             if not n2f(
                 self.output_is_valid(
-                    type="input_files_newer", cumulative=cumulative, aggregate="all"
+                    type="repo", cumulative=cumulative, aggregate="all"
                 )[0]
             ):
                 return "R"
@@ -777,7 +777,9 @@ class ExecutionPathSet:
                     )
                     filedict[st][de.node]["invalid_output_files"] = filedict[st][
                         de.node
-                    ]["invalid_output_files"].union(set(de.get_output_files("invalid")))
+                    ]["invalid_output_files"].union(
+                        set(de.get_output_files("invalid", cumulative=cumulative))
+                    )
                     filedict[st][de.node][
                         "invalid_output_files_input_file_is_newer"
                     ] = filedict[st][de.node][
